@@ -195,8 +195,8 @@ app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
         bx = res b (deg d (x:d))
         di = delete i d         -- d minus i !!
         u = res v (face d i dir)
-        ufill = fill d a (Box (mirror dir) i []) [u] -- or: Fill? res computes!
-        ux = res u (deg di (x:di))                   -- dim. x:(d-i)
+        ufill = fill d a (Box (mirror dir) i []) [u]
+        ux = res u (deg di (x:di)) -- dim. x:(d-i)
         -- (i,[x])-open box in x:d (some choice on the order..) (mirror dir)
         vs = [ux,ufill,v]
         vsfill = fill (x:d) ax (Box (mirror dir) i [x]) vs
