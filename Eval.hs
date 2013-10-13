@@ -1,9 +1,11 @@
 import Data.List
 import Data.Either
 import Data.Maybe
+import Text.Printf
 
 type Name = Integer
 type Dim = [Name]
+type Dir = Bool
 
 dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
@@ -16,7 +18,7 @@ type Mor = ([(Name, Either Dir Name)], Dim)
 -- I -> J u {0,1}
 
 identity :: Dim -> Mor
-identity d = ([(i,Right i)| i<-d], d)
+identity d = ([(i, Right i) | i <- d], d)
 
 dom :: Mor -> Dim               -- *not* the names f is defined on
 dom (al,cd) = map fst al
@@ -25,10 +27,10 @@ cod :: Mor -> Dim
 cod (al,co) = co
 
 def :: Mor -> Dim
-def (al, co) = [ i | (i,Right _) <- al ]
+def (al, co)  = [ i | (i, Right _) <- al ]
 
 ndef :: Mor -> Dim
-ndef (al, co) = [ i | (i,Left _) <- al ]
+ndef (al, co) = [ i | (i, Left _) <- al ]
 
 -- update f xs ys is (f, xs=ys) (xs and ys fresh)
 update :: Mor -> [Name] -> [Name] -> Mor
@@ -36,10 +38,12 @@ update (al,co) xs ys = (al', co ++ ys)
   where al' = al ++ zipWith (\x y -> (x, Right y)) xs ys
 
 im :: Mor -> Dim
-im (al, _) = [ y | (_,Right y) <- al ]
+im (al, _) = [ y | (_, Right y) <- al ]
 
-ap :: Mor -> Name -> Either Bool Name
-(al, _) `ap` i = fromJust $ lookup i al
+ap :: Mor -> Name -> Either Dir Name
+f@(al, _) `ap` i = case lookup i al of
+  Just x    -> x
+  otherwise -> error $ printf "ap: %s undefined on %s" (show f) (show i)
 
 -- Supposes that f is defined on i
 dap :: Mor -> Name -> Name
@@ -47,22 +51,18 @@ f `dap` i = case f `ap` i of
   Left b -> error "dap: undefined"
   Right x -> x
 
-
 comp :: Mor -> Mor -> Mor -- use diagram order!
-comp f@(af,_) (ag, co) = ([(i,fg i)| i <- dom f], co)
-  where fg i = case lookup i af of
-          Just (Left b) -> Left b
-          Just (Right j) -> fromJust $ lookup j ag
+comp f g = ([(i, (f `ap` i) >>= (g `ap`))| i <- dom f], cod g)
 
 -- Assumption: d <= c
 -- Compute degeneracy map.
 deg :: Dim -> Dim -> Mor
-deg d c = (map (\i -> (i,Right i)) d, c)
+deg d c = (map (\i -> (i, Right i)) d, c)
 
 -- Compute the face map.
 -- (i=b) : d -> d-i
 face :: Dim -> Name -> Dir -> Mor
-face d i b = ((i,Left b):[ (j,Right j) | j <- di ], di)
+face d i b = ((i, Left b):[(j, Right j) | j <- di], di)
   where di = delete i d
 
 -- If f : I->J and f defined on x, then (f-x): I-x -> J-fx
@@ -81,8 +81,6 @@ data Box = Box Dir Name Dim -- for x, J; no I (where x,J subset I)
 --          deriving (Eq,Show)
 
 -- True = Up; False = Down
-
-type Dir = Bool
 
 mirror :: Dir -> Dir
 mirror = not
@@ -284,8 +282,6 @@ rec :: Dim -> Val -> Val -> Val -> Val
 rec _ vz _ VZ = vz
 rec d vz vs (VS v) = app d (app d vs v) (rec d vz vs v)
 rec _ vz vs ne = VRec vz vs ne
-
-
 
 ----
 
