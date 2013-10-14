@@ -1,6 +1,6 @@
 module Eval where
 
-import Control.Monad
+import Control.Monad hiding (ap)
 import Data.List
 import Data.Either
 import Data.Maybe
