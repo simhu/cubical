@@ -6,6 +6,8 @@ import Data.Either
 import Data.Maybe
 import Text.Printf
 
+import Core
+
 type Name = Integer
 type Dim  = [Name]
 type Dir  = Bool
@@ -95,13 +97,6 @@ Left False `direq` False = True
 Left True `direq` True = True
 _ `direq` _ = False
 
-data Ter = Var Int
-         | N | Z | S Ter | Rec Ter Ter Ter
-         | Id Ter Ter Ter | Ref Ter
-         | Trans Ter Ter Ter  -- Trans type eqprof proof
-         | Pi Ter Ter | Lam Ter | App Ter Ter
-  deriving (Show, Eq)
-
 data Val = VN | VZ | VS Val | VRec Val Val Val
          | Ter Ter Env
          | VId Val Val Val      -- ??
@@ -126,7 +121,7 @@ eval' _ _ Z       = VZ
 eval' d e (S t)   = VS (eval' d e t)
 eval' d e (Rec tz ts tn) = rec d (eval' d e tz) (eval' d e ts) (eval' d e tn)
 eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
-eval' d e (Ref a)   = Path $ res (eval' d e a) (deg d ((gensym d):d))
+eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d ((gensym d):d))
 eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
 eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
 eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
