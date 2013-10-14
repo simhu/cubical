@@ -1,11 +1,14 @@
+module Eval where
+
+import Control.Monad
 import Data.List
 import Data.Either
 import Data.Maybe
 import Text.Printf
 
 type Name = Integer
-type Dim = [Name]
-type Dir = Bool
+type Dim  = [Name]
+type Dir  = Bool
 
 dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
@@ -164,7 +167,6 @@ com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
 com d v b vs = Com d v b vs
 
-
 -- Takes a u and returns an open box u's given by the specified faces.
 cubeToBox :: Val -> Dim -> Box -> [Val]
 cubeToBox u d (Box dir i d') = [ res u (face d j b) | (j,b) <- boxshape ]
@@ -177,7 +179,6 @@ appBox :: Dim -> Box -> [Val] -> [Val] -> [Val]
 appBox d (Box _ i d') ws us =
   [ app (delete j d) w u | (w,u,j) <- zip3 ws us idd' ]
   where idd' = i : concatMap (\j -> [j,j]) d'
-
 
 app :: Dim -> Val -> Val -> Val
 app d (Ter (Lam t) e) u = eval' d (u:e) t
@@ -211,7 +212,6 @@ app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
         -- final open box in (app bx vsfill)
         wvfills = wux0:wuis++wsbox'
 app d u v = VApp u v            -- error ?
-
 
 -- TODO: QuickCheck!
 prop_resId :: Val -> Mor -> Bool
@@ -261,11 +261,9 @@ res (Com d u (Box dir i d') vs) f = -- here: i:dom f = d
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 
-
 modBox :: Name -> Dim -> [Val] -> (Name -> Mor) -> [Val]
 modBox i d vs f = zipWith (\j v -> res v (f j)) idd vs
   where idd = i : concatMap (\j -> [j,j]) d
-
 
 -- (box i d vs) f
 -- i  = what we fill along
@@ -273,7 +271,6 @@ modBox i d vs f = zipWith (\j v -> res v (f j)) idd vs
 -- vs = open box
 resBox :: Name -> Dim -> [Val] -> Mor -> [Val]
 resBox i d vs f = modBox i d vs (\j -> f `minus` j)
-
 
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
