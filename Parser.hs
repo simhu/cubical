@@ -7,7 +7,7 @@ import Text.ParserCombinators.Parsec.Token
 import Program
 
 tok :: TokenParser st
-tok = makeTokenParser $ LanguageDef
+tok = makeTokenParser LanguageDef
   { commentStart    = "{-"
   , commentEnd      = "-}"
   , commentLine     = "--"
@@ -16,7 +16,7 @@ tok = makeTokenParser $ LanguageDef
   , identLetter     = letter <|> digit <|> char '_'
   , opStart         = oneOf "\\=.;"
   , opLetter        = oneOf "\\=.;"
-  , reservedNames   = ["Nat", "zero", "succ", "rec"]
+  , reservedNames   = ["Nat", "0", "succ", "rec"]
   , reservedOpNames = ["\\", ".", "=", ";"]
   , caseSensitive   = True
   }

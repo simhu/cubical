@@ -1,6 +1,5 @@
 module Eval where
 
-import Control.Monad hiding (ap)
 import Data.List
 import Data.Either
 import Data.Maybe
@@ -109,6 +108,21 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
          | Res Val Mor
   deriving (Show, Eq)
 
+-- This is ugly!
+-- instance Show Val where
+--   show VN     = "N"
+--   show VZ     = "0"
+--   show (VS x) = "S (" ++ show x ++ ")"
+--   show (VRec v1 v2 v3) = "VRec (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
+--   show (Ter t e)       = "Ter (" ++ show t ++ ") (" ++ show e ++ ")"
+--   show (VId v1 v2 v3)  = "VId (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
+--   show (Path x)        = "Path (" ++ show x ++ ")"
+--   show (VPi v1 v2)     = "VPi (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
+--   show (VApp v1 v2)    = "VApp (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
+--   show (Com d v b vs)  = "Com (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
+--   show (Fill d v b vs) = "Fill (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
+--   show (Res v m)       = "Res (" ++ show v ++ ") (" ++ show m ++ ")"
+
 type Env = [Val]
 
 eval :: Dim -> Val -> Val
@@ -121,7 +135,7 @@ eval' _ _ Z       = VZ
 eval' d e (S t)   = VS (eval' d e t)
 eval' d e (Rec tz ts tn) = rec d (eval' d e tz) (eval' d e ts) (eval' d e tn)
 eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
-eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d ((gensym d):d))
+eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d (gensym d : d))
 eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
 eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
 eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
@@ -130,7 +144,7 @@ eval' d e (Trans c p t) =
     Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
     pv -> error $ "eval': trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
-        e' = map (`res` (deg d (x:d))) e
+        e' = map (`res` deg d (x:d)) e
         box = Box True x []
 
 unPath :: Val -> Val
@@ -138,8 +152,8 @@ unPath (Path v) = v
 unPath v        = error $ "unPath: " ++ show v
 
 fill :: Dim -> Val -> Box -> [Val] -> Val
-fill d VN (Box _ n _) vs = -- vs !! 0
-  res (vs !! 0) (deg (delete n d) d)  -- "trivial" filling for nat
+fill d VN (Box _ n _) vs = -- head vs
+  res (head vs) (deg (delete n d) d)  -- "trivial" filling for nat
 fill d (VId a v0 v1) (Box dir i d') vs =
   Path $ fill (x:d) ax (Box dir i (x:d')) (vx:v0x:v1x:vsx)
   where x   = gensym d   -- i,d' <= d
@@ -157,7 +171,7 @@ fill d v b vs = Fill d v b vs
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Dim -> Val -> Box -> [Val] -> Val
-com d VN (Box dir i d') vs = vs !! 0
+com d VN (Box dir i d') vs = head vs
 com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
 com d v b vs = Com d v b vs
@@ -203,7 +217,7 @@ app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
         wux0 = fill d (app d b ufill) box (appBox d box ws us)
         wuidir = res (app (x:di) (com d (VPi a b) box ws) u) (deg di (x:di))
         -- arrange the i-direction in the right order
-        wuis = if dir == True then [wuidir,wuimdir] else [wuimdir,wuidir]
+        wuis = if dir then [wuidir,wuimdir] else [wuimdir,wuidir]
         -- final open box in (app bx vsfill)
         wvfills = wux0:wuis++wsbox'
 app d u v = VApp u v            -- error ?
@@ -227,8 +241,8 @@ res (VPi a b) f = VPi (res a f) (res b f)
 res (Ter t e) f = eval' (cod f) (map (`res` f) e) t  -- t is a lambda?
 res (VApp u v) f = app (cod f) (res u f) (res v f)
 res (Res v g) f = res v (g `comp` f)   -- right order for comp???
-res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` (mirror dir) =
-  res (vs !! 0) (f `minus` i)
+res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` mirror dir =
+  res (head vs) (f `minus` i)
 res (Fill d u (Box dir i d') vs) f | isJust cand =
   res v (f `minus` j)
   where cand = findIndex (\j -> j `elem` ndef f) d'

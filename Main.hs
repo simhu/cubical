@@ -15,42 +15,45 @@ main = getArgs >>= runInterpreter
   
 runInterpreter :: [FilePath] -> IO ()
 runInterpreter fs = do
-  -- TODO: Do something with the files!
   xs <- parseFiles fs
-  runInputT defaultSettings (loop [] [])
+  runInputT defaultSettings (loop (evalFiles xs []))
   where 
-  parseFiles :: [FilePath] -> IO [[(String,Ter)]]
+  parseFiles :: [FilePath] -> IO [(String,Ter)]
   parseFiles []     = return []
   parseFiles (f:fs) = do
     s <- readFile f
     case parse s of
-      Right p  -> do
-        xs <- parseFiles fs
-        return (fromProgram p ++ xs)      
+      Right p  -> case fromProgram p of
+        Right p -> parseFiles fs >>= \ps -> return (p ++ ps)
+        Left e  -> putStrLn e >> return []
       Left err -> putStrLn ("Parse error in " ++ f ++ ": " ++ err) >> return []
+
+  evalFiles :: [(String,Ter)] -> [Val] -> [(String,Val)]
+  evalFiles [] _ = []
+  evalFiles ((n,x):xs) env = (n,v) : evalFiles xs (env ++ [v])
+    where v = eval' [] env x
   
   -- The main loop. First match on the possible commands then parse and
   -- evaluate the expression.
-  loop :: [(String,Ter)] -> [(String,Ter)] -> InputT IO ()
-  loop env ctx = do
-    input <- getInputLine "> "
+  loop :: [(String,Val)] -> InputT IO ()
+  loop env = do
+    input <- getInputLine "cubigle> "
     case input of
-      Nothing   -> loop env ctx
-      Just ":q" -> return ()
-      Just ":r" -> lift $ runInterpreter fs
-      Just ":h" -> outputStrLn help >> loop env ctx
+      Nothing    -> outputStrLn help >> loop env
+      Just ":q"  -> return ()
+      Just ":r"  -> lift $ runInterpreter fs
+      Just ":h"  -> outputStrLn help >> loop env
       Just input -> case parseExp input of
-        Left err -> outputStrLn ("Parse error: " ++ err) >> loop env ctx
-        -- TODO: Call eval' with the environment!
-        Right p  -> case eval' [] [] p of
---          Left err -> outputStrLn ("Eval error: " ++ err) >> loop env ctx
---          Right v  -> outputStrLn (show v) >> loop env ctx
-         -- TODO: Output Error from eval'? 
-         v  -> outputStrLn (show v) >> loop env ctx
+        Left err -> outputStrLn ("Parse error: " ++ err) >> loop env
+        Right p  -> case eval' [] (map snd env) p of
+        -- TODO: Output Error from eval'? Should not be necessary after type checking...
+        -- Left err -> outputStrLn ("Eval error: " ++ err) >> loop env
+        -- Right v  -> outputStrLn (show v) >> loop env
+          v  -> outputStrLn (show v) >> loop env
     where
     parseExp :: String -> Either String Ter
     parseExp input = case P.parse (term >>= \x -> P.eof >> return x) "" input of
-      Right e  -> Right $ removeNames e
+      Right e  -> removeNames (map fst env) e 
       Left err -> Left $ show err
  
     help :: String

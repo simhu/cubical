@@ -1,4 +1,6 @@
-module Program (Program, Args, Expr(..)) where
+module Program (Program, Args, Expr(..), freeVars) where
+
+import Data.List ((\\))
 
 -- The non-core language:
 type Program = [(String,Args,Expr)]
@@ -14,6 +16,14 @@ data Expr = Lam [String] Expr
           | Rec Expr Expr Expr
 -- ...      
 
+freeVars :: Expr -> [String]
+freeVars (Lam xs e)     = freeVars e \\ xs
+freeVars (App e1 e2)    = freeVars e1 ++ freeVars e2
+freeVars (Var x)        = [x]
+freeVars (S e)          = freeVars e
+freeVars (Rec e1 e2 e3) = freeVars e1 ++ freeVars e2 ++ freeVars e3
+freeVars _              = []
+
 -- TODO: Finish!
 instance Show Expr where
   show (Lam xs t)              = "\\" ++ unwords xs ++ ". " ++ show t
@@ -22,7 +32,6 @@ instance Show Expr where
   show (App t1 (Var v))        = "(" ++ show t1 ++ ") " ++ v
   show (App t1 t2)             = "(" ++ show t1 ++ ") (" ++ show t2 ++ ")"
   show (Var v)                 = v
-
 
 
 -- data Ter = Var Int
