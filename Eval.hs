@@ -103,10 +103,17 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
 --         | VTrans Val Val Val   -- ?? needed
          | VPi Val Val
          | VApp Val Val
+         | VSigma Val Val | VPair Val Val
+         | VP Val | VQ Val      -- ??
          | Com Dim Val Box [Val]
          | Fill Dim Val Box [Val]   -- enough?
          | Res Val Mor
   deriving (Show, Eq)
+
+-- An open box (the list of Val's in Com and Fill) is organized as
+-- follows: if the Box is (Box dir i [i1,i2,..,in]), then the value vs
+-- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
+-- d-i and vjb of dim d-ij.
 
 -- This is ugly!
 -- instance Show Val where
@@ -136,9 +143,6 @@ eval' d e (S t)   = VS (eval' d e t)
 eval' d e (Rec tz ts tn) = rec d (eval' d e tz) (eval' d e ts) (eval' d e tn)
 eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
 eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d (gensym d : d))
-eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
-eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
-eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
 eval' d e (Trans c p t) =
   case eval' d e p of
     Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
@@ -146,6 +150,26 @@ eval' d e (Trans c p t) =
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
         box = Box True x []
+eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
+eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
+eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
+eval' d e (Sigma a b) = VSigma (eval' d e a) (eval' d e b)
+eval' d e (Pair r s) = pair (eval' d e r) (eval' d e s)
+eval' d e (P r) = p (eval' d e r)
+eval' d e (Q r) = q (eval' d e r)
+
+p :: Val -> Val
+p (VPair v w) = v
+p v = VP v
+
+q :: Val -> Val
+q (VPair v w) = w
+q v = VQ v
+
+pair :: Val -> Val -> Val
+-- no surjective pairing for now
+--pair (VP v) (VQ v') | v == v' = v
+pair v w = VPair v w
 
 unPath :: Val -> Val
 unPath (Path v) = v
@@ -165,6 +189,10 @@ fill d (VId a v0 v1) (Box dir i d') vs =
         (vx:vsx) = modBox i d' (map unPath vs)
                     (\j -> let dj = delete j d
                            in update (identity dj) [gensym dj] [x])
+fill d (VSigma va vb) box vs = fill d (app d vb a) box bs
+  where as = map p vs
+        bs = map q vs
+        a = fill d va box as
 fill d v b vs = Fill d v b vs
 
 -- composition
@@ -174,6 +202,8 @@ com :: Dim -> Val -> Box -> [Val] -> Val
 com d VN (Box dir i d') vs = head vs
 com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
+com d (VSigma va vb) (Box dir i d') vs = -- should actually work (?)
+  res (fill d (VSigma va vb) (Box dir i d') vs) (face d i dir)
 com d v b vs = Com d v b vs
 
 -- Takes a u and returns an open box u's given by the specified faces.
@@ -240,6 +270,10 @@ res (Path v) f = Path $ res v (update f [gensym $ dom f] [gensym $ cod f])
 res (VPi a b) f = VPi (res a f) (res b f)
 res (Ter t e) f = eval' (cod f) (map (`res` f) e) t  -- t is a lambda?
 res (VApp u v) f = app (cod f) (res u f) (res v f)
+res (VSigma a b) f = VSigma (res a f) (res b f)
+res (VPair r s) f = pair (res r f) (res s f)
+res (VP r) f = p (res r f)
+res (VQ r) f = q (res r f)
 res (Res v g) f = res v (g `comp` f)   -- right order for comp???
 res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` mirror dir =
   res (head vs) (f `minus` i)
