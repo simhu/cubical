@@ -3,7 +3,6 @@ module Eval where
 import Data.List
 import Data.Either
 import Data.Maybe
-import Text.Printf
 
 import Core
 
@@ -48,7 +47,7 @@ im (al, _) = [ y | (_, Right y) <- al ]
 ap :: Mor -> Name -> Either Dir Name
 f@(al, _) `ap` i = case lookup i al of
   Just x    -> x
-  otherwise -> error $ printf "ap: %s undefined on %s" (show f) (show i)
+  otherwise -> error $ "ap: " ++ show f ++ " undefined on " ++ show i
 
 -- Supposes that f is defined on i
 dap :: Mor -> Name -> Name
@@ -102,11 +101,15 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
          | VId Val Val Val      -- ??
          | Path Val             -- tag values which are paths
 --         | VTrans Val Val Val   -- ?? needed
-         | VExt Dim Val Val Val Val -- has dimension (dim:gensym dim)
+         | VExt Dim Val Val Val Val -- has dimension (gensym dim:dim)
          | VPi Val Val
          | VApp Val Val
          | VSigma Val Val | VPair Val Val
          | VP Val | VQ Val      -- ??
+         | VInh Val
+         | VInc Dim Val         -- dim needed?
+         | VSquash Dim Val Val  -- has dimension (gensym dim:dim)
+         | VInhRec Val Val Val Val
          | Com Dim Val Box [Val]
          | Fill Dim Val Box [Val]   -- enough?
          | Res Val Mor
@@ -149,7 +152,7 @@ eval' d e (Trans c p t) =
   case eval' d e p of
     -- buggy?
     -- Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
-    -- not quite sure whether to handle the c parameter lambda or with free var
+    -- not quite sure whether to handle the c parameter lambda'd or with free var
     Path pv -> com (x:d) (app (x:d) (eval' (x:d) e' c) pv) box [eval' d e t]
     pv -> error $ "eval': trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
@@ -167,6 +170,29 @@ eval' d e (Pair r s) = pair (eval' d e r) (eval' d e s)
 eval' d e (P r) = p (eval' d e r)
 eval' d e (Q r) = q (eval' d e r)
 
+eval' d e (Inh a) = VInh (eval' d e a)
+eval' d e (Inc t) = VInc d (eval' d e t)
+eval' d e (Squash r s) = Path $ VSquash d (eval' d e r) (eval' d e s)
+eval' d e (InhRec b p phi a) = inhrec (eval' d e b) (eval' d e p)
+                               (eval' d e phi) (eval' d e a)
+
+inhrec :: Val -> Val -> Val -> Val -> Val
+inhrec _ _ phi (VInc d a) = app d phi a
+inhrec b p phi (VSquash d a0 a1) = -- dim. of b,p,phi is x:d
+  app d' (app d' p b0) b1
+  where x = gensym d
+        fc w dir = res w (face (x:d) x dir)
+        b0 = inhrec (fc b False) (fc p False) (fc phi False) a0
+        b1 = inhrec (fc b True) (fc p True) (fc phi True) a1
+        d' = delete x d
+inhrec b p phi (Fill d (VInh a) box@(Box dir i d') vs) =
+  fill d b box bs
+  where bs = zipWith irec boxshape vs
+        boxshape = (i,dir) : zip dd' (cycle [True,False])
+        dd' = concatMap (\j -> [j,j]) d'
+        irec (j,dir) v = inhrec (fc b) (fc p) (fc phi) v
+          where fc v = res v (face d j dir)
+inhrec b p phi a = VInhRec b p phi a
 
 p :: Val -> Val
 p (VPair v w) = v
@@ -296,7 +322,7 @@ res (VSigma a b) f = VSigma (res a f) (res b f)
 res (VPair r s) f = pair (res r f) (res s f)
 res (VP r) f = p (res r f)
 res (VQ r) f = q (res r f)
-res (Res v g) f = res v (g `comp` f)   -- right order for comp???
+res (Res v g) f = res v (g `comp` f)
 res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` mirror dir =
   res (head vs) (f `minus` i)
 res (Fill d u (Box dir i d') vs) f | isJust cand =
@@ -355,7 +381,9 @@ rec _ vz _ VZ = vz
 rec d vz vs (VS v) = app d (app d vs v) (rec d vz vs v)
 rec _ vz vs ne = VRec vz vs ne
 
-----
+
+
+-- Some examples.
 
 ex1 = Rec Z (Lam (Lam (S $ Var 0))) (S (S (S Z)))
 

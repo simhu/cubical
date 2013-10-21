@@ -14,6 +14,12 @@ data Ter = Var Int
          | Ext Ter Ter Ter Ter -- Ext B f g p (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
          | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
+         | Inh Ter  -- Inh A is an h-prop stating that A is inhabited.
+           -- Here we take h-prop A as (Pi x y : A) Id A x y.
+         | Inc Ter              -- Inc a : Inh A for a:A (A not needed ??)
+         | Squash Ter Ter       -- Squash a b : Id (Inh A) a b
+         | InhRec Ter Ter Ter Ter -- InhRec B p phi a : B,
+           -- p:hprop(B), phi:A->B, a:Inh A (cf. HoTT-book p.113)
   deriving Eq
 
 -- Show instance for terms which insert names instead of De Bruijn
