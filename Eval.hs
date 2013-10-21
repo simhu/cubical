@@ -15,6 +15,7 @@ dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
 
 gensym :: Dim -> Name
+gensym [] = 0
 gensym xs = maximum xs + 1
 
 -- all *very* hackish
@@ -146,7 +147,10 @@ eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
 eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d (gensym d : d))
 eval' d e (Trans c p t) =
   case eval' d e p of
-    Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
+    -- buggy?
+    -- Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
+    -- not quite sure whether to handle the c parameter lambda or with free var
+    Path pv -> com (x:d) (app (x:d) (eval' (x:d) e' c) pv) box [eval' d e t]
     pv -> error $ "eval': trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
@@ -354,4 +358,37 @@ rec _ vz vs ne = VRec vz vs ne
 ----
 
 ex1 = Rec Z (Lam (Lam (S $ Var 0))) (S (S (S Z)))
+
+-- recid 0 = 0; recid (S n) = S (recid n)
+recid = Lam (Rec Z (Lam (Lam (S $ Var 0))) (Var 0))
+
+ident = Lam (Var 0)
+
+suctransp :: Ter -> Ter -> Ter  -- p : n=m; suctransp n p : Sn=Sm
+--suctransp n p = Trans (Lam (Id N (S n) (S $ Var 0))) p (Refl (S n))
+suctransp n p = Trans (Lam $ Id N (S n) (S $ Var 0)) p (Refl (S n))
+
+-- all n:N, ident n = recid n
+idisrecid = Lam $ Rec (Refl Z) (Lam (Lam $ suctransp (Var 1) (Var 0))) (Var 0)
+
+extidisrecid = Ext (Lam N) ident recid idisrecid
+
+
+plus :: Ter -> Ter -> Ter
+plus n m = Rec n (Lam $ Lam $ S (Var 0)) m
+
+addtwothree = eval' [] [] $ plus (S (S Z)) (S (S (S Z)))
+
+-- \f. f2 + f3 of type (N->N)->N
+addvals = Lam $ plus (App (Var 0) (S (S Z))) (App (Var 0) (S (S (S Z))))
+
+-- {f g} (p : f = g) -> addvals f = addvals g
+addvresp f g p = Trans (Lam $ Id N (App addvals $ Var 0) (App addvals f))
+                 p (Refl (App addvals f))
+
+cn :: Int -> Ter
+cn 0 = Z
+cn n = S (cn (n-1))
+
+
 
