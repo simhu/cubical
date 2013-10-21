@@ -1,9 +1,15 @@
+module Eval where
+
 import Data.List
 import Data.Either
 import Data.Maybe
+import Text.Printf
+
+import Core
 
 type Name = Integer
-type Dim = [Name]
+type Dim  = [Name]
+type Dir  = Bool
 
 dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
@@ -16,7 +22,7 @@ type Mor = ([(Name, Either Dir Name)], Dim)
 -- I -> J u {0,1}
 
 identity :: Dim -> Mor
-identity d = ([(i,Right i)| i<-d], d)
+identity d = ([(i, Right i) | i <- d], d)
 
 dom :: Mor -> Dim               -- *not* the names f is defined on
 dom (al,cd) = map fst al
@@ -25,10 +31,10 @@ cod :: Mor -> Dim
 cod (al,co) = co
 
 def :: Mor -> Dim
-def (al, co) = [ i | (i,Right _) <- al ]
+def (al, co)  = [ i | (i, Right _) <- al ]
 
 ndef :: Mor -> Dim
-ndef (al, co) = [ i | (i,Left _) <- al ]
+ndef (al, co) = [ i | (i, Left _) <- al ]
 
 -- update f xs ys is (f, xs=ys) (xs and ys fresh)
 update :: Mor -> [Name] -> [Name] -> Mor
@@ -36,10 +42,12 @@ update (al,co) xs ys = (al', co ++ ys)
   where al' = al ++ zipWith (\x y -> (x, Right y)) xs ys
 
 im :: Mor -> Dim
-im (al, _) = [ y | (_,Right y) <- al ]
+im (al, _) = [ y | (_, Right y) <- al ]
 
-ap :: Mor -> Name -> Either Bool Name
-(al, _) `ap` i = fromJust $ lookup i al
+ap :: Mor -> Name -> Either Dir Name
+f@(al, _) `ap` i = case lookup i al of
+  Just x    -> x
+  otherwise -> error $ printf "ap: %s undefined on %s" (show f) (show i)
 
 -- Supposes that f is defined on i
 dap :: Mor -> Name -> Name
@@ -47,22 +55,18 @@ f `dap` i = case f `ap` i of
   Left b -> error "dap: undefined"
   Right x -> x
 
-
 comp :: Mor -> Mor -> Mor -- use diagram order!
-comp f@(af,_) (ag, co) = ([(i,fg i)| i <- dom f], co)
-  where fg i = case lookup i af of
-          Just (Left b) -> Left b
-          Just (Right j) -> fromJust $ lookup j ag
+comp f g = ([(i, (f `ap` i) >>= (g `ap`))| i <- dom f], cod g)
 
 -- Assumption: d <= c
 -- Compute degeneracy map.
 deg :: Dim -> Dim -> Mor
-deg d c = (map (\i -> (i,Right i)) d, c)
+deg d c = (map (\i -> (i, Right i)) d, c)
 
 -- Compute the face map.
 -- (i=b) : d -> d-i
 face :: Dim -> Name -> Dir -> Mor
-face d i b = ((i,Left b):[ (j,Right j) | j <- di ], di)
+face d i b = ((i, Left b):[(j, Right j) | j <- di], di)
   where di = delete i d
 
 -- If f : I->J and f defined on x, then (f-x): I-x -> J-fx
@@ -82,8 +86,6 @@ data Box = Box Dir Name Dim -- for x, J; no I (where x,J subset I)
 
 -- True = Up; False = Down
 
-type Dir = Bool
-
 mirror :: Dir -> Dir
 mirror = not
 -- mirror Up = Down
@@ -94,24 +96,40 @@ Left False `direq` False = True
 Left True `direq` True = True
 _ `direq` _ = False
 
-data Ter = Var Int
-         | N | Z | S Ter | Rec Ter Ter Ter
-         | Id Ter Ter Ter | Ref Ter
-         | Trans Ter Ter Ter  -- Trans type eqprof proof
-         | Pi Ter Ter | Lam Ter | App Ter Ter
-  deriving (Show, Eq)
-
 data Val = VN | VZ | VS Val | VRec Val Val Val
          | Ter Ter Env
          | VId Val Val Val      -- ??
          | Path Val             -- tag values which are paths
 --         | VTrans Val Val Val   -- ?? needed
+         | VExt Dim Val Val Val Val -- has dimension (dim:gensym dim)
          | VPi Val Val
          | VApp Val Val
+         | VSigma Val Val | VPair Val Val
+         | VP Val | VQ Val      -- ??
          | Com Dim Val Box [Val]
          | Fill Dim Val Box [Val]   -- enough?
          | Res Val Mor
   deriving (Show, Eq)
+
+-- An open box (the list of Val's in Com and Fill) is organized as
+-- follows: if the Box is (Box dir i [i1,i2,..,in]), then the value vs
+-- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
+-- d-i and vjb of dim d-ij.  The "dir" indicates the *missing* face.
+
+-- This is ugly!
+-- instance Show Val where
+--   show VN     = "N"
+--   show VZ     = "0"
+--   show (VS x) = "S (" ++ show x ++ ")"
+--   show (VRec v1 v2 v3) = "VRec (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
+--   show (Ter t e)       = "Ter (" ++ show t ++ ") (" ++ show e ++ ")"
+--   show (VId v1 v2 v3)  = "VId (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
+--   show (Path x)        = "Path (" ++ show x ++ ")"
+--   show (VPi v1 v2)     = "VPi (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
+--   show (VApp v1 v2)    = "VApp (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
+--   show (Com d v b vs)  = "Com (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
+--   show (Fill d v b vs) = "Fill (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
+--   show (Res v m)       = "Res (" ++ show v ++ ") (" ++ show m ++ ")"
 
 type Env = [Val]
 
@@ -125,25 +143,47 @@ eval' _ _ Z       = VZ
 eval' d e (S t)   = VS (eval' d e t)
 eval' d e (Rec tz ts tn) = rec d (eval' d e tz) (eval' d e ts) (eval' d e tn)
 eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
-eval' d e (Ref a)   = Path $ res (eval' d e a) (deg d ((gensym d):d))
-eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
-eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
-eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
+eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d (gensym d : d))
 eval' d e (Trans c p t) =
   case eval' d e p of
     Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
     pv -> error $ "eval': trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
-        e' = map (`res` (deg d (x:d))) e
+        e' = map (`res` deg d (x:d)) e
         box = Box True x []
+-- eval' d e (Ext a b f g p) = Path $ VExt d (eval' d e a) (eval' d e b)
+--                             (eval' d e f) (eval' d e g) (eval' d e p)
+eval' d e (Ext b f g p) =
+  Path $ VExt d (eval' d e b) (eval' d e f) (eval' d e g) (eval' d e p)
+eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
+eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
+eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
+eval' d e (Sigma a b) = VSigma (eval' d e a) (eval' d e b)
+eval' d e (Pair r s) = pair (eval' d e r) (eval' d e s)
+eval' d e (P r) = p (eval' d e r)
+eval' d e (Q r) = q (eval' d e r)
+
+
+p :: Val -> Val
+p (VPair v w) = v
+p v = VP v
+
+q :: Val -> Val
+q (VPair v w) = w
+q v = VQ v
+
+pair :: Val -> Val -> Val
+-- no surjective pairing for now
+--pair (VP v) (VQ v') | v == v' = v
+pair v w = VPair v w
 
 unPath :: Val -> Val
 unPath (Path v) = v
 unPath v        = error $ "unPath: " ++ show v
 
 fill :: Dim -> Val -> Box -> [Val] -> Val
-fill d VN (Box _ n _) vs = -- vs !! 0
-  res (vs !! 0) (deg (delete n d) d)  -- "trivial" filling for nat
+fill d VN (Box _ n _) vs = -- head vs
+  res (head vs) (deg (delete n d) d)  -- "trivial" filling for nat
 fill d (VId a v0 v1) (Box dir i d') vs =
   Path $ fill (x:d) ax (Box dir i (x:d')) (vx:v0x:v1x:vsx)
   where x   = gensym d   -- i,d' <= d
@@ -155,17 +195,22 @@ fill d (VId a v0 v1) (Box dir i d') vs =
         (vx:vsx) = modBox i d' (map unPath vs)
                     (\j -> let dj = delete j d
                            in update (identity dj) [gensym dj] [x])
+fill d (VSigma va vb) box vs = fill d (app d vb a) box bs
+  where as = map p vs
+        bs = map q vs
+        a = fill d va box as
 fill d v b vs = Fill d v b vs
 
 -- composition
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Dim -> Val -> Box -> [Val] -> Val
-com d VN (Box dir i d') vs = vs !! 0
+com d VN (Box dir i d') vs = head vs
 com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
+com d (VSigma va vb) (Box dir i d') vs = -- should actually work (?)
+  res (fill d (VSigma va vb) (Box dir i d') vs) (face d i dir)
 com d v b vs = Com d v b vs
-
 
 -- Takes a u and returns an open box u's given by the specified faces.
 cubeToBox :: Val -> Dim -> Box -> [Val]
@@ -179,7 +224,6 @@ appBox :: Dim -> Box -> [Val] -> [Val] -> [Val]
 appBox d (Box _ i d') ws us =
   [ app (delete j d) w u | (w,u,j) <- zip3 ws us idd' ]
   where idd' = i : concatMap (\j -> [j,j]) d'
-
 
 app :: Dim -> Val -> Val -> Val
 app d (Ter (Lam t) e) u = eval' d (u:e) t
@@ -209,11 +253,22 @@ app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
         wux0 = fill d (app d b ufill) box (appBox d box ws us)
         wuidir = res (app (x:di) (com d (VPi a b) box ws) u) (deg di (x:di))
         -- arrange the i-direction in the right order
-        wuis = if dir == True then [wuidir,wuimdir] else [wuimdir,wuidir]
+        wuis = if dir then [wuidir,wuimdir] else [wuimdir,wuidir]
         -- final open box in (app bx vsfill)
         wvfills = wux0:wuis++wsbox'
+app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
+  com (y:d) (app (y:d) bvxy wy) (Box True y [x]) [pvxw,left,right]
+  -- NB: there are various choices how to construct this
+  where x = gensym d'
+        y = gensym d
+        bvxy = res bv (deg d' (y:d))
+        wy = res w (deg d (y:d))
+        w0 = res w (face d x False)
+        dg = deg d' (y:d')
+        left = res (app d' fv w0) dg
+        right = app (y:d') (res gv dg) w
+        pvxw = unPath $ app d' pv w0
 app d u v = VApp u v            -- error ?
-
 
 -- TODO: QuickCheck!
 prop_resId :: Val -> Mor -> Bool
@@ -233,9 +288,13 @@ res (Path v) f = Path $ res v (update f [gensym $ dom f] [gensym $ cod f])
 res (VPi a b) f = VPi (res a f) (res b f)
 res (Ter t e) f = eval' (cod f) (map (`res` f) e) t  -- t is a lambda?
 res (VApp u v) f = app (cod f) (res u f) (res v f)
+res (VSigma a b) f = VSigma (res a f) (res b f)
+res (VPair r s) f = pair (res r f) (res s f)
+res (VP r) f = p (res r f)
+res (VQ r) f = q (res r f)
 res (Res v g) f = res v (g `comp` f)   -- right order for comp???
-res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` (mirror dir) =
-  res (vs !! 0) (f `minus` i)
+res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` mirror dir =
+  res (head vs) (f `minus` i)
 res (Fill d u (Box dir i d') vs) f | isJust cand =
   res v (f `minus` j)
   where cand = findIndex (\j -> j `elem` ndef f) d'
@@ -260,14 +319,22 @@ res (Com d u (Box dir i d') vs) f = -- here: i:dom f = d
         ytodir = face (y:co) y dir   -- (y=dir):co,y -> co
         -- note that: (i=dir) f = (i=x) (f,x=y) (y=dir)
         g = itox `comp` fxtoy   -- defined on x, hence non-circular call to res
+res (VExt d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
+  VExt d' (res bv fminusx) (res fv fminusx) (res gv fminusx) (res pv fminusx)
+  where x = gensym d
+        -- f-x : d -> d', where cod f = gensym d':d', f(x) = gensym d' ?
+        fminusx = f `minus` x
+        d' = cod fminusx
+res (VExt d bv fv gv pv) f | (f `ap` x) `direq` False = res fv (f `minus` x)
+  where x = gensym d
+res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
+  where x = gensym d
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
-
 
 modBox :: Name -> Dim -> [Val] -> (Name -> Mor) -> [Val]
 modBox i d vs f = zipWith (\j v -> res v (f j)) idd vs
   where idd = i : concatMap (\j -> [j,j]) d
-
 
 -- (box i d vs) f
 -- i  = what we fill along
@@ -276,7 +343,6 @@ modBox i d vs f = zipWith (\j v -> res v (f j)) idd vs
 resBox :: Name -> Dim -> [Val] -> Mor -> [Val]
 resBox i d vs f = modBox i d vs (\j -> f `minus` j)
 
-
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
 
@@ -284,8 +350,6 @@ rec :: Dim -> Val -> Val -> Val -> Val
 rec _ vz _ VZ = vz
 rec d vz vs (VS v) = app d (app d vs v) (rec d vz vs v)
 rec _ vz vs ne = VRec vz vs ne
-
-
 
 ----
 

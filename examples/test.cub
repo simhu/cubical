@@ -1,0 +1,17 @@
+-- Some tests
+
+id x = x;
+zero = 0;
+s n = succ n;
+
+const x y = x;
+
+-- This is nuts!
+crazy = crazy;
+
+omega = (\x. x x) (\x. x x);
+
+{- test that we can call things defined later in the file: -}
+
+bepa = apa;
+apa = 0;
