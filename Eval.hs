@@ -101,6 +101,7 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
          | VId Val Val Val      -- ??
          | Path Val             -- tag values which are paths
 --         | VTrans Val Val Val   -- ?? needed
+         | VExt Dim Val Val Val Val -- has dimension (dim:gensym dim)
          | VPi Val Val
          | VApp Val Val
          | VSigma Val Val | VPair Val Val
@@ -113,7 +114,7 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
 -- An open box (the list of Val's in Com and Fill) is organized as
 -- follows: if the Box is (Box dir i [i1,i2,..,in]), then the value vs
 -- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
--- d-i and vjb of dim d-ij.
+-- d-i and vjb of dim d-ij.  The "dir" indicates the *missing* face.
 
 -- This is ugly!
 -- instance Show Val where
@@ -150,6 +151,10 @@ eval' d e (Trans c p t) =
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
         box = Box True x []
+-- eval' d e (Ext a b f g p) = Path $ VExt d (eval' d e a) (eval' d e b)
+--                             (eval' d e f) (eval' d e g) (eval' d e p)
+eval' d e (Ext b f g p) =
+  Path $ VExt d (eval' d e b) (eval' d e f) (eval' d e g) (eval' d e p)
 eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
 eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
 eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
@@ -157,6 +162,7 @@ eval' d e (Sigma a b) = VSigma (eval' d e a) (eval' d e b)
 eval' d e (Pair r s) = pair (eval' d e r) (eval' d e s)
 eval' d e (P r) = p (eval' d e r)
 eval' d e (Q r) = q (eval' d e r)
+
 
 p :: Val -> Val
 p (VPair v w) = v
@@ -250,6 +256,18 @@ app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
         wuis = if dir then [wuidir,wuimdir] else [wuimdir,wuidir]
         -- final open box in (app bx vsfill)
         wvfills = wux0:wuis++wsbox'
+app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
+  com (y:d) (app (y:d) bvxy wy) (Box True y [x]) [pvxw,left,right]
+  -- NB: there are various choices how to construct this
+  where x = gensym d'
+        y = gensym d
+        bvxy = res bv (deg d' (y:d))
+        wy = res w (deg d (y:d))
+        w0 = res w (face d x False)
+        dg = deg d' (y:d')
+        left = res (app d' fv w0) dg
+        right = app (y:d') (res gv dg) w
+        pvxw = unPath $ app d' pv w0
 app d u v = VApp u v            -- error ?
 
 -- TODO: QuickCheck!
@@ -301,6 +319,16 @@ res (Com d u (Box dir i d') vs) f = -- here: i:dom f = d
         ytodir = face (y:co) y dir   -- (y=dir):co,y -> co
         -- note that: (i=dir) f = (i=x) (f,x=y) (y=dir)
         g = itox `comp` fxtoy   -- defined on x, hence non-circular call to res
+res (VExt d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
+  VExt d' (res bv fminusx) (res fv fminusx) (res gv fminusx) (res pv fminusx)
+  where x = gensym d
+        -- f-x : d -> d', where cod f = gensym d':d', f(x) = gensym d' ?
+        fminusx = f `minus` x
+        d' = cod fminusx
+res (VExt d bv fv gv pv) f | (f `ap` x) `direq` False = res fv (f `minus` x)
+  where x = gensym d
+res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
+  where x = gensym d
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 

@@ -11,11 +11,13 @@ data Ter = Var Int
          | N | Z | S Ter | Rec Ter Ter Ter
          | Id Ter Ter Ter | Refl Ter
          | Trans Ter Ter Ter  -- Trans type eqprof proof
+         | Ext Ter Ter Ter Ter -- Ext B f g p (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
          | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
   deriving Eq
 
--- Show instance for terms which insert names instead of De Bruijn indices
+-- Show instance for terms which insert names instead of De Bruijn
+-- indices
 instance Show Ter where
   show e = runReader (show' e) ([],0)
     where
@@ -39,11 +41,11 @@ instance Show Ter where
 
     vars = ["x","y","z"] ++ [ 'x' : show i | i <- [0..]]
 
--- Take a program, construct a call-graph and then compute the strongly
--- connected components. These correspond to the mutually recursive functions.
--- For now we forget these as recursion is not supported. This topologically
--- sorts the input functions which makes it possible to call constants defined
--- later in the file.
+-- Take a program, construct a call-graph and then compute the
+-- strongly connected components. These correspond to the mutually
+-- recursive functions.  For now we forget these as recursion is not
+-- supported. This topologically sorts the input functions which makes
+-- it possible to call constants defined later in the file.
 fromProgram :: P.Program -> Either String [(String,Ter)]
 fromProgram p = liftM (zip ns) $ sequence [ removeNames ns t | (n,t) <- ts ]
   where -- Turn "f x y z = t" into "f = \x y z. t"
@@ -52,8 +54,8 @@ fromProgram p = liftM (zip ns) $ sequence [ removeNames ns t | (n,t) <- ts ]
         ts = concatMap flattenSCC $ stronglyConnComp $ mkGraph p'
         ns = map fst ts
 
--- Construct the call-graph. For example if f contain a call to g then there
--- will be an arc from f to g.
+-- Construct the call-graph. For example if f contain a call to g then
+-- there will be an arc from f to g.
 mkGraph :: [(String,P.Expr)] -> [((String,P.Expr),String,[String])]
 mkGraph p = [ ((n,e),n,P.freeVars e) | (n,e) <- p ]
 
