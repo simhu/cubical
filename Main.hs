@@ -12,12 +12,12 @@ import Eval
 
 main :: IO ()
 main = getArgs >>= runInterpreter
-  
+
 runInterpreter :: [FilePath] -> IO ()
 runInterpreter fs = do
   xs <- parseFiles fs
   runInputT defaultSettings (loop (evalFiles xs []))
-  where 
+  where
   parseFiles :: [FilePath] -> IO [(String,Ter)]
   parseFiles []     = return []
   parseFiles (f:fs) = do
@@ -32,7 +32,7 @@ runInterpreter fs = do
   evalFiles [] _ = []
   evalFiles ((n,x):xs) env = (n,v) : evalFiles xs (env ++ [v])
     where v = eval' [] env x
-  
+
   -- The main loop. First match on the possible commands then parse and
   -- evaluate the expression.
   loop :: [(String,Val)] -> InputT IO ()
@@ -53,11 +53,11 @@ runInterpreter fs = do
     where
     parseExp :: String -> Either String Ter
     parseExp input = case P.parse (term >>= \x -> P.eof >> return x) "" input of
-      Right e  -> removeNames (map fst env) e 
+      Right e  -> removeNames (map fst env) e
       Left err -> Left $ show err
- 
+
     help :: String
-    help = "\nAvailable commands:\n" ++ 
+    help = "\nAvailable commands:\n" ++
            "  <statement>     infer type and evaluate statement\n" ++
            "  :q              quit\n" ++
            "  :r              reload\n" ++

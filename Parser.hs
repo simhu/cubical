@@ -12,7 +12,7 @@ tok = makeTokenParser LanguageDef
   , commentEnd      = "-}"
   , commentLine     = "--"
   , nestedComments  = True
-  , identStart      = letter <|> char '_' 
+  , identStart      = letter <|> char '_'
   , identLetter     = letter <|> digit <|> char '_'
   , opStart         = oneOf "\\=.;"
   , opLetter        = oneOf "\\=.;"
@@ -33,7 +33,7 @@ program = do
   return ps
 
 expr :: Parser (String,Args,Expr)
-expr = do 
+expr = do
   name <- identifier tok
   args <- P.many (identifier tok)
   reservedOp tok "="
@@ -53,7 +53,7 @@ lambda = do
   return $ Lam xs e
 
 atom :: Parser Expr
-atom =  Var <$> identifier tok 
+atom =  Var <$> identifier tok
     <|> (reserved tok "Nat" >> return N)
     <|> (reserved tok "0"   >> return Z)
     <|> (reserved tok "succ" >> S <$> atom)

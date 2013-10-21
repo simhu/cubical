@@ -14,7 +14,7 @@ data Expr = Lam [String] Expr
           | Z
           | S Expr
           | Rec Expr Expr Expr
--- ...      
+-- ...
 
 freeVars :: Expr -> [String]
 freeVars (Lam xs e)     = freeVars e \\ xs
