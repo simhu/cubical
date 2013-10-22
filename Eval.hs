@@ -137,44 +137,45 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
 
 type Env = [Val]
 
-eval :: Dim -> Val -> Val
-eval d (Ter t e) = eval' d e t
+ter :: Dim -> Val -> Val
+ter d (Ter t e) = eval d e t
 
-eval' :: Dim -> Env -> Ter -> Val
-eval' d e (Var i) = e !! i
-eval' _ _ N       = VN
-eval' _ _ Z       = VZ
-eval' d e (S t)   = VS (eval' d e t)
-eval' d e (Rec tz ts tn) = rec d (eval' d e tz) (eval' d e ts) (eval' d e tn)
-eval' d e (Id a a0 a1) = VId (eval' d e a) (eval' d e a0) (eval' d e a1)
-eval' d e (Refl a)  = Path $ res (eval' d e a) (deg d (gensym d : d))
-eval' d e (Trans c p t) =
-  case eval' d e p of
+eval :: Dim -> Env -> Ter -> Val
+eval d e (Var i) = e !! i
+eval _ _ N       = VN
+eval _ _ Z       = VZ
+eval d e (S t)   = VS (eval d e t)
+eval d e (Rec tz ts tn) = rec d (eval d e tz) (eval d e ts) (eval d e tn)
+eval d e (Id a a0 a1) = VId (eval d e a) (eval d e a0) (eval d e a1)
+eval d e (Refl a)  = Path $ res (eval d e a) (deg d (gensym d : d))
+eval d e (Trans c p t) =
+  case eval d e p of
     -- buggy?
-    -- Path pv -> com (x:d) (eval' (x:d) (pv:e') c) box [eval' d e t]
+    -- Path pv -> com (x:d) (eval (x:d) (pv:e') c) box [eval d e t]
     -- not quite sure whether to handle the c parameter lambda'd or with free var
-    Path pv -> com (x:d) (app (x:d) (eval' (x:d) e' c) pv) box [eval' d e t]
-    pv -> error $ "eval': trans-case not a path value:" ++ show pv -- ??
+    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box [eval d e t]
+    pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
         box = Box True x []
--- eval' d e (Ext a b f g p) = Path $ VExt d (eval' d e a) (eval' d e b)
---                             (eval' d e f) (eval' d e g) (eval' d e p)
-eval' d e (Ext b f g p) =
-  Path $ VExt d (eval' d e b) (eval' d e f) (eval' d e g) (eval' d e p)
-eval' d e (Pi a b)  = VPi (eval' d e a) (eval' d e b)
-eval' d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
-eval' d e (App r s) = app d (eval' d e r) (eval' d e s)
-eval' d e (Sigma a b) = VSigma (eval' d e a) (eval' d e b)
-eval' d e (Pair r s) = pair (eval' d e r) (eval' d e s)
-eval' d e (P r) = p (eval' d e r)
-eval' d e (Q r) = q (eval' d e r)
+-- eval d e (Ext a b f g p) = Path $ VExt d (eval d e a) (eval d e b)
+--                             (eval d e f) (eval d e g) (eval d e p)
+eval d e (Ext b f g p) =
+  Path $ VExt d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
+eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
+eval d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
+eval d e (App r s) = app d (eval d e r) (eval d e s)
+eval d e (Sigma a b) = VSigma (eval d e a) (eval d e b)
+eval d e (Pair r s) = pair (eval d e r) (eval d e s)
+eval d e (P r) = p (eval d e r)
+eval d e (Q r) = q (eval d e r)
 
-eval' d e (Inh a) = VInh (eval' d e a)
-eval' d e (Inc t) = VInc d (eval' d e t)
-eval' d e (Squash r s) = Path $ VSquash d (eval' d e r) (eval' d e s)
-eval' d e (InhRec b p phi a) = inhrec (eval' d e b) (eval' d e p)
-                               (eval' d e phi) (eval' d e a)
+eval d e (Inh a) = VInh (eval d e a)
+eval d e (Inc t) = VInc d (eval d e t)
+eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
+eval d e (InhRec b p phi a) = inhrec (eval d e b) (eval d e p)
+                               (eval d e phi) (eval d e a)
+
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc d a) = app d phi a
@@ -264,7 +265,7 @@ appBox d (Box _ i d') ws us =
   where idd' = i : concatMap (\j -> [j,j]) d'
 
 app :: Dim -> Val -> Val -> Val
-app d (Ter (Lam t) e) u = eval' d (u:e) t
+app d (Ter (Lam t) e) u = eval d (u:e) t
 app d (Com bd (VPi a b) box@(Box dir i d') ws) u = -- here: bd = i:d
   com bd (app bd b ufill) box wus
   where ufill = fill bd a (Box (mirror dir) i []) [u]
@@ -324,7 +325,7 @@ res (VRec vz vs v) f = rec (cod f) (res vz f) (res vs f) (res v f) -- ??
 res (VId v v0 v1) f = VId (res v f) (res v0 f) (res v1 f)
 res (Path v) f = Path $ res v (update f [gensym $ dom f] [gensym $ cod f])
 res (VPi a b) f = VPi (res a f) (res b f)
-res (Ter t e) f = eval' (cod f) (map (`res` f) e) t  -- t is a lambda?
+res (Ter t e) f = eval (cod f) (map (`res` f) e) t  -- t is a lambda?
 res (VApp u v) f = app (cod f) (res u f) (res v f)
 res (VSigma a b) f = VSigma (res a f) (res b f)
 res (VPair r s) f = pair (res r f) (res s f)
@@ -427,7 +428,7 @@ extidisrecid = Ext (Lam N) ident recid idisrecid
 plus :: Ter -> Ter -> Ter
 plus n m = Rec n (Lam $ Lam $ S (Var 0)) m
 
-addtwothree = eval' [] [] $ plus (S (S Z)) (S (S (S Z)))
+addtwothree = eval [] [] $ plus (S (S Z)) (S (S (S Z)))
 
 -- \f. f2 + f3 of type (N->N)->N
 addvals = Lam $ plus (App (Var 0) (S (S Z))) (App (Var 0) (S (S (S Z))))

@@ -31,7 +31,7 @@ runInterpreter fs = do
   evalFiles :: [(String,Ter)] -> [Val] -> [(String,Val)]
   evalFiles [] _ = []
   evalFiles ((n,x):xs) env = (n,v) : evalFiles xs (env ++ [v])
-    where v = eval' [] env x
+    where v = eval [] env x
 
   -- The main loop. First match on the possible commands then parse and
   -- evaluate the expression.
@@ -45,8 +45,8 @@ runInterpreter fs = do
       Just ":h"  -> outputStrLn help >> loop env
       Just input -> case parseExp input of
         Left err -> outputStrLn ("Parse error: " ++ err) >> loop env
-        Right p  -> case eval' [] (map snd env) p of
-        -- TODO: Output Error from eval'? Should not be necessary after type checking...
+        Right p  -> case eval [] (map snd env) p of
+        -- TODO: Output Error from eval? Should not be necessary after type checking...
         -- Left err -> outputStrLn ("Eval error: " ++ err) >> loop env
         -- Right v  -> outputStrLn (show v) >> loop env
           v  -> outputStrLn (show v) >> loop env
