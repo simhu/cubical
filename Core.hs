@@ -11,7 +11,8 @@ data Ter = Var Int
          | N | Z | S Ter | Rec Ter Ter Ter
          | Id Ter Ter Ter | Refl Ter
          | Trans Ter Ter Ter  -- Trans type eqprof proof
-         | Ext Ter Ter Ter Ter -- Ext B f g p (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
+         | Ext Ter Ter Ter Ter -- Ext B f g p : Id (Pi A B) f g, 
+           -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
          | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
          | Inh Ter  -- Inh A is an h-prop stating that A is inhabited.

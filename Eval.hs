@@ -192,6 +192,14 @@ inhrec b p phi (Fill d (VInh a) box@(Box dir i d') vs) =
         dd' = concatMap (\j -> [j,j]) d'
         irec (j,dir) v = inhrec (fc b) (fc p) (fc phi) v
           where fc v = res v (face d j dir)
+-- TODO: Is there a nicer way to not duplicate this code?
+inhrec b p phi (Com d (VInh a) box@(Box dir i d') vs) =
+  com d b box bs
+  where bs = zipWith irec boxshape vs
+        boxshape = (i,dir) : zip dd' (cycle [True,False])
+        dd' = concatMap (\j -> [j,j]) d'
+        irec (j,dir) v = inhrec (fc b) (fc p) (fc phi) v
+          where fc v = res v (face d j dir)
 inhrec b p phi a = VInhRec b p phi a
 
 p :: Val -> Val
@@ -359,6 +367,20 @@ res (VExt d bv fv gv pv) f | (f `ap` x) `direq` False = res fv (f `minus` x)
   where x = gensym d
 res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
   where x = gensym d
+res (VInh v) f = VInh (res v f)
+res (VInc d v) f = VInc (cod f) (res v f)
+res (VSquash d u v) f | x `elem` def f = --dom f = x:d
+  VSquash d' (res u fminusx) (res v fminusx)
+  where x = gensym d
+        -- f-x : d -> d', where cod f = gensym d':d', f(x) = gensym d' ?
+        fminusx = f `minus` x
+        d' = cod fminusx
+res (VSquash d u v) f | (f `ap` x) `direq` False = res u (f `minus` x)
+  where x = gensym d
+res (VSquash d u v) f | (f `ap` x) `direq` True = res v (f `minus` x)
+  where x = gensym d
+res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
+
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 
