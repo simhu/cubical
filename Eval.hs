@@ -113,6 +113,8 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
          | Com Dim Val Box [Val]
          | Fill Dim Val Box [Val]   -- enough?
          | Res Val Mor
+         | VCon Ident [Val]
+         | VBranch [(Ident,Ter)] Env
   deriving (Show, Eq)
 
 -- An open box (the list of Val's in Com and Fill) is organized as
@@ -176,6 +178,8 @@ eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
 eval d e (InhRec b p phi a) = inhrec (eval d e b) (eval d e p)
                                (eval d e phi) (eval d e a)
 eval d e (Where t def) = eval d (evalDef d e def) t
+eval d e (Con name ts) = VCon name (map (eval d e) ts)
+eval d e (Branch alt) = VBranch alt e
 
 evalDef :: Dim -> Env -> Def -> Env
 evalDef d e def = e ++ map (eval d e) def
@@ -310,6 +314,11 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
         left = res (app d' fv w0) dg
         right = app (y:d') (res gv dg) w
         pvxw = unPath $ app d' pv w0
+app d (VBranch alts e) (VCon name us) =
+  case lookup name alts of
+    Just t -> eval d (e ++ us) t
+    Nothing -> error $ "app: VBranch with insufficient "
+               ++ "arguments; missing case for " ++ name
 app d u v = VApp u v            -- error ?
 
 -- TODO: QuickCheck!
@@ -384,6 +393,9 @@ res (VSquash d u v) f | (f `ap` x) `direq` False = res u (f `minus` x)
 res (VSquash d u v) f | (f `ap` x) `direq` True = res v (f `minus` x)
   where x = gensym d
 res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
+
+res (VBranch alt e) f = VBranch alt (map (`res` f) e)
+res (VCon name vs) f = VCon name (map (`res` f) vs)
 
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"

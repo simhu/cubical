@@ -1,4 +1,4 @@
-module Core (Ter(..), Def, fromProgram, removeNames) where
+module Core (Ter(..), Def, Ident, fromProgram, removeNames) where
 
 import Control.Monad.Reader hiding (ap)
 import Data.Graph
@@ -22,9 +22,15 @@ data Ter = Var Int
          | InhRec Ter Ter Ter Ter -- InhRec B p phi a : B,
            -- p:hprop(B), phi:A->B, a:Inh A (cf. HoTT-book p.113)
          | Where Ter Def
+         | Con Ident [Ter]       -- constructor c Ms
+         | Branch [(Ident, Ter)] -- branches c1 M1, ..., cn Mn
+           -- only needed for typing: (?)
+           --  | LSum [Ter]            -- labelled sum c1 A1s, ..., cn Aks
+           --                         -- (assumes terms are constructors)
   deriving Eq
 
 type Def = [Ter]                -- without type annotations for now
+type Ident = String
 
 -- Show instance for terms which insert names instead of De Bruijn
 -- indices
