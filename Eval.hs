@@ -400,9 +400,9 @@ res (VSquash d u v) f | (f `ap` x) `direq` False = res u (f `minus` x)
 res (VSquash d u v) f | (f `ap` x) `direq` True = res v (f `minus` x)
   where x = gensym d
 res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
-
 res (VBranch alt e) f = VBranch alt (map (`res` f) e)
 res (VCon name vs) f = VCon name (map (`res` f) vs)
+res (VLSum nass) f = VLSum $ map (\(n,as) -> (n, map (`res` f) as)) nass
 
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
