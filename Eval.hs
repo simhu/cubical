@@ -122,21 +122,6 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
 -- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
 -- d-i and vjb of dim d-ij.  The "dir" indicates the *missing* face.
 
--- This is ugly!
--- instance Show Val where
---   show VN     = "N"
---   show VZ     = "0"
---   show (VS x) = "S (" ++ show x ++ ")"
---   show (VRec v1 v2 v3) = "VRec (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
---   show (Ter t e)       = "Ter (" ++ show t ++ ") (" ++ show e ++ ")"
---   show (VId v1 v2 v3)  = "VId (" ++ show v1 ++ ") (" ++ show v2 ++ ") (" ++ show v3 ++ ")"
---   show (Path x)        = "Path (" ++ show x ++ ")"
---   show (VPi v1 v2)     = "VPi (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
---   show (VApp v1 v2)    = "VApp (" ++ show v1 ++ ") (" ++ show v2 ++ ")"
---   show (Com d v b vs)  = "Com (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
---   show (Fill d v b vs) = "Fill (" ++ show d ++ ") (" ++ show v ++ ") (" ++ show b ++ ") (" ++ show vs ++ ")"
---   show (Res v m)       = "Res (" ++ show v ++ ") (" ++ show m ++ ")"
-
 type Env = [Val]
 
 ter :: Dim -> Val -> Val
