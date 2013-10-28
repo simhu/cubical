@@ -167,7 +167,7 @@ eval d e (Con name ts) = VCon name (map (eval d e) ts)
 eval d e (Branch alt) = VBranch alt e
 
 evalDef :: Dim -> Env -> Def -> Env
-evalDef d e def = e ++ map (eval d e) def
+evalDef d e def = map (eval d e) def ++ e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc d a) = app d phi a
@@ -301,7 +301,7 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
         pvxw = unPath $ app d' pv w0
 app d (VBranch alts e) (VCon name us) =
   case lookup name alts of
-    Just t -> eval d (e ++ us) t
+    Just t -> eval d (us ++ e) t
     Nothing -> error $ "app: VBranch with insufficient "
                ++ "arguments; missing case for " ++ name
 app d u v = VApp u v            -- error ?
