@@ -1,5 +1,3 @@
--- Some tests
-
 id x = x;
 zero = 0;
 s n = succ n;
