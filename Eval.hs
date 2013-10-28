@@ -115,6 +115,7 @@ data Val = VN | VZ | VS Val | VRec Val Val Val
          | Res Val Mor
          | VCon Ident [Val]
          | VBranch [(Ident,Ter)] Env
+         | VLSum [(Ident,[Val])]
   deriving (Show, Eq)
 
 -- An open box (the list of Val's in Com and Fill) is organized as
@@ -164,7 +165,8 @@ eval d e (InhRec b p phi a) = inhrec (eval d e b) (eval d e p)
                                (eval d e phi) (eval d e a)
 eval d e (Where t def) = eval d (evalDef d e def) t
 eval d e (Con name ts) = VCon name (map (eval d e) ts)
-eval d e (Branch alt) = VBranch alt e
+eval d e (Branch alts) = VBranch alts e
+eval d e (LSum ntss) = VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
 
 evalDef :: Dim -> Env -> Def -> Env
 evalDef d e def = map (eval d e) def ++ e
@@ -212,6 +214,7 @@ unPath :: Val -> Val
 unPath (Path v) = v
 unPath v        = error $ "unPath: " ++ show v
 
+-- Kan filling
 fill :: Dim -> Val -> Box -> [Val] -> Val
 fill d VN (Box _ n _) vs = -- head vs
   res (head vs) (deg (delete n d) d)  -- "trivial" filling for nat
@@ -229,10 +232,27 @@ fill d (VId a v0 v1) (Box dir i d') vs =
 fill d (VSigma va vb) box vs = fill d (app d vb a) box bs
   where as = map p vs
         bs = map q vs
-        a = fill d va box as
+        a  = fill d va box as
+fill d (VLSum nass) box cvs = -- assumes cvs are constructor vals
+  VCon name ws
+  where
+    as = case lookup name nass of
+           Just as -> as
+           Nothing -> error $ "fill: missing constructor "
+                      ++ "in labelled sum " ++ name
+    name = extractName cvs
+    extractName (VCon n _:xs) | extractName xs == n = n
+    extractName xs@(VCon _ _:_) =
+      error $ "fill: constructors don't match " ++ show xs
+    extractName x = err x
+    extractArgs = map (\v -> case v of VCon _ x -> x; x -> err x)
+    argboxes = transpose (extractArgs cvs)
+    -- fill boxes according
+    ws = [ fill d a box argbox | (a,argbox) <- zip as argboxes ]
+    err x = error $ "fill: not applied to constructor expressions " ++ show x
 fill d v b vs = Fill d v b vs
 
--- composition
+-- composition (ie., the face of fill which is created)
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Dim -> Val -> Box -> [Val] -> Val
@@ -241,13 +261,15 @@ com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
 com d (VSigma va vb) (Box dir i d') vs = -- should actually work (?)
   res (fill d (VSigma va vb) (Box dir i d') vs) (face d i dir)
+com d (VLSum nass) (Box dir i d') vs = -- should actually work (?)
+  res (fill d (VLSum nass) (Box dir i d') vs) (face d i dir)
 com d v b vs = Com d v b vs
 
 -- Takes a u and returns an open box u's given by the specified faces.
 cubeToBox :: Val -> Dim -> Box -> [Val]
 cubeToBox u d (Box dir i d') = [ res u (face d j b) | (j,b) <- boxshape ]
   where boxshape = (i,dir) : zip dd' (cycle [True,False])
-        dd' = concatMap (\j -> [j,j]) d'
+        dd'      = concatMap (\j -> [j,j]) d'
 
 -- Apply an open box of functions of a given shape to a corresponding
 -- open box of arguments.
@@ -400,9 +422,9 @@ subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
 
 rec :: Dim -> Val -> Val -> Val -> Val
-rec _ vz _ VZ = vz
+rec _ vz _  VZ     = vz
 rec d vz vs (VS v) = app d (app d vs v) (rec d vz vs v)
-rec _ vz vs ne = VRec vz vs ne
+rec _ vz vs ne     = VRec vz vs ne
 
 
 

@@ -24,9 +24,8 @@ data Ter = Var Int
          | Where Ter Def
          | Con Ident [Ter]       -- constructor c Ms
          | Branch [(Ident, Ter)] -- branches c1 M1, ..., cn Mn
-           -- only needed for typing: (?)
-           --  | LSum [Ter]            -- labelled sum c1 A1s, ..., cn Aks
-           --                         -- (assumes terms are constructors)
+         | LSum [(Ident, [Ter])]   -- labelled sum c1 A1s, ..., cn Aks
+                                 -- (assumes terms are constructors)
   deriving Eq
 
 type Def = [Ter]                -- without type annotations for now
