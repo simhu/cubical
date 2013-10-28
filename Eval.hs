@@ -175,7 +175,10 @@ eval d e (Inc t) = VInc d (eval d e t)
 eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
 eval d e (InhRec b p phi a) = inhrec (eval d e b) (eval d e p)
                                (eval d e phi) (eval d e a)
+eval d e (Where t def) = eval d (evalDef d e def) t
 
+evalDef :: Dim -> Env -> Def -> Env
+evalDef d e def = e ++ map (eval d e) def
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc d a) = app d phi a

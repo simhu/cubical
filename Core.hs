@@ -1,4 +1,4 @@
-module Core (Ter(..), fromProgram, removeNames) where
+module Core (Ter(..), Def, fromProgram, removeNames) where
 
 import Control.Monad.Reader hiding (ap)
 import Data.Graph
@@ -11,7 +11,7 @@ data Ter = Var Int
          | N | Z | S Ter | Rec Ter Ter Ter
          | Id Ter Ter Ter | Refl Ter
          | Trans Ter Ter Ter  -- Trans type eqprof proof
-         | Ext Ter Ter Ter Ter -- Ext B f g p : Id (Pi A B) f g, 
+         | Ext Ter Ter Ter Ter -- Ext B f g p : Id (Pi A B) f g,
            -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
          | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
@@ -21,7 +21,10 @@ data Ter = Var Int
          | Squash Ter Ter       -- Squash a b : Id (Inh A) a b
          | InhRec Ter Ter Ter Ter -- InhRec B p phi a : B,
            -- p:hprop(B), phi:A->B, a:Inh A (cf. HoTT-book p.113)
+         | Where Ter Def
   deriving Eq
+
+type Def = [Ter]                -- without type annotations for now
 
 -- Show instance for terms which insert names instead of De Bruijn
 -- indices
