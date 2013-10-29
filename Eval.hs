@@ -96,23 +96,24 @@ Left False `direq` False = True
 Left True `direq` True = True
 _ `direq` _ = False
 
-data Val = VN | VZ | VS Val | VRec Val Val Val
+data Val = VN | VZ | VS Val
+         | VRec Val Val Val -- not needed for closed terms
          | Ter Ter Env
-         | VId Val Val Val      -- ??
+         | VId Val Val Val
          | Path Val             -- tag values which are paths
 --         | VTrans Val Val Val   -- ?? needed
          | VExt Dim Val Val Val Val -- has dimension (gensym dim:dim)
          | VPi Val Val
-         | VApp Val Val
+         | VApp Val Val         -- not needed for closed terms
          | VSigma Val Val | VPair Val Val
-         | VP Val | VQ Val      -- ??
+         | VP Val | VQ Val      -- not needed for closed terms
          | VInh Val
          | VInc Dim Val         -- dim needed?
          | VSquash Dim Val Val  -- has dimension (gensym dim:dim)
-         | VInhRec Val Val Val Val
+         | VInhRec Val Val Val Val -- not needed for closed terms
          | Com Dim Val Box [Val]
          | Fill Dim Val Box [Val]   -- enough?
-         | Res Val Mor
+         | Res Val Mor              -- not needed for closed terms
          | VCon Ident [Val]
          | VBranch [(Ident,Ter)] Env
          | VLSum [(Ident,[Val])]
@@ -138,16 +139,11 @@ eval d e (Id a a0 a1) = VId (eval d e a) (eval d e a0) (eval d e a1)
 eval d e (Refl a)  = Path $ res (eval d e a) (deg d (gensym d : d))
 eval d e (Trans c p t) =
   case eval d e p of
-    -- buggy?
-    -- Path pv -> com (x:d) (eval (x:d) (pv:e') c) box [eval d e t]
-    -- not quite sure whether to handle the c parameter lambda'd or with free var
     Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box [eval d e t]
     pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
         box = Box True x []
--- eval d e (Ext a b f g p) = Path $ VExt d (eval d e a) (eval d e b)
---                             (eval d e f) (eval d e g) (eval d e p)
 eval d e (Ext b f g p) =
   Path $ VExt d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
 eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
@@ -161,8 +157,8 @@ eval d e (Q r) = q (eval d e r)
 eval d e (Inh a) = VInh (eval d e a)
 eval d e (Inc t) = VInc d (eval d e t)
 eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
-eval d e (InhRec b p phi a) = inhrec (eval d e b) (eval d e p)
-                               (eval d e phi) (eval d e a)
+eval d e (InhRec b p phi a) =
+  inhrec (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
 eval d e (Where t def) = eval d (evalDef d e def) t
 eval d e (Con name ts) = VCon name (map (eval d e) ts)
 eval d e (Branch alts) = VBranch alts e
@@ -198,11 +194,11 @@ inhrec b p phi (Com d (VInh a) box@(Box dir i d') vs) =
 inhrec b p phi a = VInhRec b p phi a
 
 p :: Val -> Val
-p (VPair v w) = v
+p (VPair v _) = v
 p v = VP v
 
 q :: Val -> Val
-q (VPair v w) = w
+q (VPair _ w) = w
 q v = VQ v
 
 pair :: Val -> Val -> Val
@@ -219,13 +215,9 @@ fill :: Dim -> Val -> Box -> [Val] -> Val
 fill d VN (Box _ n _) vs = -- head vs
   res (head vs) (deg (delete n d) d)  -- "trivial" filling for nat
 fill d (VId a v0 v1) (Box dir i d') vs =
-  Path $ fill (x:d) ax (Box dir i (x:d')) (vx:v0x:v1x:vsx)
-  where x   = gensym d   -- i,d' <= d
-        ax  = res a (deg d (x:d))     -- A(d,x)
---        v0x = res v0 (deg d (x:d))  -- A(d,x)
---        v1x = res v1 (deg d (x:d))  -- A(d,x)
-        v0x = v0                      -- A(d)
-        v1x = v1                      -- A(d)
+  Path $ fill (x:d) ax (Box dir i (x:d')) (vx:v0:v1:vsx)
+  where x   = gensym d            -- i,d' <= d
+        ax  = res a (deg d (x:d)) -- dim x:d
         (vx:vsx) = modBox i d' (map unPath vs)
                     (\j -> let dj = delete j d
                            in update (identity dj) [gensym dj] [x])
@@ -243,16 +235,16 @@ fill d (VLSum nass) box cvs = -- assumes cvs are constructor vals
     name = extractName cvs
     extractName (VCon n _:xs) | extractName xs == n = n
     extractName xs@(VCon _ _:_) =
-      error $ "fill: constructors don't match " ++ show xs
+      error $ "fill: constructor names don't match " ++ show xs
     extractName x = err x
     extractArgs = map (\v -> case v of VCon _ x -> x; x -> err x)
     argboxes = transpose (extractArgs cvs)
-    -- fill boxes according
+    -- fill boxes for each argument position of the constructor
     ws = [ fill d a box argbox | (a,argbox) <- zip as argboxes ]
     err x = error $ "fill: not applied to constructor expressions " ++ show x
 fill d v b vs = Fill d v b vs
 
--- composition (ie., the face of fill which is created)
+-- Composition (ie., the face of fill which is created)
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Dim -> Val -> Box -> [Val] -> Val
