@@ -76,6 +76,7 @@ minus :: Mor -> Name -> Mor
   where co' | i `elem` dom f = delete (f `dap` i) co
             | otherwise = co
 
+-- TODO: rename into BoxShape ?
 data Box = Box Dir Name Dim -- for x, J; no I (where x,J subset I)
   deriving (Eq,Show)
 
@@ -276,7 +277,7 @@ app d (Com bd (VPi a b) box@(Box dir i d') ws) u = -- here: bd = i:d
   com bd (app bd b ufill) box wus
   where ufill = fill bd a (Box (mirror dir) i []) [u]
         us = cubeToBox ufill bd box
-        wus = appBox d box ws us
+        wus = appBox bd box ws us
 app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
   com (x:d) (app (x:d) bx vsfill) (Box True x (i:d')) wvfills
   where x = gensym d            -- add a dimension
@@ -311,7 +312,8 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
         w0 = res w (face d x False)
         dg = deg d' (y:d')
         left = res (app d' fv w0) dg
-        right = app (y:d') (res gv dg) w
+        wxtoy = res w (update (identity d') [x] [y])
+        right = app (y:d') (res gv dg) wxtoy
         pvxw = unPath $ app d' pv w0
 app d (VBranch alts e) (VCon name us) =
   case lookup name alts of
