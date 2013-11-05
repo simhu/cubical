@@ -8,12 +8,14 @@ import qualified Program as P
 
 -- The core language:
 data Ter = Var Int
-         | N | Z | S Ter | Rec Ter Ter Ter
+         | N | Z | S Ter | Rec Ter Ter Ter -- TODO: N can be removed
          | Id Ter Ter Ter | Refl Ter
          | Trans Ter Ter Ter  -- Trans type eqprof proof
+           -- TODO: witness for singleton contractible and equation
          | Ext Ter Ter Ter Ter -- Ext B f g p : Id (Pi A B) f g,
            -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
+                                  -- TODO: Sigma can be removed.
          | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
          | Inh Ter  -- Inh A is an h-prop stating that A is inhabited.
            -- Here we take h-prop A as (Pi x y : A) Id A x y.
@@ -21,18 +23,22 @@ data Ter = Var Int
          | Squash Ter Ter       -- Squash a b : Id (Inh A) a b
          | InhRec Ter Ter Ter Ter -- InhRec B p phi a : B,
            -- p:hprop(B), phi:A->B, a:Inh A (cf. HoTT-book p.113)
+           -- TODO?: equation: InhRec p phi (Inc a) = phi a
+           --                  InhRec p phi (Squash a b) =
+           --                     p (InhRec p phi a) (InhRec p phi b)
          | Where Ter Def
          | Con Ident [Ter]       -- constructor c Ms
-         | Branch [(Ident, Ter)] -- branches c1 M1, ..., cn Mn
-         | LSum [(Ident, [Ter])]   -- labelled sum c1 A1s, ..., cn Aks
+         | Branch [(Ident, Ter)] -- branches c1 -> M1,..., cn -> Mn
+         | LSum [(Ident, [Ter])] -- labelled sum c1 A1s,..., cn Ans
                                  -- (assumes terms are constructors)
-  deriving Eq
+  deriving (Show,Eq)
 
 type Def = [Ter]                -- without type annotations for now
 type Ident = String
 
 -- Show instance for terms which insert names instead of De Bruijn
 -- indices
+{-
 instance Show Ter where
   show e = runReader (show' e) ([],0)
     where
@@ -55,7 +61,7 @@ instance Show Ter where
     show' (App e1 e2)  = liftM2 (\x y -> x ++ " " ++ y) (show' e1) (show' e2)
 
     vars = ["x","y","z"] ++ [ 'x' : show i | i <- [0..]]
-
+-}
 -- Take a program, construct a call-graph and then compute the
 -- strongly connected components. These correspond to the mutually
 -- recursive functions.  For now we forget these as recursion is not

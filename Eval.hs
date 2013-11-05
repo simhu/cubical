@@ -116,7 +116,8 @@ data Val = VN | VZ | VS Val
          | Fill Dim Val Box [Val]   -- enough?
          | Res Val Mor              -- not needed for closed terms
          | VCon Ident [Val]
-         | VBranch [(Ident,Ter)] Env
+--         | VBranch [(Ident,Ter)] Env
+         | VBranch [(Ident,Val)]
          | VLSum [(Ident,[Val])]
   deriving (Show, Eq)
 
@@ -162,8 +163,10 @@ eval d e (InhRec b p phi a) =
   inhrec (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
 eval d e (Where t def) = eval d (evalDef d e def) t
 eval d e (Con name ts) = VCon name (map (eval d e) ts)
-eval d e (Branch alts) = VBranch alts e
+-- eval d e (Branch alts) = VBranch alts e
+eval d e (Branch alts) = VBranch $ map (\(n,t) -> (n, eval d e t)) alts
 eval d e (LSum ntss) = VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
+
 
 evalDef :: Dim -> Env -> Def -> Env
 evalDef d e def = map (eval d e) def ++ e
@@ -194,6 +197,7 @@ inhrec b p phi (Com d (VInh a) box@(Box dir i d') vs) =
           where fc v = res v (face d j dir)
 inhrec b p phi a = VInhRec b p phi a
 
+-- TODO: better names
 p :: Val -> Val
 p (VPair v _) = v
 p v = VP v
@@ -234,16 +238,23 @@ fill d (VLSum nass) box cvs = -- assumes cvs are constructor vals
            Nothing -> error $ "fill: missing constructor "
                       ++ "in labelled sum " ++ name
     name = extractName cvs
+    extractName [VCon n _] = n
     extractName (VCon n _:xs) | extractName xs == n = n
     extractName xs@(VCon _ _:_) =
       error $ "fill: constructor names don't match " ++ show xs
     extractName x = err x
-    extractArgs = map (\v -> case v of VCon _ x -> x; x -> err x)
+    extractArgs = map (\v -> case v of VCon _ xs -> xs; x -> err x)
     argboxes = transpose (extractArgs cvs)
     -- fill boxes for each argument position of the constructor
-    ws = [ fill d a box argbox | (a,argbox) <- zip as argboxes ]
+    ws = fills d as box argboxes
     err x = error $ "fill: not applied to constructor expressions " ++ show x
 fill d v b vs = Fill d v b vs
+
+fills :: Dim -> [Val] -> Box -> [[Val]] -> [Val]
+fills _ [] _ [] = []
+fills d (a:as) box (vs:vss) = v : fills d (map (\x -> app d x v) as) box vss
+  where v = fill d a box vs
+fills _ _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 -- Note that the dimension is not the dimension of the output value,
@@ -315,12 +326,22 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
         wxtoy = res w (update (identity d') [x] [y])
         right = app (y:d') (res gv dg) wxtoy
         pvxw = unPath $ app d' pv w0
-app d (VBranch alts e) (VCon name us) =
-  case lookup name alts of
-    Just t -> eval d (us ++ e) t
+-- app d (VBranch alts e) (VCon name us) =
+--   case lookup name alts of
+--     Just t -> eval d (reverse us ++ e) t
+--     Nothing -> error $ "app: VBranch with insufficient "
+--                ++ "arguments; missing case for " ++ name
+app d (VBranch nvs) (VCon name us) =
+  case lookup name nvs of
+    Just v -> apps d v us
     Nothing -> error $ "app: VBranch with insufficient "
                ++ "arguments; missing case for " ++ name
 app d u v = VApp u v            -- error ?
+
+apps :: Dim -> Val -> [Val] -> Val
+apps d v [] = v
+apps d v (u:us) = apps d (app d v u) us
+-- TODO: rewrite as foldl(?r) (app d) v
 
 -- TODO: QuickCheck!
 prop_resId :: Val -> Mor -> Bool
