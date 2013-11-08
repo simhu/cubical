@@ -1,0 +1,66 @@
+letrec Nat : Type = data (Z | S Nat) ;
+
+let zero : Nat = $ Z () ;
+let succ : Nat -> Nat = \ x ->  $ S x ;
+
+letrec constZ : Nat -> Nat = fun [Z () -> zero | S x -> constZ x] ;
+
+let pred : Nat -> Nat = fun [Z () -> zero | S x -> x] ;
+
+let test9 : (Pi x:Nat) (Pi P:Nat -> Type) P (pred (succ x)) -> P x =
+ \ x -> \ P -> \ h -> h;
+
+let Bool : Type = data (true | false ) ;
+
+let true : Bool = $ true () ;
+
+let false : Bool = $ false () ;
+
+let N1 : Type  = data (tt) ;
+
+
+
+let tt : N1 = $ tt () ;
+
+let N0 : Type = data () ;
+
+let elimN0 : (Pi A:Type) N0 -> A = \ A -> fun [] ;
+
+let T : Bool -> Type = fun [true () -> N1 | false () -> N0] ;
+
+let eqZ : Nat -> Bool = fun [Z () -> $ true () | S y1 ->  $ false ()] ;
+
+letrec eq : Nat -> Nat -> Bool = 
+ fun [Z () -> fun [Z () ->true | S y1 -> false] 
+    | S x1 -> fun [Z () -> false | S y1 -> eq x1 y1]] ;
+
+let test1 : (Pi x:Nat) T (eq (constZ x) zero) -> T (eq (constZ (succ x)) zero) =
+ \ x -> \ h -> h ;
+
+letrec test : (Pi x:Nat) T (eq (constZ x) zero) =
+ fun [ Z () -> tt | S x1 -> test x1] ;
+
+let test9 : (Pi x:Nat) (Pi P:Nat -> Type) P (pred (succ x)) -> P x =
+ \ x -> \ P -> \ h -> h;
+
+letrec lemma : (Pi x:Nat) T (eq x x) = 
+ fun [Z () -> tt | S x1 -> lemma x1] ;
+
+let test2 : (Pi x:Nat) T (eq (pred (succ x)) x) =
+ \ x -> lemma x ;
+
+let test3 : (Pi x:Nat) (Pi y:Nat) T (eq (succ x) (succ y)) -> T (eq x y) =
+ \ x -> \y -> \h -> h;
+
+let test4 : (Pi x:Nat) (Pi y:Nat) T (eq (succ (succ x)) (succ y)) -> T (eq (succ x) y) =
+ \ x -> \y -> \h -> h;
+
+letrec add : Nat -> Nat -> Nat =
+ \ x  ->  fun [Z () -> x | S y1 -> succ (add x y1)] ;
+
+Top
+
+
+
+
+
