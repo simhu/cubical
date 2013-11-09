@@ -1,0 +1,67 @@
+
+comment "--" ;
+comment "{-" "-}" ;
+
+
+layout "where", "let", "of" ;
+layout stop "in" ;
+--layout toplevel ;
+
+-- not working??
+--Module. Module ::= "{" [Def] "}" ;
+
+Module. Module ::= "module" AIdent "where" "{" [Def] "}" ;
+
+Where.  Exp  ::= Exp "where" "{" [Def] "}" ;
+Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
+--Data.   Exp  ::= "data" AIdent Tele "=" [Sum] ;
+Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
+Pi.     Exp  ::= VDecl "->" Exp ;
+Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
+-- not working?
+--Pi.     Exp  ::= TeleP "->" Exp ;
+App.    Exp1 ::= Exp1 Exp2 ;
+Var.    Exp2 ::= AIdent ;
+U.      Exp2 ::= "U" ;
+
+coercions Exp 2 ;
+
+Binder.   Binder ::= AIdent ;
+NoBinder. Binder ::= "_" ;
+terminator nonempty Binder "" ;
+
+-- like Binder, but may be empty
+Arg.      Args ::= AIdent ;
+NoArg.    Args ::= "_" ;
+terminator Args "" ;
+
+Def.      Def ::= AIdent [Args] "=" Exp ;
+DefTDecl. Def ::= AIdent ":" Exp ;
+DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
+separator Def ";" ;
+
+-- labelled sum alternatives
+Sum.    Sum   ::= Con Tele ;
+separator Sum "|" ;
+
+-- constructors
+Con.    Con   ::= AIdent ;
+
+-- telescopes
+Tele. Tele  ::= [VDecl] ;
+terminator Tele "" ;
+
+-- nonempty telescopes
+TeleP. TeleP ::= [VDecl] ;
+terminator nonempty TeleP "" ;
+
+VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
+terminator VDecl "" ;
+
+-- Branches
+ConBranch.  Branch ::= Con [AIdent] "=>" Exp ;
+separator Branch ";" ;
+
+position token AIdent (letter(letter|digit)*) ;
+
+terminator AIdent "" ;
