@@ -33,8 +33,7 @@ data DataDecl =
            }
   deriving (Eq,Show)
 
-type Program = [Either DefDecl DataDecl ]
-
+type Program = [Either DefDecl DataDecl]
 
 tok :: TokenParser st
 tok = makeTokenParser LanguageDef
@@ -68,9 +67,9 @@ defDecl = do
   reserved tok ":"
   dtype <- expr
   reserved tok ";"
---  newline
-  -- n' <- identifier tok
-  string name
+  -- newline
+  n' <- identifier tok
+  -- string name -- this is not working ??? 
   xs  <- args
   reserved tok "="
   exp <- expr
@@ -81,7 +80,6 @@ dataDecl :: Parser DataDecl
 dataDecl = do
   reserved tok "data"
   name  <- identifier tok
---  reservedOp tok ":"
   dtele <- tele
   reservedOp tok "="
   dsum  <- sepBy (do s <- identifier tok
@@ -124,4 +122,22 @@ lambda = do
 atom :: Parser Exp
 atom =  Var <$> identifier tok
     <|> (reserved tok "U" >> return U) 
+    <|> caseof
     <|> parens tok expr
+
+caseof :: Parser Exp
+caseof = do
+  reserved tok "case"
+  e <- expr
+  reserved tok "of"
+  bs <- many1 branch
+  return $ Case e bs
+  where
+    branch :: Parser (String,Args,Exp) 
+    branch = do
+      reservedOp tok "|" 
+      con <- identifier tok -- TODO: Check namespace for tok
+      as  <- args
+      reservedOp tok "->"
+      e   <- expr
+      return (con,as,e)
