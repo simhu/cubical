@@ -24,8 +24,6 @@ U.      Exp2 ::= "U" ;
 
 coercions Exp 2 ;
 
--- Binder.   Binder ::= AIdent ;
--- NoBinder. Binder ::= "_" ;
 Binder.   Binder ::= Args ;
 terminator nonempty Binder "" ;
 
@@ -42,9 +40,6 @@ separator Branch ";" ;
 Sum.    Sum   ::= AIdent Tele ;
 separator Sum "|" ;
 
--- Constructors
--- Con.    Con   ::= AIdent ;
-
 -- Telescopes
 Tele. Tele  ::= [VDecl] ;
 
@@ -54,7 +49,6 @@ TeleNE. TeleNE ::= [VDeclNE] ;
 VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 
--- VDeclNE.  VDeclNE ::= "(" [Binder] ":" Exp ")" ;
 VDeclNE.  VDeclNE ::= VDecl ;
 terminator nonempty VDeclNE "" ;
 
