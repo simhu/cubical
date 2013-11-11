@@ -1,7 +1,5 @@
-
 comment "--" ;
 comment "{-" "-}" ;
-
 
 layout "where", "let", "of" ;
 layout stop "in" ;
@@ -9,57 +7,56 @@ layout toplevel ;
 
 Module. Module ::= [Def] ;
 
---Module. Module ::= "module" AIdent "where" "{" [Def] "}" ;
+Def.      Def ::= AIdent [Args] "=" Exp ;
+DefTDecl. Def ::= AIdent ":" Exp ;
+DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
+separator Def ";" ;
 
-Where.  Exp  ::= Exp "where" "{" [Def] "}" ;
+Where.  Exp  ::= Exp "where" "{" [Def] "}" ; -- leads to multiple s/r conflicts
 Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
 Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
 Fun.    Exp  ::= Exp1 "->" Exp ;
 Pi.     Exp  ::= TeleNE "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
-Var.    Exp2 ::= [Binder] ;     -- check for "_"
+Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
 
 coercions Exp 2 ;
 
-Binder.   Binder ::= AIdent ;
-NoBinder. Binder ::= "_" ;
+-- Binder.   Binder ::= AIdent ;
+-- NoBinder. Binder ::= "_" ;
+Binder.   Binder ::= Args ;
 terminator nonempty Binder "" ;
 
--- like Binder, but may be empty
+-- Like Binder, but may be empty
 Arg.      Args ::= AIdent ;
 NoArg.    Args ::= "_" ;
 terminator Args "" ;
 
-Def.      Def ::= AIdent [Args] "=" Exp ;
-DefTDecl. Def ::= AIdent ":" Exp ;
-DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
-separator Def ";" ;
+-- Branches
+Branch.  Branch ::= AIdent [Args] "->" Exp ;
+separator Branch ";" ;
 
--- labelled sum alternatives
-Sum.    Sum   ::= Con Tele ;
+-- Labelled sum alternatives
+Sum.    Sum   ::= AIdent Tele ;
 separator Sum "|" ;
 
--- constructors
-Con.    Con   ::= AIdent ;
+-- Constructors
+-- Con.    Con   ::= AIdent ;
 
--- telescopes
+-- Telescopes
 Tele. Tele  ::= [VDecl] ;
 
--- nonempty telescopes
+-- Nonempty telescopes
 TeleNE. TeleNE ::= [VDeclNE] ;
 
 VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 
-VDeclNE.  VDeclNE ::= "(" [Binder] ":" Exp ")" ;
+-- VDeclNE.  VDeclNE ::= "(" [Binder] ":" Exp ")" ;
+VDeclNE.  VDeclNE ::= VDecl ;
 terminator nonempty VDeclNE "" ;
 
--- Branches
-ConBranch.  Branch ::= Con [AIdent] "->" Exp ;
-separator Branch ";" ;
-
 position token AIdent (letter(letter|digit)*) ;
-
 terminator AIdent "" ;
