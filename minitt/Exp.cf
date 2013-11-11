@@ -16,7 +16,7 @@ Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
 Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
 Fun.    Exp  ::= Exp1 "->" Exp ;
-Pi.     Exp  ::= TeleP "->" Exp ;
+Pi.     Exp  ::= TeleNE "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
 Var.    Exp2 ::= [Binder] ;     -- check for "_"
 U.      Exp2 ::= "U" ;
@@ -48,11 +48,10 @@ Con.    Con   ::= AIdent ;
 Tele. Tele  ::= [VDecl] ;
 
 -- nonempty telescopes
-TeleP. TeleP ::= [VDeclNE] ;
+TeleNE. TeleNE ::= [VDeclNE] ;
 
 VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
-
 
 VDeclNE.  VDeclNE ::= "(" [Binder] ":" Exp ")" ;
 terminator nonempty VDeclNE "" ;
