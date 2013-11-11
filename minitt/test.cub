@@ -1,0 +1,23 @@
+-- This is a one line comment.
+
+{- This comment
+   is actually
+   three lines. Fun. -}
+
+-- The natural numbers.
+data N = zero | suc (n : N)
+
+-- A type declaration.
+f : (a : A) (b: B) -> N -> N
+
+-- a function declaration
+fst x y = x
+
+plus : N -> N -> N
+plus n m = case n of
+  zero  -> m
+  suc n -> k
+    where k = plus n m
+
+local x = let x = x
+          in plus x x
