@@ -5,23 +5,20 @@ comment "{-" "-}" ;
 
 layout "where", "let", "of" ;
 layout stop "in" ;
---layout toplevel ;
+layout toplevel ;
 
--- not working??
---Module. Module ::= "{" [Def] "}" ;
+Module. Module ::= [Def] ;
 
-Module. Module ::= "module" AIdent "where" "{" [Def] "}" ;
+--Module. Module ::= "module" AIdent "where" "{" [Def] "}" ;
 
 Where.  Exp  ::= Exp "where" "{" [Def] "}" ;
 Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
---Data.   Exp  ::= "data" AIdent Tele "=" [Sum] ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
-Pi.     Exp  ::= VDecl "->" Exp ;
 Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
--- not working?
---Pi.     Exp  ::= TeleP "->" Exp ;
+Fun.    Exp  ::= Exp1 "->" Exp ;
+Pi.     Exp  ::= TeleP "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
-Var.    Exp2 ::= AIdent ;
+Var.    Exp2 ::= [Binder] ;     -- check for "_"
 U.      Exp2 ::= "U" ;
 
 coercions Exp 2 ;
@@ -49,17 +46,19 @@ Con.    Con   ::= AIdent ;
 
 -- telescopes
 Tele. Tele  ::= [VDecl] ;
-terminator Tele "" ;
 
 -- nonempty telescopes
-TeleP. TeleP ::= [VDecl] ;
-terminator nonempty TeleP "" ;
+TeleP. TeleP ::= [VDeclNE] ;
 
 VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 
+
+VDeclNE.  VDeclNE ::= "(" [Binder] ":" Exp ")" ;
+terminator nonempty VDeclNE "" ;
+
 -- Branches
-ConBranch.  Branch ::= Con [AIdent] "=>" Exp ;
+ConBranch.  Branch ::= Con [AIdent] "->" Exp ;
 separator Branch ";" ;
 
 position token AIdent (letter(letter|digit)*) ;
