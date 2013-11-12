@@ -16,10 +16,11 @@ type LEnv = [String]            -- local environment for variables
 
 type Resolver = ReaderT LEnv (ErrorT String Identity)
 
-runResolver :: Resolver a -> a
-runResolver x = case runIdentity $ runErrorT $ runReaderT x [] of
-  Left e -> error e
-  Right a -> a
+runResolver :: Resolver a -> Either String a
+runResolver x = runIdentity $ runErrorT $ runReaderT x []
+
+resolveModule :: A.Module -> Resolver [(Exp,Exp)]
+resolveModule (A.Module defs) = resolveMutualDefs defs
 
 look :: A.AIdent -> Resolver Exp
 look iden@(A.AIdent (_, str)) = do
@@ -36,8 +37,6 @@ insertVar A.NoArg                    e = "_":e
 -- Note: reverses order
 insertVars :: [A.Arg] -> LEnv -> LEnv
 insertVars as e = foldl (flip insertVar) e as
--- insertVars [] e = e
--- insertVars (a:as) e = insertVars as (insertVar a e)
 
 -- A dummy variable we can insert when we have to lift an
 -- environment.
@@ -74,14 +73,14 @@ resolveLams :: [A.Arg] -> Resolver Exp -> Resolver Exp
 resolveLams as e = foldr lam e as
 
 resolveExp :: A.Exp -> Resolver Exp
-resolveExp A.U = return U
-resolveExp (A.Var (A.Binder a)) = resolveVar a
-resolveExp (A.App t s) = App <$> resolveExp t <*> resolveExp s
+resolveExp A.U                      = return U
+resolveExp (A.Var (A.Binder a))     = resolveVar a
+resolveExp (A.App t s)              = App <$> resolveExp t <*> resolveExp s
 resolveExp (A.Pi (A.TeleNE tele) b) =
   resolveTelePi (flattenTele (map unNE tele)) (resolveExp b)
 resolveExp (A.Fun a b) =
   Pi <$> resolveExp a <*> lam dummyVar (resolveExp b)
-resolveExp (A.Lam bs t) = resolveLams (map unBinder bs) (resolveExp t)
+resolveExp (A.Lam bs t)   = resolveLams (map unBinder bs) (resolveExp t)
 resolveExp (A.Case e brs) =
   App <$> (Fun <$> mapM resolveBranch brs) <*> resolveExp e
 resolveExp (A.Let defs e) = do
@@ -101,7 +100,7 @@ resolveBranch (A.Branch (A.AIdent (_,name)) args e) = do
 
 -- Assumes a flattened telescope.
 resolveTele :: [A.VDecl] -> Resolver [Exp]
-resolveTele [] = return []
+resolveTele []                          = return []
 resolveTele (A.VDecl [A.Binder a] t:ds) =
   (:) <$> resolveExp t <*> local (insertVar a) (resolveTele ds)
 resolveTele ds =
@@ -111,24 +110,29 @@ resolveLabel :: A.Sum -> Resolver (String,[Exp])
 resolveLabel (A.Sum (A.AIdent (_,name)) (A.Tele tele)) =
   resolveTele (flattenTele tele) >>= \ts -> return (name, ts)
 
-unData :: A.Def -> Resolver (A.AIdent,Exp,Exp)
+-- Anders: Also output a list of constructor names
+unData :: A.Def -> Resolver (A.AIdent,[A.Arg],Exp,Exp)
 unData (A.DefData iden (A.Tele vdcls) cs) = do
   let flat = flattenTele vdcls
   let args = concatMap (\(A.VDecl binds _) -> map unBinder binds) flat
-  exp <- resolveLams args (Sum <$> mapM resolveLabel cs)
+  let cons = [ A.Arg id | A.Sum id _ <- cs ]
+  -- Anders: I think we should add the name of the data type when resolving
+  --         the sums.      
+  exp <- resolveLams (A.Arg iden : args) (Sum <$> mapM resolveLabel cs)
   typ <- resolveTelePi flat (return U) -- data-decls. have value type U
-  return (iden,exp,typ)
+  return (iden,cons,exp,typ)
 unData def = throwError ("unData: data declaration expected " ++ show def)
 
 -- All the defs are mutual.
--- TODO: optimize with call-graph.  Then the result type should be
+-- TODO: optimize with call-graph. Then the result type should be
 -- Resolver Env instead (or Resolver [Env] ?).
 resolveMutualDefs :: [A.Def] -> Resolver [(Exp,Exp)]
 resolveMutualDefs [] = return []
 resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cases)
   A.DefData{} -> do
-    (iden,exp,typ) <- unData def
-    rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs)
+    (iden,args,exp,typ) <- unData def
+    -- Anders: Now that the constructor names are known we can add them
+    rest <- local (insertVars (A.Arg iden : args)) (resolveMutualDefs defs)
     return ((exp,typ):rest)
   A.DefTDecl iden t -> do
     (A.Def _ args body,defs') <- findDef iden defs
@@ -138,6 +142,7 @@ resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cas
     return ((exp,typ):rest)
   A.Def iden args body -> do
     (A.DefTDecl _ t, defs') <- findTDecl iden defs
+    -- TODO: There is a bug here for recursive definitions!
     exp <- resolveLams args (resolveExpWhere body)
     typ <- resolveExp t
     rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs')
@@ -161,3 +166,22 @@ resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cas
       _                                                 ->
         findTDecl iden defs >>= \(d,ds) -> return (d, def:ds)
 
+
+
+--------------------------------------------------------------------------------
+-- TESTS:      
+
+-- test for unData: nat
+nat = A.DefData (A.AIdent ((8,6),"N")) (A.Tele []) 
+       [A.Sum (A.AIdent ((8,10),"zero")) (A.Tele []),
+        A.Sum (A.AIdent ((8,17),"suc")) 
+          (A.Tele [A.VDecl [A.Binder (A.Arg (A.AIdent ((8,22),"n")))] 
+                   (A.Var (A.Binder (A.Arg (A.AIdent ((8,26),"N")))))])]
+
+-- runResolver $ resolveMutualDefs [nat,idt,iddef]
+idNt = A.DefTDecl (A.AIdent ((35,1),"id")) (A.Fun (A.Var (A.Binder (A.Arg (A.AIdent ((35,6),"N"))))) (A.Var (A.Binder (A.Arg (A.AIdent ((35,11),"N"))))))
+idNdef = A.Def (A.AIdent ((36,1),"id")) [A.Arg (A.AIdent ((36,4),"x"))] (A.NoWhere (A.Var (A.Binder (A.Arg (A.AIdent ((36,8),"x"))))))
+
+-- runResolver $ resolveMutualDefs [idUt,idUdef]
+idUt = A.DefTDecl (A.AIdent ((35,1),"id")) (A.Fun A.U A.U)
+idUdef = A.Def (A.AIdent ((36,1),"id")) [A.Arg (A.AIdent ((36,4),"x"))] (A.NoWhere (A.Var (A.Binder (A.Arg (A.AIdent ((36,8),"x"))))))
