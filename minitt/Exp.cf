@@ -54,5 +54,5 @@ terminator VDecl "" ;
 VDeclNE.  VDeclNE ::= VDecl ;
 terminator nonempty VDeclNE "" ;
 
-position token AIdent (letter(letter|digit)*) ;
+position token AIdent (letter(letter|digit|'\'')*) ;
 terminator AIdent "" ;

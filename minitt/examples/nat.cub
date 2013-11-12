@@ -1,0 +1,10 @@
+-- The natural numbers
+data N = zero | suc (n : N)
+
+zero' : N
+zero' = zero
+
+plus : N -> N -> N
+plus n m = case n of
+  zero  -> m
+  suc n -> suc (plus n m)

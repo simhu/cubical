@@ -1,3 +1,5 @@
+all: 
+	ghc --make -O2 -o minitt Main.hs
 bnfc:
 	bnfc -d Exp.cf
 	happy -gca Exp/Par.y

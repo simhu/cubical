@@ -31,3 +31,6 @@ head _ xs = case xs of
 
 lambda : A -> B -> C -> A
 lambda = \x y z -> x
+
+id : A -> A
+id x = x 
