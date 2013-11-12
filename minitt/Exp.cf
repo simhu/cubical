@@ -7,12 +7,14 @@ layout toplevel ;
 
 Module. Module ::= [Def] ;
 
-Def.      Def ::= AIdent [Args] "=" Exp ;
+Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
 DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
 separator Def ";" ;
 
-Where.  Exp  ::= Exp "where" "{" [Def] "}" ; -- leads to multiple s/r conflicts
+Where.   ExpWhere  ::= Exp "where" "{" [Def] "}" ;
+NoWhere. ExpWhere  ::= Exp ;
+
 Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
 Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
@@ -24,16 +26,16 @@ U.      Exp2 ::= "U" ;
 
 coercions Exp 2 ;
 
-Binder.   Binder ::= Args ;
-terminator nonempty Binder "" ;
+Binder.   Binder ::= Arg ;
+separator nonempty Binder "" ;
 
 -- Like Binder, but may be empty
-Arg.      Args ::= AIdent ;
-NoArg.    Args ::= "_" ;
-terminator Args "" ;
+Arg.      Arg ::= AIdent ;
+NoArg.    Arg ::= "_" ;
+terminator Arg "" ;
 
 -- Branches
-Branch.  Branch ::= AIdent [Args] "->" Exp ;
+Branch.  Branch ::= AIdent [Arg] "->" ExpWhere ;
 separator Branch ";" ;
 
 -- Labelled sum alternatives

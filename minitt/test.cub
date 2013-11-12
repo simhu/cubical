@@ -8,7 +8,7 @@
 data N = zero | suc (n : N)
 
 -- A type declaration.
-f : (a : A) (b: B) -> N -> N
+f : (a : A) (b c d : B) -> N -> N
 
 -- a function declaration
 fst x y = x
@@ -22,10 +22,12 @@ plus n m = case n of
 local x = let x = x
           in plus x x
 
--- this is an ugly way to write lists... 
-data List (A : U) = nil | cons (_ : A) (_ : List A)
+data List (A : U) = nil | cons (x : A) (xs : List A)
 
 head : (A : U) -> List A -> A
 head _ xs = case xs of
   nil -> nil
   cons x xs -> x
+
+lambda : A -> B -> C -> A
+lambda = \x y z -> x
