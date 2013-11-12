@@ -21,9 +21,9 @@ data Exp = Comp Exp Env
          | Sum Lb
          | Top
   deriving (Eq,Show)
- 
-data Env = Empty 
-         | Pair Env Exp 
+
+data Env = Empty
+         | Pair Env Exp
          | PDef [Exp] [Exp] Env
   deriving (Eq,Show)
 
@@ -44,7 +44,7 @@ evals es r = map (\e -> eval e r) es
 
 app :: Exp -> Exp -> Exp
 app (Comp (Lam b) s)     u            = eval b (Pair s u)
-app a@(Comp (Fun ces) r) b@(Con c us) = case lookup c ces of 
+app a@(Comp (Fun ces) r) b@(Con c us) = case lookup c ces of
   Just e  -> eval e (upds r us)
   Nothing -> error $ "app: " ++ show a ++ " " ++ show b
 app f                    u          = App f u
@@ -56,21 +56,21 @@ getE l r@(PDef es _ r1) = getE l (upds r1 (evals es r))
 
 addC :: [Exp] -> [Exp] -> Env -> [Exp] -> [Exp]
 addC gam _      _  []     = gam
-addC gam (a:as) nu (u:us) = addC (eval a nu:gam) as (Pair nu u) us 
+addC gam (a:as) nu (u:us) = addC (eval a nu:gam) as (Pair nu u) us
 
 -- An error monad
 type Error a = Either String a
 
 (=?=) :: Error Exp -> Exp -> Error ()
-m =?= s2 = do 
+m =?= s2 = do
   s1 <- m
-  unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2) 
+  unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
 checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
 checkD k rho gam es as = do
   (rho1,gam1,l) <- checkTs k rho gam as
   checks l rho1 gam1 as rho es
-  where  
+  where
     checkTs :: Int -> Env -> [Exp] -> [Exp] -> Error (Env,[Exp],Int)
     checkTs k rho gam []     = return (rho,gam,k)
     checkTs k rho gam (a:as) = do
@@ -97,7 +97,7 @@ check k rho gam a t = case (a,t) of
   (U,Sum bs) -> sequence_ [checkTUs k rho gam as | (_,as) <- bs]
   (Pi (Comp (Sum cas) nu) f,Fun ces) ->
     if map fst ces == map fst cas
-       then sequence_ [ fix k rho gam as nu f c e 
+       then sequence_ [ fix k rho gam as nu f c e
                       | ((c,e), (_,as)) <- zip ces cas]
        else fail "case branches does not match the data type"
   (Pi a f,Lam t)  -> check (k+1) (Pair rho (Var k)) (a:gam) (app f (Var k)) t
@@ -143,7 +143,7 @@ checkI k rho gam e = case e of
 
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()
-checks k rho gam (a:as) nu (e:es) = do 
+checks k rho gam (a:as) nu (e:es) = do
   trace ("checking " ++ show e ++ "\n") (check k rho gam (eval a nu) e)
   checks k rho gam as (Pair nu (eval e rho)) es
 checks k rho gam _ _ _ = Left "checks"
