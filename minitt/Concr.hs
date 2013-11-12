@@ -14,7 +14,7 @@ import Control.Applicative
 
 type LEnv = [String]            -- local environment for variables
 
-type Resolver a = ReaderT LEnv (ErrorT String Identity) a
+type Resolver = ReaderT LEnv (ErrorT String Identity)
 
 runResolver :: Resolver a -> a
 runResolver x = case runIdentity $ runErrorT $ runReaderT x [] of
@@ -86,7 +86,7 @@ resolveExp (A.Case e brs) =
   App <$> (Fun <$> mapM resolveBranch brs) <*> resolveExp e
 resolveExp (A.Let defs e) = do
   exp     <- resolveExp e
-  exptyps <- resolveDefs defs
+  exptyps <- resolveMutualDefs defs
   let (exps,typs) = unzip exptyps
   return (Def exp exps typs)
 
@@ -123,41 +123,41 @@ unData def = throwError ("unData: data declaration expected " ++ show def)
 -- All the defs are mutual.
 -- TODO: optimize with call-graph.  Then the result type should be
 -- Resolver Env instead (or Resolver [Env] ?).
-resolveDefs :: [A.Def] -> Resolver [(Exp,Exp)]
-resolveDefs [] = return []
-resolveDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cases)
+resolveMutualDefs :: [A.Def] -> Resolver [(Exp,Exp)]
+resolveMutualDefs [] = return []
+resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cases)
   A.DefData{} -> do
     (iden,exp,typ) <- unData def
-    rest <- local (insertVar (A.Arg iden)) (resolveDefs defs)
+    rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs)
     return ((exp,typ):rest)
   A.DefTDecl iden t -> do
     (A.Def _ args body,defs') <- findDef iden defs
     exp <- resolveLams args (resolveExpWhere body)
     typ <- resolveExp t
-    rest <- local (insertVar (A.Arg iden)) (resolveDefs defs')
+    rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs')
     return ((exp,typ):rest)
   A.Def iden args body -> do
     (A.DefTDecl _ t, defs') <- findTDecl iden defs
     exp <- resolveLams args (resolveExpWhere body)
     typ <- resolveExp t
-    rest <- local (insertVar (A.Arg iden)) (resolveDefs defs')
+    rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs')
     return ((exp,typ):rest)
   where
     -- pick out a definition
     findDef :: A.AIdent -> [A.Def] -> Resolver (A.Def, [A.Def])
     findDef iden []         =
       throwError (show iden ++ " is lacking an accompanying binding")
-    findDef iden (def:defs) = case def of
-      A.Def iden' _ _ | iden == iden' -> return (def,defs)
-      _                               ->
+    findDef iden@(A.AIdent (_,name)) (def:defs) = case def of
+      A.Def (A.AIdent (_,name')) _ _ | name == name' -> return (def,defs)
+      _                                              ->
         findDef iden defs >>= \(d,ds) -> return (d, def:ds)
 
     -- pick out a type declaration
     findTDecl :: A.AIdent -> [A.Def] -> Resolver (A.Def, [A.Def])
     findTDecl iden []         =
       throwError (show iden ++ " is lacking an accompanying type declaration")
-    findTDecl iden (def:defs) = case def of
-      A.DefTDecl iden' _ -> return (def,defs)
-      _                  ->
+    findTDecl iden@(A.AIdent (_,name)) (def:defs) = case def of
+      A.DefTDecl (A.AIdent (_,name')) _ | name == name' -> return (def,defs)
+      _                                                 ->
         findTDecl iden defs >>= \(d,ds) -> return (d, def:ds)
 
