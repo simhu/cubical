@@ -1,6 +1,6 @@
 module Main where
 
-import Concr
+import Concrete
 import System.Environment
 
 import Exp.Lex

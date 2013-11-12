@@ -1,5 +1,5 @@
 -- nameless miniTT, with recursive definitions
-module MTT3 where
+module MTT where
 
 import Control.Monad
 import Debug.Trace
