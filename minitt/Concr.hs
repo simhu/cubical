@@ -84,7 +84,7 @@ resolveExp (A.Lam bs t)   = resolveLams (map unBinder bs) (resolveExp t)
 resolveExp (A.Case e brs) =
   App <$> (Fun <$> mapM resolveBranch brs) <*> resolveExp e
 resolveExp (A.Let defs e) = do
-  exp     <- resolveExp e
+  exp     <- resolveExp e       -- FIXME: e should know about the definitions!
   exptyps <- resolveMutualDefs defs
   let (exps,typs) = unzip exptyps
   return (Def exp exps typs)
@@ -116,9 +116,10 @@ unData (A.DefData iden (A.Tele vdcls) cs) = do
   let flat = flattenTele vdcls
   let args = concatMap (\(A.VDecl binds _) -> map unBinder binds) flat
   let cons = [ A.Arg id | A.Sum id _ <- cs ]
+  let labels = Sum <$> mapM (local (insertVars args) . resolveLabel) cs
   -- Anders: I think we should add the name of the data type when resolving
   --         the sums.      
-  exp <- resolveLams (A.Arg iden : args) (Sum <$> mapM resolveLabel cs)
+  exp <- resolveLams (A.Arg iden : args) labels
   typ <- resolveTelePi flat (return U) -- data-decls. have value type U
   return (iden,cons,exp,typ)
 unData def = throwError ("unData: data declaration expected " ++ show def)
@@ -136,14 +137,15 @@ resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cas
     return ((exp,typ):rest)
   A.DefTDecl iden t -> do
     (A.Def _ args body,defs') <- findDef iden defs
-    exp <- resolveLams args (resolveExpWhere body)
+    exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
     typ <- resolveExp t
     rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs')
     return ((exp,typ):rest)
   A.Def iden args body -> do
     (A.DefTDecl _ t, defs') <- findTDecl iden defs
     -- TODO: There is a bug here for recursive definitions!
-    exp <- resolveLams args (resolveExpWhere body)
+    --exp <- resolveLams args (resolveExpWhere body)
+    exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
     typ <- resolveExp t
     rest <- local (insertVar (A.Arg iden)) (resolveMutualDefs defs')
     return ((exp,typ):rest)
