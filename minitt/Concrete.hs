@@ -10,7 +10,7 @@ import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Data.Functor.Identity
 import Data.Graph
-import Data.List (elemIndex,(\\))
+import Data.List (elemIndex,(\\),union,nub)
 
 type LEnv = [String]            -- local environment for variables
 
@@ -25,7 +25,7 @@ resolveModule (Module defs) = resolveMutualDefs defs
 look :: AIdent -> Resolver A.Exp
 look iden@(AIdent (_, str)) = do
   e <- ask
-  case elemIndex str e of
+  case elemIndex str e of       -- TODO: exclude "_"
     Just n  -> return $ A.Ref n
     Nothing -> throwError ("unknown identifier: " ++ show iden)
 
@@ -119,7 +119,7 @@ resolveLabel :: Sum -> Resolver (String,[A.Exp])
 resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
   resolveTele (flattenTele tele) >>= \ts -> return (name, ts)
 
--- Anders: Also output a list of constructor names
+-- -- Anders: Also output a list of constructor names
 unData :: Def -> Resolver (AIdent,[Arg],A.Exp,A.Exp)
 unData (DefData iden (Tele vdcls) cs) = do
   let flat = flattenTele vdcls
@@ -182,25 +182,64 @@ callGraph :: Module -> [[Def]]
 callGraph (Module defs) = map flattenSCC $ stronglyConnComp $ graph defs
 
 graph :: [Def] -> [(Def,String,[String])]
-graph defs = [ (d,iden,freeVars (unWhere body) \\ unArgs args)
-             | d@(Def (AIdent (_,iden)) args body) <- defs ]
+graph = concatMap defToGraph
 
--- Can we use: let x = y in e  --> (\x. e) y)  ??
+  -- [ (d,iden,freeVars (unWhere body) \\ unArgs args)
+  --            | d@(Def (AIdent (_,iden)) args body) <- defs ] ++
+  --            [ 
+  --            | d@(DefTDecl (AIdent (_,iden)) tele sums) <- defs]
+
+defToGraph :: Def -> [(Def, String, [String])]
+defToGraph d = case d of
+  (Def (AIdent (_,iden)) args body) ->
+    [(d,iden,freeVars (unWhere body) \\ unArgs args)]
+  (DefTDecl (AIdent (_,iden)) exp) -> [(d,iden,freeVars exp)]
+  (DefData (AIdent (_,iden)) tele labels) ->
+    [ | Sum (AIdent )]
+
+
 freeVars :: Exp -> [String]
-freeVars (Let ds e)  = undefined -- Isn't it weird that let have [Def]?
+freeVars (Let ds e)  = (freeVars e `union` unions (map freeVarsDef ds))
+                       \\ defsToNames ds
 freeVars (Lam bs e)  = freeVars e \\ unArgs (map unBinder bs)
 freeVars (Case e bs) =
-  freeVars e ++ concat [ freeVars (unWhere e) \\ unArgs args
-                       | Branch _ args e <- bs ] -- ignore the identifier?
-freeVars (Fun e1 e2) = freeVars e1 ++ freeVars e2
-freeVars (Pi (TeleNE vdcls) e) = (freeVars e
-                              ++ concat [ freeVars e
-                                        | VDecl _ e <- map unNE vdcls ])
-                              \\ concat [ unArgs (map unBinder bs)
-                                        | VDecl bs _ <- map unNE vdcls ] -- is this ok?
-freeVars (App e1 e2) = freeVars e1 ++ freeVars e2
+  freeVars e `union` unions [ str:(freeVars (unWhere e) \\ unArgs args)
+                            | Branch (AIdent (_,str)) args e <- bs ]
+freeVars (Fun e1 e2) = freeVars e1 `union` freeVars e2
+freeVars (Pi (TeleNE []) e) = freeVars e
+freeVars (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
+  freeVars a `union` (freeVars (Pi (TeleNE vs) e) \\ unArgs (map unBinder bs))
+freeVars (App e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Var x)     = [unArg (unBinder x)]
 freeVars U           = []
+
+-- The free variables of the right hand side.
+freeVarsDef :: Def -> [String]
+freeVarsDef (Def _ args exp) = freeVars (unWhere exp) \\ unArgs args
+freeVarsDef (DefTDecl _ exp) = freeVars exp
+freeVarsDef (DefData _ (Tele vdecls) labels) = freeVarsTele vdecls `union`
+  (unions [ freeVarsTele vs | Sum _ (Tele vs) <- labels ] \\ namesTele vdecls)
+
+freeVarsTele :: [VDecl] -> [String]
+freeVarsTele []                = []
+freeVarsTele ((VDecl bs e):ds) =
+  freeVars e `union` (freeVarsTele ds \\ unArgs (map unBinder bs))
+
+namesTele :: [VDecl] -> [String]
+namesTele vs = unions [ unArgs (map unBinder args) | VDecl args _ <- vs ]
+
+defToName :: Def -> String
+defToName (Def (AIdent (_,n)) _ _)     = n
+defToName (DefTDecl (AIdent (_,n)) _)  = n
+defToName (DefData (AIdent (_,n)) _ _) = n
+
+-- TODO: nub or not to nub?
+defsToNames :: [Def] -> [String]
+defsToNames = nub . map defToName
+
+unions :: Eq a => [[a]] -> [a]
+unions = foldr union []
+
 
 --------------------------------------------------------------------------------
 -- TESTS:
