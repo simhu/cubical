@@ -1,0 +1,12 @@
+-- testing mutual recursive definitions
+
+g = f
+
+h1 = h2
+h2 = h1
+
+f x = x
+
+a1 = a2
+a2 = a3
+a3 = f a1

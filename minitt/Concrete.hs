@@ -4,12 +4,13 @@ module Concrete where
 import Exp.Abs
 import qualified MTT as A
 
+import Control.Applicative
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Data.Functor.Identity
-import Data.List (elemIndex)
-import Control.Applicative
+import Data.Graph
+import Data.List (elemIndex,(\\))
 
 type LEnv = [String]            -- local environment for variables
 
@@ -36,6 +37,12 @@ insertVar NoArg                  e = "_":e
 -- Note: reverses order
 insertVars :: [Arg] -> LEnv -> LEnv
 insertVars as e = foldl (flip insertVar) e as
+
+unArg :: Arg -> String
+unArg a = head $ insertVar a []
+
+unArgs :: [Arg] -> [String]
+unArgs = map unArg
 
 -- A dummy variable we can insert when we have to lift an
 -- environment.
@@ -88,9 +95,12 @@ resolveExp (Let defs e) = do
   let (exps,typs) = unzip exptyps
   return (A.Def exp exps typs)
 
+unWhere :: ExpWhere -> Exp
+unWhere (Where e ds) = Let ds e
+unWhere (NoWhere e)  = e
+
 resolveExpWhere :: ExpWhere -> Resolver A.Exp
-resolveExpWhere (Where e defs) = resolveExp (Let defs e)
-resolveExpWhere (NoWhere e)    = resolveExp e
+resolveExpWhere = resolveExp . unWhere
 
 resolveBranch :: Branch -> Resolver (String,A.Exp)
 resolveBranch (Branch (AIdent (_,name)) args e) = do
@@ -117,7 +127,7 @@ unData (DefData iden (Tele vdcls) cs) = do
   let cons = [ Arg id | Sum id _ <- cs ]
   let labels = A.Sum <$> mapM (local (insertVars args) . resolveLabel) cs
   -- Anders: I think we should add the name of the data type when resolving
-  --         the sums.      
+  --         the sums.
   exp <- resolveLams (Arg iden : args) labels
   typ <- resolveTelePi flat (return A.U) -- data-decls. have value type U
   return (iden,cons,exp,typ)
@@ -167,15 +177,39 @@ resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cas
       _                                                 ->
         findTDecl iden defs >>= \(d,ds) -> return (d, def:ds)
 
+-- TODO: For now it ignores data and type declarations
+callGraph :: Module -> [[Def]]
+callGraph (Module defs) = map flattenSCC $ stronglyConnComp $ graph defs
+
+graph :: [Def] -> [(Def,String,[String])]
+graph defs = [ (d,iden,freeVars (unWhere body) \\ unArgs args)
+             | d@(Def (AIdent (_,iden)) args body) <- defs ]
+
+-- Can we use: let x = y in e  --> (\x. e) y)  ??
+freeVars :: Exp -> [String]
+freeVars (Let ds e)  = undefined -- Isn't it weird that let have [Def]?
+freeVars (Lam bs e)  = freeVars e \\ unArgs (map unBinder bs)
+freeVars (Case e bs) =
+  freeVars e ++ concat [ freeVars (unWhere e) \\ unArgs args
+                       | Branch _ args e <- bs ] -- ignore the identifier?
+freeVars (Fun e1 e2) = freeVars e1 ++ freeVars e2
+freeVars (Pi (TeleNE vdcls) e) = (freeVars e
+                              ++ concat [ freeVars e
+                                        | VDecl _ e <- map unNE vdcls ])
+                              \\ concat [ unArgs (map unBinder bs)
+                                        | VDecl bs _ <- map unNE vdcls ] -- is this ok?
+freeVars (App e1 e2) = freeVars e1 ++ freeVars e2
+freeVars (Var x)     = [unArg (unBinder x)]
+freeVars U           = []
 
 --------------------------------------------------------------------------------
--- TESTS:      
+-- TESTS:
 
 -- test for unData: nat
-nat = DefData (AIdent ((8,6),"N")) (Tele []) 
+nat = DefData (AIdent ((8,6),"N")) (Tele [])
        [Sum (AIdent ((8,10),"zero")) (Tele []),
-        Sum (AIdent ((8,17),"suc")) 
-          (Tele [VDecl [Binder (Arg (AIdent ((8,22),"n")))] 
+        Sum (AIdent ((8,17),"suc"))
+          (Tele [VDecl [Binder (Arg (AIdent ((8,22),"n")))]
                    (Var (Binder (Arg (AIdent ((8,26),"N")))))])]
 
 -- runResolver $ resolveMutualDefs [nat,idNt,idNdef]
