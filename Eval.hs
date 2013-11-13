@@ -77,10 +77,40 @@ minus :: Mor -> Name -> Mor
             | otherwise = co
 
 -- TODO: rename into BoxShape ?
-data Box = Box Dir Name Dim -- for x, J; no I (where x,J subset I)
+data BoxShape = BoxShape {
+  boxDir :: Dir, -- direction of the completion (up or down)
+  boxName :: Name, -- direction in which make the completion
+  boxDim :: Dim -- dimensions of the sides
+  }
   deriving (Eq,Show)
 
--- TODO: Type for box content? (a,[(a,a)]) ??
+data BoxContent = BoxContent {
+  boxBottom :: Val,
+  boxSides :: [(Val, Val)]
+  }
+  deriving (Eq,Show)
+
+boxSide :: BoxContent -> Int -> Dir -> Val
+boxSide (BoxContent _ vs) n False = fst $vs !! n
+boxSide (BoxContent _ vs) n True  = snd $vs !! n
+
+-- assumes the list is of odd size
+toBox :: [Val] -> BoxContent
+toBox (v:vs) = BoxContent v (pairing vs)
+  where pairing [] = []
+        pairing (v1:v2:vs) = (v1,v2):(pairing vs)
+        pairing _ = error "toBox: wrong box format (not odd)"
+toBox _ = error "toBox: wrong box format (empty box)"
+
+fromBox :: BoxContent -> [Val]
+fromBox (BoxContent v vs) = v:(foldr (\(v1, v2) ws -> v1:v2:ws) [] vs)
+
+-- mapBox :: (Val -> Val) -> (BoxContent -> BoxContent)
+-- mapBox f (BoxContent v vs) = BoxContent (f v) [(f v, f w) | (v, w) <- vs]
+
+mapBox :: (Val -> Val) -> (BoxContent -> BoxContent)
+mapBox f = toBox . (map f) . fromBox
+
 
 -- data Dir = Up | Down
 --          deriving (Eq,Show)
@@ -112,8 +142,8 @@ data Val = VN | VZ | VS Val
          | VInc Dim Val         -- dim needed?
          | VSquash Dim Val Val  -- has dimension (gensym dim:dim)
          | VInhRec Val Val Val Val -- not needed for closed terms
-         | Com Dim Val Box [Val]
-         | Fill Dim Val Box [Val]   -- enough?
+         | Fill Dim Val BoxShape BoxContent
+         | Com Dim Val BoxShape BoxContent
          | Res Val Mor              -- not needed for closed terms
          | VCon Ident [Val]
 --         | VBranch [(Ident,Ter)] Env
@@ -141,11 +171,11 @@ eval d e (Id a a0 a1) = VId (eval d e a) (eval d e a0) (eval d e a1)
 eval d e (Refl a)  = Path $ res (eval d e a) (deg d (gensym d : d))
 eval d e (Trans c p t) =
   case eval d e p of
-    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box [eval d e t]
+    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box (BoxContent (eval d e t) [])
     pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
-        box = Box True x []
+        box = BoxShape True x []
 eval d e (Ext b f g p) =
   Path $ VExt d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
 eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
@@ -180,21 +210,15 @@ inhrec b p phi (VSquash d a0 a1) = -- dim. of b,p,phi is x:d
         b0 = inhrec (fc b False) (fc p False) (fc phi False) a0
         b1 = inhrec (fc b True) (fc p True) (fc phi True) a1
         d' = delete x d
-inhrec b p phi (Fill d (VInh a) box@(Box dir i d') vs) =
-  fill d b box bs
-  where bs = zipWith irec boxshape vs
-        boxshape = (i,dir) : zip dd' (cycle [True,False])
-        dd' = concatMap (\j -> [j,j]) d'
-        irec (j,dir) v = inhrec (fc b) (fc p) (fc phi) v
-          where fc v = res v (face d j dir)
+inhrec b p phi (Fill d (VInh a) box@(BoxShape dir i d') bc) =
+  fill d b box (modBox dir i d' bc irec)
+  where  irec dir j v = inhrec (fc b) (fc p) (fc phi) v
+           where fc v = res v (face d j dir)
 -- TODO: Is there a nicer way to not duplicate this code?
-inhrec b p phi (Com d (VInh a) box@(Box dir i d') vs) =
-  com d b box bs
-  where bs = zipWith irec boxshape vs
-        boxshape = (i,dir) : zip dd' (cycle [True,False])
-        dd' = concatMap (\j -> [j,j]) d'
-        irec (j,dir) v = inhrec (fc b) (fc p) (fc phi) v
-          where fc v = res v (face d j dir)
+inhrec b p phi (Com d (VInh a) box@(BoxShape dir i d') bc) =
+  com d b box (modBox dir i d' bc irec)
+  where  irec dir j v = inhrec (fc b) (fc p) (fc phi) v
+           where fc v = res v (face d j dir)
 inhrec b p phi a = VInhRec b p phi a
 
 -- TODO: better names
@@ -216,105 +240,95 @@ unPath (Path v) = v
 unPath v        = error $ "unPath: " ++ show v
 
 -- Kan filling
-fill :: Dim -> Val -> Box -> [Val] -> Val
-fill d VN (Box _ n _) vs = -- head vs
-  res (head vs) (deg (delete n d) d)  -- "trivial" filling for nat
-fill d (VId a v0 v1) (Box dir i d') vs =
-  Path $ fill (x:d) ax (Box dir i (x:d')) (vx:v0:v1:vsx)
+fill :: Dim -> Val -> BoxShape -> BoxContent -> Val
+fill d VN (BoxShape _ n _) (BoxContent v _) = -- head vs
+  res v (deg (delete n d) d)  -- "trivial" filling for nat
+fill d (VId a v0 v1) (BoxShape dir i d') bc =
+  Path $ fill (x:d) ax (BoxShape dir i (x:d')) (BoxContent vx ((v0, v1):vsx))
   where x   = gensym d            -- i,d' <= d
         ax  = res a (deg d (x:d)) -- dim x:d
-        (vx:vsx) = modBox i d' (map unPath vs)
-                    (\j -> let dj = delete j d
-                           in update (identity dj) [gensym dj] [x])
-fill d (VSigma va vb) box vs = fill d (app d vb a) box bs
-  where as = map p vs
-        bs = map q vs
+        BoxContent vx vsx = modBox True i d' bc
+                    (\_ j v -> let dj = delete j d
+                                   f  = update (identity dj) [gensym dj] [x]
+                             in res (unPath v) f)
+fill d (VSigma va vb) box bc = fill d (app d vb a) box bs
+  where as = mapBox p bc
+        bs = mapBox q bc
         a  = fill d va box as
-fill d (VLSum nass) box cvs = -- assumes cvs are constructor vals
+fill d (VLSum nass) box bcv = -- assumes cvs are constructor vals
   VCon name ws
   where
     as = case lookup name nass of
            Just as -> as
            Nothing -> error $ "fill: missing constructor "
                       ++ "in labelled sum " ++ name
-    name = extractName cvs
-    extractName [VCon n _] = n
-    extractName (VCon n _:xs) | extractName xs == n = n
-    extractName xs@(VCon _ _:_) =
-      error $ "fill: constructor names don't match " ++ show xs
-    extractName x = err x
-    extractArgs = map (\v -> case v of VCon _ xs -> xs; x -> err x)
-    argboxes = transpose (extractArgs cvs)
+    name = extractName bcv
+    extractName (BoxContent (VCon n _) _) = n
+    extractName x = error "fill VLSum: not a constructor (bottom)"
+    extractArgs = map (\v -> case v of
+                          VCon n xs | n == name -> xs
+                          VCon n _ -> error $ "fill VLSum: constructors " ++ n ++
+                               " and " ++ name ++ " do not match"
+                          _ -> error "fill VLSum: not a constructor (side)"
+                      )
+    argboxes = map toBox $ transpose $ extractArgs $ fromBox bcv
     -- fill boxes for each argument position of the constructor
     ws = fills d as box argboxes
     err x = error $ "fill: not applied to constructor expressions " ++ show x
 fill d v b vs = Fill d v b vs
 
-fills :: Dim -> [Val] -> Box -> [[Val]] -> [Val]
+fills :: Dim -> [Val] -> BoxShape -> [BoxContent] -> [Val]
 fills _ [] _ [] = []
-fills d (a:as) box (vs:vss) = v : fills d (map (\x -> app d x v) as) box vss
-  where v = fill d a box vs
+fills d (a:as) box (bc:bcs) = v : fills d (map (\x -> app d x v) as) box bcs
+  where v = fill d a box bc
 fills _ _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
-com :: Dim -> Val -> Box -> [Val] -> Val
-com d VN (Box dir i d') vs = head vs
-com d (VId a v0 v1) (Box dir i d') vs = -- should actually work (?)
-  res (fill d (VId a v0 v1) (Box dir i d') vs) (face d i dir)
-com d (VSigma va vb) (Box dir i d') vs = -- should actually work (?)
-  res (fill d (VSigma va vb) (Box dir i d') vs) (face d i dir)
-com d (VLSum nass) (Box dir i d') vs = -- should actually work (?)
-  res (fill d (VLSum nass) (Box dir i d') vs) (face d i dir)
-com d v b vs = Com d v b vs
-
--- Takes a u and returns an open box u's given by the specified faces.
-cubeToBox :: Val -> Dim -> Box -> [Val]
-cubeToBox u d (Box dir i d') = [ res u (face d j b) | (j,b) <- boxshape ]
-  where boxshape = (i,dir) : zip dd' (cycle [True,False])
-        dd'      = concatMap (\j -> [j,j]) d'
-
--- Apply an open box of functions of a given shape to a corresponding
--- open box of arguments.
-appBox :: Dim -> Box -> [Val] -> [Val] -> [Val]
-appBox d (Box _ i d') ws us =
-  [ app (delete j d) w u | (w,u,j) <- zip3 ws us idd' ]
-  where idd' = i : concatMap (\j -> [j,j]) d'
+com :: Dim -> Val -> BoxShape -> BoxContent -> Val
+com d VN (BoxShape dir i d') (BoxContent v _) = v
+com d (VId a v0 v1) (BoxShape dir i d') bc = -- should actually work (?)
+  res (fill d (VId a v0 v1) (BoxShape dir i d') bc) (face d i dir)
+com d (VSigma va vb) (BoxShape dir i d') bc = -- should actually work (?)
+  res (fill d (VSigma va vb) (BoxShape dir i d') bc) (face d i dir)
+com d (VLSum nass) (BoxShape dir i d') bc = -- should actually work (?)
+  res (fill d (VLSum nass) (BoxShape dir i d') bc) (face d i dir)
+com d v b bc = Com d v b bc
 
 app :: Dim -> Val -> Val -> Val
 app d (Ter (Lam t) e) u = eval d (u:e) t
-app d (Com bd (VPi a b) box@(Box dir i d') ws) u = -- here: bd = i:d
-  com bd (app bd b ufill) box wus
-  where ufill = fill bd a (Box (mirror dir) i []) [u]
-        us = cubeToBox ufill bd box
-        wus = appBox bd box ws us
-app d (Fill bd (VPi a b) box@(Box dir i d') ws) v = -- here: bd = d
-  com (x:d) (app (x:d) bx vsfill) (Box True x (i:d')) wvfills
+app d (Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
+  com bd (app bd b ufill) box bcwu
+  where ufill = fill bd a (BoxShape (mirror dir) i []) (BoxContent u [])
+        bcu = cubeToBox ufill bd box
+        bcwu = appBox bd box bcw bcu
+app d (Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
+  com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
   where x = gensym d            -- add a dimension
         ax = res a (deg d (x:d))
         bx = res b (deg d (x:d))
         di = delete i d         -- d minus i !!
         u = res v (face d i dir)
-        ufill = fill d a (Box (mirror dir) i []) [u]
+        ufill = fill d a (BoxShape (mirror dir) i []) (BoxContent u [])
+        -- cut an (i,d')-open box (in dir) from ufill
+        bcu = cubeToBox ufill d box
         ux = res u (deg di (x:di)) -- dim. x:(d-i)
         -- (i,[x])-open box in x:d (some choice on the order..) (mirror dir)
-        vs = [ux,ufill,v]
-        vsfill = fill (x:d) ax (Box (mirror dir) i [x]) vs
-        vbox = cubeToBox vsfill (x:d) box
-        wsx = resBox i d' ws (deg d (x:d))
-        (wuimdir:wsbox') = appBox (x:d) box wsx vbox
-        -- cut an (i,d')-open box (in dir) from ufill
-        us = cubeToBox ufill d box
+        bcv = BoxContent ux [(ufill,v)]
+        vfill = fill (x:d) ax (BoxShape (mirror dir) i [x]) bcv
+        vbox = cubeToBox vfill (x:d) box
+        bcwx = resBox i d' bcw (deg d (x:d))
+        BoxContent wuimdir wbox' = appBox (x:d) box bcwx vbox
         -- the missing faces to get a (x, i:d')-open box in x:i:d (dir)
-        wux0 = fill d (app d b ufill) box (appBox d box ws us)
-        wuidir = res (app (x:di) (com d (VPi a b) box ws) u) (deg di (x:di))
+        wux0 = fill d (app d b ufill) box (appBox d box bcw bcu)
+        wuidir = res (app (x:di) (com d (VPi a b) box bcw) u) (deg di (x:di))
         -- arrange the i-direction in the right order
-        wuis = if dir then [wuidir,wuimdir] else [wuimdir,wuidir]
+        wuis = if dir then (wuidir,wuimdir) else (wuimdir,wuidir)
         -- final open box in (app bx vsfill)
-        wvfills = wux0:wuis++wsbox'
+        wvfills = BoxContent wux0 (wuis:wbox')
 app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
-  com (y:d) (app (y:d) bvxy wy) (Box True y [x]) [pvxw,left,right]
+  com (y:d) (app (y:d) bvxy wy) (BoxShape True y [x]) (BoxContent pvxw [(left,right)])
   -- NB: there are various choices how to construct this
   where x = gensym d'
         y = gensym d
@@ -366,24 +380,26 @@ res (VPair r s) f = pair (res r f) (res s f)
 res (VP r) f = p (res r f)
 res (VQ r) f = q (res r f)
 res (Res v g) f = res v (g `comp` f)
-res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` mirror dir =
-  res (head vs) (f `minus` i)
-res (Fill d u (Box dir i d') vs) f | isJust cand =
+res (Fill d u (BoxShape dir i d') (BoxContent v _)) f | (f `ap` i) `direq` mirror dir =
+  res v (f `minus` i)
+res (Fill d u (BoxShape dir i d') bc) f | isJust cand =
   res v (f `minus` j)
-  where cand = findIndex (\j -> j `elem` ndef f) d'
-        n = fromJust cand
-        j = d' !! n
-        -- TODO: This will be nicer with a better box input type
-        v = vs !! (1+ 2*n + if (f `ap` j) `direq` True then 1 else 0)
-res (Fill d u (Box dir i d') vs) f | (f `ap` i) `direq` dir =
-  res (com d u (Box dir i d') vs) (f `minus` i) -- This will be a Com
-res (Fill d u (Box dir i d') vs) f | (i:d') `subset` def f = -- otherwise?
+  where cand      = findIndex (\j -> j `elem` ndef f) d'
+        -- :TODO: Cyril: seems wrong,
+        -- should be j `elem` (delete (ndef f) i) or come after the next rule
+        n         = fromJust cand
+        j         = d' !! n
+        Left dir  = (f `ap` j)
+        v         = boxSide bc n dir
+res (Fill d u (BoxShape dir i d') bc) f | (f `ap` i) `direq` dir =
+  res (com d u (BoxShape dir i d') bc) (f `minus` i) -- This will be a Com
+res (Fill d u (BoxShape dir i d') bc) f | (i:d') `subset` def f = -- otherwise?
   fill (cod f) (res u f)
-       (Box dir (f `dap` i) (map (f `dap`) d'))
-       (resBox i d' vs f)
-res (Fill d u (Box dir i d') vs) f = error "Fill: not possible?"
-res (Com d u (Box dir i d') vs) f = -- here: i:dom f = d
-  res (res (fill d u (Box dir i d') vs) g) ytodir
+       (BoxShape dir (f `dap` i) (map (f `dap`) d'))
+       (resBox i d' bc f)
+res (Fill d u (BoxShape dir i d') vs) f = error "Fill: not possible?"
+res (Com d u (BoxShape dir i d') bc) f = -- here: i:dom f = d
+  res (res (fill d u (BoxShape dir i d') bc) g) ytodir
   where x = gensym d
         co = cod f
         y = gensym co
@@ -422,16 +438,30 @@ res (VLSum nass) f = VLSum $ map (\(n,as) -> (n, map (`res` f) as)) nass
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 
-modBox :: Name -> Dim -> [Val] -> (Name -> Mor) -> [Val]
-modBox i d vs f = zipWith (\j v -> res v (f j)) idd vs
-  where idd = i : concatMap (\j -> [j,j]) d
+-- Takes a u and returns an open box u's given by the specified faces.
+cubeToBox :: Val -> Dim -> BoxShape -> BoxContent
+cubeToBox u d (BoxShape dir i d') =
+  BoxContent (get i dir) [ (get j False, get j True) | j <- d']
+  where get j dir = res u (face d j dir)
+
+-- Apply an open box of functions of a given shape to a corresponding
+-- open box of arguments.
+appBox :: Dim -> BoxShape -> BoxContent -> BoxContent -> BoxContent
+appBox d (BoxShape _ i d') (BoxContent w ws) (BoxContent u us) =
+  BoxContent (get i w u) [(get j w1 u1, get j w2 u2)
+                         | ((w1, w2), (u1, u2), j) <- zip3 ws us d']
+  where get j = app (delete j d)
+
+modBox :: Dir -> Name -> Dim -> BoxContent -> (Dir -> Name -> Val -> Val) -> BoxContent
+modBox dir i d (BoxContent v vs) f =
+  BoxContent (f dir i v) (zipWith (\j (v, w) -> (f False j v, f True j w)) d vs)
 
 -- (box i d vs) f
 -- i  = what we fill along
 -- d  = dimension
 -- vs = open box
-resBox :: Name -> Dim -> [Val] -> Mor -> [Val]
-resBox i d vs f = modBox i d vs (\j -> f `minus` j)
+resBox :: Name -> Dim -> BoxContent -> Mor -> BoxContent
+resBox i d bc f = modBox True i d bc (\_ j v -> res v (f `minus` j))
 
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
@@ -477,6 +507,5 @@ addvresp f g p = Trans (Lam $ Id N (App addvals $ Var 0) (App addvals f))
 cn :: Int -> Ter
 cn 0 = Z
 cn n = S (cn (n-1))
-
 
 
