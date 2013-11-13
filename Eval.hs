@@ -127,6 +127,9 @@ Left False `direq` False = True
 Left True `direq` True = True
 _ `direq` _ = False
 
+data KanType = Fill | Com
+  deriving (Show, Eq)
+
 data Val = VN | VZ | VS Val
          | VRec Val Val Val -- not needed for closed terms
          | Ter Ter Env
@@ -142,8 +145,7 @@ data Val = VN | VZ | VS Val
          | VInc Dim Val         -- dim needed?
          | VSquash Dim Val Val  -- has dimension (gensym dim:dim)
          | VInhRec Val Val Val Val -- not needed for closed terms
-         | Fill Dim Val BoxShape BoxContent
-         | Com Dim Val BoxShape BoxContent
+         | Kan KanType Dim Val BoxShape BoxContent
          | Res Val Mor              -- not needed for closed terms
          | VCon Ident [Val]
 --         | VBranch [(Ident,Ter)] Env
@@ -210,13 +212,8 @@ inhrec b p phi (VSquash d a0 a1) = -- dim. of b,p,phi is x:d
         b0 = inhrec (fc b False) (fc p False) (fc phi False) a0
         b1 = inhrec (fc b True) (fc p True) (fc phi True) a1
         d' = delete x d
-inhrec b p phi (Fill d (VInh a) box@(BoxShape dir i d') bc) =
-  fill d b box (modBox dir i d' bc irec)
-  where  irec dir j v = inhrec (fc b) (fc p) (fc phi) v
-           where fc v = res v (face d j dir)
--- TODO: Is there a nicer way to not duplicate this code?
-inhrec b p phi (Com d (VInh a) box@(BoxShape dir i d') bc) =
-  com d b box (modBox dir i d' bc irec)
+inhrec b p phi (Kan ktype d (VInh a) box@(BoxShape dir i d') bc) =
+  kan ktype d b box (modBox dir i d' bc irec)
   where  irec dir j v = inhrec (fc b) (fc p) (fc phi) v
            where fc v = res v (face d j dir)
 inhrec b p phi a = VInhRec b p phi a
@@ -238,6 +235,10 @@ pair v w = VPair v w
 unPath :: Val -> Val
 unPath (Path v) = v
 unPath v        = error $ "unPath: " ++ show v
+
+kan :: KanType -> Dim -> Val -> BoxShape -> BoxContent -> Val
+kan Fill = fill
+kan Com = com
 
 -- Kan filling
 fill :: Dim -> Val -> BoxShape -> BoxContent -> Val
@@ -275,7 +276,7 @@ fill d (VLSum nass) box bcv = -- assumes cvs are constructor vals
     -- fill boxes for each argument position of the constructor
     ws = fills d as box argboxes
     err x = error $ "fill: not applied to constructor expressions " ++ show x
-fill d v b vs = Fill d v b vs
+fill d v b vs = Kan Fill d v b vs
 
 fills :: Dim -> [Val] -> BoxShape -> [BoxContent] -> [Val]
 fills _ [] _ [] = []
@@ -294,16 +295,16 @@ com d (VSigma va vb) (BoxShape dir i d') bc = -- should actually work (?)
   res (fill d (VSigma va vb) (BoxShape dir i d') bc) (face d i dir)
 com d (VLSum nass) (BoxShape dir i d') bc = -- should actually work (?)
   res (fill d (VLSum nass) (BoxShape dir i d') bc) (face d i dir)
-com d v b bc = Com d v b bc
+com d v b bc = Kan Com d v b bc
 
 app :: Dim -> Val -> Val -> Val
 app d (Ter (Lam t) e) u = eval d (u:e) t
-app d (Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
+app d (Kan Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
   com bd (app bd b ufill) box bcwu
   where ufill = fill bd a (BoxShape (mirror dir) i []) (BoxContent u [])
         bcu = cubeToBox ufill bd box
         bcwu = appBox bd box bcw bcu
-app d (Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
+app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
   com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
   where x = gensym d            -- add a dimension
         ax = res a (deg d (x:d))
@@ -380,9 +381,9 @@ res (VPair r s) f = pair (res r f) (res s f)
 res (VP r) f = p (res r f)
 res (VQ r) f = q (res r f)
 res (Res v g) f = res v (g `comp` f)
-res (Fill d u (BoxShape dir i d') (BoxContent v _)) f | (f `ap` i) `direq` mirror dir =
+res (Kan Fill d u (BoxShape dir i d') (BoxContent v _)) f | (f `ap` i) `direq` mirror dir =
   res v (f `minus` i)
-res (Fill d u (BoxShape dir i d') bc) f | isJust cand =
+res (Kan Fill d u (BoxShape dir i d') bc) f | isJust cand =
   res v (f `minus` j)
   where cand      = findIndex (\j -> j `elem` ndef f) d'
         -- :TODO: Cyril: seems wrong,
@@ -391,14 +392,14 @@ res (Fill d u (BoxShape dir i d') bc) f | isJust cand =
         j         = d' !! n
         Left dir  = (f `ap` j)
         v         = boxSide bc n dir
-res (Fill d u (BoxShape dir i d') bc) f | (f `ap` i) `direq` dir =
+res (Kan Fill d u (BoxShape dir i d') bc) f | (f `ap` i) `direq` dir =
   res (com d u (BoxShape dir i d') bc) (f `minus` i) -- This will be a Com
-res (Fill d u (BoxShape dir i d') bc) f | (i:d') `subset` def f = -- otherwise?
+res (Kan Fill d u (BoxShape dir i d') bc) f | (i:d') `subset` def f = -- otherwise?
   fill (cod f) (res u f)
        (BoxShape dir (f `dap` i) (map (f `dap`) d'))
        (resBox i d' bc f)
-res (Fill d u (BoxShape dir i d') vs) f = error "Fill: not possible?"
-res (Com d u (BoxShape dir i d') bc) f = -- here: i:dom f = d
+res (Kan Fill d u (BoxShape dir i d') vs) f = error "Fill: not possible?"
+res (Kan Com d u (BoxShape dir i d') bc) f = -- here: i:dom f = d
   res (res (fill d u (BoxShape dir i d') bc) g) ytodir
   where x = gensym d
         co = cod f
