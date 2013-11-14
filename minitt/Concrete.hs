@@ -108,6 +108,7 @@ resolveExp (Fun a b) =
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Case e brs) =
   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
+resolveExp (Split brs) = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
 
@@ -219,9 +220,12 @@ freeVars :: Exp -> [String]
 freeVars (Let ds e)  = (freeVars e `union` unions (map freeVarsDef ds))
                        \\ defsToNames ds
 freeVars (Lam bs e)  = freeVars e \\ unArgsBinder bs
+freeVars (Split bs) =
+  unions [ str:(freeVars (unWhere e) \\ unArgs args)
+         | Branch (AIdent (_,str)) args e <- bs ]
 freeVars (Case e bs) =
-  freeVars e `union` unions [ str:(freeVars (unWhere e) \\ unArgs args)
-                            | Branch (AIdent (_,str)) args e <- bs ]
+  freeVars e `union` unions [ str:(freeVars (unWhere ew) \\ unArgs args)
+                            | Branch (AIdent (_,str)) args ew <- bs ]
 freeVars (Fun e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Pi (TeleNE []) e) = freeVars e
 freeVars (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
