@@ -11,7 +11,7 @@ import Control.Monad.Error (throwError)
 import Data.Functor.Identity
 import Data.Function
 import Data.Graph
-import Data.List 
+import Data.List
 import Data.Maybe
 
 type LEnv = [String]            -- local environment for variables
@@ -40,15 +40,6 @@ insertVar NoArg                  e = "_":e
 insertVars :: [Arg] -> LEnv -> LEnv
 insertVars as e = foldl (flip insertVar) e as
 
-insertNames :: [String] -> LEnv -> LEnv
-insertNames xs e = reverse xs ++ e -- TODO: ?????
-
-unArg :: Arg -> String
-unArg a = head $ insertVar a []
-
-unArgs :: [Arg] -> [String]
-unArgs = map unArg
-
 -- A dummy variable we can insert when we have to lift an
 -- environment.
 dummyVar :: Arg
@@ -58,16 +49,39 @@ resolveVar :: Arg -> Resolver A.Exp
 resolveVar (Arg i) = look i
 resolveVar NoArg   = throwError "_ not a valid variable name "
 
+insertNames :: [String] -> LEnv -> LEnv
+insertNames = (++) . reverse -- TODO: ?????
+
+-- un-something functions
+unArg :: Arg -> String
+unArg a = head $ insertVar a []
+
+unArgs :: [Arg] -> [String]
+unArgs = map unArg
+
 unNE :: VDeclNE -> VDecl
 unNE (VDeclNE vdcl) = vdcl
 
 unBinder :: Binder -> Arg
 unBinder (Binder b) = b
 
+unArgBinder :: Binder -> String
+unArgBinder = unArg . unBinder
+
+unArgsBinder :: [Binder] -> [String]
+unArgsBinder = map unArgBinder
+
+unWhere :: ExpWhere -> Exp
+unWhere (Where e ds) = Let ds e
+unWhere (NoWhere e)  = e
+
 -- Flatten a telescope, e.g., flatten (a b : A) (c : C) into
 -- (a : A) (b : A) (c : C).
 flattenTele :: [VDecl] -> [VDecl]
 flattenTele = concatMap $ \(VDecl bs e) -> [VDecl [b] e | b <- bs]
+
+flattenTeleNE :: [VDeclNE] -> [VDecl]
+flattenTeleNE = flattenTele . map unNE
 
 -- Assumes the telescope is flattened.
 resolveTelePi :: [VDecl] -> Resolver A.Exp -> Resolver A.Exp
@@ -80,31 +94,22 @@ resolveTelePi (t@(VDecl{}):as) _ =
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
 lam a e = A.Lam <$> local (insertVar a) e
 
-resolveLams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
-resolveLams as e = foldr lam e as
+lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
+lams as e = foldr lam e as
 
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U                    = return A.U
 resolveExp (Var (Binder a))     = resolveVar a
 resolveExp (App t s)            = A.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi (TeleNE tele) b) =
-  resolveTelePi (flattenTele (map unNE tele)) (resolveExp b)
+  resolveTelePi (flattenTeleNE tele) (resolveExp b)
 resolveExp (Fun a b) =
   A.Pi <$> resolveExp a <*> lam dummyVar (resolveExp b)
-resolveExp (Lam bs t)   = resolveLams (map unBinder bs) (resolveExp t)
+resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Case e brs) =
   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
--- do
---   exp     <- resolveExp e       -- TODO: e should know about the definitions!
---   exptyps <- resolveMutualDefs defs
---   let (exps,typs) = unzip exptyps
---   return (A.Def exp exps typs)
-
-unWhere :: ExpWhere -> Exp
-unWhere (Where e ds) = Let ds e
-unWhere (NoWhere e)  = e
 
 resolveExpWhere :: ExpWhere -> Resolver A.Exp
 resolveExpWhere = resolveExp . unWhere
@@ -114,17 +119,21 @@ resolveBranch (Branch (AIdent (_,name)) args e) = do
   exp <- local (insertVars args) (resolveExpWhere e)
   return (name,exp)
 
+-- A cute combinator
+(<:>) :: Applicative f => f a -> f [a] -> f [a]
+a <:> b = (:) <$> a <*> b
+
 -- Assumes a flattened telescope.
 resolveTele :: [VDecl] -> Resolver [A.Exp]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
-  (:) <$> resolveExp t <*> local (insertVar a) (resolveTele ds)
+  resolveExp t <:> local (insertVar a) (resolveTele ds)
 resolveTele ds =
   throwError ("resolveTele: non flattened telescope " ++ show ds)
 
 resolveLabel :: Sum -> Resolver (String,[A.Exp])
 resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
-  resolveTele (flattenTele tele) >>= \ts -> return (name, ts)
+  ((,) name) <$> resolveTele (flattenTele tele)
 
 -- -- -- Anders: Also output a list of constructor names
 -- unData :: Def -> Resolver (AIdent,[Arg],A.Exp,A.Exp)
@@ -135,7 +144,7 @@ resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
 --   let labels = A.Sum <$> mapM (local (insertVars args) . resolveLabel) cs
 --   -- Anders: I think we should add the name of the data type when resolving
 --   --         the sums.
---   exp <- resolveLams (Arg iden : args) labels
+--   exp <- lams (Arg iden : args) labels
 --   typ <- resolveTelePi flat (return A.U) -- data-decls. have value type U
 --   return (iden,cons,exp,typ)
 -- unData def = throwError ("unData: data declaration expected " ++ show def)
@@ -153,15 +162,15 @@ resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
 --     return ((exp,typ):rest)
 --   DefTDecl iden t -> do
 --     (Def _ args body,defs') <- findDef iden defs
---     exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
+--     exp <- lams args (local (insertVars args) (resolveExpWhere body))
 --     typ <- resolveExp t
 --     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
 --     return ((exp,typ):rest)
 --   Def iden args body -> do
 --     (DefTDecl _ t, defs') <- findTDecl iden defs
 --     -- TODO: There is a bug here for recursive definitions!
---     --exp <- resolveLams args (resolveExpWhere body)
---     exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
+--     --exp <- lams args (resolveExpWhere body)
+--     exp <- lams args (local (insertVars args) (resolveExpWhere body))
 --     typ <- resolveExp t
 --     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
 --     return ((exp,typ):rest)
@@ -188,11 +197,11 @@ resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
 -- Call graph
 
 callGraph :: [Def] -> [[[Def]]]
-callGraph = filter (/= [[]]) . map flattenSCC . stronglyConnComp . graph 
+callGraph = filter (/= [[]]) . map flattenSCC . stronglyConnComp . graph
 
 -- TODO: Clean?
 graph :: [Def] -> [([Def],String,[String])]
-graph = map ((\(as,b:_,xs) -> (concat as,b,concat xs)) . unzip3) 
+graph = map ((\(as,b:_,xs) -> (concat as,b,concat xs)) . unzip3)
       . groupBy ((==) `on` (\(_,n,_) -> n)) . concatMap defToGraph
 
 defToGraph :: Def -> [([Def], String, [String])]
@@ -201,24 +210,24 @@ defToGraph d = case d of
     [([d],iden,freeVars (unWhere body) \\ unArgs args)]
   (DefTDecl (AIdent (_,iden)) exp) -> [([d],iden,freeVars exp)]
   (DefData (AIdent (_,iden)) (Tele vdecls) labels) ->
-       [ ([d],iden,freeVarsTele vdecls `union` fvB) ]
-    ++ [ ([],c,[iden]) | Sum (AIdent (_,c)) _ <- labels ] 
-    where fvB = unions [ freeVarsTele tele \\ namesTele tele 
+       ([d],iden,freeVarsTele vdecls `union` fvB)
+     : [ ([],c,[iden]) | Sum (AIdent (_,c)) _ <- labels ]
+    where fvB = unions [ freeVarsTele tele \\ namesTele tele
                        | Sum _ (Tele tele) <- labels ]
 
 freeVars :: Exp -> [String]
 freeVars (Let ds e)  = (freeVars e `union` unions (map freeVarsDef ds))
                        \\ defsToNames ds
-freeVars (Lam bs e)  = freeVars e \\ unArgs (map unBinder bs)
+freeVars (Lam bs e)  = freeVars e \\ unArgsBinder bs
 freeVars (Case e bs) =
   freeVars e `union` unions [ str:(freeVars (unWhere e) \\ unArgs args)
                             | Branch (AIdent (_,str)) args e <- bs ]
 freeVars (Fun e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Pi (TeleNE []) e) = freeVars e
 freeVars (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
-  freeVars a `union` (freeVars (Pi (TeleNE vs) e) \\ unArgs (map unBinder bs))
+  freeVars a `union` (freeVars (Pi (TeleNE vs) e) \\ unArgsBinder bs)
 freeVars (App e1 e2) = freeVars e1 `union` freeVars e2
-freeVars (Var x)     = [unArg (unBinder x)]
+freeVars (Var x)     = [unArgBinder x]
 freeVars U           = []
 freeVars (Con _ es)  = unions (map freeVars es)
 
@@ -232,10 +241,10 @@ freeVarsDef (DefData _ (Tele vdecls) labels) = freeVarsTele vdecls `union`
 freeVarsTele :: [VDecl] -> [String]
 freeVarsTele []                = []
 freeVarsTele ((VDecl bs e):ds) =
-  freeVars e `union` (freeVarsTele ds \\ unArgs (map unBinder bs))
+  freeVars e `union` (freeVarsTele ds \\ unArgsBinder bs)
 
 namesTele :: [VDecl] -> [String]
-namesTele vs = unions [ unArgs (map unBinder args) | VDecl args _ <- vs ]
+namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
 defToName :: Def -> String
 defToName (Def (AIdent (_,n)) _ _)     = n
@@ -249,41 +258,15 @@ unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
 
 --------------------------------------------------------------------------------
--- 
--- rmDefs :: [Either [Def] (Def,Def)]
+--
 
--- resolveMutualDefs :: [Def] -> Resolver [(A.Exp,A.Exp)]
--- resolveMutualDefs []         = return []
--- resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cases)
---   DefData{} -> do
---     (iden,args,exp,typ) <- unData def
---     -- Anders: Now that the constructor names are known we can add them
---     rest <- local (insertVars (Arg iden : args)) (resolveMutualDefs defs)
---     return ((exp,typ):rest)
---   DefTDecl iden t -> do
---     (Def _ args body,defs') <- findDef iden defs
---     exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
---     typ <- resolveExp t
---     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
---     return ((exp,typ):rest)
---   Def iden args body -> do
---     (DefTDecl _ t, defs') <- findTDecl iden defs
---     -- TODO: There is a bug here for recursive definitions!
---     --exp <- resolveLams args (resolveExpWhere body)
---     exp <- resolveLams args (local (insertVars args) (resolveExpWhere body))
---     typ <- resolveExp t
---     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
---     return ((exp,typ):rest)
-
--- -- -- Anders: Also output a list of constructor names
 unData' :: Def -> [String] -> Resolver (A.Exp,A.Exp)
 unData' (DefData _ (Tele vdcls) cs) ns = do
   let flat = flattenTele vdcls
   let args = concatMap (\(VDecl binds _) -> map unBinder binds) flat
---   let cons = [ Arg id | Sum id _ <- cs ]
   let labels = A.Sum <$> mapM (local (insertVars args . insertNames ns) . resolveLabel) cs
-  exp <- resolveLams args labels
-  typ <- resolveTelePi flat (return A.U) -- data-decls. have value type U
+  exp <- lams args labels
+  typ <- resolveTelePi flat (return A.U) -- data-decls. have type U
   return (exp,typ)
 unData' def _ = throwError ("unData: data declaration expected " ++ show def)
 
@@ -295,7 +278,7 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord on for Def: will put Def b
     rest <- handleMutual dss ns
     return ((exp,typ):rest)
   [Def iden args body,DefTDecl _ t] -> do
-    exp <- local (insertNames ns) $ resolveLams args (local (insertVars args) (resolveExpWhere body))
+    exp <- local (insertNames ns) $ lams args (local (insertVars args) (resolveExpWhere body))
     typ <- resolveExp t
     rest <- handleMutual dss ns
     return ((exp,typ):rest)
@@ -316,7 +299,7 @@ handleLet e (x:xs) = A.Def (handleLet e xs) es ts
   where (es,ts) = unzip x
 
 handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
-handleDefs defs re = do 
+handleDefs defs re = do
   let cg = callGraph defs
   let ns = defsToNames $ concat $ concat cg
   xs <- handleMutuals cg
@@ -325,23 +308,3 @@ handleDefs defs re = do
 
 handleModule :: Module -> Resolver A.Exp
 handleModule (Module defs) = handleDefs defs (return A.Top)
-
-
-
---------------------------------------------------------------------------------
--- TESTS:
-
--- test for unData: nat
-nat = DefData (AIdent ((8,6),"N")) (Tele [])
-       [Sum (AIdent ((8,10),"zero")) (Tele []),
-        Sum (AIdent ((8,17),"suc"))
-          (Tele [VDecl [Binder (Arg (AIdent ((8,22),"n")))]
-                   (Var (Binder (Arg (AIdent ((8,26),"N")))))])]
-
--- runResolver $ resolveMutualDefs [nat,idNt,idNdef]
-idNt = DefTDecl (AIdent ((35,1),"id")) (Fun (Var (Binder (Arg (AIdent ((35,6),"N"))))) (Var (Binder (Arg (AIdent ((35,11),"N"))))))
-idNdef = Def (AIdent ((36,1),"id")) [Arg (AIdent ((36,4),"x"))] (NoWhere (Var (Binder (Arg (AIdent ((36,8),"x"))))))
-
--- runResolver $ resolveMutualDefs [idUt,idUdef]
-idUt = DefTDecl (AIdent ((35,1),"id")) (Fun U U)
-idUdef = Def (AIdent ((36,1),"id")) [Arg (AIdent ((36,4),"x"))] (NoWhere (Var (Binder (Arg (AIdent ((36,8),"x"))))))

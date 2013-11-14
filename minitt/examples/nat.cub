@@ -17,16 +17,16 @@
 -- lam : N
 -- lam = id ($ zero)
 
--- data Unit = tt
+data Unit = tt
 
--- caseid : Unit -> Unit
--- caseid n = case n of 
---   tt -> $ tt
+casett : Unit
+casett = case $ tt of
+  tt -> $ tt
 
-data Empty = 
+-- data Empty =
 
-bot : Empty -> U
-bot x = case x of
+-- bot : Empty -> U
+-- bot x = case x of
 
 -- pred : N -> N
 -- pred n = case n of
