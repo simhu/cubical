@@ -12,6 +12,7 @@ data Exp = Comp Exp Env
          | App Exp Exp
          | Pi Exp Exp
          | Lam Exp
+           -- TODO: Should be a list of pairs!
          | Def Exp [Exp] [Exp]	-- unit substitutions
          | Var Int 		-- generic values
          | Ref Int		-- de Bruijn index
@@ -139,11 +140,15 @@ checkI k rho gam e = case e of
     checkD k rho gam es as
     let rho1 = PDef es as rho
     checkI k rho1 (addC gam as rho (evals es rho1)) t
-  _ -> Left ("checkI " ++ show e)
+  _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
 
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()
 checks k rho gam (a:as) nu (e:es) = do
-  trace ("checking " ++ show e ++ "\n") (check k rho gam (eval a nu) e)
+  trace ("checking " ++ show e ++ " in " ++ show rho ++ "\n") (check k rho gam (eval a nu) e)
   checks k rho gam as (Pair nu (eval e rho)) es
 checks k rho gam _ _ _ = Left "checks"
+
+
+checkExp :: Exp -> Error ()
+checkExp = check 0 Empty [] Top 

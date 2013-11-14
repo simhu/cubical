@@ -1,10 +1,45 @@
 -- The natural numbers
-data N = zero | suc (n : N)
+-- data N = zero | suc (n : N)
 
-zero' : N
-zero' = zero
+-- id : N -> N
+-- id = \x -> x
 
-plus : N -> N -> N
-plus n m = case n of
-  zero  -> m
-  suc n -> suc (plus n m)
+-- zero' : N
+-- zero' = $ zero
+
+-- suc' : N -> N
+-- suc' x = $ suc x
+
+-- test : N
+-- test = (\x -> x) ($ zero)
+
+
+-- lam : N
+-- lam = id ($ zero)
+
+-- data Unit = tt
+
+-- caseid : Unit -> Unit
+-- caseid n = case n of 
+--   tt -> $ tt
+
+data Empty = 
+
+bot : Empty -> U
+bot x = case x of
+
+-- pred : N -> N
+-- pred n = case n of
+--   zero -> $ zero
+--   suc n' -> n'
+
+-- plus : N -> N -> N
+-- plus n m = case n of
+--   zero  -> m
+--   suc n' -> plus n' m
+
+-- lol : N
+-- lol = foo
+
+-- foo : N
+-- foo = lol

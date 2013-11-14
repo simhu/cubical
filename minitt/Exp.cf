@@ -23,7 +23,9 @@ Pi.     Exp  ::= TeleNE "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
 Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
+Con.    Exp2 ::= "$" AIdent [Exp] ; -- Could be just Exp
 
+terminator Exp "" ;
 coercions Exp 2 ;
 
 Binder.   Binder ::= Arg ;

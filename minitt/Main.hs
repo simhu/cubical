@@ -1,6 +1,7 @@
 module Main where
 
 import Concrete
+import qualified MTT as A
 import System.Environment
 
 import Exp.Lex
@@ -31,12 +32,21 @@ main = do
     Ok  tree -> do 
       putStrLn "\nParse Successful!"
       showTree tree
-      let g = map (\(_,y,z) -> (y,z)) $ graph ((\(Module d) -> d) tree)
+      let g = map (\(_,y,z) -> (y,z)) $ graph (unModule tree)
       putStrLn $ "\nGraph:\n" ++ show g
-      let cg = callGraph tree
-      putStrLn $ "\nCall graph:\n" ++ show [ [ n | Def (AIdent (_,n)) _ _ <- xs ] | xs <- cg ]
-      case runResolver (resolveModule tree) of
+      let cg = map (map (map defToName)) $ callGraph $ unModule tree
+--      let cg = callGraph $ unModule tree
+      putStrLn $ "\nCall graph:\n" ++ show cg
+      case runResolver (handleModule tree) of
         Left err  -> putStrLn $ "\nResolver Failed: " ++ err
         Right exp -> do 
           putStrLn "\nResolver Successful!" 
           putStrLn $ show exp
+          case A.checkExp exp of
+            Left terr -> putStrLn $ "\nType checking failed: " ++ show terr
+            Right _   -> putStrLn "YES!!!"
+
+-- checkMain :: A.Exp ->         
+          
+
+unModule (Module defs) = defs
