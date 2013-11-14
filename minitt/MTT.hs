@@ -20,6 +20,7 @@ data Exp = Comp Exp Env
          | Con String [Exp]
          | Fun Brc
          | Sum Lb
+         | PN String Exp [Exp]  -- primitive notion
          | Top
   deriving (Eq,Show)
 
@@ -38,6 +39,7 @@ eval (Pi a b)      s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
+eval (PN n a ts)   s = trace "wiii\n" PN n (eval a s) (evals ts s)
 eval t             s = Comp t s
 
 evals :: [Exp] -> Env -> [Exp]
@@ -48,7 +50,7 @@ app (Comp (Lam b) s)     u            = eval b (Pair s u)
 app a@(Comp (Fun ces) r) b@(Con c us) = case lookup c ces of
   Just e  -> eval e (upds r us)
   Nothing -> error $ "app: " ++ show a ++ " " ++ show b
-app f                    u          = App f u
+app f                    u            = App f u
 
 getE :: Int -> Env -> Exp
 getE 0 (Pair _ u)       = u
@@ -71,22 +73,22 @@ checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
 checkD k rho gam es as = do
   (rho1,gam1,l) <- checkTs k rho gam as
   checks l rho1 gam1 as rho es
-  where
-    checkTs :: Int -> Env -> [Exp] -> [Exp] -> Error (Env,[Exp],Int)
-    checkTs k rho gam []     = return (rho,gam,k)
-    checkTs k rho gam (a:as) = do
-      checkT k rho gam a
-      checkTs (k+1) (Pair rho (Var k)) (eval a rho:gam) as
 
-    checkT :: Int -> Env -> [Exp] -> Exp -> Error ()
-    checkT k rho gam t = case t of
-      U            -> return ()
-      Pi a (Lam b) -> do
-        checkT k rho gam a
-        checkT (k+1) (Pair rho (Var k)) (eval a rho:gam) b
-      _ -> checkI k rho gam t =?= U
+checkTs :: Int -> Env -> [Exp] -> [Exp] -> Error (Env,[Exp],Int)
+checkTs k rho gam []     = return (rho,gam,k)
+checkTs k rho gam (a:as) = do
+  checkT k rho gam a
+  checkTs (k+1) (Pair rho (Var k)) (eval a rho:gam) as
 
-check  :: Int -> Env -> [Exp] -> Exp -> Exp -> Error ()
+checkT :: Int -> Env -> [Exp] -> Exp -> Error ()
+checkT k rho gam t = case t of
+  U            -> return ()
+  Pi a (Lam b) -> do
+    checkT k rho gam a
+    checkT (k+1) (Pair rho (Var k)) (eval a rho:gam) b
+  _ -> checkI k rho gam t =?= U
+
+check :: Int -> Env -> [Exp] -> Exp -> Exp -> Error ()
 check k rho gam a t = case (a,t) of
   (Top,Top)    -> return ()
   (_,Con c es) -> do
@@ -107,24 +109,24 @@ check k rho gam a t = case (a,t) of
     let rho1 = PDef es as rho
     check k rho1 (addC gam as rho (evals es rho1)) a e
   _ -> checkI k rho gam t =?= a
-  where
-    checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
-    checkTUs _ _   _   []     = return ()
-    checkTUs k rho gam (a:as) = do
-      check k rho gam U a
-      checkTUs (k+1) (Pair rho (Var k)) (eval a rho:gam) as
 
-    -- What does this do?
-    fix k rho gam as nu f c e = do
-      let l  = length as
-      let us = map Var [k..k+l-1]
-      check (k+l) (upds rho us) (addC gam as nu us) (app f (Con c us)) e
+checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
+checkTUs _ _   _   []     = return ()
+checkTUs k rho gam (a:as) = do
+  check k rho gam U a
+  checkTUs (k+1) (Pair rho (Var k)) (eval a rho:gam) as
 
-    extSG :: String -> Exp -> Error ([Exp], Env)
-    extSG c (Comp (Sum cas) r) = case lookup c cas of
-      Just as -> return (as,r)
-      Nothing -> Left ("extSG " ++ show c)
-    extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
+-- What does this do?
+fix k rho gam as nu f c e = do
+  let l  = length as
+  let us = map Var [k..k+l-1]
+  check (k+l) (upds rho us) (addC gam as nu us) (app f (Con c us)) e
+
+extSG :: String -> Exp -> Error ([Exp], Env)
+extSG c (Comp (Sum cas) r) = case lookup c cas of
+  Just as -> return (as,r)
+  Nothing -> Left ("extSG " ++ show c)
+extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
 
 checkI :: Int -> Env -> [Exp] -> Exp -> Error Exp
 checkI k rho gam e = case e of
@@ -135,20 +137,42 @@ checkI k rho gam e = case e of
       Pi a f -> do
         check k rho gam a m
         return (app f (eval m rho))
-      _        ->  Left $ show c ++ " is not a product"
+      _      ->  Left $ show c ++ " is not a product"
   Def t es as -> do
     checkD k rho gam es as
     let rho1 = PDef es as rho
     checkI k rho1 (addC gam as rho (evals es rho1)) t
+  PN _ a [] -> do -- trace ("checkI " ++ show e ++ " in " ++ show rho)
+    return (eval a rho)
+  PN n (Pi a f) (t:ts) -> do
+    check k rho gam a t
+    checkI k rho gam (PN n (app ) ts)
   _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
+
+
+
+
+-- better use checks and a piToTele :: Exp -> Exp ?
+checkPN :: Int -> Env -> [Exp] -> Exp -> [Exp] -> Error Exp
+checkPN k rho gam a        []     = return a
+checkPN k rho gam (Pi a f) (t:ts) = do
+  trace ("checkPN checking " ++ show t ++ " of type "
+        ++ show a ++ " in " ++ show rho ++ "\nand " ++ show gam)
+    check k rho gam a t
+  checkPN k rho gam (app f (eval t rho)) ts
+checkPN k rho gam a ts = Left ("checkPN " ++ show a ++ " not a Pi")
+
+--   (Pi a f,Lam t)  -> check (k+1) (Pair rho (Var k)) (a:gam) (app f (Var k)) t
 
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()
 checks k rho gam (a:as) nu (e:es) = do
-  trace ("checking " ++ show e ++ " in " ++ show rho ++ "\n") (check k rho gam (eval a nu) e)
+  trace ("checking " ++ show e ++ " of type " ++ show a
+         ++ " in " ++ show rho ++ "\n")
+    (check k rho gam (eval a nu) e)
   checks k rho gam as (Pair nu (eval e rho)) es
 checks k rho gam _ _ _ = Left "checks"
 
 
 checkExp :: Exp -> Error ()
-checkExp = check 0 Empty [] Top 
+checkExp = check 0 Empty [] Top
