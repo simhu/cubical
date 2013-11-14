@@ -22,11 +22,11 @@ Split.  Exp  ::= "split" "{" [Branch] "}" ;
 Fun.    Exp  ::= Exp1 "->" Exp ;
 Pi.     Exp  ::= TeleNE "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
+Con.    Exp1 ::= "$" AIdent [Exp2] ; -- Could be just Exp
 Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
-Con.    Exp2 ::= "$" AIdent [Exp] ; -- Could be just Exp
 
-terminator Exp "" ;
+terminator Exp2 "" ;
 coercions Exp 2 ;
 
 Binder.   Binder ::= Arg ;
