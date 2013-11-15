@@ -39,16 +39,16 @@ eval (Pi a b)      s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
-eval (PN n a)      s = PN n (eval a s)
-eval (Comp t s')   s = eval t (compose s' s) -- ??
+--eval (PN n a)      s = PN n (eval a s)
+--eval (Comp t s')   s = eval t (compose s' s) -- ??
 eval t             s = Comp t s
-
+{-
 compose :: Env -> Env -> Env
 compose Empty _ = Empty
 compose (Pair s' u) s = Pair (compose s' s) (eval u s)
 compose (PDef es as s') s =
   PDef (map (`eval` s) es) (map (`eval` s)  as) (compose s' s)
-
+-}
 evals :: [Exp] -> Env -> [Exp]
 evals es r = map (\e -> eval e r) es
 
@@ -115,7 +115,24 @@ check k rho gam a t = case (a,t) of
     checkD k rho gam es as
     let rho1 = PDef es as rho
     check k rho1 (addC gam as rho (evals es rho1)) a e
-  _ -> checkI k rho gam t =?= eval a rho
+  _ -> do
+    a' <- checkI k rho gam t
+    bool <- checkEq k rho gam a' a
+    case bool of
+      True -> return ()
+      False -> Left ("checkEq: " ++ show a' ++ " =/= " ++ show a)
+
+
+(<&&>) :: Monad m => m Bool -> m Bool -> m Bool
+(<&&>) = liftM2 (&&)
+
+-- Check whether two values are equal.
+checkEq :: Int -> Env -> [Exp] -> Exp -> Exp -> Error Bool
+checkEq k rho gam (Pi a f) (Pi a' f') =
+  checkEq k rho gam a a'
+  <&&> checkEq (k+1) (Pair rho (Var k)) ((eval a rho):gam) (app f (Var k)) (app f' (Var k))
+-- TODO: extend ....
+checkEq k rho gam a b = return (eval a rho == eval b rho)
 
 checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
 checkTUs _ _   _   []     = return ()
