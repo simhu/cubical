@@ -1,9 +1,9 @@
 -- nameless miniTT, with recursive definitions
-module MTT where
+module MiniTT.MTT where
 
 import Control.Monad
 import Debug.Trace
-import Test.QuickCheck
+import Control.Monad.Error hiding (Error,fix)
 
 type Brc = [(String,Exp)]
 type Lb  = [(String,[Exp])]

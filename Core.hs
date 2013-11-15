@@ -26,11 +26,12 @@ data Ter = Var Int
            -- TODO?: equation: InhRec p phi (Inc a) = phi a
            --                  InhRec p phi (Squash a b) =
            --                     p (InhRec p phi a) (InhRec p phi b)
-         | Where Ter Def
+         | Where Ter Def         -- TODO: should be a let rec!
          | Con Ident [Ter]       -- constructor c Ms
          | Branch [(Ident, Ter)] -- branches c1 -> M1,..., cn -> Mn
          | LSum [(Ident, [Ter])] -- labelled sum c1 A1s,..., cn Ans
                                  -- (assumes terms are constructors)
+         | U
   deriving (Show,Eq)
 
 type Def = [Ter]                -- without type annotations for now

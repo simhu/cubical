@@ -1,5 +1,5 @@
 -- Convert the concrete syntax into the syntax of miniTT.
-module Concrete where
+module MiniTT.Concrete where
 
 import Exp.Abs
 import qualified MTT as A
