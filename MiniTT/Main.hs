@@ -34,14 +34,14 @@ main = do
       showTree tree
       let g = map (\(_,y,z) -> (y,z)) $ graph (unModule tree)
       putStrLn $ "\nGraph:\n" ++ show g
-      let cg = map (map (map defToName)) $ callGraph $ unModule tree
+      let cg = map (map (concatMap defToNames)) $ callGraph $ unModule tree
 --      let cg = callGraph $ unModule tree
       putStrLn $ "\nCall graph:\n" ++ show cg
       case runResolver (handleModule tree) of
         Left err  -> putStrLn $ "\nResolver Failed: " ++ err
         Right exp -> do 
           putStrLn "\nResolver Successful!" 
-          putStrLn $ show exp
+          putStrLn $ show exp ++ "\n"
           case A.checkExp exp of
             Left terr -> putStrLn $ "\nType checking failed: " ++ show terr
             Right _   -> putStrLn "YES!!!"

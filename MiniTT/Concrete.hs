@@ -1,5 +1,5 @@
 -- Convert the concrete syntax into the syntax of miniTT.
-module MiniTT.Concrete where
+module Concrete where
 
 import Exp.Abs
 import qualified MTT as A
@@ -106,8 +106,8 @@ resolveExp (Pi (TeleNE tele) b) =
 resolveExp (Fun a b) =
   A.Pi <$> resolveExp a <*> lam dummyVar (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Case e brs) =
-  A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
+-- resolveExp (Case e brs) =
+--   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
 resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
@@ -217,6 +217,28 @@ defToGraph d = case d of
      : [ ([],c,[iden]) | Sum (AIdent (_,c)) _ <- labels ]
     where fvB = unions [ freeVarsTele tele \\ namesTele tele
                        | Sum _ (Tele tele) <- labels ]
+  (DefPrim defs) -> --primitiveToGraph defs (defsToNames defs)
+    graph (concatMap unfoldPrimitive defs)
+
+
+unfoldPrimitive :: Def -> [Def]
+unfoldPrimitive d@(DefTDecl n a) = [d,decl]
+  where decl = Def n [] (NoWhere (PN n a)) -- add a declaration using PN
+unfoldPrimitive d =             -- TODO: better error handling?
+  error ("only type declarations are allowed in primitives " ++ show d)
+
+{-
+-- All definitions in a primitive block should be in the same
+-- connected component.
+-- TODO: Really?!
+primitiveToGraph :: [Def] -> [String] -> [([Def],String,[String])]
+primitiveToGraph [] _ = []
+primitiveToGraph (d@(DefTDecl n@(AIdent (_,iden)) a):ds) ns =
+  ([d, decl], iden, ns): primitiveToGraph ds ns
+  where decl = Def n [] (NoWhere (PN n a)) -- add a declaration using PN
+primitiveToGraph ds _ =       -- TODO: better error handling?
+  error ("only type declarations are allowed in primitives " ++ show ds)
+-}
 
 freeVars :: Exp -> [String]
 freeVars (Let ds e)  = (freeVars e `union` unions (map freeVarsDef ds))
@@ -225,9 +247,9 @@ freeVars (Lam bs e)  = freeVars e \\ unArgsBinder bs
 freeVars (Split bs) =
   unions [ str:(freeVars (unWhere e) \\ unArgs args)
          | Branch (AIdent (_,str)) args e <- bs ]
-freeVars (Case e bs) =
-  freeVars e `union` unions [ str:(freeVars (unWhere ew) \\ unArgs args)
-                            | Branch (AIdent (_,str)) args ew <- bs ]
+-- freeVars (Case e bs) =
+--   freeVars e `union` unions [ str:(freeVars (unWhere ew) \\ unArgs args)
+--                             | Branch (AIdent (_,str)) args ew <- bs ]
 freeVars (Fun e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Pi (TeleNE []) e) = freeVars e
 freeVars (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
@@ -236,7 +258,11 @@ freeVars (App e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Var x)     = [unArgBinder x]
 freeVars U           = []
 freeVars (Con _ es)  = unions (map freeVars es)
-freeVars (PN (AIdent (_,n)) t) = [n] `union` freeVars t -- ?
+freeVars (PN _ t)    = freeVars t
+-- freeVars (PN (AIdent (_,n)) ns t) =
+--   freeVars t `union` map (\(AIdent (_,i)) -> i) ns
+-- freeVars (PN (AIdent (_,n)) t) = --[n] `union` freeVars t -- ?
+--   freeVars t
 --freeVars (PN _ t es) = unions (map freeVars es)
 
 -- The free variables of the right hand side.
@@ -245,6 +271,7 @@ freeVarsDef (Def _ args exp) = freeVars (unWhere exp) \\ unArgs args
 freeVarsDef (DefTDecl _ exp) = freeVars exp
 freeVarsDef (DefData _ (Tele vdecls) labels) = freeVarsTele vdecls `union`
   (unions [ freeVarsTele vs | Sum _ (Tele vs) <- labels ] \\ namesTele vdecls)
+freeVarsDef (DefPrim defs) = unions (map freeVarsDef defs)
 
 freeVarsTele :: [VDecl] -> [String]
 freeVarsTele []                = []
@@ -254,13 +281,14 @@ freeVarsTele ((VDecl bs e):ds) =
 namesTele :: [VDecl] -> [String]
 namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
-defToName :: Def -> String
-defToName (Def (AIdent (_,n)) _ _)     = n
-defToName (DefTDecl (AIdent (_,n)) _)  = n
-defToName (DefData (AIdent (_,n)) _ _) = n
+defToNames :: Def -> [String]
+defToNames (Def (AIdent (_,n)) _ _)     = [n]
+defToNames (DefTDecl (AIdent (_,n)) _)  = [n]
+defToNames (DefData (AIdent (_,n)) _ _) = [n]
+defToNames (DefPrim defs)               = defsToNames defs
 
 defsToNames :: [Def] -> [String]
-defsToNames = nub . map defToName
+defsToNames = nub . concatMap defToNames
 
 unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
@@ -280,7 +308,7 @@ unData' def _ = throwError ("unData: data declaration expected " ++ show def)
 
 handleMutual :: [[Def]] -> [String] -> Resolver [(A.Exp,A.Exp)]
 handleMutual []       _  = return []
-handleMutual (ds:dss) ns = case sort ds of -- use Ord on for Def: will put Def before DefTDecl
+handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def before DefTDecl
   [d@DefData{}]        -> do
     (exp,typ) <- unData' d ns
     rest <- handleMutual dss ns

@@ -1,5 +1,5 @@
 -- nameless miniTT, with recursive definitions
-module MiniTT.MTT where
+module MTT where
 
 import Control.Monad
 import Debug.Trace
@@ -108,7 +108,7 @@ check k rho gam a t = case (a,t) of
     checkD k rho gam es as
     let rho1 = PDef es as rho
     check k rho1 (addC gam as rho (evals es rho1)) a e
-  _ -> checkI k rho gam t =?= a
+  _ -> checkI k rho gam t =?= eval a rho
 
 checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
 checkTUs _ _   _   []     = return ()
@@ -142,15 +142,17 @@ checkI k rho gam e = case e of
     checkD k rho gam es as
     let rho1 = PDef es as rho
     checkI k rho1 (addC gam as rho (evals es rho1)) t
-  PN _ a -> return (eval a rho)
+  PN _ a -> do
+    checkT k rho gam a          -- ??
+    return (eval a rho)
   _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
 
 
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()
 checks k rho gam (a:as) nu (e:es) = do
-  trace ("checking " ++ show e ++ " of type " ++ show a
-         ++ " in " ++ show rho ++ "\n")
+  trace ("checking " ++ show e ++ "\nof type " ++ show a
+         ++ "\nin " ++ show rho ++ "\n")
     (check k rho gam (eval a nu) e)
   checks k rho gam as (Pair nu (eval e rho)) es
 checks k rho gam _ _ _ = Left "checks"
