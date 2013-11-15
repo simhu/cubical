@@ -28,7 +28,7 @@ Con.    Exp1 ::= "$" AIdent [Exp2] ; -- Could be just Exp
 Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
 
-internal PN.  Exp1 ::= AIdent Exp2 ;
+PN.  Exp1 ::= "PN" AIdent Exp2 ;
 
 
 terminator Exp2 "" ;
