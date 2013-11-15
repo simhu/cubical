@@ -20,7 +20,7 @@ data Exp = Comp Exp Env
          | Con String [Exp]
          | Fun Brc
          | Sum Lb
-         | PN String Exp [Exp]  -- primitive notion
+         | PN String Exp        -- primitive notion (typed)
          | Top
   deriving (Eq,Show)
 
@@ -39,7 +39,7 @@ eval (Pi a b)      s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
-eval (PN n a ts)   s = trace "wiii\n" PN n (eval a s) (evals ts s)
+eval (PN n a)      s = PN n (eval a s)
 eval t             s = Comp t s
 
 evals :: [Exp] -> Env -> [Exp]
@@ -142,27 +142,9 @@ checkI k rho gam e = case e of
     checkD k rho gam es as
     let rho1 = PDef es as rho
     checkI k rho1 (addC gam as rho (evals es rho1)) t
-  PN _ a [] -> do -- trace ("checkI " ++ show e ++ " in " ++ show rho)
-    return (eval a rho)
-  PN n (Pi a f) (t:ts) -> do
-    check k rho gam a t
-    checkI k rho gam (PN n (app ) ts)
+  PN _ a -> return (eval a rho)
   _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
 
-
-
-
--- better use checks and a piToTele :: Exp -> Exp ?
-checkPN :: Int -> Env -> [Exp] -> Exp -> [Exp] -> Error Exp
-checkPN k rho gam a        []     = return a
-checkPN k rho gam (Pi a f) (t:ts) = do
-  trace ("checkPN checking " ++ show t ++ " of type "
-        ++ show a ++ " in " ++ show rho ++ "\nand " ++ show gam)
-    check k rho gam a t
-  checkPN k rho gam (app f (eval t rho)) ts
-checkPN k rho gam a ts = Left ("checkPN " ++ show a ++ " not a Pi")
-
---   (Pi a f,Lam t)  -> check (k+1) (Pair rho (Var k)) (a:gam) (app f (Var k)) t
 
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()

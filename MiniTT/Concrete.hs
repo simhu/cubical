@@ -111,8 +111,8 @@ resolveExp (Case e brs) =
 resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
-resolveExp (PN (AIdent (_,n)) t es) =
-  A.PN n <$> resolveExp t <*> mapM resolveExp es
+resolveExp (PN (AIdent (_,n)) t) =
+  A.PN n <$> resolveExp t
 
 resolveExpWhere :: ExpWhere -> Resolver A.Exp
 resolveExpWhere = resolveExp . unWhere
@@ -236,7 +236,8 @@ freeVars (App e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Var x)     = [unArgBinder x]
 freeVars U           = []
 freeVars (Con _ es)  = unions (map freeVars es)
-freeVars (PN _ t es) = unions (map freeVars es) -- type should be closed
+freeVars (PN (AIdent (_,n)) t) = [n] `union` freeVars t -- ?
+--freeVars (PN _ t es) = unions (map freeVars es)
 
 -- The free variables of the right hand side.
 freeVarsDef :: Def -> [String]

@@ -17,13 +17,14 @@ NoWhere. ExpWhere  ::= Exp ;
 
 Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
-Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
+--Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
 Split.  Exp  ::= "split" "{" [Branch] "}" ;
 Fun.    Exp  ::= Exp1 "->" Exp ;
 Pi.     Exp  ::= TeleNE "->" Exp ;
 App.    Exp1 ::= Exp1 Exp2 ;
 Con.    Exp1 ::= "$" AIdent [Exp2] ; -- Could be just Exp
-PN.     Exp1 ::= "PRIMITIVE" AIdent Exp2 [Exp2] ;
+PN.     Exp1 ::= "PRIMITIVE" AIdent Exp2 ;
+-- internal PNAnn.  Exp1 ::= "PRIMITIVE" AIdent Exp2 ;
 Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
 
