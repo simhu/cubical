@@ -40,7 +40,14 @@ eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
 eval (PN n a)      s = PN n (eval a s)
+eval (Comp t s')   s = eval t (compose s' s) -- ??
 eval t             s = Comp t s
+
+compose :: Env -> Env -> Env
+compose Empty _ = Empty
+compose (Pair s' u) s = Pair (compose s' s) (eval u s)
+compose (PDef es as s') s =
+  PDef (map (`eval` s) es) (map (`eval` s)  as) (compose s' s)
 
 evals :: [Exp] -> Env -> [Exp]
 evals es r = map (\e -> eval e r) es
