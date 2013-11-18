@@ -42,13 +42,25 @@ primHandle :: PrimHandle
 primHandle =
   [ ("Id", (3, primId))
   , ("refl", (1, primRefl))
+  , ("subst", (6, primSubst))
+  , ("ext", (5, primExt))
   ]
 
+-- TODO: Even though these can assume to have the right amount of
+-- arguments, the pattern matching is pretty ugly... (?)
 primId :: [Exp] -> Either String I.Ter
 primId (a:x:y:[]) = I.Id <$> translate a <*> translate x <*> translate y
 
 primRefl :: [Exp] -> Either String I.Ter
 primRefl [x] = I.Refl <$> translate x
+
+primSubst :: [Exp] -> Either String I.Ter
+primSubst (a:c:x:y:eq:p:[]) =
+  I.Trans <$> translate c <*> translate eq <*> translate p
+
+primExt :: [Exp] -> Either String I.Ter
+primExt (a:b:f:g:ptwise:[]) =
+  I.Ext <$> translate b <*> translate f <*> translate g <*> translate p
 
 
 -- Gets a name for a primitive notion, a list of arguments which might
