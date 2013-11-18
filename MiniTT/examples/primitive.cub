@@ -1,0 +1,50 @@
+
+primitive
+  Id   : (A : U) (a b : A) -> U
+  refl : (A : U) (a : A) -> Id A a a
+  ext  : (A : U) (B : (a:A) -> U) (f g : (a : A) -> B a)
+         (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
+  J    : (A : U) (a : A) (C : (b : A) -> Id A a b -> U) (d : C a (refl A a))
+       	 (b : A) (p : Id A a b) -> C b p
+  Jeq  : (A : U) (a : A) (C : (b : A) -> Id A a b -> U) (d : C a (refl A a)) ->
+         Id (C a (refl A a)) d (J A a C d a (refl A a))
+  subst : (A : U) (C : A -> U) (a b : A) (p : Id A a b) -> C a -> C b
+
+data N = zero | suc (n : N)
+
+-- doesn't work: (problems with how the call-graph handles constructor
+-- names.... should c-names be tagged with a "$"?)
+zero' : N
+zero' = $ zero
+
+suc : N -> N
+suc n = $ suc n
+
+cong : (A B : U) (f : A -> B) (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
+cong A B f a0 a1 p = subst A (\ a -> Id B (f a0) (f a)) a0 a1 p (refl B (f a0))
+
+natid : N -> N
+natid x = x
+
+natid' : N -> N
+natid' = split
+  zero  -> $ zero
+  suc n -> $ suc (natid' n)
+
+idsexteq : (n : N) -> Id N (natid n) (natid' n)
+idsexteq = split
+   zero -> refl N ($ zero)
+   suc n -> cong N N suc (natid n) (natid' n) (idsexteq n)
+
+idseq : Id (N -> N) natid natid'
+idseq = ext N (\_ -> N) natid natid' idsexteq
+
+
+data List (A : U) = nil | cons (x : A) (xs : List A)
+
+append : (A : U) -> List A -> List A -> List A
+append A = split
+  nil       -> \ys -> ys
+  cons x xs -> \ys -> $ cons x (append A xs ys)
+
+
