@@ -98,21 +98,20 @@ lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
 lams as e = foldr lam e as
 
 resolveExp :: Exp -> Resolver A.Exp
-resolveExp U                    = return A.U
-resolveExp (Var (Binder a))     = resolveVar a
-resolveExp (App t s)            = A.App <$> resolveExp t <*> resolveExp s
-resolveExp (Pi (TeleNE tele) b) =
+resolveExp U                       = return A.U
+resolveExp (Var (Binder a))        = resolveVar a
+resolveExp (App t s)               = A.App <$> resolveExp t <*> resolveExp s
+resolveExp (Pi (TeleNE tele) b)    =
   resolveTelePi (flattenTeleNE tele) (resolveExp b)
-resolveExp (Fun a b) =
+resolveExp (Fun a b)               =
   A.Pi <$> resolveExp a <*> lam dummyVar (resolveExp b)
-resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
+resolveExp (Lam bs t)              = lams (map unBinder bs) (resolveExp t)
 -- resolveExp (Case e brs) =
 --   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
-resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
-resolveExp (Let defs e) = handleDefs defs (resolveExp e)
+resolveExp (Split brs)             = A.Fun <$> mapM resolveBranch brs
+resolveExp (Let defs e)            = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
-resolveExp (PN (AIdent (_,n)) t) =
-  A.PN n <$> resolveExp t
+resolveExp (PN (AIdent (_,n)) t)   = A.PN n <$> resolveExp t
 
 resolveExpWhere :: ExpWhere -> Resolver A.Exp
 resolveExpWhere = resolveExp . unWhere

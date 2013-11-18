@@ -4,6 +4,7 @@ module MTT where
 import Control.Monad
 import Debug.Trace
 import Control.Monad.Error hiding (Error,fix)
+import Control.Applicative
 
 type Brc = [(String,Exp)]
 type Lb  = [(String,[Exp])]
@@ -39,9 +40,10 @@ eval (Pi a b)      s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
---eval (PN n a)      s = PN n (eval a s)
+eval (PN n a)      s = PN n (eval a s)
 --eval (Comp t s')   s = eval t (compose s' s) -- ??
 eval t             s = Comp t s
+
 {-
 compose :: Env -> Env -> Env
 compose Empty _ = Empty
@@ -49,6 +51,7 @@ compose (Pair s' u) s = Pair (compose s' s) (eval u s)
 compose (PDef es as s') s =
   PDef (map (`eval` s) es) (map (`eval` s)  as) (compose s' s)
 -}
+
 evals :: [Exp] -> Env -> [Exp]
 evals es r = map (\e -> eval e r) es
 
@@ -74,7 +77,8 @@ type Error a = Either String a
 (=?=) :: Error Exp -> Exp -> Error ()
 m =?= s2 = do
   s1 <- m
-  unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
+  trace ("comparing " ++ show s1 ++ " =/= " ++ show s2)
+    unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
 checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
 checkD k rho gam es as = do
@@ -116,13 +120,16 @@ check k rho gam a t = case (a,t) of
     let rho1 = PDef es as rho
     check k rho1 (addC gam as rho (evals es rho1)) a e
   _ -> do
-    a' <- checkI k rho gam t
+    (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
+      --reifyExp k (eval a rho)
+{-    a' <- checkI k rho gam t
     bool <- checkEq k rho gam a' a
     case bool of
       True -> return ()
       False -> Left ("checkEq: " ++ show a' ++ " =/= " ++ show a)
+-}
 
-
+{-
 (<&&>) :: Monad m => m Bool -> m Bool -> m Bool
 (<&&>) = liftM2 (&&)
 
@@ -133,6 +140,7 @@ checkEq k rho gam (Pi a f) (Pi a' f') =
   <&&> checkEq (k+1) (Pair rho (Var k)) ((eval a rho):gam) (app f (Var k)) (app f' (Var k))
 -- TODO: extend ....
 checkEq k rho gam a b = return (eval a rho == eval b rho)
+-}
 
 checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
 checkTUs _ _   _   []     = return ()
@@ -154,7 +162,8 @@ extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
 
 checkI :: Int -> Env -> [Exp] -> Exp -> Error Exp
 checkI k rho gam e = case e of
-  Ref k   -> return (gam !! k)
+  Ref k   -> trace ("REF " ++ show k ++ "\nFROM GAMMA =\n" ++ show gam)
+               return (gam !! k)
   App n m -> do
     c <- checkI k rho gam n
     case c of
@@ -184,3 +193,22 @@ checks k rho gam _ _ _ = Left "checks"
 
 checkExp :: Exp -> Error ()
 checkExp = check 0 Empty [] Top
+
+-- Reification of a value to a term
+reifyExp :: Int -> Exp -> Exp
+reifyExp k (Comp (Lam t) r) = Lam $ reifyExp (k+1) (eval t (Pair r (Var k)))
+reifyExp k (Var l) = Ref (k-l-1)
+reifyExp k (App u v) = App (reifyExp k u) (reifyExp k v)
+reifyExp k (Pi a f) = Pi (reifyExp k a) (reifyExp k f)
+reifyExp _ U = U
+reifyExp k (Con n ts) = Con n (map (reifyExp k) ts)
+reifyExp k (Comp (Fun bs) r) = eval (Fun bs) (reifyEnv k r) -- ?
+reifyExp k (Comp (Sum ls) r) = eval (Sum ls) (reifyEnv k r) -- ?
+reifyExp _ Top = Top
+reifyExp k (PN n a) = PN n (reifyExp k a)
+
+
+reifyEnv :: Int -> Env -> Env
+reifyEnv _ Empty = Empty
+reifyEnv k (Pair r u) = Pair (reifyEnv k r) (reifyExp k u)
+reifyEnv k (PDef ts as r) = reifyEnv k r
