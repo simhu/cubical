@@ -21,6 +21,9 @@ data Exp = Comp Exp Env
          | Con String [Exp]
          | Fun Brc
          | Sum Lb
+-- for reify
+         | RFun Brc [Exp]
+         | RSum Lb [Exp]
          | PN String Exp        -- primitive notion (typed)
          | Top
   deriving (Eq,Show)
@@ -121,7 +124,6 @@ check k rho gam a t = case (a,t) of
     check k rho1 (addC gam as rho (evals es rho1)) a e
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
-      --reifyExp k (eval a rho)
 {-    a' <- checkI k rho gam t
     bool <- checkEq k rho gam a' a
     case bool of
@@ -202,13 +204,17 @@ reifyExp k (App u v) = App (reifyExp k u) (reifyExp k v)
 reifyExp k (Pi a f) = Pi (reifyExp k a) (reifyExp k f)
 reifyExp _ U = U
 reifyExp k (Con n ts) = Con n (map (reifyExp k) ts)
-reifyExp k (Comp (Fun bs) r) = eval (Fun bs) (reifyEnv k r) -- ?
-reifyExp k (Comp (Sum ls) r) = eval (Sum ls) (reifyEnv k r) -- ?
+--reifyExp k (Comp (Fun bs) r) = eval (Fun bs) (reifyEnv k r) -- ?
+--reifyExp k (Comp (Sum ls) r) = eval (Sum ls) (reifyEnv k r) -- ?
+reifyExp k (Comp (Sum ls) r) = RSum ls (reifyEnv k r)
+reifyExp k (Comp (Fun bs) r) = RFun bs (reifyEnv k r)
 reifyExp _ Top = Top
 reifyExp k (PN n a) = PN n (reifyExp k a)
 
 
-reifyEnv :: Int -> Env -> Env
-reifyEnv _ Empty = Empty
-reifyEnv k (Pair r u) = Pair (reifyEnv k r) (reifyExp k u)
+reifyEnv :: Int -> Env -> [Exp]
+reifyEnv _ Empty = []
+reifyEnv k (Pair r u) = reifyExp k u:reifyEnv k r
 reifyEnv k (PDef ts as r) = reifyEnv k r
+
+
