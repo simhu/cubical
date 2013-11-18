@@ -77,7 +77,7 @@ type Error a = Either String a
 (=?=) :: Error Exp -> Exp -> Error ()
 m =?= s2 = do
   s1 <- m
-  trace ("comparing " ++ show s1 ++ " =/= " ++ show s2)
+  trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
     unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
 checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
