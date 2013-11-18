@@ -313,11 +313,12 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def befo
     rest <- handleMutual dss ns
     return ((exp,typ):rest)
   [Def iden args body,DefTDecl _ t] -> do
-    exp <- local (insertNames ns) $ lams args (local (insertVars args) (resolveExpWhere body))
+    exp <- local (insertNames ns) $ lams args (resolveExpWhere body)
     typ <- resolveExp t
     rest <- handleMutual dss ns
     return ((exp,typ):rest)
-  x -> throwError $ "handleMutual: Something is missing or too many definition/declarations: " ++ show x
+  x -> throwError $ "handleMutual: Something is missing or too many "
+                  ++ "definition/declarations: " ++ show x
 
 --                                         exp : type
 handleMutuals :: [[[Def]]] -> Resolver [[(A.Exp,A.Exp)]]
