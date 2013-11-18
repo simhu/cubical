@@ -42,8 +42,10 @@ primHandle :: PrimHandle
 primHandle =
   [ ("Id", (3, primId))
   , ("refl", (1, primRefl))
-  , ("subst", (6, primSubst))
+  , ("subst", (6, primSubst)) -- TODO: remove, better only J
   , ("ext", (5, primExt))
+  , ("J", (6, primJ))
+  , ("Jeq", (4, primJeq))
   ]
 
 -- TODO: Even though these can assume to have the right amount of
@@ -61,6 +63,12 @@ primSubst (a:c:x:y:eq:p:[]) =
 primExt :: [Exp] -> Either String I.Ter
 primExt (a:b:f:g:ptwise:[]) =
   I.Ext <$> translate b <*> translate f <*> translate g <*> translate p
+
+primJ :: [Exp] -> Either String I.Ter
+primJ = error "J not implemented"
+
+primJeq :: [Exp] -> Either String I.Ter
+primJeq = error "Jeq not implemented"
 
 
 -- Gets a name for a primitive notion, a list of arguments which might
