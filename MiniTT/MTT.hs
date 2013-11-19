@@ -14,7 +14,7 @@ data Exp = Comp Exp Env
          | Pi Exp Exp
          | Lam Exp
            -- TODO: Should be a list of pairs!
-         | Def Exp [Exp] [Exp]	-- unit substitutions
+         | Def Exp [Exp] [Exp] [String]	-- unit substitutions (strings names of definitions)
          | Var Int 		-- generic values
          | Ref Int		-- de Bruijn index
          | U
@@ -37,9 +37,9 @@ upds :: Env -> [Exp] -> Env
 upds = foldl Pair
 
 eval :: Exp -> Env -> Exp       -- eval is also composition!
-eval (Def e es as) s = eval e (PDef es as s)
-eval (App t1 t2)   s = app (eval t1 s) (eval t2 s)
-eval (Pi a b)      s = Pi (eval a s) (eval b s)
+eval (Def e es as _) s = eval e (PDef es as s)
+eval (App t1 t2)     s = app (eval t1 s) (eval t2 s)
+eval (Pi a b)        s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
 eval (Ref k)       s = getE k s
 eval U             _ = U
@@ -80,8 +80,8 @@ type Error a = Either String a
 (=?=) :: Error Exp -> Exp -> Error ()
 m =?= s2 = do
   s1 <- m
-  trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
-    unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
+  --trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
+  unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
 checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
 checkD k rho gam es as = do
@@ -118,10 +118,11 @@ check k rho gam a t = case (a,t) of
                       | ((c,e), (_,as)) <- zip ces cas]
        else fail "case branches does not match the data type"
   (Pi a f,Lam t)  -> check (k+1) (Pair rho (Var k)) (a:gam) (app f (Var k)) t
-  (_,Def e es as) -> do
-    checkD k rho gam es as
-    let rho1 = PDef es as rho
-    check k rho1 (addC gam as rho (evals es rho1)) a e
+  (_,Def e es as str) -> trace ("checking definition " ++ show str)
+    (do
+      checkD k rho gam es as
+      let rho1 = PDef es as rho
+      check k rho1 (addC gam as rho (evals es rho1)) a e)
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
 {-    a' <- checkI k rho gam t
@@ -164,8 +165,7 @@ extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
 
 checkI :: Int -> Env -> [Exp] -> Exp -> Error Exp
 checkI k rho gam e = case e of
-  Ref k   -> trace ("REF " ++ show k ++ "\nFROM GAMMA =\n" ++ show gam)
-               return (gam !! k)
+  Ref k   -> return (gam !! k)
   App n m -> do
     c <- checkI k rho gam n
     case c of
@@ -173,10 +173,11 @@ checkI k rho gam e = case e of
         check k rho gam a m
         return (app f (eval m rho))
       _      ->  Left $ show c ++ " is not a product"
-  Def t es as -> do
-    checkD k rho gam es as
-    let rho1 = PDef es as rho
-    checkI k rho1 (addC gam as rho (evals es rho1)) t
+  Def t es as str -> trace ("checking definition " ++ show str)
+    (do
+      checkD k rho gam es as
+      let rho1 = PDef es as rho
+      checkI k rho1 (addC gam as rho (evals es rho1)) t)
   PN _ a -> do
     checkT k rho gam a          -- ??
     return (eval a rho)
@@ -186,9 +187,9 @@ checkI k rho gam e = case e of
 checks :: Int -> Env -> [Exp] -> [Exp] -> Env -> [Exp] -> Error ()
 checks _ _   _    []    _  []     = return ()
 checks k rho gam (a:as) nu (e:es) = do
-  trace ("checking " ++ show e ++ "\nof type " ++ show a
-         ++ "\nin " ++ show rho ++ "\n")
-    (check k rho gam (eval a nu) e)
+  -- trace ("checking " ++ show e ++ "\nof type " ++ show a
+  --        ++ "\nin " ++ show rho ++ "\n")
+  check k rho gam (eval a nu) e
   checks k rho gam as (Pair nu (eval e rho)) es
 checks k rho gam _ _ _ = Left "checks"
 

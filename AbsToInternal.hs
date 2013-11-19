@@ -40,12 +40,12 @@ type PrimHandle = [(String, (Int, [Exp] -> Either String I.Ter))]
 
 primHandle :: PrimHandle
 primHandle =
-  [ ("Id", (3, primId))
-  , ("refl", (1, primRefl))
+  [ ("Id",    (3, primId))
+  , ("refl",  (1, primRefl))
   , ("subst", (6, primSubst)) -- TODO: remove, better only J
-  , ("ext", (5, primExt))
-  , ("J", (6, primJ))
-  , ("Jeq", (4, primJeq))
+  , ("ext",   (5, primExt))
+  , ("J",     (6, primJ))
+  , ("Jeq",   (4, primJeq))
   ]
 
 -- TODO: Even though these can assume to have the right amount of
@@ -79,7 +79,7 @@ translatePrimitive :: String -> [Exp] -> Either String I.Ter
 translatePrimitive n ts = case lookup n primHandle of
   Just (arity,_) | length ts < arity ->
     throwError ("not enough arguments supplied to " ++ show n ++
-                " PRIMITIVE (" ++ show arity ++ "arguments required)\n"
+                " PRIMITIVE (" ++ show arity ++ " arguments required)\n"
                 ++"Arguments given: " ++ show ts)
   Just (arity,handler)               ->
     let (args,rest) = splitAt arity ts in

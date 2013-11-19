@@ -305,34 +305,34 @@ unData' (DefData _ (Tele vdcls) cs) ns = do
   return (exp,typ)
 unData' def _ = throwError ("unData: data declaration expected " ++ show def)
 
-handleMutual :: [[Def]] -> [String] -> Resolver [(A.Exp,A.Exp)]
+handleMutual :: [[Def]] -> [String] -> Resolver [([String],A.Exp,A.Exp)]
 handleMutual []       _  = return []
 handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def before DefTDecl
   [d@DefData{}]        -> do
     (exp,typ) <- unData' d ns
     rest <- handleMutual dss ns
-    return ((exp,typ):rest)
+    return ((ns,exp,typ):rest)
   [Def iden args body,DefTDecl _ t] -> do
     exp <- local (insertNames ns) $ lams args (resolveExpWhere body)
     typ <- resolveExp t
     rest <- handleMutual dss ns
-    return ((exp,typ):rest)
+    return ((ns,exp,typ):rest)
   x -> throwError $ "handleMutual: Something is missing or too many "
                   ++ "definition/declarations: " ++ show x
 
---                                         exp : type
-handleMutuals :: [[[Def]]] -> Resolver [[(A.Exp,A.Exp)]]
+--                                        names, exp : type
+handleMutuals :: [[[Def]]] -> Resolver [[([String],A.Exp,A.Exp)]]
 handleMutuals [] = return []
 handleMutuals (ds:dss) = do
   let ns = defsToNames $ concat ds
---  xs <- local (insertNames ns) $ handleMutual ds
   xs <- handleMutual ds ns
   (xs :) <$> local (insertNames ns) (handleMutuals dss)
 
-handleLet :: A.Exp -> [[(A.Exp,A.Exp)]] -> A.Exp
+handleLet :: A.Exp -> [[([String],A.Exp,A.Exp)]] -> A.Exp
 handleLet e []     = e
-handleLet e (x:xs) = A.Def (handleLet e xs) es ts
-  where (es,ts) = unzip x
+handleLet e (x:xs) = A.Def (handleLet e xs) es ts ns
+  where (nss,es,ts) = unzip3 x
+        ns          = concat nss
 
 handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
 handleDefs defs re = do
