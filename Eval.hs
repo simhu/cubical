@@ -9,6 +9,7 @@ import Core
 type Name = Integer
 type Dim  = [Name]
 type Dir  = Bool
+-- True = Up; False = Down
 
 dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
@@ -78,15 +79,15 @@ minus :: Mor -> Name -> Mor
 
 -- TODO: rename into BoxShape ?
 data BoxShape = BoxShape {
-  boxDir :: Dir, -- direction of the completion (up or down)
-  boxName :: Name, -- direction in which make the completion
-  boxDim :: Dim -- dimensions of the sides
+  boxDir  :: Dir,  -- direction of the completion (up or down)
+  boxName :: Name, -- direction in which to make the completion
+  boxDim  :: Dim   -- dimensions of the sides
   }
   deriving (Eq,Show)
 
 data BoxContent = BoxContent {
   boxBottom :: Val,
-  boxSides :: [(Val, Val)]
+  boxSides  :: [(Val, Val)]
   }
   deriving (Eq,Show)
 
@@ -112,15 +113,8 @@ mapBox :: (Val -> Val) -> (BoxContent -> BoxContent)
 mapBox f = toBox . (map f) . fromBox
 
 
--- data Dir = Up | Down
---          deriving (Eq,Show)
-
--- True = Up; False = Down
-
 mirror :: Dir -> Dir
 mirror = not
--- mirror Up = Down
--- mirror Down = Up
 
 direq :: Either Dir Name -> Dir -> Bool
 Left False `direq` False = True
@@ -130,7 +124,8 @@ _ `direq` _ = False
 data KanType = Fill | Com
   deriving (Show, Eq)
 
-data Val = VN | VZ | VS Val
+data Val = VU
+         | VN | VZ | VS Val
          | VRec Val Val Val -- not needed for closed terms
          | Ter Ter Env
          | VId Val Val Val
@@ -164,6 +159,7 @@ ter :: Dim -> Val -> Val
 ter d (Ter t e) = eval d e t
 
 eval :: Dim -> Env -> Ter -> Val
+eval _ _ U       = VU
 eval d e (Var i) = e !! i
 eval _ _ N       = VN
 eval _ _ Z       = VZ
@@ -171,13 +167,72 @@ eval d e (S t)   = VS (eval d e t)
 eval d e (Rec tz ts tn) = rec d (eval d e tz) (eval d e ts) (eval d e tn)
 eval d e (Id a a0 a1) = VId (eval d e a) (eval d e a0) (eval d e a1)
 eval d e (Refl a)  = Path $ res (eval d e a) (deg d (gensym d : d))
+
 eval d e (Trans c p t) =
   case eval d e p of
-    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box (BoxContent (eval d e t) [])
+    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box content
     pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = map (`res` deg d (x:d)) e
         box = BoxShape True x []
+        content = BoxContent (eval d e t) []
+
+-- TODO: throw out v, not needed?
+eval d e (J a u c w v p) = case eval d e p of
+  Path pv -> com dy (app dy (app dy cv omega) sigma) shape valbox
+    where
+      x = gensym d
+      y = gensym (x:d)
+      dy = y:d
+      z = gensym dy             -- TODO: do we really need z? Can't we
+                                -- just 'com' along x?
+      dxy = y:x:d
+      uv = eval d e u
+      ux = uv `res` deg d (x:d)
+      uy = uv `res` deg d dy
+      exy = map (`res` deg d dxy) e
+      ey = map (`res` deg d dy) e
+      theta = fill dxy (eval dxy exy a)
+              (BoxShape True x [y]) (BoxContent uy [(ux,pv)]) -- y:x:d
+      thetaxtoz = theta `res` update (identity dy)[x] [z] -- z:y:d
+      sigma = Path thetaxtoz                              -- y:d
+      omega = theta `res` (face dxy x True)               -- y:d
+      cv = eval dy ey c                                   -- y:d
+      shape = BoxShape True y []
+      valbox = BoxContent (eval d e w) []
+  pv -> error $ "eval: J on a non path value:" ++ show pv
+
+eval d e (JEq a u c w) = Path $ filled `res` update (identity d) [y] [x]
+  where
+    x = gensym d
+    y = gensym (x:d)
+    dy = y:d
+    z = gensym (y:d)          -- TODO: do we really need z? Can't we
+                              -- just 'com' along x?
+    dxy = y:x:d
+    exy = map (`res` deg d dxy) e
+    ey = map (`res` deg d dy) e
+    uv = eval d e u
+    ux = uv `res` deg d (x:d)
+    uy = uv `res` deg d dy
+    theta = fill dxy (eval dxy exy a)
+            (BoxShape True x [y]) (BoxContent uy [(ux,ux)])
+    thetaxtoz = theta `res` update (identity dy) [x] [z]
+    sigma = Path thetaxtoz
+    omega = theta `res` face dxy x True
+    cv = eval dy ey c
+    shape = BoxShape True y []
+    valbox = BoxContent (eval d e w) []
+    filled = fill dy (app dy (app dy cv omega) sigma) shape valbox
+
+    -- x = gensym d
+    -- dx = x:d
+    -- wv = eval d e w
+    -- uv = eval d e u
+    -- reflu = Path $ uv `res` deg d dx
+    -- ex = map (`res` (deg d dx) e)
+    -- cv = eval dx ex c
+
 eval d e (Ext b f g p) =
   Path $ VExt d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
 eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
@@ -193,15 +248,13 @@ eval d e (Inc t) = VInc d (eval d e t)
 eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
 eval d e (InhRec b p phi a) =
   inhrec (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
-eval d e (Where t def) = eval d (evalDef d e def) t
+eval d e (Where t def) = eval d e' t
+  where e' = map (eval d e') def ++ e -- use Haskell's laziness
 eval d e (Con name ts) = VCon name (map (eval d e) ts)
 -- eval d e (Branch alts) = VBranch alts e
 eval d e (Branch alts) = VBranch $ map (\(n,t) -> (n, eval d e t)) alts
 eval d e (LSum ntss) = VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
 
-
-evalDef :: Dim -> Env -> Def -> Env
-evalDef d e def = map (eval d e) def ++ e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc d a) = app d phi a

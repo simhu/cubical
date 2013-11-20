@@ -125,25 +125,6 @@ check k rho gam a t = case (a,t) of
       check k rho1 (addC gam as rho (evals es rho1)) a e)
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
-{-    a' <- checkI k rho gam t
-    bool <- checkEq k rho gam a' a
-    case bool of
-      True -> return ()
-      False -> Left ("checkEq: " ++ show a' ++ " =/= " ++ show a)
--}
-
-{-
-(<&&>) :: Monad m => m Bool -> m Bool -> m Bool
-(<&&>) = liftM2 (&&)
-
--- Check whether two values are equal.
-checkEq :: Int -> Env -> [Exp] -> Exp -> Exp -> Error Bool
-checkEq k rho gam (Pi a f) (Pi a' f') =
-  checkEq k rho gam a a'
-  <&&> checkEq (k+1) (Pair rho (Var k)) ((eval a rho):gam) (app f (Var k)) (app f' (Var k))
--- TODO: extend ....
-checkEq k rho gam a b = return (eval a rho == eval b rho)
--}
 
 checkTUs :: Int -> Env -> [Exp] -> [Exp] -> Error ()
 checkTUs _ _   _   []     = return ()
