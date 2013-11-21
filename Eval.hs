@@ -37,12 +37,11 @@ def :: Mor -> Dim
 def (al, co)  = [ i | (i, Right _) <- al ]
 
 ndef :: Mor -> Dim
-ndef (al, co) = [ i | (i, Left _) <- al ]
+ndef (al, _)  = [ i | (i, Left _) <- al ]
 
--- update f xs ys is (f, xs=ys) (xs and ys fresh)
-update :: Mor -> [Name] -> [Name] -> Mor
-update (al,co) xs ys = (al', co ++ ys)
-  where al' = al ++ zipWith (\x y -> (x, Right y)) xs ys
+-- update f x y is (f, x=y) (x and y fresh)
+update :: Mor -> Name -> Name -> Mor
+update (al,co) x y = ((x,Right y):al, y:co)
 
 im :: Mor -> Dim
 im (al, _) = [ y | (_, Right y) <- al ]
@@ -64,16 +63,18 @@ comp f g = ([(i, (f `ap` i) >>= (g `ap`))| i <- dom f], cod g)
 -- Assumption: d <= c
 -- Compute degeneracy map.
 deg :: Dim -> Dim -> Mor
-deg d c = (map (\i -> (i, Right i)) d, c)
+deg d c | d /= nub d = error $ "deg " ++ show d ++ " and " ++ show c
+        | otherwise  = (map (\i -> (i, Right i)) d, c)
 
 -- Compute the face map.
 -- (i=b) : d -> d-i
 face :: Dim -> Name -> Dir -> Mor
 face d i b = ((i, Left b):[(j, Right j) | j <- di], di)
-  where di = delete i d
+  where di | i `elem` d = delete i d
+           | otherwise  = error $ "face " ++ show i ++ " not in " ++ show d
 
--- If f : I->J and f defined on x, then (f-x): I-x -> J-fx
--- If f : I->J and f not defined on x, then (f-x): I-x -> J
+-- If f : I->J and f defined on i, then (f-i): I-i -> J-fi
+-- If f : I->J and f not defined on i, then (f-i): I-i -> J
 minus :: Mor -> Name -> Mor
 (f@(al,co)) `minus` i = ([(j,v)| (j,v) <- al, i/=j] , co')
   where co' | i `elem` def f = delete (f `dap` i) co
@@ -94,8 +95,8 @@ data BoxContent = BoxContent {
   deriving (Eq,Show)
 
 boxSide :: BoxContent -> Int -> Dir -> Val
-boxSide (BoxContent _ vs) n False = fst $vs !! n
-boxSide (BoxContent _ vs) n True  = snd $vs !! n
+boxSide (BoxContent _ vs) n False = fst $ vs !! n
+boxSide (BoxContent _ vs) n True  = snd $ vs !! n
 
 -- assumes the list is of odd size
 toBox :: [Val] -> BoxContent
@@ -136,14 +137,12 @@ data Val = VU
          | VExt Dim Val Val Val Val -- has dimension (gensym dim:dim)
          | VPi Val Val
          | VApp Val Val         -- not needed for closed terms
-         | VSigma Val Val | VPair Val Val
-         | VP Val | VQ Val      -- not needed for closed terms
          | VInh Val
-         | VInc Dim Val         -- dim needed?
-         | VSquash Dim Val Val  -- has dimension (gensym dim:dim)
-         | VInhRec Val Val Val Val -- not needed for closed terms
+         | VInc Val
+         | VSquash Name Dim Val Val  -- has dimension (name:dim); vals of dimension dim
+--         | VInhRec Dim Val Val Val Val -- not needed for closed terms
          | Kan KanType Dim Val BoxShape BoxContent
-         | Res Val Mor              -- not needed for closed terms
+--         | Res Val Mor              -- not needed for closed terms
          | VCon Ident [Val]
 --         | VBranch [(Ident,Ter)] Env
 --         | VBranch [(Ident,Val)]
@@ -164,9 +163,9 @@ data Env = Empty
 upds :: Env -> [Val] -> Env
 upds = foldl Pair
 
-look :: Int -> Dim -> Env -> Exp
+look :: Int -> Dim -> Env -> Val
 look 0 d (Pair _ u)     = u
-look k d (Pair s _)     = look (pred k)d s
+look k d (Pair s _)     = look (k-1) d s
 look k d r@(PDef es r1) = look k d (upds r1 (evals d r es))
 
 ter :: Dim -> Val -> Val
@@ -201,7 +200,9 @@ eval d e (Trans c p t) =
 
 -- TODO: throw out v, not needed?
 eval d e (J a u c w v p) = case eval d e p of
-  Path pv -> trace ("J\n") com dy (app dy (app dy cv omega) sigma) shape valbox
+  Path pv ->
+    --trace ("J: A: " ++ show (eval dxy exy a) ++ "\n theta:" ++ show theta ++"\n omega: " ++ show omega)
+               com dy (app dy (app dy cv omega) sigma) shape valbox
     where
       x = gensym d
       y = gensym (x:d)
@@ -216,7 +217,7 @@ eval d e (J a u c w v p) = case eval d e p of
       ey = mapEnv (`res` deg d dy) e
       theta = fill dxy (eval dxy exy a)
               (BoxShape True x [y]) (BoxContent uy [(ux,pv)]) -- y:x:d
-      thetaxtoz = theta `res` update (identity dy)[x] [z] -- z:y:d
+      thetaxtoz = theta `res` update (identity dy) x z        -- z:y:d
       sigma = Path thetaxtoz                              -- y:d
       omega = theta `res` face dxy x True                 -- y:d
       cv = eval dy ey c                                   -- y:d
@@ -224,7 +225,7 @@ eval d e (J a u c w v p) = case eval d e p of
       valbox = BoxContent (eval d e w) []
   pv -> error $ "eval: J on a non path value:" ++ show pv
 
-eval d e (JEq a u c w) = Path $ filled `res` update (identity d) [y] [x]
+eval d e (JEq a u c w) = Path $ filled `res` update (identity d) y x
   where
     x = gensym d
     y = gensym (x:d)
@@ -239,7 +240,7 @@ eval d e (JEq a u c w) = Path $ filled `res` update (identity d) [y] [x]
     uy = uv `res` deg d dy
     theta = fill dxy (eval dxy exy a)
             (BoxShape True x [y]) (BoxContent uy [(ux,ux)])
-    thetaxtoz = theta `res` update (identity dy) [x] [z]
+    thetaxtoz = theta `res` update (identity dy) x z
     sigma = Path thetaxtoz
     omega = theta `res` face dxy x True
     cv = eval dy ey c
@@ -260,16 +261,12 @@ eval d e (Ext b f g p) =
 eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
 eval d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
 eval d e (App r s) = app d (eval d e r) (eval d e s)
-eval d e (Sigma a b) = VSigma (eval d e a) (eval d e b)
-eval d e (Pair r s) = pair (eval d e r) (eval d e s)
-eval d e (P r) = p (eval d e r)
-eval d e (Q r) = q (eval d e r)
 
 eval d e (Inh a) = VInh (eval d e a)
-eval d e (Inc t) = VInc d (eval d e t)
-eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
+eval d e (Inc t) = VInc (eval d e t)
+eval d e (Squash r s) = Path $ VSquash (gensym d) d (eval d e r) (eval d e s)
 eval d e (InhRec b p phi a) =
-  inhrec (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
+  inhrec d (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
 eval d e (Where t def) = eval d (PDef def e) t
 --  where e' = map (eval d e') (reverse def) ++ e -- use Haskell's laziness
 --eval d e (Where t def) = eval d (map (eval d e) def ++ e) t
@@ -277,37 +274,24 @@ eval d e (Con name ts) = VCon name (map (eval d e) ts)
 -- eval d e (Branch alts) = VBranch alts e
 eval d e (Branch alts) = Ter (Branch alts) e
   -- VBranch $ map (\(n,t) -> (n, eval d e t)) alts
-eval d e (LSum ntss) = VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
+eval d e (LSum ntss) = --trace ("eval lsum " ++ show ntss ++ "\n")
+                       --  VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
+                         Ter (LSum ntss) e
 
 
-inhrec :: Val -> Val -> Val -> Val -> Val
-inhrec _ _ phi (VInc d a) = app d phi a
-inhrec b p phi (VSquash d a0 a1) = -- dim. of b,p,phi is x:d
-  app d' (app d' p b0) b1
-  where x = gensym d
-        fc w dir = res w (face (x:d) x dir)
-        b0 = inhrec (fc b False) (fc p False) (fc phi False) a0
-        b1 = inhrec (fc b True) (fc p True) (fc phi True) a1
-        d' = delete x d
-inhrec b p phi (Kan ktype d (VInh a) box@(BoxShape dir i d') bc) =
+inhrec :: Dim -> Val -> Val -> Val -> Val -> Val
+inhrec d _ _ phi (VInc a) = app d phi a
+inhrec d' b p phi (VSquash x d a0 a1) = -- dim. of b,p,phi is x:d
+  app d (app d p b0) b1                 -- d' should be x:d
+  where fc w dir = res w (face (x:d) x dir)
+        b0 = inhrec d (fc b False) (fc p False) (fc phi False) a0
+        b1 = inhrec d (fc b True) (fc p True) (fc phi True) a1
+--        d' = delete x d
+inhrec _ b p phi (Kan ktype d (VInh a) box@(BoxShape dir i d') bc) =
   kan ktype d b box (modBox dir i d' bc irec)
-  where  irec dir j v = inhrec (fc b) (fc p) (fc phi) v
+  where  irec dir j v = inhrec (delete j d) (fc b) (fc p) (fc phi) v
            where fc v = res v (face d j dir)
-inhrec b p phi a = VInhRec b p phi a
-
--- TODO: better names
-p :: Val -> Val
-p (VPair v _) = v
-p v = VP v
-
-q :: Val -> Val
-q (VPair _ w) = w
-q v = VQ v
-
-pair :: Val -> Val -> Val
--- no surjective pairing for now
---pair (VP v) (VQ v') | v == v' = v
-pair v w = VPair v w
+--inhrec b p phi a = VInhRec b p phi a
 
 unPath :: Val -> Val
 unPath (Path v) = v
@@ -319,21 +303,18 @@ kan Com = com
 
 -- Kan filling
 fill :: Dim -> Val -> BoxShape -> BoxContent -> Val
-fill d VN (BoxShape _ n _) (BoxContent v _) = -- head vs
-  res v (deg (delete n d) d)  -- "trivial" filling for nat
-fill d (VId a v0 v1) (BoxShape dir i d') bc =
-  Path $ fill (x:d) ax (BoxShape dir i (x:d')) (BoxContent vx ((v0, v1):vsx))
+fill d (VId a v0 v1) box@(BoxShape dir i d') bc =
+--  trace ("Id fill box = " ++ show box ++ "\ntype a= " ++ show a ++ "\n"
+--        ++ "v0 = " ++ show v0 ++ "\nv1 = " ++ show v1)
+    Path $ fill (x:d) ax (BoxShape dir i (x:d')) (BoxContent vx ((v0, v1):vsx))
   where x   = gensym d            -- i,d' <= d
         ax  = res a (deg d (x:d)) -- dim x:d
         BoxContent vx vsx = modBox True i d' bc
                     (\_ j v -> let dj = delete j d
-                                   f  = update (identity dj) [gensym dj] [x]
+                                   f  = update (identity dj) (gensym dj) x
                              in res (unPath v) f)
-fill d (VSigma va vb) box bc = fill d (app d vb a) box bs
-  where as = mapBox p bc
-        bs = mapBox q bc
-        a  = fill d va box as
-fill d (VLSum nass) box bcv = -- assumes cvs are constructor vals
+fill d (Ter (LSum nass) e) box bcv = -- assumes cvs are constructor vals
+--  trace ("fill sum")
   VCon name ws
   where
     as = case lookup name nass of
@@ -351,38 +332,39 @@ fill d (VLSum nass) box bcv = -- assumes cvs are constructor vals
                       )
     argboxes = map toBox $ transpose $ extractArgs $ fromBox bcv
     -- fill boxes for each argument position of the constructor
-    ws = fills d as box argboxes
+    ws = fills d as e box argboxes
     err x = error $ "fill: not applied to constructor expressions " ++ show x
 fill d v b vs = Kan Fill d v b vs
 
-fills :: Dim -> [Val] -> BoxShape -> [BoxContent] -> [Val]
-fills _ [] _ [] = []
-fills d (a:as) box (bc:bcs) = v : fills d (map (\x -> app d x v) as) box bcs
-  where v = fill d a box bc
-fills _ _ _ _ = error "fills: different lengths of types and values"
+fills :: Dim -> [Ter] -> Env -> BoxShape -> [BoxContent] -> [Val]
+fills _ [] _ _ [] = []
+fills d (a:as) e box (bc:bcs) = v : fills d as (Pair e v) box bcs
+  where v = fill d (eval d e a) box bc
+fills _ _ _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Dim -> Val -> BoxShape -> BoxContent -> Val
-com d VN (BoxShape dir i d') (BoxContent v _) = v
-com d (VId a v0 v1) (BoxShape dir i d') bc = -- should actually work (?)
-  res (fill d (VId a v0 v1) (BoxShape dir i d') bc) (face d i dir)
-com d (VSigma va vb) (BoxShape dir i d') bc = -- should actually work (?)
-  res (fill d (VSigma va vb) (BoxShape dir i d') bc) (face d i dir)
-com d (VLSum nass) (BoxShape dir i d') bc = -- should actually work (?)
-  res (fill d (VLSum nass) (BoxShape dir i d') bc) (face d i dir)
+com d (VId a v0 v1) box@(BoxShape dir i d') bc =
+--  trace ("Id com box = " ++ show box ++ "\ntype a= " ++ show a ++ "\n"
+--        ++ "v0 = " ++ show v0 ++ "\nv1 = " ++ show v1)
+    res (fill d (VId a v0 v1) (BoxShape dir i d') bc) (face d i dir)
+    -- face d i dir is (i=dir): d -> d-i
+com d (Ter (LSum nass) e) (BoxShape dir i d') bc =
+  res (fill d (Ter (LSum nass) e) (BoxShape dir i d') bc) (face d i dir)
 com d v b bc = Kan Com d v b bc
 
 app :: Dim -> Val -> Val -> Val
 app d (Ter (Lam t) e) u = eval d (Pair e u) t
 app d (Kan Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
-  com bd (app bd b ufill) box bcwu
+--  trace ("Pi com box=" ++ show box ++ " \n" ++ "ufill " ++ show ufill)
+    com bd (app bd b ufill) box bcwu
   where ufill = fill bd a (BoxShape (mirror dir) i []) (BoxContent u [])
         bcu = cubeToBox ufill bd box
         bcwu = appBox bd box bcw bcu
 app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
-  com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
+  trace ("Pi fill\n") com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
   where x = gensym d            -- add a dimension
         ax = res a (deg d (x:d))
         bx = res b (deg d (x:d))
@@ -415,7 +397,7 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
         w0 = res w (face d x False)
         dg = deg d' (y:d')
         left = res (app d' fv w0) dg
-        wxtoy = res w (update (identity d') [x] [y])
+        wxtoy = res w (update (identity d') x y)
         right = app (y:d') (res gv dg) wxtoy
         pvxw = unPath $ app d' pv w0
 -- app d (VBranch alts e) (VCon name us) =
@@ -447,48 +429,68 @@ prop_resId v f = res v (identity (cod f)) == v
 -- TODO: express in haskell?
 -- v is a cube in dimension dom f ==> res v f is a cube in dimension cod f
 
+-- findName :: (Name -> Bool) -> Dim -> Maybe Name
+-- findName _ [] = Nothing
+-- findName f (x:xs) | f x = Just x
+-- findName f (_:xs) | otherwise = findName f xs
+
 res :: Val -> Mor -> Val
--- res v f | f == identity (cod f) = v   -- why? not needed?
-res VN _ = VN                   -- or catch all consts in the end?
-res VZ _ = VZ
-res (VS v) f = VS (res v f)
-res (VRec vz vs v) f = rec (cod f) (res vz f) (res vs f) (res v f) -- ??
 res (VId v v0 v1) f = VId (res v f) (res v0 f) (res v1 f)
-res (Path v) f = Path $ res v (update f [gensym $ dom f] [gensym $ cod f])
+res (Path v) f = Path $ res v (update f (gensym $ dom f) (gensym $ cod f))
 res (VPi a b) f = VPi (res a f) (res b f)
-res (Ter t e) f = eval (cod f) (mapEnv (`res` f) e) t
+-- res (Ter t e) f = eval (cod f) (mapEnv (`res` f) e) t
+res (Ter t e) f = Ter t (mapEnv (`res` f) e) -- should be the same as above
 res (VApp u v) f = app (cod f) (res u f) (res v f)
-res (VSigma a b) f = VSigma (res a f) (res b f)
-res (VPair r s) f = pair (res r f) (res s f)
-res (VP r) f = p (res r f)
-res (VQ r) f = q (res r f)
-res (Res v g) f = res v (g `comp` f)
+-- res (Res v g) f = res v (g `comp` f)
 res (Kan Fill d u (BoxShape dir i d') (BoxContent v _)) f | (f `ap` i) `direq` mirror dir =
   res v (f `minus` i)
-res (Kan Fill d u (BoxShape dir i d') bc) f | (f `ap` i) `direq` dir =
-  res (com d u (BoxShape dir i d') bc) (f `minus` i) -- This will be a Com
+res (Kan Fill d u shape@(BoxShape dir i d') bc) f | (f `ap` i) `direq` dir =
+  res (Kan Com d u shape bc) (f `minus` i) -- This will be a Com
+--  com (cod f) (res u f) (resShape shape f) (resBox i d' bc f) -- (f `minus` i))
 res (Kan Fill d u (BoxShape dir i d') bc) f | isJust cand =
   res v (f `minus` j)
   where cand      = findIndex (\j -> j `elem` ndef f) d'
         n         = fromJust cand
         j         = d' !! n
+        -- cand = findName (\j -> j `elem` ndef f) d'
+        -- j = fromJust cand
         Left dir  = f `ap` j
         v         = boxSide bc n dir
-res (Kan Fill d u (BoxShape dir i d') bc) f | (i:d') `subset` def f = -- otherwise?
+res (Kan Fill d u shape@(BoxShape dir i d') bc) f | (i:d') `subset` def f = -- otherwise?
   fill (cod f) (res u f)
-       (BoxShape dir (f `dap` i) (map (f `dap`) d'))
+       (resShape shape f)
+--       (BoxShape dir (f `dap` i) (map (f `dap`) d'))
        (resBox i d' bc f)
-res (Kan Fill d u (BoxShape dir i d') vs) f = error "Fill: not possible?"
-res (Kan Com d u (BoxShape dir i d') bc) f = -- here: i:dom f = d
-  res (res (fill d u (BoxShape dir i d') bc) g) ytodir
-  where x = gensym d
-        co = cod f
-        y = gensym co
-        itox = update (identity (dom f)) [i] [x] -- (i=x):d->(d-i),x
-        fxtoy = update f [x] [y] -- (f,x=y):(d-i),x -> co,y
-        ytodir = face (y:co) y dir   -- (y=dir):co,y -> co
-        -- note that: (i=dir) f = (i=x) (f,x=y) (y=dir)
-        g = itox `comp` fxtoy   -- defined on x, hence non-circular call to res
+res (Kan Fill d u (BoxShape dir i d') vs) f = error $ "Fill: not possible? i="
+                                              ++ show i ++ "d' = " ++ show d'
+                                              ++ "f = " ++ show f ++ " d= " ++ show d
+res (Kan Com d u (BoxShape dir i d') bc) f | isJust cand =
+  res v (g `minus` j)
+  where cand = findIndex (\j -> j `elem` ndef f) d'
+        n         = fromJust cand
+        j         = d' !! n
+        Left dir  = f `ap` j
+        v         = boxSide bc n dir -- dim. d-j
+        g         = face d i dir `comp` f
+res (Kan Com d u shape@(BoxShape dir i d') bc) f | d' `subset` def f =
+  com co (res u fupd) (resShape shape fupd) (resBox i d' bc fupd)
+  where co = cod f
+        i' = gensym co
+        fupd = update f i i'
+res (Kan Com d u (BoxShape dir i d') bc) f = error $  "Com: not possible? i="
+                                             ++ show i ++ "d' = " ++ show d'
+                                             ++ "f = " ++ show f ++ " d= " ++ show d
+-- res (Kan Com d u (BoxShape dir i d') bc) f = -- here: i:dom f = d
+--   trace "res com" (res (res (fill d u (BoxShape dir i d') bc) g) ytodir)
+--   where x = gensym d
+--         co = cod f
+--         y = gensym co
+--         itox = update (identity (dom f)) i x -- (i=x):d->(d-i),x
+--         fxtoy = update f x y -- (f,x=y):(d-i),x -> co,y
+--         ytodir = face (y:co) y dir   -- (y=dir):co,y -> co
+--         -- note that: (i=dir) f = (i=x) (f,x=y) (y=dir)
+--         g = itox `comp` fxtoy   -- defined on x, hence non-circular call to res
+--             -- g : d -> co, y has i in def g
 res (VExt d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
   VExt d' (res bv fminusx) (res fv fminusx) (res gv fminusx) (res pv fminusx)
   where x = gensym d
@@ -500,21 +502,19 @@ res (VExt d bv fv gv pv) f | (f `ap` x) `direq` False = res fv (f `minus` x)
 res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
   where x = gensym d
 res (VInh v) f = VInh (res v f)
-res (VInc d v) f = VInc (cod f) (res v f)
-res (VSquash d u v) f | x `elem` def f = --dom f = x:d
-  VSquash d' (res u fminusx) (res v fminusx)
-  where x = gensym d
-        -- f-x : d -> d', where cod f = gensym d':d', f(x) = gensym d' ?
+res (VInc v) f = VInc (res v f)
+res (VSquash x d u v) f | x `elem` def f = -- dom f = x:d
+  VSquash (f `dap` x) d' (res u fminusx) (res v fminusx) -- should be of dimension gensym d': d'
+  where -- f-x : d -> d' ; f : x:d -> cod f;
         fminusx = f `minus` x
         d' = cod fminusx
-res (VSquash d u v) f | (f `ap` x) `direq` False = res u (f `minus` x)
-  where x = gensym d
-res (VSquash d u v) f | (f `ap` x) `direq` True = res v (f `minus` x)
-  where x = gensym d
-res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
+res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` False = res u (f `minus` x)
+res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` True = res v (f `minus` x)
+res (VSquash x d u v) f = error $ "Vsquash impossible d= " ++ show d ++ " f = " ++ show f
+--res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
 --res (VBranch alts) f = VBranch $ map (\(n,v) -> (n,  res v f)) alts
 res (VCon name vs) f = VCon name (map (`res` f) vs)
-res (VLSum nass) f = VLSum $ map (\(n,as) -> (n, map (`res` f) as)) nass
+--res (VLSum nass) f = VLSum $ map (\(n,as) -> (n, map (`res` f) as)) nass
 
 -- res v f = Res v f
 --res _ _ = error "res: not possible?"
@@ -543,6 +543,11 @@ modBox dir i d (BoxContent v vs) f =
 -- vs = open box
 resBox :: Name -> Dim -> BoxContent -> Mor -> BoxContent
 resBox i d bc f = modBox True i d bc (\_ j v -> res v (f `minus` j))
+
+-- assumes f is defined on i:d'
+resShape :: BoxShape -> Mor -> BoxShape
+resShape (BoxShape dir i d') f =
+  BoxShape dir (f `dap` i) (map (f `dap`) d')
 
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
@@ -576,7 +581,7 @@ extidisrecid = Ext (Lam N) ident recid idisrecid
 plus :: Ter -> Ter -> Ter
 plus n m = Rec n (Lam $ Lam $ S (Var 0)) m
 
-addtwothree = eval Empty Empty $ plus (S (S Z)) (S (S (S Z)))
+addtwothree = eval [] Empty $ plus (S (S Z)) (S (S (S Z)))
 
 -- \f. f2 + f3 of type (N->N)->N
 addvals = Lam $ plus (App (Var 0) (S (S Z))) (App (Var 0) (S (S (S Z))))
