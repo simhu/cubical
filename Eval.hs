@@ -80,7 +80,7 @@ minus :: Mor -> Name -> Mor
             | otherwise = co
 
 -- TODO: rename into BoxShape ?
-data BoxShape = BoxShape {n
+data BoxShape = BoxShape {
   boxDir  :: Dir,  -- direction of the completion (up or down)
   boxName :: Name, -- direction in which to make the completion
   boxDim  :: Dim   -- dimensions of the sides
@@ -155,14 +155,34 @@ data Val = VU
 -- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
 -- d-i and vjb of dim d-ij.  The "dir" indicates the *missing* face.
 
-type Env = [Val]
+
+data Env = Empty
+         | Pair Env Val
+         | PDef [Ter] Env
+  deriving (Eq,Show)
+
+upds :: Env -> [Val] -> Env
+upds = foldl Pair
+
+look :: Int -> Dim -> Env -> Exp
+look 0 d (Pair _ u)     = u
+look k d (Pair s _)     = look (pred k)d s
+look k d r@(PDef es r1) = look k d (upds r1 (evals d r es))
 
 ter :: Dim -> Val -> Val
 ter d (Ter t e) = eval d e t
 
+evals :: Dim -> Env -> [Ter] -> [Val]
+evals d e = map (eval d e)
+
+mapEnv :: (Val -> Val) -> Env -> Env
+mapEnv _ Empty = Empty
+mapEnv f (Pair e v) = Pair (mapEnv f e) (f v)
+mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
+
 eval :: Dim -> Env -> Ter -> Val
 eval _ _ U       = VU
-eval d e (Var i) = e !! i
+eval d e (Var i) = look i d e
 eval _ _ N       = VN
 eval _ _ Z       = VZ
 eval d e (S t)   = VS (eval d e t)
@@ -175,7 +195,7 @@ eval d e (Trans c p t) =
     Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box content
     pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
-        e' = map (`res` deg d (x:d)) e
+        e' = mapEnv (`res` deg d (x:d)) e
         box = BoxShape True x []
         content = BoxContent (eval d e t) []
 
@@ -192,8 +212,8 @@ eval d e (J a u c w v p) = case eval d e p of
       uv = eval d e u
       ux = uv `res` deg d (x:d)
       uy = uv `res` deg d dy
-      exy = map (`res` deg d dxy) e
-      ey = map (`res` deg d dy) e
+      exy = mapEnv (`res` deg d dxy) e
+      ey = mapEnv (`res` deg d dy) e
       theta = fill dxy (eval dxy exy a)
               (BoxShape True x [y]) (BoxContent uy [(ux,pv)]) -- y:x:d
       thetaxtoz = theta `res` update (identity dy)[x] [z] -- z:y:d
@@ -212,8 +232,8 @@ eval d e (JEq a u c w) = Path $ filled `res` update (identity d) [y] [x]
     z = gensym (y:d)          -- TODO: do we really need z? Can't we
                               -- just 'com' along x?
     dxy = y:x:d
-    exy = map (`res` deg d dxy) e
-    ey = map (`res` deg d dy) e
+    exy = mapEnv (`res` deg d dxy) e
+    ey = mapEnv (`res` deg d dy) e
     uv = eval d e u
     ux = uv `res` deg d (x:d)
     uy = uv `res` deg d dy
@@ -250,8 +270,8 @@ eval d e (Inc t) = VInc d (eval d e t)
 eval d e (Squash r s) = Path $ VSquash d (eval d e r) (eval d e s)
 eval d e (InhRec b p phi a) =
   inhrec (eval d e b) (eval d e p) (eval d e phi) (eval d e a)
-eval d e (Where t def) = eval d e' t
-  where e' = map (eval d e') (reverse def) ++ e -- use Haskell's laziness
+eval d e (Where t def) = eval d (PDef def e) t
+--  where e' = map (eval d e') (reverse def) ++ e -- use Haskell's laziness
 --eval d e (Where t def) = eval d (map (eval d e) def ++ e) t
 eval d e (Con name ts) = VCon name (map (eval d e) ts)
 -- eval d e (Branch alts) = VBranch alts e
@@ -355,7 +375,7 @@ com d (VLSum nass) (BoxShape dir i d') bc = -- should actually work (?)
 com d v b bc = Kan Com d v b bc
 
 app :: Dim -> Val -> Val -> Val
-app d (Ter (Lam t) e) u = eval d (u:e) t
+app d (Ter (Lam t) e) u = eval d (Pair e u) t
 app d (Kan Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
   com bd (app bd b ufill) box bcwu
   where ufill = fill bd a (BoxShape (mirror dir) i []) (BoxContent u [])
@@ -410,7 +430,7 @@ app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
 --                ++ "arguments; missing case for " ++ name
 app d (Ter (Branch nvs) e) (VCon name us) =
   case lookup name nvs of
-    Just t -> eval d (reverse us ++ e) t
+    Just t -> eval d (upds e us) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
 app d u v = VApp u v            -- error ?
@@ -436,7 +456,7 @@ res (VRec vz vs v) f = rec (cod f) (res vz f) (res vs f) (res v f) -- ??
 res (VId v v0 v1) f = VId (res v f) (res v0 f) (res v1 f)
 res (Path v) f = Path $ res v (update f [gensym $ dom f] [gensym $ cod f])
 res (VPi a b) f = VPi (res a f) (res b f)
-res (Ter t e) f = eval (cod f) (map (`res` f) e) t
+res (Ter t e) f = eval (cod f) (mapEnv (`res` f) e) t
 res (VApp u v) f = app (cod f) (res u f) (res v f)
 res (VSigma a b) f = VSigma (res a f) (res b f)
 res (VPair r s) f = pair (res r f) (res s f)
@@ -556,7 +576,7 @@ extidisrecid = Ext (Lam N) ident recid idisrecid
 plus :: Ter -> Ter -> Ter
 plus n m = Rec n (Lam $ Lam $ S (Var 0)) m
 
-addtwothree = eval [] [] $ plus (S (S Z)) (S (S (S Z)))
+addtwothree = eval Empty Empty $ plus (S (S Z)) (S (S (S Z)))
 
 -- \f. f2 + f3 of type (N->N)->N
 addvals = Lam $ plus (App (Var 0) (S (S Z))) (App (Var 0) (S (S (S Z))))
