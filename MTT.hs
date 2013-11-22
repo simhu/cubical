@@ -146,6 +146,7 @@ extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
 
 checkI :: Int -> Env -> [Exp] -> Exp -> Error Exp
 checkI k rho gam e = case e of
+  U -> return U                 -- U : U
   Ref k   -> return (gam !! k)
   App n m -> do
     c <- checkI k rho gam n
@@ -177,6 +178,15 @@ checks k rho gam _ _ _ = Left "checks"
 
 checkExp :: Exp -> Error ()
 checkExp = check 0 Empty [] Top
+
+checkExpType :: Exp -> Exp -> Error ()
+checkExpType t a = check 0 Empty [] a t
+
+checkExpInfer :: Exp -> Error ()
+checkExpInfer t = do
+  a <- checkI 0 Empty [] t
+  checkExpType t a
+
 
 -- Reification of a value to a term
 reifyExp :: Int -> Exp -> Exp

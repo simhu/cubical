@@ -3,9 +3,10 @@ comment "{-" "-}" ;
 
 layout "where", "let", "of", "split", "primitive" ;
 layout stop "in" ;
-layout toplevel ;
+--layout toplevel ;
 
-Module. Module ::= [Def] ;
+Module.  Module ::= [Def] ;
+ModEval. Module ::= "eval" Exp "where" "{" [Def] "}" ;
 
 Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
@@ -27,8 +28,8 @@ Con.    Exp1 ::= "$" AIdent [Exp2] ; -- Could be just Exp
 -- internal PNAnn.  Exp1 ::= "PRIMITIVE" AIdent Exp2 ;
 Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.      Exp2 ::= "U" ;
-
-PN.  Exp1 ::= "PN" AIdent Exp2 ;
+PN.     Exp1 ::= "PN" AIdent Exp2 ;
+internal Top. Exp2 ::= "Top" ;
 
 
 terminator Exp2 "" ;

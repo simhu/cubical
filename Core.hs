@@ -25,7 +25,6 @@ data Ter = Var Int
            -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
          | Pi Ter Ter | Lam Ter | App Ter Ter
                                   -- TODO: Sigma can be removed.
-         | Sigma Ter Ter | Pair Ter Ter | P Ter | Q Ter
          | Inh Ter  -- Inh A is an h-prop stating that A is inhabited.
            -- Here we take h-prop A as (Pi x y : A) Id A x y.
          | Inc Ter              -- Inc a : Inh A for a:A (A not needed ??)

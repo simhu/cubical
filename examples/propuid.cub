@@ -1,5 +1,5 @@
 
-eval test3 where
+eval test5 where
 
 
 primitive
@@ -15,6 +15,7 @@ primitive
   inc : (A : U) -> A -> inh A
 --  squash : (A : U) -> prop (inh A)
   squash : (A : U) (a b : inh A) -> Id (inh A) a b
+  inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 
 subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
 subst A P a x p d = J A a (\ x q -> P x) d x p
@@ -82,12 +83,6 @@ lem2Trans A a a' b b' p q r =
   rem : Id A a b'
   rem = comp A a a' b' p r 
 
---  J : (A : U) (a : A) -> (C : (x:A) -> Id A a x -> U) -> C a (refl A a) -> 
---      (x:A) -> (p:Id A a x) -> C x p
-
--- compIdl : (A : U) -> (b c : A) -> (q : Id A b c) -> 
---              Id (Id A b c) (comp A b b c (refl A b) q) q
-
 lemInv : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
 lemInv A a b c p q = 
@@ -111,7 +106,6 @@ lemInv A a b c p q =
                         (rem1 c q)
 
 
-
 lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) -> 
    Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
 lemSimpl A a b c p q q' h =
@@ -130,12 +124,6 @@ lemSimpl A a b c p q q' h =
    rem2 = cong (Id A a c) (Id A b c) (compInv A a b c p)
                (comp A a b c p q) (comp A a b c p q') h
 
--- compInv : (A : U) -> (a b c : A) -> Id A a b -> Id A a c -> Id A b c  
-
--- lem2Trans : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a' b' -> Id A a b
-
--- lemInv : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
---          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
 
 lem1 : (A :U) -> (a:A) -> (h : (x:A) -> Id A a x) -> 
        (x y : A) -> (p : Id A x y) -> Id (Id A a y) (comp A a x y (h x) p) (h y)
@@ -156,6 +144,7 @@ lem2 A a h x y p q =
       rem : Id (Id A a y) (comp A a x y (h x) p) (comp A a x y (h x) q)
       rem = lem2Trans (Id A a y) (comp A a x y (h x) p) (h y) (comp A a x y (h x) q) (h y)
                 remp remq (refl (Id A a y) (h y))
+
 
 lem3 : (A:U) -> prop A -> UIP A
 lem3 A h a = lem2 A a (h a) a
@@ -216,11 +205,6 @@ decConst A = split
   inl a -> $ pair (\x -> a) (\ x y -> refl A a)
   inr h -> $ pair (\x -> x) (\ x y -> efq (Id A x y) (h x))
 
-
--- compIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) (comp A a b b p (refl A b)) p
-
-  -- J : (A : U) (a : A) -> (C : (x:A) -> Id A a x -> U) -> C a (refl A a) -> 
-  --     (x:A) -> (p:Id A a x) -> C x p
 
 mainLemma : (A: U) (f : (a b : A) -> Id A a b -> Id A a b) (a b : A)
             (p : Id A a b) ->
@@ -313,3 +297,307 @@ NIsSet = hedberg N natDec
 
 test3 : Id (Id N ($ zero) ($ zero)) (refl N ($ zero)) (refl N ($ zero))
 test3 = NIsSet ($ zero) ($ zero) (refl N ($ zero)) (refl N ($ zero))
+
+data Bool = true | false
+
+
+tnotf : neg (Id Bool ($ true) ($ false))
+tnotf h = subst Bool T ($ true) ($ false) h ($ zero)
+  where
+    T : Bool -> U
+    T = split
+          true  -> N
+          false -> N0
+
+fnott : neg (Id Bool ($ false) ($ true))
+fnott h = tnotf (inv Bool ($ false) ($ true) h)
+
+
+boolDec : discrete Bool
+boolDec = split
+  true -> split
+    true -> $ inl (refl Bool ($ true))
+    false -> $ inr tnotf
+  false -> split
+    true -> $ inr fnott
+    false -> $ inl (refl Bool ($ false))
+
+
+boolIsSet : UIP Bool
+boolIsSet = hedberg Bool boolDec
+
+
+-- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
+          (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
+	  Id (Sigma A B) ($ pair a u) ($ pair b v)
+eqSigma A B a =
+  J A a (\b p -> (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
+         Id (Sigma A B) ($ pair a u) ($ pair b v)) rem2
+  where
+    rem1 : (u v : B a) -> Id (B a) u v ->
+           Id (Sigma A B) ($ pair a u) ($ pair a v)
+    rem1 = cong (B a) (Sigma A B) (\x -> $ pair a x)
+
+    rem2 : (u v : B a) -> Id (B a) (subst A B a a (refl A a) u) v ->
+           Id (Sigma A B) ($ pair a u) ($ pair a v)
+    rem2 u v q = rem1 u v q'
+      where q' : Id (B a) u v
+            q' = comp (B a) u (subst A B a a (refl A a) u) v (substeq A B a u) q
+
+propFam : (A : U) (B : A -> U) -> U
+propFam A B = (a : A) -> prop (B a)
+
+eqPropFam : (A : U) (B : A -> U) (h : propFam A B) (au bv : Sigma A B) ->
+            Id A (fst A B au) (fst A B bv) -> Id (Sigma A B) au bv
+eqPropFam A B h = split
+  pair a u -> split
+    pair b v -> \p -> eqSigma A B a b p u v (h b (subst A B a b p u) v)
+
+exist : (A : U) (B : A -> U) -> U
+exist A B = inh (Sigma A B)
+
+-- TODO: fix parser for "Fun"
+exElim : (A : U) (B : A -> U) (C : U) (_ : prop C) (_ : Sigma A B -> C)
+	 (_ : exist A B) -> C
+exElim A B C p f = inhrec (Sigma A B) C p f
+
+atmostOne : (A : U) (B : A -> U) -> U
+atmostOne A B = (a b : A) -> B a -> B b -> Id A a b
+
+propSig : (A : U) (B : A -> U) -> propFam A B -> atmostOne A B ->
+          prop (Sigma A B)
+propSig A B h h' au bv =
+  eqPropFam A B h au bv (h' (fst A B au) (fst A B bv) (snd A B au) (snd A B bv))
+
+and : (A B : U) -> U
+and A B = Sigma A (\_ -> B)
+
+exactOne : (A : U) (B : A -> U) -> U
+exactOne A B = and (exist A B) (atmostOne A B)
+
+lemInh : (A : U) -> prop A -> inh A -> A
+lemInh A h = inhrec A A h (\x -> x) 
+
+descrAx : (A : U) (B : A -> U) -> propFam A B -> exactOne A B -> Sigma A B
+descrAx A B h = split
+  pair g h' -> lemInh (Sigma A B) rem g
+  where rem : prop (Sigma A B)
+        rem = propSig A B h h'
+
+iota : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> A
+iota A B h h' = fst A B (descrAx A B h h')
+
+iotaSound : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> B (iota A B h h')
+iotaSound A B h h' = snd A B (descrAx A B h h')
+
+exAtOne : (A : U) (B : A -> U) -> exactOne A B -> atmostOne A B
+exAtOne A B = split
+  pair g h' -> h'
+ 
+
+iotaLem : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) ->
+          (a : A) -> B a -> Id A a (iota A B h h')
+iotaLem A B h h' a p = exAtOne A B h' a (iota A B h h') p (iotaSound A B h h')
+
+rel : U -> U
+rel A = A -> A -> U
+
+reflexive : (A : U) -> rel A -> U
+reflexive A R = (a : A) -> R a a
+
+euclidean : (A : U) -> rel A -> U
+euclidean A R = (a b c : A) -> R a c -> R b c -> R a b
+
+symmetry : (A : U) -> rel A -> U
+symmetry A R = (a b : A) -> R a b -> R b a
+
+equivalence : (A : U) -> rel A -> U
+equivalence A R = and (reflexive A R) (euclidean A R)
+
+eqToRefl : (A : U) (R : rel A) -> equivalence A R -> reflexive A R
+eqToRefl A R = split
+  pair r _ -> r
+
+eqToEucl : (A : U) (R : rel A) -> equivalence A R -> euclidean A R
+eqToEucl A R = split
+  pair _ e -> e
+
+eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
+eqToSym A R = split
+  pair r e -> \a b -> e b a b (r b)
+
+eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
+              (a b c : A) -> R c a -> R c b -> R a b
+eqToInvEucl A R eq a b c p q =
+  eqToEucl A R eq a b c (eqToSym A R eq c a p) (eqToSym A R eq c b q)
+
+test13 : (A : U) (R : rel A) (P : A -> U) -> U
+test13 A R P = propFam A P
+
+
+data Quot (A : U) (R : rel A) =
+  class (P : A -> U)
+        (un : (a b : A) -> P a -> P b -> R a b)
+        (cp : (a b : A) -> P a -> R a b -> P b)
+        (ex : exist A P)
+	(pr : propFam A P)
+
+propRel : (A : U) (R : rel A) -> U
+propRel A R = (a b : A) -> prop (R a b)
+
+canSurj : (A : U) (R : rel A) -> equivalence A R -> propRel A R ->
+            A -> Quot A R
+canSurj A R h h' c = $ class (R c) un cp ex pr
+  where un : (a b : A) -> R c a -> R c b -> R a b
+        un a b p q = eqToInvEucl A R h a b c p q
+
+        cp : (a b : A) -> R c a -> R a b -> R c b
+        cp a b p q = eqToEucl A R h c b a p (eqToSym A R h a b q)
+	ex : exist A (R c)
+        ex = inc (Sigma A (R c)) ($ pair c (eqToRefl A R h c))
+	pr : propFam A (R c)
+        pr a = h' c a
+
+resp : (A B : U) (R : rel A) (f : A -> B) -> U
+resp A B R f = (x y : A) -> R x y -> Id B (f x) (f y)
+
+image : (A B : U) (f : A -> B) (P : A -> U) -> B -> U
+image A B f P b = exist A (\a -> and (P a) (Id B (f a) b))
+
+propAnd : (A B : U) -> prop A -> prop B -> prop (and A B)
+propAnd A B p q = propSig A F rem (\a a' _ _ -> p a a')
+  where F : A -> U
+        F a = B
+        rem : propFam A F
+        rem a = q
+
+univQuot : (A B : U) (R : rel A) (f : A -> B) ->
+           UIP B -> resp A B R f -> (eqR : equivalence A R) (pR : propRel A R)
+--	   Sigma
+	         (_ : Quot A R) -> B
+--	         (\g -> (a : A) -> Id B (f a) (g (canSurj A R eqR pR a)))
+univQuot A B R f uip fresp eqR pR = g -- $ pair g rem
+  where g : Quot A R -> B
+        g = split 
+             class P un cp ex pr ->
+              iota B imfP rem1 rem2
+	        where imfP : B -> U
+                      imfP = image A B f P
+                      rem1 : propFam B imfP
+                      rem1 b = squash (Sigma A (\a -> and (P a) (Id B (f a) b)))
+                      rem2 : exactOne B imfP
+                      rem2 = $ pair rem4 rem5
+
+                      rem3 : Sigma A P -> exist B imfP
+                      rem3 = split
+                        pair a p -> inc (Sigma B imfP)
+			                ($ pair (f a) (inc (Sigma A (S (f a))) ($ pair a ($ pair p (refl B (f a))))))
+                      rem4 : exist B imfP
+                      rem4 = inhrec (Sigma A P) (exist B imfP) (squash (Sigma B imfP)) rem3 ex
+
+                      rem5 : atmostOne B imfP
+                      rem5 = rem9
+
+                      rem6 : (b b' : B) (a a' : A) (_ : and (P a) (Id B (f a) b))
+		             (_ : and (P a') (Id B (f a') b')) -> Id B b b'
+                      rem6 b b' a a' = split
+                        pair p ea -> split
+                          pair p' ea' -> lemTrans B (f a) b (f a') b' ea ea' rem7
+                            where rem7 : Id B (f a) (f a')
+                                  rem7 = fresp a a' rem8
+                                  rem8 : R a a'
+                                  rem8 = un a a' p p'
+
+                      S : B -> A -> U
+                      S b a = and (P a) (Id B (f a) b)
+                      rem7 : (b b' : B)  (_ : Sigma A (S b)) (_ : Sigma A (S b'))
+		             -> Id B b b'
+                      rem7 b b' = split
+                        pair a p -> split
+                          pair a' p' -> rem6 b b' a a' p p'
+
+                      rem8 : (b b' : B) -> Sigma A (S b) -> exist A (S b') -> Id B b b'
+                      rem8 b b' h = exElim A (S b') (Id B b b') (uip b b') (rem7 b b' h)
+
+                      rem9 : (b b' : B) -> exist A (S b) -> exist A (S b') -> Id B b b'
+                      rem9 b b' h h' = exElim A (S b) (Id B b b') (uip b b')
+		                        (\h'' -> rem8 b b' h'' h') h
+
+
+kernel : (A B : U) (f : A -> B) -> rel A
+kernel A B f a a' = Id B (f a) (f a')
+
+kerRef : (A B : U) (f : A -> B) -> reflexive A (kernel A B f)
+kerRef A B f a = refl B (f a)
+
+kerEucl : (A B : U) (f : A -> B) -> euclidean A (kernel A B f)
+kerEucl A B f a b c p q = compInv B (f c) (f a) (f b) rem rem1
+ where rem : Id B (f c) (f a)
+       rem = inv B (f a) (f c) p
+       rem1 : Id B (f c) (f b)
+       rem1 = inv B (f b) (f c) q
+
+kerEquiv : (A B : U) (f : A -> B) -> equivalence A (kernel A B f)
+kerEquiv A B f = $ pair (kerRef A B f) (kerEucl A B f)
+
+not : Bool -> Bool
+not = split
+  true -> $ false
+  false -> $ true
+
+isEven : N -> Bool
+isEven = split
+  zero -> $ true
+  suc n -> not (isEven n)
+
+mod2 : rel N
+mod2 = kernel N Bool isEven
+
+propMod2 : propRel N mod2
+propMod2 n m = boolIsSet (isEven n) (isEven m)
+
+Z2 : U
+Z2 = Quot N mod2
+
+respIsEven : resp N Bool mod2 isEven
+respIsEven n m h = h
+
+barIsEven : Z2 -> Bool
+barIsEven = univQuot N Bool mod2 isEven boolIsSet respIsEven (kerEquiv N Bool isEven) propMod2
+
+
+five : N
+five = $ suc ($ suc ($ suc ($ suc  ($ suc ($ zero)))))
+
+fiveBar : Z2
+fiveBar = canSurj N mod2 (kerEquiv N Bool isEven) propMod2 five
+
+test5 : Bool
+test5 = barIsEven fiveBar
+
+-- univQuot : (A B : U) (R : rel A) (f : A -> B) ->
+--            UIP B -> resp A B R f -> (eqR : equivalence A R) (pR : propRel A R)
+-- 	         (_ : Quot A R) -> B
+
+
+
+
+-- resp : (A B : U) (R : rel A) (f : A -> B) -> U
+-- inv : (A : U) -> (a b :A) -> Id A a b -> Id A b a 
+-- euclidean A R = (a b c : A) -> R a c -> R b c -> R a b
+-- compInv : (A : U) -> (a b c : A) -> Id A a b -> Id A a c -> Id A b c
+-- exElim : (A : U) (B : A -> U) (C : U) (_ : prop C) (_ : Sigma A B -> C)
+--  (_ : exist A B) -> C
+                      
+
+-- lemTrans : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a b -> Id A a' b'
+-- atmostOne A B = (a b : A) -> B a -> B b -> Id A a b
+--   inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+--iota : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> A
+-- data Quot (A : U) (R : rel A) =
+--   class (P : A -> U)
+--         (un : (a b : A) -> P a -> P b -> R a b)
+--         (cp : (a b : A) -> P a -> R a b -> P b)
+--         (ex : exist A P)
+-- 	(pr : propFam A P)
