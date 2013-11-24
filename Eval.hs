@@ -131,27 +131,25 @@ data Val = VU
          | Ter Ter Env
          | VId Val Val Val
          | Path Val             -- tag values which are paths
---         | VTrans Val Val Val   -- ?? needed
-         | VExt Dim Val Val Val Val -- has dimension (gensym dim:dim)
+         | VExt Name Dim Val Val Val Val -- has dimension (name:dim);
+                                         -- vals of dimension dim
          | VPi Val Val
          | VApp Val Val         -- not needed for closed terms
          | VInh Val
          | VInc Val
-         | VSquash Name Dim Val Val  -- has dimension (name:dim); vals of dimension dim
---         | VInhRec Dim Val Val Val Val -- not needed for closed terms
-         | Kan KanType Dim Val BoxShape BoxContent
---         | Res Val Mor              -- not needed for closed terms
+         | VSquash Name Dim Val Val  -- has dimension (name:dim); vals
+                                     -- of dimension dim
          | VCon Ident [Val]
+         | Kan KanType Dim Val BoxShape BoxContent
+         | VLSum [(Ident,[Val])]
+--         | VInhRec Dim Val Val Val Val -- not needed for closed terms
+
+--         | Res Val Mor              -- not needed for closed terms
+
 --         | VBranch [(Ident,Ter)] Env
 --         | VBranch [(Ident,Val)]
-         | VLSum [(Ident,[Val])]
+--         | VTrans Val Val Val   -- ?? needed
   deriving (Show, Eq)
-
--- An open box (the list of Val's in Com and Fill) is organized as
--- follows: if the Box is (Box dir i [i1,i2,..,in]), then the value vs
--- are [v0,v10,v11,v20,v21,..,vn0,vn1] (2n+1 many) where v0 is of dim
--- d-i and vjb of dim d-ij.  The "dir" indicates the *missing* face.
-
 
 data Env = Empty
          | Pair Env Val
@@ -251,7 +249,7 @@ eval d e (JEq a u c w) = Path $ filled `res` update (identity d) y x
     -- cv = eval dx ex c
 
 eval d e (Ext b f g p) =
-  Path $ VExt d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
+  Path $ VExt (gensym d) d (eval d e b) (eval d e f) (eval d e g) (eval d e p)
 eval d e (Pi a b)  = VPi (eval d e a) (eval d e b)
 eval d e (Lam t)   = Ter (Lam t) e -- stop at lambdas
 eval d e (App r s) = app d (eval d e r) (eval d e s)
@@ -381,11 +379,10 @@ app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
         wuis = if dir then (wuidir,wuimdir) else (wuimdir,wuidir)
         -- final open box in (app bx vsfill)
         wvfills = BoxContent wux0 (wuis:wbox')
-app d (VExt d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
+app d (VExt x d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
   com (y:d) (app (y:d) bvxy wy) (BoxShape True y [x]) (BoxContent pvxw [(left,right)])
   -- NB: there are various choices how to construct this
-  where x = gensym d'
-        y = gensym d
+  where y = gensym d
         bvxy = res bv (deg d' (y:d))
         wy = res w (deg d (y:d))
         w0 = res w (face d x False)
@@ -485,16 +482,13 @@ res (Kan Com d u (BoxShape dir i d') bc) f = error $  "Com: not possible? i="
 --         -- note that: (i=dir) f = (i=x) (f,x=y) (y=dir)
 --         g = itox `comp` fxtoy   -- defined on x, hence non-circular call to res
 --             -- g : d -> co, y has i in def g
-res (VExt d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
-  VExt d' (res bv fminusx) (res fv fminusx) (res gv fminusx) (res pv fminusx)
-  where x = gensym d
-        -- f-x : d -> d', where cod f = gensym d':d', f(x) = gensym d' ?
-        fminusx = f `minus` x
+res (VExt x d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
+  VExt (f `dap` x) d' (bv `res` fminusx) (fv `res` fminusx) (gv `res` fminusx)
+       (pv `res` fminusx)
+  where fminusx = f `minus` x
         d' = cod fminusx
-res (VExt d bv fv gv pv) f | (f `ap` x) `direq` False = res fv (f `minus` x)
-  where x = gensym d
-res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
-  where x = gensym d
+res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` False = fv `res` (f `minus` x)
+res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` True = gv `res` (f `minus` x)
 res (VInh v) f = VInh (res v f)
 res (VInc v) f = VInc (res v f)
 res (VSquash x d u v) f | x `elem` def f = -- dom f = x:d
