@@ -272,7 +272,7 @@ freeVars (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
 freeVars (App e1 e2) = freeVars e1 `union` freeVars e2
 freeVars (Var x)     = [unArgBinder x]
 freeVars U           = []
-freeVars (Con _ es)  = unions (map freeVars es)
+freeVars (Con (AIdent (_,str)) es)  = [str] `union` unions (map freeVars es)
 freeVars (PN _ t)    = freeVars t
 -- freeVars (PN (AIdent (_,n)) ns t) =
 --   freeVars t `union` map (\(AIdent (_,i)) -> i) ns
