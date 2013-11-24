@@ -21,19 +21,21 @@ Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
 --Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
 Split.  Exp  ::= "split" "{" [Branch] "}" ;
-Fun.    Exp  ::= Exp1 "->" Exp ;
-Pi.     Exp  ::= TeleNE "->" Exp ;
-App.    Exp1 ::= Exp1 Exp2 ;
-Con.    Exp1 ::= "$" AIdent [Exp2] ; -- Could be just Exp
+
+Fun.    Exp1 ::= Exp2 "->" Exp1 ;
+Pi.     Exp1 ::= TeleNE "->" Exp1 ;
+
+App.    Exp2 ::= Exp2 Exp3 ;
+Con.    Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
 -- internal PNAnn.  Exp1 ::= "PRIMITIVE" AIdent Exp2 ;
-Var.    Exp2 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
-U.      Exp2 ::= "U" ;
-PN.     Exp1 ::= "PN" AIdent Exp2 ;
-internal Top. Exp2 ::= "Top" ;
+Var.    Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
+U.      Exp3 ::= "U" ;
+PN.     Exp2 ::= "PN" AIdent Exp3 ;
+internal Top. Exp3 ::= "Top" ;
 
 
-terminator Exp2 "" ;
-coercions Exp 2 ;
+terminator Exp3 "" ;
+coercions Exp 3 ;
 
 Binder.   Binder ::= Arg ;
 separator nonempty Binder "" ;

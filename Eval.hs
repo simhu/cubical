@@ -504,7 +504,7 @@ res (VExt d bv fv gv pv) f | (f `ap` x) `direq` True = res gv (f `minus` x)
 res (VInh v) f = VInh (res v f)
 res (VInc v) f = VInc (res v f)
 res (VSquash x d u v) f | x `elem` def f = -- dom f = x:d
-  VSquash (f `dap` x) d' (res u fminusx) (res v fminusx) -- should be of dimension gensym d': d'
+  VSquash (f `dap` x) d' (res u fminusx) (res v fminusx)
   where -- f-x : d -> d' ; f : x:d -> cod f;
         fminusx = f `minus` x
         d' = cod fminusx

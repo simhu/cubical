@@ -112,6 +112,7 @@ resolveExp (Split brs)             = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e)            = handleDefs defs (resolveExp e)
 resolveExp (Con (AIdent (_,c)) es) = A.Con c <$> mapM resolveExp es
 resolveExp (PN (AIdent (_,n)) t)   = A.PN n <$> resolveExp t
+resolveExp Top                     = return A.Top
 
 resolveExpWhere :: ExpWhere -> Resolver A.Exp
 resolveExpWhere = resolveExp . unWhere
@@ -219,6 +220,21 @@ defToGraph d = case d of
   (DefPrim defs) -> --primitiveToGraph defs (defsToNames defs)
     graph (concatMap unfoldPrimitive defs)
 
+-- etaExpand :: Resolver A.Exp -> Exp -> Resolver A.Exp
+-- etaExpand t (Pi (TeleNe vs) b) = etaExpand (lams args (apps t vars)) b
+--   where args = map (unBinder . unNE) vs
+--         vars = mapM resolveVar args
+-- etaExpand t _       = t
+
+-- teleToArgs :: [VDecl] -> [Arg]
+-- teleToArgs (VDecl bs _:vs) = map unBinder bs ++ teleToArgs vs
+
+-- -- Assumes the free variables of t don't clash with the variables of
+-- -- the Pi-variables in the type.
+-- etaExpand :: Exp -> Exp -> Exp
+-- etaExpand t (Pi (TeleNe vs) b) = etaExpand (Lams args (apps t vars))
+--   where args = teleToArgs (map unNe vs)
+--         vars = map
 
 unfoldPrimitive :: Def -> [Def]
 unfoldPrimitive d@(DefTDecl n a) = [d,decl]
@@ -299,8 +315,9 @@ unData' :: Def -> [String] -> Resolver (A.Exp,A.Exp)
 unData' (DefData _ (Tele vdcls) cs) ns = do
   let flat = flattenTele vdcls
   let args = concatMap (\(VDecl binds _) -> map unBinder binds) flat
-  let labels = A.Sum <$> mapM (local (insertVars args . insertNames ns) . resolveLabel) cs
-  exp <- lams args labels
+  let labels = A.Sum <$> mapM resolveLabel cs
+-- A.Sum <$> mapM (local (insertVars args . insertNames ns) . resolveLabel) cs
+  exp <- local (insertNames ns) $ lams args labels
   typ <- resolveTelePi flat (return A.U) -- data-decls. have type U
   return (exp,typ)
 unData' def _ = throwError ("unData: data declaration expected " ++ show def)
@@ -344,3 +361,4 @@ handleDefs defs re = do
 
 handleModule :: Module -> Resolver A.Exp
 handleModule (Module defs) = handleDefs defs (return A.Top)
+handleModule (ModEval exp defs) = handleDefs defs (resolveExp exp)
