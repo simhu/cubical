@@ -1,15 +1,36 @@
-id x = x;
-zero = 0;
-s n = succ n;
+-- This is a one line comment.
 
-const x y = x;
+{- This comment
+   is actually
+   three lines. Fun. -}
 
--- This is nuts!
-crazy = crazy;
+-- The natural numbers.
+data N = zero | suc (n : N)
 
-omega = (\x. x x) (\x. x x);
+-- A type declaration.
+f : (a : A) (b c d : B) -> N -> N
 
-{- test that we can call things defined later in the file: -}
+-- a function declaration
+fst x y = x
 
-bepa = apa;
-apa = 0;
+plus : N -> N -> N
+plus n m = case n of
+  zero  -> m
+  suc n -> suc k
+    where k = plus n m
+
+local x = let x = x
+          in plus x x
+
+data List (A : U) = nil | cons (x : A) (xs : List A)
+
+head : (A : U) -> List A -> A
+head _ xs = case xs of
+  nil -> nil
+  cons x xs -> x
+
+lambda : A -> B -> C -> A
+lambda = \x y z -> x
+
+id : A -> A
+id x = x 
