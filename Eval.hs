@@ -128,8 +128,6 @@ data KanType = Fill | Com
   deriving (Show, Eq)
 
 data Val = VU
-         | VN | VZ | VS Val
-         | VRec Val Val Val -- not needed for closed terms
          | Ter Ter Env
          | VId Val Val Val
          | Path Val             -- tag values which are paths
@@ -182,10 +180,6 @@ mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
 eval :: Dim -> Env -> Ter -> Val
 eval _ _ U       = VU
 eval d e (Var i) = look i d e
-eval _ _ N       = VN
-eval _ _ Z       = VZ
-eval d e (S t)   = VS (eval d e t)
-eval d e (Rec tz ts tn) = rec d (eval d e tz) (eval d e ts) (eval d e tn)
 eval d e (Id a a0 a1) = VId (eval d e a) (eval d e a0) (eval d e a1)
 eval d e (Refl a)  = Path $ eval d e a `res` deg d (gensym d : d)
 
@@ -551,47 +545,3 @@ resShape (BoxShape dir i d') f =
 
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
-
-rec :: Dim -> Val -> Val -> Val -> Val
-rec _ vz _  VZ     = vz
-rec d vz vs (VS v) = app d (app d vs v) (rec d vz vs v)
-rec _ vz vs ne     = VRec vz vs ne
-
-
-
--- Some examples.
-
-ex1 = Rec Z (Lam (Lam (S $ Var 0))) (S (S (S Z)))
-
--- recid 0 = 0; recid (S n) = S (recid n)
-recid = Lam (Rec Z (Lam (Lam (S $ Var 0))) (Var 0))
-
-ident = Lam (Var 0)
-
-suctransp :: Ter -> Ter -> Ter  -- p : n=m; suctransp n p : Sn=Sm
---suctransp n p = Trans (Lam (Id N (S n) (S $ Var 0))) p (Refl (S n))
-suctransp n p = Trans (Lam $ Id N (S n) (S $ Var 0)) p (Refl (S n))
-
--- all n:N, ident n = recid n
-idisrecid = Lam $ Rec (Refl Z) (Lam (Lam $ suctransp (Var 1) (Var 0))) (Var 0)
-
-extidisrecid = Ext (Lam N) ident recid idisrecid
-
-
-plus :: Ter -> Ter -> Ter
-plus n m = Rec n (Lam $ Lam $ S (Var 0)) m
-
-addtwothree = eval [] Empty $ plus (S (S Z)) (S (S (S Z)))
-
--- \f. f2 + f3 of type (N->N)->N
-addvals = Lam $ plus (App (Var 0) (S (S Z))) (App (Var 0) (S (S (S Z))))
-
--- {f g} (p : f = g) -> addvals f = addvals g
-addvresp f g p = Trans (Lam $ Id N (App addvals $ Var 0) (App addvals f))
-                 p (Refl (App addvals f))
-
-cn :: Int -> Ter
-cn 0 = Z
-cn n = S (cn (n-1))
-
-

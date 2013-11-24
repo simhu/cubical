@@ -1,14 +1,13 @@
-module Core (Ter(..), Def, Ident, fromProgram, removeNames) where
+module Core (Ter(..), Def, Ident) where
 
 import Control.Monad.Reader hiding (ap)
 import Data.Graph
 import Data.List (elemIndex)
 
-import qualified Program as P
+--import qualified Program as P
 
 -- The core language:
 data Ter = Var Int
-         | N | Z | S Ter | Rec Ter Ter Ter -- TODO: N can be removed
          | Id Ter Ter Ter | Refl Ter
          | Trans Ter Ter Ter  -- Trans type eqprof proof
            -- (Trans to be removed in favor of J ?)
@@ -70,7 +69,7 @@ instance Show Ter where
     show' (App e1 e2)  = liftM2 (\x y -> x ++ " " ++ y) (show' e1) (show' e2)
 
     vars = ["x","y","z"] ++ [ 'x' : show i | i <- [0..]]
--}
+
 -- Take a program, construct a call-graph and then compute the
 -- strongly connected components. These correspond to the mutually
 -- recursive functions.  For now we forget these as recursion is not
@@ -102,3 +101,5 @@ removeNames _    P.Z             = Right Z
 removeNames ctx (P.S e)          = liftM S (removeNames ctx e)
 removeNames ctx (P.Rec e1 e2 e3) =
   liftM3 Rec (removeNames ctx e1) (removeNames ctx e2) (removeNames ctx e3)
+
+-}
