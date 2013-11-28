@@ -63,8 +63,9 @@ comp f g = ([(i, (f `ap` i) >>= (g `ap`))| i <- dom f], cod g)
 -- Assumption: d <= c
 -- Compute degeneracy map.
 deg :: Dim -> Dim -> Mor
-deg d c | d /= nub d = error $ "deg " ++ show d ++ " and " ++ show c
-        | otherwise  = (map (\i -> (i, Right i)) d, c)
+-- deg d c | d /= nub d = error $ "deg " ++ show d ++ " and " ++ show c
+--         | otherwise  = (map (\i -> (i, Right i)) d, c)
+deg d _ = identity d
 
 -- Compute the face map.
 -- (i=b) : d -> d-i
@@ -356,7 +357,8 @@ app d (Kan Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
         bcu = cubeToBox ufill bd box
         bcwu = appBox bd box bcw bcu
 app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
-  trace ("Pi fill\n") com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
+--  trace ("Pi fill\n")
+  com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
   where x = gensym d            -- add a dimension
         ax = res a (deg d (x:d))
         bx = res b (deg d (x:d))
