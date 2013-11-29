@@ -73,6 +73,7 @@ primHandle =
   , ("inc",   (2, primInc))
   , ("squash",(3, primSquash))
   , ("inhrec",(5, primInhRec))
+  , ("equivEq", (5, primEquivEq))
   ]
 
 -- TODO: Even though these can assume to have the right amount of
@@ -112,6 +113,11 @@ primSquash [a,x,y] = I.Squash <$> translate x <*> translate y
 primInhRec :: [Exp] -> Either String I.Ter
 primInhRec [a,b,p,f,x] =
   I.InhRec <$> translate b <*> translate p <*> translate f <*> translate x
+
+primEquivEq :: [Exp] -> Either String I.Ter
+primEquivEq [a,b,f,s,t] =
+  I.EquivEq <$> translate a <*> translate b <*> translate f
+            <*> translate s <*> translate t
 
 -- Gets a name for a primitive notion, a list of arguments which might
 -- be to long and returns the corresponding concept in the internal

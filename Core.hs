@@ -38,6 +38,12 @@ data Ter = Var Int
          | Branch [(Ident, Ter)] -- branches c1 -> M1,..., cn -> Mn
          | LSum [(Ident, [Ter])] -- labelled sum c1 A1s,..., cn Ans
                                  -- (assumes terms are constructors)
+
+         | EquivEq Ter Ter Ter Ter Ter   -- EquivEq A B f s t where
+           -- A, B are types, f : A -> B,
+           -- s : (y:B) -> fiber f y, and
+           -- t : (y:B) (z : fiber f y) -> Id (fiber f y) (s y) z
+           -- where fiber f y is Sigma x : A. Id B (f x) z.
          | U
   deriving (Show,Eq)
 

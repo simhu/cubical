@@ -80,7 +80,7 @@ minus :: Mor -> Name -> Mor
   where co' | i `elem` def f = delete (f `dap` i) co
             | otherwise = co
 
--- TODO: rename into BoxShape ?
+-- TODO: merge BoxShape and BoxContent ?
 data BoxShape = BoxShape {
   boxDir  :: Dir,  -- direction of the completion (up or down)
   boxName :: Name, -- direction in which to make the completion
@@ -109,12 +109,6 @@ toBox _ = error "toBox: wrong box format (empty box)"
 fromBox :: BoxContent -> [Val]
 fromBox (BoxContent v vs) = v:foldr (\(v1, v2) ws -> v1:v2:ws) [] vs
 
--- mapBox :: (Val -> Val) -> (BoxContent -> BoxContent)
--- mapBox f (BoxContent v vs) = BoxContent (f v) [(f v, f w) | (v, w) <- vs]
-
-mapBox :: (Val -> Val) -> BoxContent -> BoxContent
-mapBox f = toBox . map f . fromBox
-
 
 mirror :: Dir -> Dir
 mirror = not
@@ -142,6 +136,9 @@ data Val = VU
          | VCon Ident [Val]
          | Kan KanType Dim Val BoxShape BoxContent
          | VLSum [(Ident,[Val])]
+         | VEquivEq Name Dim Val Val Val Val Val -- of type U of dimension name:dim
+           -- VEquivEq x d a b f s t where
+
 --         | VInhRec Dim Val Val Val Val -- not needed for closed terms
 
 --         | Res Val Mor              -- not needed for closed terms
@@ -270,6 +267,9 @@ eval d e (LSum ntss) = --trace ("eval lsum " ++ show ntss ++ "\n")
                        --  VLSum $ map (\(n,ts) -> (n, map (eval d e) ts)) ntss
                          Ter (LSum ntss) e
 
+eval d e (EquivEq a b f s t) =  -- TODO: are the dimensions of a,b,f,s,t okay?
+  Path $ VEquivEq (gensym d) d (eval d e a) (eval d e b)
+                  (eval d e f) (eval d e s) (eval d e t)
 
 inhrec :: Dim -> Val -> Val -> Val -> Val -> Val
 inhrec d _ _ phi (VInc a) = app d phi a
@@ -300,11 +300,11 @@ fill d (VId a v0 v1) box@(BoxShape dir i d') bc =
 --        ++ "v0 = " ++ show v0 ++ "\nv1 = " ++ show v1)
     Path $ fill (x:d) ax (BoxShape dir i (x:d')) (BoxContent vx ((v0, v1):vsx))
   where x   = gensym d            -- i,d' <= d
-        ax  = res a (deg d (x:d)) -- dim x:d
+        ax  = a `res` (deg d (x:d)) -- dim x:d
         BoxContent vx vsx = modBox True i d' bc
                     (\_ j v -> let dj = delete j d
                                    f  = update (identity dj) (gensym dj) x
-                             in res (unPath v) f)
+                             in unPath v `res` f)
 fill d (Ter (LSum nass) e) box bcv = -- assumes cvs are constructor vals
 --  trace ("fill sum")
   VCon name ws
@@ -504,7 +504,17 @@ res (VSquash x d u v) f = error $ "Vsquash impossible d= " ++ show d ++ " f = " 
 res (VCon name vs) f = VCon name (map (`res` f) vs)
 --res (VLSum nass) f = VLSum $ map (\(n,as) -> (n, map (`res` f) as)) nass
 
--- res v f = Res v f
+res (VEquivEq x d a b g s t) f | x `elem` def f =
+  VEquivEq (f `dap` x) (cod f) (a `res` h) (b `res` h) (g `res` h)
+           (s `res` h) (t `res` h)
+   where h = f `minus` x
+res (VEquivEq x d a b g s t) f | f `ap` x `direq` False =
+  a `res` (f `minus` x)
+res (VEquivEq x d a b g s t) f | f `ap` x `direq` True =
+  b `res` (f `minus` x)
+-- res (VEquivEq x d a b g s t) f = error "VEquivEq impossible"
+
+  -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 
 -- Takes a u and returns an open box u's given by the specified faces.
@@ -539,3 +549,74 @@ resShape (BoxShape dir i d') f =
 
 subset :: Eq a => [a] -> [a] -> Bool
 subset xs ys = all (`elem` ys) xs
+
+
+-- Given B : A -> U such that s : (x : A) -> B x and
+-- t : (x : A) (y : B x) -> Id (B x) (s x) y, we construct
+-- a filling of closed empty cube (i.e., the boundary
+-- of a cube) over a cube u in A.
+
+fillBoundary :: Dim -> Val -> Val -> Val -> Val -> Val -> BoundaryShape -> BoundaryContent -> Val
+fillBoundary d a b s t u bs@(BoundaryShape d') bc@(BoundaryContent vs) =
+  com xd (app xd bx ux) (BoxShape True x d') (BoxContent (app d s u) rest)
+  where x  = gensym d
+        xd = x:d
+        bx = b `res` deg d xd   -- TODO: can be "b"
+        ux = u `res` deg d xd   -- can be "u"
+        tbnd = cubeToBoundary t d bs
+        tbc = appBoundary d bs tbnd bc
+        BoundaryContent rest = modBoundary d' tbc
+                                (\ _ n v -> let nd = delete n d in
+                                  unPath v `res` update (identity nd) (gensym nd) x)
+
+
+data BoundaryShape = BoundaryShape {
+  boundaryDim  :: Dim
+  }
+  deriving (Eq,Show)
+
+data BoundaryContent = BoundaryContent {
+  boundarySides  :: [(Val, Val)]
+  }
+  deriving (Eq,Show)
+
+boundarySide :: BoundaryContent -> Int -> Dir -> Val
+boundarySide (BoundaryContent vs) n False = fst $ vs !! n
+boundarySide (BoundaryContent vs) n True  = snd $ vs !! n
+
+-- assumes the list is of even size
+toBoundary :: [Val] -> BoundaryContent
+toBoundary vs = BoundaryContent (pairing vs)
+  where pairing [] = []
+        pairing (v1:v2:vs) = (v1,v2):pairing vs
+        pairing _ = error "toBoundary: wrong boundary format (not even)"
+
+fromBoundary :: BoundaryContent -> [Val]
+fromBoundary (BoundaryContent vs) = foldr (\(v1, v2) ws -> v1:v2:ws) [] vs
+
+
+-- Takes a u and returns the boundary u's given by the specified faces.
+cubeToBoundary :: Val -> Dim -> BoundaryShape -> BoundaryContent
+cubeToBoundary u d (BoundaryShape d') =
+  BoundaryContent [ (get j False, get j True) | j <- d']
+  where get j dir = res u (face d j dir)
+
+-- Apply an open boundary of functions of a given shape to a corresponding
+-- open boundary of arguments.
+appBoundary :: Dim -> BoundaryShape -> BoundaryContent -> BoundaryContent -> BoundaryContent
+appBoundary d (BoundaryShape d') (BoundaryContent ws) (BoundaryContent us) =
+  BoundaryContent [(get j w1 u1, get j w2 u2)
+                  | ((w1, w2), (u1, u2), j) <- zip3 ws us d']
+  where get j = app (delete j d)
+
+modBoundary :: Dim -> BoundaryContent -> (Dir -> Name -> Val -> Val) -> BoundaryContent
+modBoundary d (BoundaryContent vs) f =
+  BoundaryContent (zipWith (\j (v, w) -> (f False j v, f True j w)) d vs)
+
+resBoundary :: Dim -> BoundaryContent -> Mor -> BoundaryContent
+resBoundary d bc f = modBoundary d bc (\_ j v -> res v (f `minus` j))
+
+-- assumes f is defined on d'
+resBoundaryShape :: BoundaryShape -> Mor -> BoundaryShape
+resBoundaryShape (BoundaryShape d') f =
+  BoundaryShape (map (f `dap`) d')
