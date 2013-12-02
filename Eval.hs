@@ -10,8 +10,12 @@ import Core
 
 type Name = Integer
 type Dim  = [Name]
-type Dir  = Bool
--- True = Up; False = Down
+data Dir  = Up | Down
+  deriving (Eq, Show)
+
+mirror :: Dir -> Dir
+mirror Up = Down
+mirror Down = Up
 
 dimeq :: Dim -> Dim -> Bool
 dimeq d d' = sort (nub d) == sort (nub d')
@@ -95,8 +99,8 @@ data BoxContent = BoxContent {
   deriving (Eq,Show)
 
 boxSide :: BoxContent -> Int -> Dir -> Val
-boxSide (BoxContent _ vs) n False = fst $ vs !! n
-boxSide (BoxContent _ vs) n True  = snd $ vs !! n
+boxSide (BoxContent _ vs) n Down = fst $ vs !! n
+boxSide (BoxContent _ vs) n Up  = snd $ vs !! n
 
 -- assumes the list is of odd size
 toBox :: [Val] -> BoxContent
@@ -109,13 +113,9 @@ toBox _ = error "toBox: wrong box format (empty box)"
 fromBox :: BoxContent -> [Val]
 fromBox (BoxContent v vs) = v:foldr (\(v1, v2) ws -> v1:v2:ws) [] vs
 
-
-mirror :: Dir -> Dir
-mirror = not
-
 direq :: Either Dir Name -> Dir -> Bool
-Left False `direq` False = True
-Left True `direq` True = True
+Left Down `direq` Down = True
+Left Up `direq` Up = True
 _ `direq` _ = False
 
 data KanType = Fill | Com
@@ -184,7 +184,7 @@ eval d e (Trans c p t) =
     pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
   where x = gensym d
         e' = mapEnv (`res` deg d (x:d)) e
-        box = BoxShape True x []
+        box = BoxShape Up x []
         content = BoxContent (eval d e t) []
 
 -- TODO: throw out v, not needed?
@@ -205,12 +205,12 @@ eval d e (J a u c w v p) = case eval d e p of
       exy = mapEnv (`res` deg d dxy) e
       ey = mapEnv (`res` deg d dy) e
       theta = fill dxy (eval dxy exy a)
-              (BoxShape True x [y]) (BoxContent uy [(ux,pv)]) -- y:x:d
+              (BoxShape Up x [y]) (BoxContent uy [(ux,pv)]) -- y:x:d
       thetaxtoz = theta `res` update (identity dy) x z        -- z:y:d
       sigma = Path thetaxtoz                              -- y:d
-      omega = theta `res` face dxy x True                 -- y:d
+      omega = theta `res` face dxy x Up                 -- y:d
       cv = eval dy ey c                                   -- y:d
-      shape = BoxShape True y []
+      shape = BoxShape Up y []
       valbox = BoxContent (eval d e w) []
   pv -> error $ "eval: J on a non path value:" ++ show pv
 
@@ -228,12 +228,12 @@ eval d e (JEq a u c w) = Path $ filled `res` update (identity d) y x
     ux = uv `res` deg d (x:d)
     uy = uv `res` deg d dy
     theta = fill dxy (eval dxy exy a)
-            (BoxShape True x [y]) (BoxContent uy [(ux,ux)])
+            (BoxShape Up x [y]) (BoxContent uy [(ux,ux)])
     thetaxtoz = theta `res` update (identity dy) x z
     sigma = Path thetaxtoz
-    omega = theta `res` face dxy x True
+    omega = theta `res` face dxy x Up
     cv = eval dy ey c
-    shape = BoxShape True y []
+    shape = BoxShape Up y []
     valbox = BoxContent (eval d e w) []
     filled = fill dy (app dy (app dy cv omega) sigma) shape valbox
 
@@ -276,8 +276,8 @@ inhrec d _ _ phi (VInc a) = app d phi a
 inhrec d' b p phi (VSquash x d a0 a1) = -- dim. of b,p,phi is x:d
   app d (app d p b0) b1                 -- d' should be x:d
   where fc w dir = res w (face (x:d) x dir)
-        b0 = inhrec d (fc b False) (fc p False) (fc phi False) a0
-        b1 = inhrec d (fc b True) (fc p True) (fc phi True) a1
+        b0 = inhrec d (fc b Down) (fc p Down) (fc phi Down) a0
+        b1 = inhrec d (fc b Up) (fc p Up) (fc phi Up) a1
 --        d' = delete x d
 inhrec _ b p phi (Kan ktype d (VInh a) box@(BoxShape dir i d') bc) =
   kan ktype d b box (modBox dir i d' bc irec)
@@ -301,7 +301,7 @@ fill d (VId a v0 v1) box@(BoxShape dir i d') bc =
     Path $ fill (x:d) ax (BoxShape dir i (x:d')) (BoxContent vx ((v0, v1):vsx))
   where x   = gensym d            -- i,d' <= d
         ax  = a `res` (deg d (x:d)) -- dim x:d
-        BoxContent vx vsx = modBox True i d' bc
+        BoxContent vx vsx = modBox Up i d' bc
                     (\_ j v -> let dj = delete j d
                                    f  = update (identity dj) (gensym dj) x
                              in unPath v `res` f)
@@ -356,7 +356,7 @@ app d (Kan Com bd (VPi a b) box@(BoxShape dir i d') bcw) u = -- here: bd = i:d
         bcu = cubeToBox ufill bd box
         bcwu = appBox bd box bcw bcu
 app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
-  trace ("Pi fill\n") com (x:d) (app (x:d) bx vfill) (BoxShape True x (i:d')) wvfills
+  trace ("Pi fill\n") com (x:d) (app (x:d) bx vfill) (BoxShape Up x (i:d')) wvfills
   where x = gensym d            -- add a dimension
         ax = res a (deg d (x:d))
         bx = res b (deg d (x:d))
@@ -376,16 +376,16 @@ app d (Kan Fill bd (VPi a b) box@(BoxShape dir i d') bcw) v = -- here: bd = d
         wux0 = fill d (app d b ufill) box (appBox d box bcw bcu)
         wuidir = res (app (x:di) (com d (VPi a b) box bcw) u) (deg di (x:di))
         -- arrange the i-direction in the right order
-        wuis = if dir then (wuidir,wuimdir) else (wuimdir,wuidir)
+        wuis = if dir == Up then (wuidir,wuimdir) else (wuimdir,wuidir)
         -- final open box in (app bx vsfill)
         wvfills = BoxContent wux0 (wuis:wbox')
 app d (VExt x d' bv fv gv pv) w = -- d = x:d'; values in vext have dim d'
-  com (y:d) (app (y:d) bvxy wy) (BoxShape True y [x]) (BoxContent pvxw [(left,right)])
+  com (y:d) (app (y:d) bvxy wy) (BoxShape Up y [x]) (BoxContent pvxw [(left,right)])
   -- NB: there are various choices how to construct this
   where y = gensym d
         bvxy = res bv (deg d' (y:d))
         wy = res w (deg d (y:d))
-        w0 = res w (face d x False)
+        w0 = res w (face d x Down)
         dg = deg d' (y:d')
         left = res (app d' fv w0) dg
         wxtoy = res w (update (identity d') x y)
@@ -487,8 +487,8 @@ res (VExt x d bv fv gv pv) f | x `elem` def f = -- dom f = x:d
        (pv `res` fminusx)
   where fminusx = f `minus` x
         d' = cod fminusx
-res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` False = fv `res` (f `minus` x)
-res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` True = gv `res` (f `minus` x)
+res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` Down = fv `res` (f `minus` x)
+res (VExt x d bv fv gv pv) f | (f `ap` x) `direq` Up = gv `res` (f `minus` x)
 res (VInh v) f = VInh (res v f)
 res (VInc v) f = VInc (res v f)
 res (VSquash x d u v) f | x `elem` def f = -- dom f = x:d
@@ -496,8 +496,8 @@ res (VSquash x d u v) f | x `elem` def f = -- dom f = x:d
   where -- f-x : d -> d' ; f : x:d -> cod f;
         fminusx = f `minus` x
         d' = cod fminusx
-res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` False = res u (f `minus` x)
-res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` True = res v (f `minus` x)
+res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` Down = res u (f `minus` x)
+res (VSquash x d u v) f | x `elem` dom f && (f `ap` x) `direq` Up = res v (f `minus` x)
 res (VSquash x d u v) f = error $ "Vsquash impossible d= " ++ show d ++ " f = " ++ show f
 --res (VInhRec b p phi a) f = inhrec (res b f) (res p f) (res phi f) (res a f)
 --res (VBranch alts) f = VBranch $ map (\(n,v) -> (n,  res v f)) alts
@@ -508,9 +508,9 @@ res (VEquivEq x d a b g s t) f | x `elem` def f =
   VEquivEq (f `dap` x) (cod f) (a `res` h) (b `res` h) (g `res` h)
            (s `res` h) (t `res` h)
    where h = f `minus` x
-res (VEquivEq x d a b g s t) f | f `ap` x `direq` False =
+res (VEquivEq x d a b g s t) f | f `ap` x `direq` Down =
   a `res` (f `minus` x)
-res (VEquivEq x d a b g s t) f | f `ap` x `direq` True =
+res (VEquivEq x d a b g s t) f | f `ap` x `direq` Up =
   b `res` (f `minus` x)
 -- res (VEquivEq x d a b g s t) f = error "VEquivEq impossible"
 
@@ -520,7 +520,7 @@ res (VEquivEq x d a b g s t) f | f `ap` x `direq` True =
 -- Takes a u and returns an open box u's given by the specified faces.
 cubeToBox :: Val -> Dim -> BoxShape -> BoxContent
 cubeToBox u d (BoxShape dir i d') =
-  BoxContent (get i dir) [ (get j False, get j True) | j <- d']
+  BoxContent (get i dir) [ (get j Down, get j Up) | j <- d']
   where get j dir = res u (face d j dir)
 
 -- Apply an open box of functions of a given shape to a corresponding
@@ -533,14 +533,14 @@ appBox d (BoxShape _ i d') (BoxContent w ws) (BoxContent u us) =
 
 modBox :: Dir -> Name -> Dim -> BoxContent -> (Dir -> Name -> Val -> Val) -> BoxContent
 modBox dir i d (BoxContent v vs) f =
-  BoxContent (f dir i v) (zipWith (\j (v, w) -> (f False j v, f True j w)) d vs)
+  BoxContent (f dir i v) (zipWith (\j (v, w) -> (f Down j v, f Up j w)) d vs)
 
 -- (box i d vs) f
 -- i  = what we fill along
 -- d  = dimension
 -- vs = open box
 resBox :: Name -> Dim -> BoxContent -> Mor -> BoxContent
-resBox i d bc f = modBox True i d bc (\_ j v -> res v (f `minus` j))
+resBox i d bc f = modBox Up i d bc (\_ j v -> res v (f `minus` j))
 
 -- assumes f is defined on i:d'
 resShape :: BoxShape -> Mor -> BoxShape
@@ -558,7 +558,7 @@ subset xs ys = all (`elem` ys) xs
 
 fillBoundary :: Dim -> Val -> Val -> Val -> Val -> Val -> BoundaryShape -> BoundaryContent -> Val
 fillBoundary d a b s t u bs@(BoundaryShape d') bc@(BoundaryContent vs) =
-  com xd (app xd bx ux) (BoxShape True x d') (BoxContent (app d s u) rest)
+  com xd (app xd bx ux) (BoxShape Up x d') (BoxContent (app d s u) rest)
   where x  = gensym d
         xd = x:d
         bx = b `res` deg d xd   -- TODO: can be "b"
@@ -581,8 +581,8 @@ data BoundaryContent = BoundaryContent {
   deriving (Eq,Show)
 
 boundarySide :: BoundaryContent -> Int -> Dir -> Val
-boundarySide (BoundaryContent vs) n False = fst $ vs !! n
-boundarySide (BoundaryContent vs) n True  = snd $ vs !! n
+boundarySide (BoundaryContent vs) n Down = fst $ vs !! n
+boundarySide (BoundaryContent vs) n Up  = snd $ vs !! n
 
 -- assumes the list is of even size
 toBoundary :: [Val] -> BoundaryContent
@@ -598,7 +598,7 @@ fromBoundary (BoundaryContent vs) = foldr (\(v1, v2) ws -> v1:v2:ws) [] vs
 -- Takes a u and returns the boundary u's given by the specified faces.
 cubeToBoundary :: Val -> Dim -> BoundaryShape -> BoundaryContent
 cubeToBoundary u d (BoundaryShape d') =
-  BoundaryContent [ (get j False, get j True) | j <- d']
+  BoundaryContent [ (get j Down, get j Up) | j <- d']
   where get j dir = res u (face d j dir)
 
 -- Apply an open boundary of functions of a given shape to a corresponding
@@ -611,7 +611,7 @@ appBoundary d (BoundaryShape d') (BoundaryContent ws) (BoundaryContent us) =
 
 modBoundary :: Dim -> BoundaryContent -> (Dir -> Name -> Val -> Val) -> BoundaryContent
 modBoundary d (BoundaryContent vs) f =
-  BoundaryContent (zipWith (\j (v, w) -> (f False j v, f True j w)) d vs)
+  BoundaryContent (zipWith (\j (v, w) -> (f Down j v, f Up j w)) d vs)
 
 resBoundary :: Dim -> BoundaryContent -> Mor -> BoundaryContent
 resBoundary d bc f = modBoundary d bc (\_ j v -> res v (f `minus` j))
