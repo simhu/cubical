@@ -14,15 +14,21 @@ import Data.Graph
 import Data.List
 import Data.Maybe
 
-type LEnv = [String]            -- local environment for variables
+-- | Useful auxiliary functions
+unions :: Eq a => [[a]] -> [a]
+unions = foldr union []
+
+-- A cute combinator
+(<:>) :: Applicative f => f a -> f [a] -> f [a]
+a <:> b = (:) <$> a <*> b
+
+-- local environment for variables
+type LEnv = [String]
 
 type Resolver = ReaderT LEnv (ErrorT String Identity)
 
 runResolver :: Resolver a -> Either String a
 runResolver x = runIdentity $ runErrorT $ runReaderT x []
-
--- resolveModule :: Module -> Resolver [(A.Exp,A.Exp)]
--- resolveModule (Module defs) = resolveMutualDefs defs
 
 look :: AIdent -> Resolver A.Exp
 look iden@(AIdent (_, str)) = do
@@ -40,17 +46,12 @@ insertVar NoArg                  e = "_":e
 insertVars :: [Arg] -> LEnv -> LEnv
 insertVars as e = foldl (flip insertVar) e as
 
--- A dummy variable we can insert when we have to lift an
--- environment.
-dummyVar :: Arg
-dummyVar = NoArg
+insertNames :: [String] -> LEnv -> LEnv
+insertNames = (++) . reverse 
 
 resolveVar :: Arg -> Resolver A.Exp
 resolveVar (Arg i) = look i
 resolveVar NoArg   = throwError "_ not a valid variable name "
-
-insertNames :: [String] -> LEnv -> LEnv
-insertNames = (++) . reverse -- TODO: ?????
 
 -- un-something functions
 unArg :: Arg -> String
@@ -92,7 +93,7 @@ resolveTelePi (t@(VDecl{}):as) _ =
   throwError ("resolveTelePi: non flattened telescope " ++ show t)
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
-lam a e = A.Lam <$> local (insertVar a) e
+lam a e= A.Lam <$> local (insertVar a) e
 
 lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
 lams as e = foldr lam e as
@@ -104,7 +105,7 @@ resolveExp (App t s)               = A.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi (TeleNE tele) b)    =
   resolveTelePi (flattenTeleNE tele) (resolveExp b)
 resolveExp (Fun a b)               =
-  A.Pi <$> resolveExp a <*> lam dummyVar (resolveExp b)
+  A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)              = lams (map unBinder bs) (resolveExp t)
 -- resolveExp (Case e brs) =
 --   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
@@ -122,10 +123,6 @@ resolveBranch (Branch (AIdent (_,name)) args e) = do
   exp <- local (insertVars args) (resolveExpWhere e)
   return (name,exp)
 
--- A cute combinator
-(<:>) :: Applicative f => f a -> f [a] -> f [a]
-a <:> b = (:) <$> a <*> b
-
 -- Assumes a flattened telescope.
 resolveTele :: [VDecl] -> Resolver [A.Exp]
 resolveTele []                      = return []
@@ -138,71 +135,12 @@ resolveLabel :: Sum -> Resolver (String,[A.Exp])
 resolveLabel (Sum (AIdent (_,name)) (Tele tele)) =
   ((,) name) <$> resolveTele (flattenTele tele)
 
--- -- -- Anders: Also output a list of constructor names
--- unData :: Def -> Resolver (AIdent,[Arg],A.Exp,A.Exp)
--- unData (DefData iden (Tele vdcls) cs) = do
---   let flat = flattenTele vdcls
---   let args = concatMap (\(VDecl binds _) -> map unBinder binds) flat
---   let cons = [ Arg id | Sum id _ <- cs ]
---   let labels = A.Sum <$> mapM (local (insertVars args) . resolveLabel) cs
---   -- Anders: I think we should add the name of the data type when resolving
---   --         the sums.
---   exp <- lams (Arg iden : args) labels
---   typ <- resolveTelePi flat (return A.U) -- data-decls. have value type U
---   return (iden,cons,exp,typ)
--- unData def = throwError ("unData: data declaration expected " ++ show def)
-
--- All the defs are mutual.
--- TODO: optimize with call-graph. Then the result type should be
--- Resolver Env instead (or Resolver [Env] ?).
--- resolveMutualDefs :: [Def] -> Resolver [(A.Exp,A.Exp)]
--- resolveMutualDefs []         = return []
--- resolveMutualDefs (def:defs) = case def of -- TODO: code-duplication (last 2 cases)
---   DefData{} -> do
---     (iden,args,exp,typ) <- unData def
---     -- Anders: Now that the constructor names are known we can add them
---     rest <- local (insertVars (Arg iden : args)) (resolveMutualDefs defs)
---     return ((exp,typ):rest)
---   DefTDecl iden t -> do
---     (Def _ args body,defs') <- findDef iden defs
---     exp <- lams args (local (insertVars args) (resolveExpWhere body))
---     typ <- resolveExp t
---     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
---     return ((exp,typ):rest)
---   Def iden args body -> do
---     (DefTDecl _ t, defs') <- findTDecl iden defs
---     -- TODO: There is a bug here for recursive definitions!
---     --exp <- lams args (resolveExpWhere body)
---     exp <- lams args (local (insertVars args) (resolveExpWhere body))
---     typ <- resolveExp t
---     rest <- local (insertVar (Arg iden)) (resolveMutualDefs defs')
---     return ((exp,typ):rest)
---   where
---     -- pick out a definition
---     findDef :: AIdent -> [Def] -> Resolver (Def,[Def])
---     findDef iden []         =
---       throwError (show iden ++ " is lacking an accompanying binding")
---     findDef iden@(AIdent (_,name)) (def:defs) = case def of
---       Def (AIdent (_,name')) _ _ | name == name' -> return (def,defs)
---       _                                              ->
---         findDef iden defs >>= \(d,ds) -> return (d, def:ds)
-
---     -- pick out a type declaration
---     findTDecl :: AIdent -> [Def] -> Resolver (Def,[Def])
---     findTDecl iden []         =
---       throwError (show iden ++ " is lacking an accompanying type declaration")
---     findTDecl iden@(AIdent (_,name)) (def:defs) = case def of
---       DefTDecl (AIdent (_,name')) _ | name == name' -> return (def,defs)
---       _                                                 ->
---         findTDecl iden defs >>= \(d,ds) -> return (d, def:ds)
-
 --------------------------------------------------------------------------------
 -- Call graph
 
 callGraph :: [Def] -> [[[Def]]]
 callGraph = filter (/= [[]]) . map flattenSCC . stronglyConnComp . graph
 
--- TODO: Clean?
 graph :: [Def] -> [([Def],String,[String])]
 graph = map ((\(as,b:_,xs) -> (concat as,b,concat xs)) . unzip3)
       . groupBy ((==) `on` (\(_,n,_) -> n)) . concatMap defToGraph
@@ -217,8 +155,7 @@ defToGraph d = case d of
      : [ ([],c,[iden]) | Sum (AIdent (_,c)) _ <- labels ]
     where fvB = unions [ freeVarsTele tele \\ namesTele tele
                        | Sum _ (Tele tele) <- labels ]
-  (DefPrim defs) -> --primitiveToGraph defs (defsToNames defs)
-    graph (concatMap unfoldPrimitive defs)
+  (DefPrim defs) -> graph (concatMap unfoldPrimitive defs)
 
 -- etaExpand :: Resolver A.Exp -> Exp -> Resolver A.Exp
 -- etaExpand t (Pi (TeleNe vs) b) = etaExpand (lams args (apps t vars)) b
@@ -241,19 +178,6 @@ unfoldPrimitive d@(DefTDecl n a) = [d,decl]
   where decl = Def n [] (NoWhere (PN n a)) -- add a declaration using PN
 unfoldPrimitive d =             -- TODO: better error handling?
   error ("only type declarations are allowed in primitives " ++ show d)
-
-{-
--- All definitions in a primitive block should be in the same
--- connected component.
--- TODO: Really?!
-primitiveToGraph :: [Def] -> [String] -> [([Def],String,[String])]
-primitiveToGraph [] _ = []
-primitiveToGraph (d@(DefTDecl n@(AIdent (_,iden)) a):ds) ns =
-  ([d, decl], iden, ns): primitiveToGraph ds ns
-  where decl = Def n [] (NoWhere (PN n a)) -- add a declaration using PN
-primitiveToGraph ds _ =       -- TODO: better error handling?
-  error ("only type declarations are allowed in primitives " ++ show ds)
--}
 
 freeVars :: Exp -> [String]
 freeVars (Let ds e)  = (freeVars e `union` unions (map freeVarsDef ds))
@@ -304,9 +228,6 @@ defToNames (DefPrim defs)               = defsToNames defs
 
 defsToNames :: [Def] -> [String]
 defsToNames = nub . concatMap defToNames
-
-unions :: Eq a => [[a]] -> [a]
-unions = foldr union []
 
 --------------------------------------------------------------------------------
 --
