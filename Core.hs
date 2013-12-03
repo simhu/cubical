@@ -9,6 +9,7 @@ import Data.List (elemIndex)
 -- The core language:
 data Ter = Var Int
          | Id Ter Ter Ter | Refl Ter
+         | TransInv Ter Ter Ter  -- TODO: Remove
          | Trans Ter Ter Ter  -- Trans type eqprof proof
            -- (Trans to be removed in favor of J ?)
            -- TODO: witness for singleton contractible and equation

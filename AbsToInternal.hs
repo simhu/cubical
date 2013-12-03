@@ -66,6 +66,7 @@ primHandle =
   [ ("Id",    (3, primId))
   , ("refl",  (2, primRefl))
   , ("subst", (6, primSubst)) -- TODO: remove, better only J
+  , ("substInv", (6, primSubstInv)) -- TODO: remove
   , ("ext",   (5, primExt))
   , ("J",     (6, primJ))
   , ("Jeq",   (4, primJeq))
@@ -87,6 +88,10 @@ primRefl [a,x] = I.Refl <$> translate x
 primSubst :: [Exp] -> Either String I.Ter
 primSubst [a,c,x,y,eq,p] =
   I.Trans <$> translate c <*> translate eq <*> translate p
+
+primSubstInv :: [Exp] -> Either String I.Ter
+primSubstInv [a,c,x,y,eq,p] =
+  I.TransInv <$> translate c <*> translate eq <*> translate p
 
 primExt :: [Exp] -> Either String I.Ter
 primExt [a,b,f,g,ptwise] =

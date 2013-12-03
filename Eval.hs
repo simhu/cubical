@@ -203,6 +203,15 @@ eval d e (Trans c p t) =
         box = BoxShape Up x []
         content = BoxContent (eval d e t) []
 
+eval d e (TransInv c p t) =
+  case eval d e p of
+    Path pv -> com (x:d) (app (x:d) (eval (x:d) e' c) pv) box content
+    pv -> error $ "eval: trans-case not a path value:" ++ show pv -- ??
+  where x = gensym d
+        e' = mapEnv (`res` deg d (x:d)) e
+        box = BoxShape Down x []
+        content = BoxContent (eval d e t) []
+
 -- TODO: throw out v, not needed?
 eval d e (J a u c w v p) = case eval d e p of
   Path pv ->
@@ -352,21 +361,21 @@ fill d (VEquivEq x d' a b f s t) bs@(BoxShape dir z dJ) bc@(BoxContent vz vJ)
         bx1  = fill d' b bs bcx1
         v    = fill d (b `res` deg d' d)
                    (BoxShape dir z (x : dJ)) (BoxContent bz ((bx0,bx1) : bJ))
-    in VPair x ax0 v
+    in trace "VEquivEq case 1" $ VPair x ax0 v
   | x /= z && x `elem` dJ =
     let ax0 = lookSide bs bc x Down
         -- TODO: Clean
         bz  = modBox dir z dJ bc (\dy ny vy -> if x /= ny then sndVal vy else
                                                  if dy == Down then app d' f ax0 else vy)
         v   = fill d (b `res` deg d' d) bs bz
-    in VPair x ax0 v
+    in trace "VEquivEq case 2" $ VPair x ax0 v
   | x == z && dir == Up =
     let ax0 = lookSide bs bc x Down
         bx0 = app d' f ax0
         bJ  = map (\(x,y) -> (sndVal x,sndVal y)) vJ
         -- TODO: Add a layer of abstraction for that
         v   = fill d (b `res` deg d' d) bs (BoxContent bx0 bJ) 
-    in VPair x ax0 v
+    in trace "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == Down =
     let y  = gensym d
         b  = vz
@@ -409,7 +418,7 @@ fill d (VEquivEq x d' a b f s t) bs@(BoxShape dir z dJ) bc@(BoxContent vz vJ)
           in (rename d'z fstsq0 gd'z x,
               rename d'' (rename d'z sndsq0 gd'z x) gd'' y)
         
-    in VPair x acom bcom
+    in trace "VEquivEq case 4" $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"    
 fill d v b vs = Kan Fill d v b vs
 
@@ -554,6 +563,7 @@ prop_resId v f = res v (identity (cod f)) == v
 -- findName f (_:xs) | otherwise = findName f xs
 
 res :: Val -> Mor -> Val
+res VU _ = VU
 res (VId v v0 v1) f = VId (res v f) (res v0 f) (res v1 f)
 res (Path v) f = Path $ res v (update f (gensym $ dom f) (gensym $ cod f))
 res (VPi a b) f = VPi (res a f) (res b f)
@@ -651,6 +661,7 @@ res (VPair x a v) f | f `ap` x `direq` Down =
 res (VPair x a v) f | f `ap` x `direq` Up =
   v `res` f
 
+res p f = error $ "res: " ++ show p ++ " " ++ show f
   -- res v f = Res v f
 --res _ _ = error "res: not possible?"
 
