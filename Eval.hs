@@ -95,17 +95,17 @@ mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
 
 faceEnv :: Env -> Name -> Dir -> Env
 faceEnv e x dir = mapEnv (\u -> face u x dir) e
-                          
+
 -- Compute the face map.
 -- (i=b) : d -> d-i
 face :: Val -> Name -> Dir -> Val
 face u x dir =
   let fc v = face v x dir in case u of
   VU          -> VU
-  Ter t e     -> ter t (faceEnv e x dir) 
+  Ter t e     -> ter t (faceEnv e x dir)
   VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
   Path y v | x == y    -> u
-           | otherwise -> Path y (fc v) 
+           | otherwise -> Path y (fc v)
   VExt y b f g p | x == y && dir == Down -> f
                  | x == y && dir == Up   -> g
                  | otherwise             -> VExt y (fc b) (fc f) (fc g) (fc p)
@@ -182,10 +182,10 @@ swapEnv :: Env -> Name -> Name -> Env
 swapEnv e x y = mapEnv (\u -> swap u x y) e
 
 swap :: Val -> Name -> Name -> Val
-swap u x y = 
+swap u x y =
   let sw u = swap u x y in case u of
   VU      -> VU
-  Ter t e -> Ter t (swapEnv e x y) 
+  Ter t e -> Ter t (swapEnv e x y)
   VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
   Path z v | z /= x && z /= y    -> Path z (sw v)
            | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
@@ -277,7 +277,7 @@ eval e (EquivEq a b f s t) =  -- TODO: are the dimensions of a,b,f,s,t okay?
 
 modBox :: (Dir -> Name -> a -> a) -> Box a -> Box a
 modBox f (Box dir x v nvs) =
-  Box dir x (f dir x v) [ (n,(f Down n v0,f Up n v1)) | (n,(v0,v1)) <- nvs ] 
+  Box dir x (f dir x v) [ (n,(f Down n v0,f Up n v1)) | (n,(v0,v1)) <- nvs ]
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
@@ -295,18 +295,18 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
--- TODO: Typeclass for freshness! 
+-- TODO: Typeclass for freshness!
 
 unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
-unCon v           = error $ "unCon: not a constructor: " ++ show v 
+unCon v           = error $ "unCon: not a constructor: " ++ show v
 
 -- TODO: Clean
 transposeBox :: Box [Val] -> [Box Val]
 transposeBox b@(Box dir _ [] _)      = []
 transposeBox (Box dir x (v:vs) nvss) =
   Box dir x v [ (n,(head vs0,head vs1)) | (n,(vs0,vs1)) <- nvss ] :
-  transposeBox (Box dir x vs [ (n,(tail vs0,tail vs1)) 
+  transposeBox (Box dir x vs [ (n,(tail vs0,tail vs1))
                              | (n,(vs0,vs1)) <- nvss ])
 
 consBox :: (Name,(a,a)) -> Box a -> Box a
@@ -317,7 +317,7 @@ fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where
     x    = gensym (support vid `union` supportBox box)
-    box' = mapBox (`appName` x) box 
+    box' = mapBox (`appName` x) box
 fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) =
   -- assumes cvs are constructor vals
   VCon n ws
@@ -332,7 +332,7 @@ fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) =
     ws    = fills as e boxes
 
     -- a and b should be independent of x
-fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs) -- s@(BoxShape dir z dJ) bc@(BoxContent vz vJ) 
+fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs) -- s@(BoxShape dir z dJ) bc@(BoxContent vz vJ)
   | x /= z && x `notElem` nonPrincipal box =
     -- d == x : d' ?!
     let ax0  = fill a (mapBox fstVal box)
