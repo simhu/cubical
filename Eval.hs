@@ -1,8 +1,8 @@
 module Eval where
 
 import Control.Arrow hiding (app)
-import Data.List
 import Data.Either
+import Data.List
 import Data.Maybe
 
 import Debug.Trace
@@ -11,8 +11,7 @@ import Core
 
 type Name = Integer
 type Dim  = [Name]
-data Dir  = Up | Down
-  deriving (Eq, Show)
+data Dir  = Up | Down deriving (Eq, Show)
 
 mirror :: Dir -> Dir
 mirror Up = Down
@@ -22,13 +21,16 @@ gensym :: Dim -> Name
 gensym [] = 0
 gensym xs = maximum xs + 1
 
+gensyms :: Dim -> [Name]
+gensyms d = let x = gensym d in x : gensyms (x : d)
 
 -- The pair of values is (down,up)
 data Box a = Box Dir Name a [(Name,(a,a))]
   deriving (Eq,Show)
 
 mapBox :: (a -> b) -> Box a -> Box b
-mapBox f (Box d n x xs) = Box d n (f x) [ (n',(f down,f up)) | (n',(down,up)) <- xs ]
+mapBox f (Box d n x xs) = Box d n (f x) [ (n',(f down,f up))
+                                        | (n',(down,up)) <- xs ]
 
 -- assumes name appears as non principal a direction of the box
 lookBox :: Box a -> Name -> Dir -> a
@@ -42,8 +44,7 @@ nonPrincipal (Box _ _ _ nvs) = map fst nvs
 
 instance Functor Box where fmap = mapBox
 
-data KanType = Fill | Com
-  deriving (Show, Eq)
+data KanType = Fill | Com deriving (Show, Eq)
 
 data Val = VU
          | Ter Ter Env
@@ -167,6 +168,7 @@ supportEnv Empty      = []
 supportEnv (Pair e v) = supportEnv e `union` support v
 supportEnv (PDef _ e) = supportEnv e
 
+-- TODO: Typeclass for freshness!
 fresh :: Val -> Name
 fresh = gensym . support
 
@@ -232,31 +234,25 @@ eval e (TransInv c p t) = com (app (eval e c) pv) box
 -- TODO: throw out _, not needed?
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
-    se = supportEnv e
-    -- TODO: Use gensyms
-    x  = gensym se
-    y  = gensym (x : se)
-    uv = eval e u
-    pv = appName (eval e p) x
+    se    = supportEnv e
+    x:y:_ = gensyms se
+    uv    = eval e u
+    pv    = appName (eval e p) x
     theta = fill (eval e a) (Box Up x uv [(y,(uv,pv))])
     sigma = Path x theta
     omega = face theta x Up
     cv    = eval e c
     box   = Box Up y (eval e w) []
-
 eval e (JEq a u c w) = Path y $ fill (app (app cv omega) sigma) box
   where
-    se = supportEnv e
-    -- TODO: Use gensyms
-    x  = gensym se
-    y  = gensym (x : se)
-    uv = eval e u
+    se    = supportEnv e
+    x:y:_ = gensyms se
+    uv    = eval e u
     theta = fill (eval e a) (Box Up x uv [(y,(uv,uv))])
     sigma = Path x theta
     omega = face theta x Up
     cv    = eval e c
     box   = Box Up y (eval e w) []
-
 eval e (Ext b f g p) = Path x $ VExt x (eval e b) (eval e f) (eval e g) (eval e p)
   where x = freshEnv e
 eval e (Pi a b)      = VPi (eval e a) (eval e b)
@@ -266,11 +262,11 @@ eval e (Inh a)       = VInh (eval e a)
 eval e (Inc t)       = VInc (eval e t)
 eval e (Squash r s)  = Path x $ VSquash x (eval e r) (eval e s)
   where x = freshEnv e
-eval e (InhRec b p phi a) = inhrec (eval e b) (eval e p) (eval e phi) (eval e a)
-eval e (Where t def)      = eval (PDef def e) t
-eval e (Con name ts)      = VCon name (map (eval e) ts)
-eval e (Branch alts)      = Ter (Branch alts) e
-eval e (LSum ntss)        = Ter (LSum ntss) e
+eval e (InhRec b p phi a)  = inhrec (eval e b) (eval e p) (eval e phi) (eval e a)
+eval e (Where t def)       = eval (PDef def e) t
+eval e (Con name ts)       = VCon name (map (eval e) ts)
+eval e (Branch alts)       = Ter (Branch alts) e
+eval e (LSum ntss)         = Ter (LSum ntss) e
 eval e (EquivEq a b f s t) =  -- TODO: are the dimensions of a,b,f,s,t okay?
   Path x $ VEquivEq x (eval e a) (eval e b) (eval e f) (eval e s) (eval e t)
     where x = freshEnv e
@@ -289,13 +285,11 @@ inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
     where irec dir j v = let fc v = face v j dir
                          in inhrec (fc b) (fc p) (fc phi) v
---inhrec b p phi a = VInhRec b p phi a
+-- inhrec b p phi a = VInhRec b p phi a
 
 kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
-
--- TODO: Typeclass for freshness!
 
 unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
@@ -315,24 +309,20 @@ consBox nv (Box dir x v nvs) = Box dir x v (nv : nvs)
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
-  where
-    x    = gensym (support vid `union` supportBox box)
-    box' = mapBox (`appName` x) box
-fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) =
-  -- assumes cvs are constructor vals
-  VCon n ws
-  where
-    as = case lookup n nass of
-           Just as -> as
-           Nothing -> error $ "fill: missing constructor "
-                      ++ "in labelled sum " ++ n
-    boxes :: [Box Val]
-    boxes = transposeBox $ mapBox unCon box
-    -- fill boxes for each argument position of the constructor
-    ws    = fills as e boxes
-
-    -- a and b should be independent of x
-fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs) -- s@(BoxShape dir z dJ) bc@(BoxContent vz vJ)
+  where x    = gensym (support vid `union` supportBox box)
+        box' = mapBox (`appName` x) box
+-- assumes cvs are constructor vals
+fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) = VCon n ws
+  where as = case lookup n nass of
+               Just as -> as
+               Nothing -> error $ "fill: missing constructor "
+                       ++ "in labelled sum " ++ n
+        boxes :: [Box Val]
+        boxes = transposeBox $ mapBox unCon box
+        -- fill boxes for each argument position of the constructor
+        ws    = fills as e boxes
+-- a and b should be independent of x
+fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x /= z && x `notElem` nonPrincipal box =
     -- d == x : d' ?!
     let ax0  = fill a (mapBox fstVal box)
@@ -354,50 +344,32 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs) -- s@(BoxShape dir z dJ) 
         nvs' = [ (n,(sndVal v0,sndVal v1)) | (n,(v0,v1)) <- nvs ]
         v    = fill b (Box dir z bx0 nvs')
     in trace "VEquivEq case 3" $ VPair x ax0 v
-  | x == z && dir == Down = undefined
---     let y  = gensym (support veq `union` supportBox box)
---         b  = vz
---         sb = app s b
---         gb = vfst sb
---         BoundaryContent abnd = modBoundary d' (BoundaryContent vJ)
---                                  (\dz nz vz -> fst (vpairToSquare dz nz vz))
+  | x == z && dir == Down =
+     let y  = gensym (support veq `union` supportBox box)
+         b  = vz
+         sb = app s b
+         gb = vfst sb
+         vy = appName (vsnd sb) x
 
---         BoundaryContent bbnd = modBoundary d' (BoundaryContent vJ)
---                                  (\dz nz vz -> snd (vpairToSquare dz nz vz))                               
---         aboxshape = BoxShape Up y d'
---         abox  = BoxContent gb abnd
---         afill = fill (y:d') (a `res` deg d' (y : d')) aboxshape abox
---         acom  = com (y:d') (a `res` deg d' (y : d')) aboxshape abox
---         fafill = app (y : d') (f `res` deg d' (y : d')) afill
---         sbsnd = rename d' (unPath (vsnd sb)) (gensym d') x
---         degb  = b `res` deg d' (y : d')
+         vpTSq :: Dir -> Name -> Val -> (Val,Val)
+         vpTSq dz nz (VPair z a0 v0) =
+             let vp = VCon "pair" [a0, Path z v0]
+                 t0 = face t nz dz
+                 b0 = face b nz dz
+                 VCon "pair" [l0,sq0] = appName (app (app t0 b0) vp) y
+             in (l0,appName sq0 x)  -- TODO: check the correctness of the square s0
 
---         bboxshape = BoxShape Up y (x:d')
---         bbox = BoxContent sbsnd ((fafill,degb) : bbnd)
---         bcom = com (y : d) (b `res` deg d' (y : d)) bboxshape bbox
-
---         vpairToSigma :: Val -> Val
---         vpairToSigma (VPair z a0 v0) = VCon "pair" [a0, Path z v0]
-
---         -- TODO: Permute name and dir  
---         vpairToSquare :: Dir -> Name -> Val -> (Val,Val)
---         vpairToSquare dz nz vp@(VPair _ a0 v0) =
---           let t0   = t `face` nz dz
---               b0   = b `face` nz dz
--- --              d'z  = delete z d'
--- --              gd'z = gensym d'z
--- --              d''  = gd'z : d'z
--- --              gd'' = gensym d''
---               VCon "pair" [l0,sq0] = appName (app (app t0 b0) (vpairToSigma vp)) y
--- --              l0'  = rename d'z l0 (gensym d'z) y
---               (fstsq0,sndsq0) = (vfst sq0,vsnd sq0)
---           in (l0 -- rename d'z fstsq0 gd'z x,
---               rename d'' (rename d'z sndsq0 gd'z x) gd'' y)
-        
---     in trace "VEquivEq case 4" $ VPair x acom bcom
-  | otherwise = error "fill EqEquiv"    
+         -- TODO: Use modBox!
+         vsqs   = [ (n,(vpTSq Down n v0,vpTSq Up n v1)) | (n,(v0,v1)) <- nvs]
+         afill  = fill a (Box Up y gb [ (n,(d0,d1))
+                                      | (n,((d0,_),(d1,_))) <- vsqs ])
+         acom   = face afill y Up
+         fafill = app f afill
+         bcom   = com b (Box Up y vy ((x, (fafill,b)) :
+                              [ (n,(u0,u1)) | (n,((_,u0),(_,u1))) <- vsqs ]))
+     in trace "VEquivEq case 4" $ VPair x acom bcom
+  | otherwise = error "fill EqEquiv"
 fill v b = Kan Fill v b
-
 
 -- Given C : B -> U such that s : (x : B) -> C x and
 -- t : (x : B) (y : C x) -> Id (C x) (s x) y, we construct
@@ -422,7 +394,7 @@ fills _ _ _ = error "fills: different lengths of types and values"
 -- but the one where the open box is specified
 com :: Val -> Box Val -> Val
 com vid@VId{} box@(Box dir i _ _)      = face (fill vid box) i dir
-com ter@Ter{} box@(Box dir i _ _)      = face (fill ter box) i dir 
+com ter@Ter{} box@(Box dir i _ _)      = face (fill ter box) i dir
 com veq@VEquivEq{} box@(Box dir i _ _) = face (fill veq box) i dir
 com v box                              = Kan Com v box
 
@@ -432,8 +404,6 @@ cubeToBox v (Box dir x () nvs) =
 
 shapeOfBox :: Box a -> Box ()
 shapeOfBox = mapBox (const ())
-
--- zipBox :: Box a -> Box b -> Box (a,b)
 
 -- Maybe generalize?
 appBox :: Box Val -> Box Val -> Box Val
@@ -446,25 +416,18 @@ app (Ter (Lam t) e) u                           = eval (Pair e u) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u = com (app b ufill) (appBox box bcu)
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
-app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v = undefined
-  -- trace ("Pi fill\n") $ com (app b vfill) (Box Up x ? ?) wvfills -- (Box Up x (i:d')) wvfills
-  -- where x     = gensym (support kf `union` support v)
-  --       u     = v `face` i dir
-  --       ufill = fill a (Box (mirror dir) i u [])
-  --       bcu   = cubeToBox ufill (shapeOfBox box)
-  --       vfill = fill a (Box (mirror dir) i u [(x,(ufill,v)]))
-  --       shb   = Box Up x () (map (\n -> (n,((),()))) (i : map fst nws))
-  --       vbox  = cubeToBox vfill shb
-  --       wbox  = cubeToBox w shb
-  --       bcwx  = resBox i d' (cubeToBox w ?) (deg d (x:d))
-  --       BoxContent wuimdir wbox' = appBox (x:d) box bcwx vbox
-  --       -- the missing faces to get a (x, i:d')-open box in x:i:d (dir)
-  --       wux0 = fill d (app d b ufill) box (appBox d box bcw bcu)
-  --       wuidir = res (app (x:di) (com d (VPi a b) box bcw) u) (deg di (x:di))
-  --       -- arrange the i-direction in the right order
-  --       wuis = if dir == Up then (wuidir,wuimdir) else (wuimdir,wuidir)
-  --       -- final open box in (app bx vsfill)
-  --       wvfills = BoxContent wux0 (wuis:wbox')
+app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
+  trace ("Pi fill\n") $ com (app b vfill) (Box Up x vx ((i,(vi0,vi1)):nvs))
+  where x     = gensym (support kf `union` support v)
+        u     = face v i dir
+        ufill = fill a (Box (mirror dir) i u [])
+        bcu   = cubeToBox ufill (shapeOfBox box)
+        vfill = fill a (Box (mirror dir) i u [(x,(ufill,v))])
+        vx    = fill (app b ufill) (appBox box bcu)
+        vi0   = app w (face vfill i Down)
+        vi1   = com (app b ufill) (appBox box bcu)
+        nvs   = [ (n,(app ws0 (face vfill n Down),app ws1 (face vfill n Up)))
+                | (n,(ws0,ws1)) <- nws]
 app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [(x,(left,right))])
   -- NB: there are various choices how to construct this
   where y     = gensym (support vext `union` support w)

@@ -103,7 +103,7 @@ runInterpreter v fs = do
                     Right _  -> case translate term of
                       Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
                                   loop ns re
-                      Right t  -> let value = eval [] Empty t in
+                      Right t  -> let value = eval Empty t in
                         outputStrLn ("EVAL: " ++ show value) >> loop ns re
 
 help :: String
