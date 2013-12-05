@@ -18,72 +18,9 @@ mirror :: Dir -> Dir
 mirror Up = Down
 mirror Down = Up
 
-dimeq :: Dim -> Dim -> Bool
-dimeq d d' = sort (nub d) == sort (nub d')
-
 gensym :: Dim -> Name
 gensym [] = 0
 gensym xs = maximum xs + 1
-
--- all *very* hackish
-type Mor = ([(Name, Either Dir Name)], Dim)
--- I -> J u {0,1}
-
-identity :: Dim -> Mor
-identity d = ([(i, Right i) | i <- d], d)
-
-dom :: Mor -> Dim               -- *not* the names f is defined on
-dom (al,cd) = map fst al
-
-cod :: Mor -> Dim
-cod (al,co) = co
-
-def :: Mor -> Dim
-def (al, co)  = [ i | (i, Right _) <- al ]
-
-ndef :: Mor -> Dim
-ndef (al, _)  = [ i | (i, Left _) <- al ]
-
--- update f x y is (f, x=y) (x and y fresh)
-update :: Mor -> Name -> Name -> Mor
-update (al,co) x y = ((x,Right y):al, y:co)
-
-im :: Mor -> Dim
-im (al, _) = [ y | (_, Right y) <- al ]
-
-ap :: Mor -> Name -> Either Dir Name
-f@(al, _) `ap` i = case lookup i al of
-  Just x    -> x
-  otherwise -> error $ "ap: " ++ show f ++ " undefined on " ++ show i
-
--- Supposes that f is defined on i
-dap :: Mor -> Name -> Name
-f `dap` i = case f `ap` i of
-  Left b -> error "dap: undefined"
-  Right x -> x
-
-comp :: Mor -> Mor -> Mor -- use diagram order!
-comp f g = ([(i, (f `ap` i) >>= (g `ap`))| i <- dom f], cod g)
-
--- Assumption: d <= c
--- Compute degeneracy map.
-deg :: Dim -> Dim -> Mor
-deg d c | d /= nub d = error $ "deg " ++ show d ++ " and " ++ show c
-        | otherwise  = (map (\i -> (i, Right i)) d, c)
-
--- Compute the face map.
--- (i=b) : d -> d-i
-face :: Dim -> Name -> Dir -> Mor
-face d i b = ((i, Left b):[(j, Right j) | j <- di], di)
-  where di | i `elem` d = delete i d
-           | otherwise  = error $ "face " ++ show i ++ " not in " ++ show d
-
--- If f : I->J and f defined on i, then (f-i): I-i -> J-fi
--- If f : I->J and f not defined on i, then (f-i): I-i -> J
-minus :: Mor -> Name -> Mor
-(f@(al,co)) `minus` i = ([(j,v)| (j,v) <- al, i/=j] , co')
-  where co' | i `elem` def f = delete (f `dap` i) co
-            | otherwise = co
 
 -- TODO: merge BoxShape and BoxContent ?
 data BoxShape = BoxShape {
@@ -122,10 +59,25 @@ toBox _ = error "toBox: wrong box format (empty box)"
 fromBox :: BoxContent -> [Val]
 fromBox (BoxContent v vs) = v:foldr (\(v1, v2) ws -> v1:v2:ws) [] vs
 
-direq :: Either Dir Name -> Dir -> Bool
-Left Down `direq` Down = True
-Left Up `direq` Up = True
-_ `direq` _ = False
+
+-- The pair of values is (down,up)
+data Box a = Box Dir Name a [(Name,(a,a))]
+  deriving (Eq,Show)
+
+mapBox :: (a -> b) -> Box a -> Box b
+mapBox f (Box d n x xs) = Box d n (f x) [ (n',(f down,f up)) | (n',(down,up)) <- xs ]
+
+-- assumes name appears as non principal a direction of the box
+lookBox :: Box a -> Name -> Dir -> a
+lookBox (Box _ _ _ nvs) x dir = case lookup x nvs of
+  Just (down,up) | dir == Up -> up
+                 | otherwise -> down
+  Nothing -> error $ "lookBox: box not defined on " ++ show x ++ " " ++ show dir
+
+nonPrincipal :: Box a -> [Name]
+nonPrincipal (Box _ _ _ nvs) = map fst nvs
+
+instance Functor Box where fmap = mapBox
 
 data KanType = Fill | Com
   deriving (Show, Eq)
@@ -133,29 +85,21 @@ data KanType = Fill | Com
 data Val = VU
          | Ter Ter Env
          | VId Val Val Val
-         | Path Val             -- tag values which are paths
-         | VExt Name Dim Val Val Val Val -- has dimension (name:dim);
+         | Path Name Val             -- tag values which are paths
+         | VExt Name Val Val Val Val -- has dimension (name:dim);
                                          -- vals of dimension dim
          | VPi Val Val
          | VApp Val Val         -- not needed for closed terms
          | VInh Val
          | VInc Val
-         | VSquash Name Dim Val Val  -- has dimension (name:dim); vals
+         | VSquash Name Val Val  -- has dimension (name:dim); vals
                                      -- of dimension dim
          | VCon Ident [Val]
-         | Kan KanType Dim Val BoxShape BoxContent
+         | Kan KanType Val (Box Val)
          | VLSum [(Ident,[Val])]
-         | VEquivEq Name Dim Val Val Val Val Val -- of type U of dimension name:dim
+         | VEquivEq Name Val Val Val Val Val -- of type U of dimension name:dim
            -- VEquivEq x d a b f s t where
          | VPair Name Val Val -- of type VEquiv
-           
---         | VInhRec Dim Val Val Val Val -- not needed for closed terms
-
---         | Res Val Mor              -- not needed for closed terms
-
---         | VBranch [(Ident,Ter)] Env
---         | VBranch [(Ident,Val)]
---         | VTrans Val Val Val   -- ?? needed
   deriving (Show, Eq)
 
 fstVal, sndVal :: Val -> Val
@@ -172,21 +116,146 @@ data Env = Empty
 upds :: Env -> [Val] -> Env
 upds = foldl Pair
 
-look :: Int -> Dim -> Env -> Val
-look 0 d (Pair _ u)     = u
-look k d (Pair s _)     = look (k-1) d s
-look k d r@(PDef es r1) = look k d (upds r1 (evals d r es))
+look :: Int -> Env -> Val
+look 0 (Pair _ u)     = u
+look k (Pair s _)     = look (k-1) s
+look k r@(PDef es r1) = look k (upds r1 (evals r es))
 
-ter :: Dim -> Val -> Val
-ter d (Ter t e) = eval d e t
+ter :: Ter -> Env -> Val
+ter t e = eval e t
 
-evals :: Dim -> Env -> [Ter] -> [Val]
-evals d e = map (eval d e)
+evals :: Env -> [Ter] -> [Val]
+evals e = map (eval e)
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty = Empty
 mapEnv f (Pair e v) = Pair (mapEnv f e) (f v)
 mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
+
+faceEnv :: Env -> Name -> Dir -> Env
+faceEnv e x dir = mapEnv (\u -> face u x dir) e
+                          
+-- Compute the face map.
+-- (i=b) : d -> d-i
+face :: Val -> Name -> Dir -> Val
+face u x dir =
+  let fc v = face v x dir in case u of
+  VU          -> VU
+  Ter t e     -> ter t (faceEnv e x dir) 
+  VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
+  Path y v | x == y    -> u
+           | otherwise -> Path y (fc v) 
+  VExt y b f g p | x == y && dir == Down -> f
+                 | x == y && dir == Up   -> g
+                 | otherwise             -> VExt y (fc b) (fc f) (fc g) (fc p)
+  VPi a f    -> VPi (fc a) (fc f)
+  VApp v0 v1 -> app (fc v0) (fc v1)
+  VInh v     -> VInh (fc v)
+  VInc v     -> VInc (fc v)
+  VSquash y v0 v1 | x == y && dir == Down -> v0
+                  | x == y && dir == Up   -> v1
+                  | otherwise             -> VSquash y (fc v0) (fc v1)
+  VCon c us -> VCon c (map fc us)
+  VLSum bs  -> VLSum (map (second (map fc)) bs)
+  VEquivEq y a b f s t | x == y && dir == Down -> a
+                       | x == y && dir == Up   -> b
+                       | otherwise             -> VEquiv y (fc a) (fc b) (fc f) (fc s) (fc t)
+  VPair y a v | x == y && dir == Down -> a
+              | x == y && dir == Up   -> fc v
+              | otherwise             -> VPair y (fc a) (fc v)
+  Kan Fill a b@(Box dir' y v nvs)
+    | x /= y && x `notElem` nonPrincipal b -> fill (fc a) (fc <$> b)
+    | x `elem` nonPrincipal b              -> lookBox b x dir
+    | x == y && dir == mirror dir'         -> v
+    | otherwise                            -> com a b
+  Kan Com a b@(Box dir' y v nvs)
+    | x == y                     -> u
+    | x `notElem` nonPrincipal b -> com (fc a) (fc <$> b)
+    | x `elem` nonPrincipal b    -> face (lookBox b x dir) y dir'
+
+
+
+unions :: Eq a => [[a]] -> [a]
+unions = foldr union []
+
+unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
+unionsMap f = unions . map f
+
+-- test that names only occur once in support
+support :: Val -> [Name]
+support VU                = []
+support (Ter _ e)         = supportEnv e
+support (VId a v0 v1)     = unionsMap support [a,v0,v1]
+support (Path x v)        = delete x $ support v
+support (VInh v)          = support v
+support (VInc v)          = support v
+support (VPi v1 v2)       = unionsMap support [v1,v2]
+support (VApp v1 v2)      = unionsMap support [v1,v2]
+support (VCon _ vs)       = unionsMap support vs
+support (VLSum xs)        = unions [ unionsMap support vs | (_,vs) <- xs ]
+support (VSquash x v0 v1) = [x] `union` unionsMap support [v0,v1]
+support (VExt x b f g p)  = [x] `union` unionsMap support [b,f,g,p]
+support (Kan Fill a (Box dir n v vns)) = 
+  support a `union` [n] `union` support v `union` 
+  unions [ [y] `union` unionsMap support [v1,v2] | (y,(v1,v2)) <- vns ]
+support (Kan Com a (Box dir n v vns))  = 
+  support a `union` support v `union` 
+  unions [ [y] `union` unionsMap support [v1,v2] | (y,(v1,v2)) <- vns ]
+support (VEquivEq x a b f s t) = [x] `union` unionsMap support [a,b,f,s,t]
+support (VPair x a v)          = [x] `union` unionsMap support [a,v]
+
+supportEnv :: Env -> [Name]
+supportEnv Empty      = []
+supportEnv (Pair e v) = supportEnv e `union` support v
+supportEnv (PDef _ e) = supportEnv e
+
+fresh :: Val -> Name
+fresh = gensym . support
+
+freshEnv :: Env -> Name
+freshEnv = gensym . supportEnv
+
+swapName :: Name -> Name -> Name -> Name
+swapName z x y | z == x    = y
+               | z == y    = x
+               | otherwise = z
+
+swapEnv :: Env -> Name -> Name -> Env
+swapEnv e x y = mapEnv (\u -> swap u x y) e
+
+swap :: Val -> Name -> Name -> Val
+swap u x y = 
+  let sw u = swap u x y in case u of
+  VU      -> VU
+  Ter t e -> Ter t (swapEnv e x y) 
+  VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
+  Path z v | z == x    -> u
+           | z /= y    -> Path z (sw v)
+           | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
+                              v' = swap v z z'
+                          in Path z' (sw v')
+  VExt z b f g p -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
+  VPi a f -> VPi (sw a) (sw f)
+  VApp v0 v1 -> app (sw v0) (sw v1)
+  VInh v -> VInh (sw v)
+  VInc v -> VInc (sw v)
+  VSquash z v0 v1 -> VSquash (swapName z x y) (sw v0) (sw v1)
+  VCon c us -> VCon c (map sw us)
+  VLSum bs  -> VLSum (map (second (map sw)) bs)
+  VEquivEq z a b f s t -> VEquiv (swapName z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
+  VPair z a v -> VPair (swapName z x y) (sw a) (sw v)
+  Kan Fill a b@(Box dir' z v nvs) ->
+    fill (sw a) (Box dir' (swapName z x y) (sw v)
+                 [ (swapName n x y,(sw v0,sw v1)) | (n,(v0,v1)) <- nvs ])
+  Kan Com a b@(Box dir' z v nvs)
+    | z == x    -> u                 -- OK?
+    | z /= y    -> com (sw a) (Box dir' (swapName z x y) (sw v)
+                     [ (swapName n x y,(sw v0,sw v1)) | (n,(v0,v1)) <- nvs ])
+    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+                       a' = swap a z z'
+--                       v' = swap v 
+                   in undefined
+
 
 eval :: Dim -> Env -> Ter -> Val
 eval _ _ U       = VU
