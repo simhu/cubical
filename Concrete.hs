@@ -73,6 +73,7 @@ defToNames (Def n _ _)     = [unIdent n]
 defToNames (DefTDecl n _)  = [unIdent n]
 defToNames (DefData n _ _) = [unIdent n]
 defToNames (DefPrim defs)  = defsToNames defs
+defToNames (DefImport _)   = []
 
 defsToNames :: [Def] -> [String]
 defsToNames = nub . concatMap defToNames
@@ -176,6 +177,7 @@ defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
     unfoldPrimitive d@(DefTDecl n a) = [d,Def n [] (NoWhere (PN n a))]
     unfoldPrimitive d =
       error ("only type declarations are allowed in primitives " ++ show d)
+defToGraph (DefImport _) = []
 
 freeVarsExp :: Exp -> [String]
 freeVarsExp U           = []
@@ -204,6 +206,7 @@ freeVarsDef (DefTDecl _ e)          = freeVarsExp e
 freeVarsDef (DefPrim defs)          = unions (map freeVarsDef defs)
 freeVarsDef (DefData _ vdecls lbls) = freeVarsTele vdecls `union`
   (unions [ freeVarsTele vs | Sum _ vs <- lbls ] \\ namesTele vdecls)
+freeVarsDef (DefImport _)           = [] -- Should only be imports
 
 freeVarsTele :: Tele -> [String]
 freeVarsTele (Tele ts) = fvT ts

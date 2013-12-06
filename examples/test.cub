@@ -6,8 +6,8 @@ module test where
    is actually
    three lines. Fun. -}
 
--- The natural numbers.
-data N = zero | suc (n : N)
+-- The natural numbers - imported from plus.
+import plus
 
 -- A type declaration.
 f : (A B : U) (a : A) (b c d : B) -> N -> N
