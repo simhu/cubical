@@ -401,26 +401,33 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                               | zd' <- allDirs nL ]
                in (zd,fill (lookBox tbox zd) innerbox)
              | zd@(z,d) <- allDirs nK ]
-    in VComp (Box tdir x axtdir' xs) 
-  | otherwise       =
+    in VComp (Box tdir x axtdir' xs)
+  | otherwise       = -- x' `elem` nK
     let nL     = nJ \\ nK
         dir'   = mirror dir
         tdir'  = mirror tdir
 
         axtdir's = [ let VComp (Box _ _ zdp _) = lookBox box zd in (zd,zdp)
-                   | zd <- allDirs nL ] 
-        ap     = face vx' x tdir -- let VComp (Box _ _ zdp _) = vx' in zdp
+                   | zd <- allDirs nL ]
+--        ap     = let VComp (Box _ _ zdp _) = vx' in zdp
         ainter = [ (zd,fill (lookBox tbox zd) (Box tdir' x nv
                                [ let VComp b = lookBox box zd' in (zd',lookBox b zd)
                                | zd' <- allDirs nL ])) -- EXACTLY the same as above
-                 | (zd@(n,ndir),nv) <- nvs', zd /= (x',dir) && n `elem` nK ]
+                 | (zd@(n,ndir),nv) <- ((x',dir'), vx'):nvs', zd /= (x',dir) && n `elem` nK ] -- (Jtilde /\ Ktilde)
         aintertdir' = map (\(zc,azc) -> (zc,face azc x tdir')) ainter
 
-        axdir'  = ((x,dir'),fill tx (Box dir x' ap (axtdir's ++ aintertdir')))
-        a'inter = map (\(zc,azc) -> (zc,face azc x' dir)) (axdir' : ainter)
+        Just apx0 = lookup (x',dir') aintertdir'
+
+        axdir'  = ((x,dir'),fill tx (Box dir x' apx0 (axtdir's ++ delete ((x',dir'),apx0) aintertdir')))
+        a'inter = map (\(zc,azc) -> (zc,face azc x' dir)) (deleteKey (x',dir') ainter)
+
+        deleteKey k (x@(k',_):xs) | k == k' = xs
+                                  | otherwise = x: deleteKey k xs
+
         a'comp  = [ let VComp b = lookBox box zd in (zd,lookBox b (x',dir))
                   | zd <- allDirs nL ]
-        ap'     = face vx' x dir' -- let VComp b = vx' in lookBox b (x,dir')
+--        ap'     = face vx' x dir' -- let VComp b = vx' in lookBox b (x,dir')
+        ap' = face (snd axdir') x' dir
         ax'dir  = ((x',dir),fill (lookBox tbox (x',dir)) (Box dir x ap' (a'inter ++ a'comp)))
 
     in VComp (Box tdir x (snd axdir') (ax'dir : ainter))

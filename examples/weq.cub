@@ -643,6 +643,21 @@ notEqBool = transport' Bool Bool eqBoolBool
 testBool : Bool
 testBool = notEqBool ($ true)
 
+compEqBool : Id U Bool Bool
+compEqBool = comp U Bool Bool Bool eqBoolBool eqBoolBool
+
+funCompEqBool : Bool -> Bool
+funCompEqBool = transport' Bool Bool compEqBool
+
+newTestBool : Bool
+newTestBool = funCompEqBool ($ true)
+
+newCompEqBool : Id U Bool Bool
+newCompEqBool = comp U Bool Bool Bool eqBoolBool (refl U Bool)
+
+test2Bool : Bool
+test2Bool = transport' Bool Bool newCompEqBool ($ true)
+
 transport' : (A B : U) -> Id U A B -> A -> B
 transport' = subst' U (\x -> x)
 
