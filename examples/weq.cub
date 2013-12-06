@@ -646,6 +646,73 @@ testBool = notEqBool ($ true)
 transport' : (A B : U) -> Id U A B -> A -> B
 transport' = subst' U (\x -> x)
 
+monoid : U -> U
+monoid A = and A (A -> A -> A) 
+
+zm : (A : U) (m : monoid A) -> A
+zm A m = fst A (\x -> A -> A -> A) m
+
+opm : (A : U) (m : monoid A) -> (A -> A -> A)
+opm A m = snd A (\x -> A -> A -> A) m
+
+transm : (A B : U) -> Id U A B -> monoid A -> monoid B
+transm = subst U monoid 
+
+transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
+transun = subst U (\X -> (X -> X))
+
+transid : Bool -> Bool
+transid = transun Bool Bool eqBoolBool (\x -> x) 
+
+testT : Bool
+testT = transid True
+
+testT' : Bool
+testT' = transun Bool Bool (refl U Bool) (\x -> x) True
+
+testF : Bool
+testF = transid False
+
+andBool : Bool -> Bool -> Bool
+andBool = split
+  true -> \x -> x
+  false -> \x -> $ false
+
+mBool1 : monoid Bool
+mBool1 = $ pair ($ true) andBool
+
+mBool2 : monoid Bool
+mBool2 = transm Bool Bool eqBoolBool mBool1
+
+opBool2 : Bool -> Bool -> Bool
+opBool2 = opm Bool mBool2
+
+True : Bool
+True = $ true
+
+False : Bool
+False = $ false
+
+testTF : Bool
+testTF = opBool2 True False
+
+testFT : Bool
+testFT = opBool2 False True
+
+testFF : Bool
+testFF = opBool2 False False
+
+testTT : Bool
+testTT = opBool2 True True
+
+
+
+--  subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+
+
+
+
+
 -- negUIP : neg (UIP U)
 -- negUIP uipU =
 --   where
@@ -666,3 +733,4 @@ transport' = subst' U (\x -> x)
 
 --   lem3 : Id Bool ($ false) (fnot ($ true))
 --   lem3 = -- Cannot be proved yet...
+
