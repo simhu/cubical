@@ -5,8 +5,7 @@ layout "where", "let", "of", "split", "primitive" ;
 layout stop "in" ;
 --layout toplevel ;
 
-Module.  Module ::= [Def] ;
-ModEval. Module ::= "eval" Exp "where" "{" [Def] "}" ;
+Module.  Module ::= "module" AIdent "where" "{" [Def] "}" ;
 
 Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
@@ -65,5 +64,5 @@ terminator VDecl "" ;
 VDeclNE.  VDeclNE ::= VDecl ;
 terminator nonempty VDeclNE "" ;
 
-position token AIdent (letter(letter|digit|'\'')*) ;
+position token AIdent (letter(letter|digit|'\''|'_')*) ;
 terminator AIdent "" ;

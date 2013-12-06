@@ -39,8 +39,7 @@ showTreeV _ tree = do
 
 
 unModule :: Module -> [Def]
-unModule (Module defs) = defs
-unModule (ModEval _ defs) = defs
+unModule (Module _ defs) = defs
 
 parseFiles :: Verbosity -> [FilePath] -> IO [Def]
 parseFiles _ [] = return []

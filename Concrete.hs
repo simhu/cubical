@@ -96,7 +96,7 @@ insertVars :: [Arg] -> Env -> Env
 insertVars as e = foldl (flip insertVar) e as
 
 insertNames :: [String] -> Env -> Env
-insertNames = (++) . reverse 
+insertNames = (++) . reverse
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
 lam a e = A.Lam <$> local (insertVar a) e
@@ -130,7 +130,7 @@ resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
 
 resolveBranch :: Branch -> Resolver (String,A.Exp)
-resolveBranch (Branch name args e) = 
+resolveBranch (Branch name args e) =
   (unIdent name,) <$> local (insertVars args) (resolveWhere e)
 
 -- Assumes a flattened telescope.
@@ -257,5 +257,4 @@ handleDefs defs re = do
   return (handleLet e xs)
 
 handleModule :: Module -> Resolver A.Exp
-handleModule (Module defs)      = handleDefs defs (return A.Top)
-handleModule (ModEval exp defs) = handleDefs defs (resolveExp exp)
+handleModule (Module _ defs)      = handleDefs defs (return A.Top)

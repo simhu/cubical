@@ -1,10 +1,4 @@
-
-
-
-
-
-
-eval addvalscong where
+module primitive_test where
 
 primitive
   Id   : (A : U) (a b : A) -> U
@@ -66,11 +60,11 @@ addvals f = plus (f two) (f three)
 addvalscong : Id N (addvals natid) (addvals natid')
 addvalscong = cong (N -> N) N addvals natid natid' idseq
 
--- data List (A : U) = nil | cons (x : A) (xs : List A)
+data List (A : U) = nil | cons (x : A) (xs : List A)
 
--- append : (A : U) -> List A -> List A -> List A
--- append A = split
---   nil       -> \ys -> ys
---   cons x xs -> \ys -> $ cons x (append A xs ys)
+append : (A : U) -> List A -> List A -> List A
+append A = split
+  nil       -> \ys -> ys
+  cons x xs -> \ys -> $ cons x (append A xs ys)
 
 

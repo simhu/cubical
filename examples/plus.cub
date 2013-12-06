@@ -1,9 +1,4 @@
-
-
-
-
-
-eval plus two two where
+module plus where
 
 data N = zero | suc (n : N)
 

@@ -1,6 +1,4 @@
-
-eval test5 where
-
+module propuid where
 
 primitive
   Id   : (A : U) (a b : A) -> U
@@ -378,7 +376,7 @@ exactOne : (A : U) (B : A -> U) -> U
 exactOne A B = and (exist A B) (atmostOne A B)
 
 lemInh : (A : U) -> prop A -> inh A -> A
-lemInh A h = inhrec A A h (\x -> x) 
+lemInh A h = inhrec A A h (\x -> x)
 
 descrAx : (A : U) (B : A -> U) -> propFam A B -> exactOne A B -> Sigma A B
 descrAx A B h = split

@@ -1,4 +1,4 @@
-eval testBool where
+module weq where
 
 primitive
   Id   : (A : U) (a b : A) -> U
@@ -14,8 +14,8 @@ primitive
 --  squash : (A : U) -> prop (inh A)
   squash : (A : U) (a b : inh A) -> Id (inh A) a b
   inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
-  equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y) 
-            (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) -> 
+  equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
+            (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
             Id U A B
   subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
   substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
@@ -197,11 +197,11 @@ dec A = or A (neg A)
 
 data Sigma (A : U) (B : A -> U) = pair (x : A) (y : B x)
 
-fiber : (A B : U) (f : A -> B) (y : B) -> U 
+fiber : (A B : U) (f : A -> B) (y : B) -> U
 fiber A B f y = Sigma A (graph A B f y)
 
 graph : (A B : U) -> (f : A -> B) -> B -> A -> U
-graph A B f y x = Id B (f x) y 
+graph A B f y x = Id B (f x) y
 
 const : (A : U) (f : A -> A) -> U
 const A f = (x y : A) -> Id A (f x) (f y)
@@ -386,7 +386,7 @@ exactOne : (A : U) (B : A -> U) -> U
 exactOne A B = and (exist A B) (atmostOne A B)
 
 lemInh : (A : U) -> prop A -> inh A -> A
-lemInh A h = inhrec A A h (\x -> x) 
+lemInh A h = inhrec A A h (\x -> x)
 
 descrAx : (A : U) (B : A -> U) -> propFam A B -> exactOne A B -> Sigma A B
 descrAx A B h = split
@@ -589,7 +589,7 @@ test5 = barIsEven fiveBar
 
 
 notK : (x : Bool) -> Id Bool (not (not x)) x
-notK = split 
+notK = split
   true  -> refl Bool ($ true)
   false -> refl Bool ($ false)
 
@@ -603,12 +603,12 @@ notFiber : Bool -> U
 notFiber b = fiber Bool Bool not b
 
 fstNotFiber : (b : Bool) -> notFiber b -> Bool
-fstNotFiber b = fst Bool (\x -> Id Bool (not x) b) 
+fstNotFiber b = fst Bool (\x -> Id Bool (not x) b)
 
-eqNotFiber : (b : Bool) -> (v v' : notFiber b) -> 
+eqNotFiber : (b : Bool) -> (v v' : notFiber b) ->
   Id Bool (fstNotFiber b v) (fstNotFiber b v') -> Id (notFiber b) v v'
 eqNotFiber b = eqPropFam Bool (\x -> Id Bool (not x) b) rem
-  where 
+  where
   rem : propFam Bool (\x -> Id Bool (not x) b)
   rem = \x -> boolIsSet (not x) b
 
@@ -621,14 +621,14 @@ tNot b v = eqNotFiber b (sNot b) v rem
   b' : Bool
   b' = fstNotFiber b v
 
-  rem : Id Bool (not b) b' 
-  rem = notInj (not b) b' rem1 
+  rem : Id Bool (not b) b'
+  rem = notInj (not b) b' rem1
 
   rem1 : Id Bool (not (not b)) (not b')
-  rem1 = comp Bool (not (not b)) b (not b') (notK b) 
+  rem1 = comp Bool (not (not b)) b (not b') (notK b)
          (inv Bool (not b') b (snd Bool (\x -> Id Bool (not x) b) v))
 
-eqBoolBool : Id U Bool Bool 
+eqBoolBool : Id U Bool Bool
 eqBoolBool = equivEq Bool Bool not sNot tNot
 
 transport : (A B : U) -> Id U A B -> A -> B
@@ -647,7 +647,7 @@ transport' : (A B : U) -> Id U A B -> A -> B
 transport' = subst' U (\x -> x)
 
 -- negUIP : neg (UIP U)
--- negUIP uipU = 
+-- negUIP uipU =
 --   where
 --   eqreflnot : Id (Id U Bool Bool) (refl U Bool) eqBoolBool
 --   eqreflnot = uipU Bool Bool (refl U Bool) eqBoolBool
@@ -661,7 +661,7 @@ transport' = subst' U (\x -> x)
 --   lem1 : Id (Bool -> Bool) frefl fnot
 --   lem1 = cong (Id U Bool Bool) (Bool -> Bool) (transport' Bool Bool) (refl U Bool) eqBoolBool eqreflnot
 
---   lem2 : Id Bool ($ true) (frefl ($ true)) 
+--   lem2 : Id Bool ($ true) (frefl ($ true))
 --   lem2 = subst'eq U (\x -> x) Bool ($ true)
 
 --   lem3 : Id Bool ($ false) (fnot ($ true))

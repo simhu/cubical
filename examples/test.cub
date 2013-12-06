@@ -1,3 +1,5 @@
+module test where
+
 -- This is a one line comment.
 
 {- This comment
@@ -8,29 +10,23 @@
 data N = zero | suc (n : N)
 
 -- A type declaration.
-f : (a : A) (b c d : B) -> N -> N
+f : (A B : U) (a : A) (b c d : B) -> N -> N
+f _ _ _ _ _ _ n = n
 
 -- a function declaration
+fst : N -> N -> N
 fst x y = x
 
-plus : N -> N -> N
-plus n m = case n of
-  zero  -> m
-  suc n -> suc k
-    where k = plus n m
-
-local x = let x = x
-          in plus x x
+local : N -> N
+local x =
+  let y : N
+      y = x
+  in y
 
 data List (A : U) = nil | cons (x : A) (xs : List A)
 
-head : (A : U) -> List A -> A
-head _ xs = case xs of
-  nil -> nil
-  cons x xs -> x
+lambda : (A B C : U) -> A -> B -> C -> A
+lambda = \ _ _ _ x y z -> x
 
-lambda : A -> B -> C -> A
-lambda = \x y z -> x
-
-id : A -> A
-id x = x 
+id : (A : U) -> A -> A
+id _ x = x
