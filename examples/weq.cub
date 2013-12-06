@@ -638,7 +638,7 @@ transportInv : (A B : U) -> Id U A B -> B -> A
 transportInv = substInv U (\x -> x)
 
 notEqBool : Bool -> Bool
-notEqBool = transportInv Bool Bool eqBoolBool
+notEqBool = transport' Bool Bool eqBoolBool
 
 testBool : Bool
 testBool = notEqBool ($ true)

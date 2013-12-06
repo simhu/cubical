@@ -50,7 +50,7 @@ data Val = VU
          | VId Val Val Val
          | Path Name Val             -- tag values which are paths
          | VExt Name Val Val Val Val -- has dimension (name:dim);
-                                         -- vals of dimension dim
+                                     -- vals of dimension dim
          | VPi Val Val
          | VInh Val
          | VInc Val
@@ -61,13 +61,14 @@ data Val = VU
          | VEquivEq Name Val Val Val Val Val -- of type U of dimension name:dim
            -- VEquivEq x d a b f s t where
          | VPair Name Val Val -- of type VEquiv
+         | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
   deriving (Show, Eq)
 
 fstVal, sndVal :: Val -> Val
 fstVal (VPair _ a _) = a
-fstVal x             = error $ "fstVal: " ++ show x
+fstVal x             = error $ "error fstVal: " ++ show x
 sndVal (VPair _ _ v) = v
-sndVal x             = error $ "sndVal: " ++ show x
+sndVal x             = error $ "error sndVal: " ++ show x
 
 data Env = Empty
          | Pair Env Val
@@ -131,8 +132,10 @@ face u x dir =
     | x == y                     -> u
     | x `notElem` nonPrincipal b -> com (fc a) (mapBox fc b)
     | x `elem` nonPrincipal b    -> face (lookBox b (x,dir)) y dir'
-
-
+  VComp b@(Box dir' y v nvs)
+    | x == y                     -> u
+    | x `notElem` nonPrincipal b -> VComp (mapBox fc b)
+    | x `elem` nonPrincipal b    -> face (lookBox b (x,dir)) y dir'
 
 unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
@@ -155,8 +158,9 @@ support (VExt x b f g p)  = [x] `union` unionsMap support [b,f,g,p]
 support (Kan Fill a box)  = support a `union` supportBox box
 support (Kan Com a box@(Box _ n _ _)) =
   delete n (support a `union` supportBox box)
-support (VEquivEq x a b f s t) = [x] `union` unionsMap support [a,b,f,s,t]
-support (VPair x a v)          = [x] `union` unionsMap support [a,v]
+support (VEquivEq x a b f s t)    = [x] `union` unionsMap support [a,b,f,s,t]
+support (VPair x a v)             = [x] `union` unionsMap support [a,v]
+support (VComp box@(Box _ n _ _)) = delete n $ supportBox box
 
 supportBox :: Box Val -> [Name]
 supportBox (Box dir n v vns) = [n] `union` support v `union`
@@ -184,6 +188,12 @@ swapEnv e x y = mapEnv (\u -> swap u x y) e
 
 -- TODO: Define swapBox?
 
+swapBox :: Box Val -> Name -> Name -> Box Val
+swapBox (Box dir z v nvs) x y =
+  let sw u = swap u x y
+  in Box dir (swapName z x y) (sw v)
+         [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ]
+
 swap :: Val -> Name -> Name -> Val
 swap u x y =
   let sw u = swap u x y in case u of
@@ -194,26 +204,24 @@ swap u x y =
            | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
                               v' = swap v z z'
                           in Path z' (sw v')
-  VExt z b f g p -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
-  VPi a f -> VPi (sw a) (sw f)
-  VInh v -> VInh (sw v)
-  VInc v -> VInc (sw v)
+  VExt z b f g p  -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
+  VPi a f         -> VPi (sw a) (sw f)
+  VInh v          -> VInh (sw v)
+  VInc v          -> VInc (sw v)
   VSquash z v0 v1 -> VSquash (swapName z x y) (sw v0) (sw v1)
-  VCon c us -> VCon c (map sw us)
+  VCon c us       -> VCon c (map sw us)
   VEquivEq z a b f s t -> VEquivEq (swapName z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
-  VPair z a v -> VPair (swapName z x y) (sw a) (sw v)
-  Kan Fill a b@(Box dir' z v nvs) ->
-    fill (sw a) (Box dir' (swapName z x y) (sw v)
-                 [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ])
-  Kan Com a b@(Box dir' z v nvs)
-    | z /= x && z /= y    -> com (sw a) (Box dir' (swapName z x y) (sw v)
-                                         [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ])
+  VPair z a v  -> VPair (swapName z x y) (sw a) (sw v)
+  Kan Fill a b -> fill (sw a) (swapBox b x y)
+  Kan Com a b@(Box _ z _ _)
+    | z /= x && z /= y    -> com (sw a) (swapBox b x y)
     | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
                        a' = swap a z z'
-                       v' = swap v z z'
-                       nvs' = [ ((swapName n z z',nd),swap v z z')
-                              | ((n,nd),v) <- nvs ]
-                   in sw (Kan Com a' (Box dir' z' v' nvs'))
+                   in sw (Kan Com a' (swapBox b z z'))
+  VComp b@(Box _ z _ _)
+    | z /= x && z /= y -> VComp (swapBox b x y)
+    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+                   in sw (VComp (swapBox b z z'))
 
 appName :: Val -> Name -> Val
 appName (Path x u) y = swap u x y
@@ -307,6 +315,9 @@ consBox :: (Name,(a,a)) -> Box a -> Box a
 consBox (n,(v0,v1)) (Box dir x v nvs) =
   Box dir x v $ ((n,Down),v0) : ((n,Up),v1) : nvs
 
+appendBox :: [(Name,(a,a))] -> Box a -> Box a
+appendBox xs b = foldr consBox b xs
+
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
@@ -372,14 +383,63 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
          bcom   = com b box2
      in trace ("VEquivEq case 4\n" ++ "box1 = " ++ show box1 ++ "\nbox2 = " ++ show box2) $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
+fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
+  | toAdd /= []     = fill v newBox
+  | x' `notElem` nK =
+    let VComp vxbox@(Box _ _ vxp vxnp) = vx'
+        nL      = nJ \\ nK
+        tdir'   = mirror tdir
+        axtdirs = [ let VComp (Box _ _ zdp _) = lookBox box zd in (zd,zdp)
+                  | zd <- allDirs nL ] 
+        axtdir' = fill tx (Box dir x' vxp axtdirs)
+        -- TODO: Swap order of arguments to lookBox
+        -- TODO: Face and swap should take pairs 
+        xs = [ let ax'      = lookBox vxbox zd 
+                   innerbox = Box dir x' ax' $
+                              ((x,tdir),lookBox box zd) : ((x,tdir'),face axtdir' z d ) :
+                              [ let VComp b = lookBox box zd' in (zd',lookBox b zd)
+                              | zd' <- allDirs nL ]
+               in (zd,fill (lookBox tbox zd) innerbox)
+             | zd@(z,d) <- allDirs nK ]
+    in VComp (Box tdir x axtdir' xs) 
+  | otherwise       =
+    let nL     = nJ \\ nK
+        dir'   = mirror dir
+        tdir'  = mirror tdir
+
+        axtdir's = [ let VComp (Box _ _ zdp _) = lookBox box zd in (zd,zdp)
+                   | zd <- allDirs nL ] 
+        ap     = face vx' x tdir -- let VComp (Box _ _ zdp _) = vx' in zdp
+        ainter = [ (zd,fill (lookBox tbox zd) (Box tdir' x nv
+                               [ let VComp b = lookBox box zd' in (zd',lookBox b zd)
+                               | zd' <- allDirs nL ])) -- EXACTLY the same as above
+                 | (zd@(n,ndir),nv) <- nvs', zd /= (x',dir) && n `elem` nK ]
+        aintertdir' = map (\(zc,azc) -> (zc,face azc x tdir')) ainter
+
+        axdir'  = ((x,dir'),fill tx (Box dir x' ap (axtdir's ++ aintertdir')))
+        a'inter = map (\(zc,azc) -> (zc,face azc x' dir)) (axdir' : ainter)
+        a'comp  = [ let VComp b = lookBox box zd in (zd,lookBox b (x',dir))
+                  | zd <- allDirs nL ]
+        ap'     = face vx' x dir' -- let VComp b = vx' in lookBox b (x,dir')
+        ax'dir  = ((x',dir),fill (lookBox tbox (x',dir)) (Box dir x ap' (a'inter ++ a'comp)))
+
+    in VComp (Box tdir x (snd axdir') (ax'dir : ainter))
+  where nK    = nonPrincipal tbox
+        nJ    = nonPrincipal box
+        toAdd = nK \\ (x' : nJ)
+
+        add :: (Name,Dir) -> Val
+        add zc@(z,c) = fill (lookBox tbox zc) (mapBox (\v -> face v z c) box)
+
+        newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
+          
 fill v b = Kan Fill v b
 
--- Given C : B -> U such that s : (x : B) -> C x and
--- t : (x : B) (y : C x) -> Id (C x) (s x) y, we construct
--- a filling of closed empty cube (i.e., the boundary
--- of a cube) over a cube u in B.
--- C b = sigma (a : A) (Id B (f a) b)
+allDirs :: [Name] -> [(Name,Dir)]
+allDirs []     = []
+allDirs (n:ns) = (n,Down) : (n,Up) : allDirs ns
 
+-- TODO: Remove these?
 vfst, vsnd :: Val -> Val
 vfst (VCon "pair" [a,b]) = a
 vfst _                   = error "vfst"
@@ -396,10 +456,11 @@ fills _ _ _ = error "fills: different lengths of types and values"
 -- Note that the dimension is not the dimension of the output value,
 -- but the one where the open box is specified
 com :: Val -> Box Val -> Val
-com vid@VId{} box@(Box dir i _ _)      = face (fill vid box) i dir
-com ter@Ter{} box@(Box dir i _ _)      = face (fill ter box) i dir
-com veq@VEquivEq{} box@(Box dir i _ _) = face (fill veq box) i dir
-com v box                              = Kan Com v box
+com vid@VId{} box@(Box dir i _ _)        = face (fill vid box) i dir
+com ter@Ter{} box@(Box dir i _ _)        = face (fill ter box) i dir
+com veq@VEquivEq{} box@(Box dir i _ _)   = face (fill veq box) i dir
+com u@(Kan Com VU _) box@(Box dir i _ _) = face (fill u box) i dir
+com v box                                = Kan Com v box
 
 cubeToBox :: Val -> Box () -> Box Val
 cubeToBox v (Box dir x () nvs) =
