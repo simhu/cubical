@@ -31,11 +31,8 @@ showTree tree = do
   putStrLn $ "\n[Abstract Syntax]\n\n" ++ show tree
   putStrLn $ "\n[Linearized tree]\n\n" ++ printTree tree
 
-unModule :: Module -> [Def]
-unModule (Module _ defs) = defs
-
-parseFiles :: [FilePath] -> IO [Def]
-parseFiles [] = return []
+parseFiles :: [FilePath] -> IO ([Imp],[Def])
+parseFiles []     = return ([],[])
 parseFiles (f:fs) = do
   s <- readFile f
   let ts = lexer s
@@ -44,26 +41,23 @@ parseFiles (f:fs) = do
       putStrLn $ "Parse Failed in file " ++ show f ++ "\n"
       putStrLn $ "Tokens: " ++ show ts
       putStrLn s
-      return []
-    Ok mod -> do
+      return ([],[])
+    Ok mod@(Module _ imps defs) -> do
       putStrLn $ "Parsed file " ++ show f ++ " successfully!"
       showTree mod
-      defs <- parseFiles fs
-      return $ unModule mod ++ defs
+      (imps',defs') <- parseFiles fs
+      return $ (imps ++ imps',defs ++ defs')
 
 main :: IO ()
 main = getArgs >>= runInputT defaultSettings . runInterpreter
-
-getImports :: [Def] -> [String]
-getImports defs = [ n ++ ".cub" | DefImport (AIdent (_,n)) <- defs ]
 
 --  names to import -> files already imported -> all definitions
 imports :: [String] -> [FilePath] -> [Def] -> Interpreter [Def]
 imports [] _  defs = return defs
 imports xs fs defs = do
-  newDefs <- lift $ parseFiles xs
-  let imps = getImports newDefs
-  imports (nub imps \\ fs) (fs ++ xs) (defs ++ newDefs)
+  (imps,newDefs) <- lift $ parseFiles xs
+  let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
+  imports (nub imps' \\ fs) (fs ++ xs) (defs ++ newDefs)
 
 runInterpreter :: [FilePath] -> Interpreter ()
 runInterpreter fs = do

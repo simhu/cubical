@@ -1,39 +1,37 @@
+entrypoints Module, Exp ;
+
 comment "--" ;
 comment "{-" "-}" ;
 
 layout "where", "let", "of", "split", "primitive" ;
 layout stop "in" ;
--- layout toplevel ;
+-- Do not use layout toplevel as it make pExp fail!
 
-Module.  Module ::= "module" AIdent "where" "{" [Def] "}" ;
+Module.   Module ::= "module" AIdent "where" "{" [Imp] [Def] "}" ;
 
-Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
-DefTDecl.  Def ::= AIdent ":" Exp ;
-DefData.   Def ::= "data" AIdent Tele "=" [Sum] ;
-DefPrim.   Def ::= "primitive" "{" [Def] "}" ; -- only allows TDecls
-DefImport. Def ::= "import" AIdent ;
+Import.   Imp ::= "import" AIdent ;
+separator Imp ";" ;
 
+Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
+DefTDecl. Def ::= AIdent ":" Exp ;
+DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
+DefPrim.  Def ::= "primitive" "{" [Def] "}" ; -- only allows TDecls
 separator Def ";" ;
 
-Where.   ExpWhere  ::= Exp "where" "{" [Def] "}" ;
-NoWhere. ExpWhere  ::= Exp ;
+Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;
+NoWhere.  ExpWhere ::= Exp ;
 
-Let.    Exp  ::= "let" "{" [Def] "}" "in" Exp ;
-Lam.    Exp  ::= "\\" [Binder] "->" Exp ;
---Case.   Exp  ::= "case" Exp "of" "{" [Branch] "}" ;
-Split.  Exp  ::= "split" "{" [Branch] "}" ;
-
-Fun.    Exp1 ::= Exp2 "->" Exp1 ;
-Pi.     Exp1 ::= TeleNE "->" Exp1 ;
-
-App.    Exp2 ::= Exp2 Exp3 ;
-Con.    Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
--- internal PNAnn.  Exp1 ::= "PRIMITIVE" AIdent Exp2 ;
-Var.    Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
-U.      Exp3 ::= "U" ;
-PN.     Exp2 ::= "PN" AIdent Exp3 ;
+Let.      Exp  ::= "let" "{" [Def] "}" "in" Exp ;
+Lam.      Exp  ::= "\\" [Binder] "->" Exp ;
+Split.    Exp  ::= "split" "{" [Branch] "}" ;
+Fun.      Exp1 ::= Exp2 "->" Exp1 ;
+Pi.       Exp1 ::= TeleNE "->" Exp1 ;
+App.      Exp2 ::= Exp2 Exp3 ;
+Con.      Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
+PN.       Exp2 ::= "PN" AIdent Exp3 ;
+Var.      Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
+U.        Exp3 ::= "U" ;
 internal Top. Exp3 ::= "Top" ;
-
 terminator Exp3 "" ;
 coercions Exp 3 ;
 
@@ -41,28 +39,28 @@ Binder.   Binder ::= Arg ;
 separator nonempty Binder "" ;
 
 -- Like Binder, but may be empty
-Arg.      Arg ::= AIdent ;
-NoArg.    Arg ::= "_" ;
+Arg.       Arg ::= AIdent ;
+NoArg.     Arg ::= "_" ;
 terminator Arg "" ;
 
 -- Branches
-Branch.  Branch ::= AIdent [Arg] "->" ExpWhere ;
+Branch.   Branch ::= AIdent [Arg] "->" ExpWhere ;
 separator Branch ";" ;
 
 -- Labelled sum alternatives
-Sum.    Sum   ::= AIdent Tele ;
+Sum.      Sum   ::= AIdent Tele ;
 separator Sum "|" ;
 
 -- Telescopes
-Tele. Tele  ::= [VDecl] ;
+Tele.    Tele  ::= [VDecl] ;
 
 -- Nonempty telescopes
-TeleNE. TeleNE ::= [VDeclNE] ;
+TeleNE.  TeleNE ::= [VDeclNE] ;
 
-VDecl.  VDecl ::= "(" [Binder] ":" Exp ")" ;
+VDecl.     VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 
-VDeclNE.  VDeclNE ::= VDecl ;
+VDeclNE.   VDeclNE ::= VDecl ;
 terminator nonempty VDeclNE "" ;
 
 position token AIdent (letter(letter|digit|'\''|'_')*) ;
