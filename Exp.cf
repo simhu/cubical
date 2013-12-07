@@ -25,7 +25,7 @@ Let.      Exp  ::= "let" "{" [Def] "}" "in" Exp ;
 Lam.      Exp  ::= "\\" [Binder] "->" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
-Pi.       Exp1 ::= TeleNE "->" Exp1 ;
+Pi.       Exp1 ::= [PiDecl] "->" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
 Con.      Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
 PN.       Exp2 ::= "PN" AIdent Exp3 ;
@@ -54,14 +54,13 @@ separator Sum "|" ;
 -- Telescopes
 Tele.    Tele  ::= [VDecl] ;
 
--- Nonempty telescopes
-TeleNE.  TeleNE ::= [VDeclNE] ;
-
 VDecl.     VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 
-VDeclNE.   VDeclNE ::= VDecl ;
-terminator nonempty VDeclNE "" ;
+-- Nonempty telescopes with Exp:s, this is hack to avoid ambiguities in the
+-- grammar when parsing Pi
+PiDecl.   PiDecl ::= "(" Exp ":" Exp ")" ;
+terminator nonempty PiDecl "" ;
 
 position token AIdent (letter(letter|digit|'\''|'_')*) ;
 terminator AIdent "" ;
