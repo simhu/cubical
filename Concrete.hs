@@ -35,14 +35,8 @@ unArg NoArg   = "_"
 unArgs :: [Arg] -> [String]
 unArgs = map unArg
 
-unNE :: VDeclNE -> VDecl
-unNE (VDeclNE vdcl) = vdcl
-
 unTele :: Tele -> [VDecl]
 unTele (Tele n) = n
-
-unTeleNE :: TeleNE -> [VDeclNE]
-unTeleNE (TeleNE n) = n
 
 unBinder :: Binder -> Arg
 unBinder (Binder b) = b
@@ -62,8 +56,16 @@ unWhere (NoWhere e)  = e
 flattenTele :: Tele -> [VDecl]
 flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs]) . unTele
 
-flattenTeleNE :: TeleNE -> [VDecl]
-flattenTeleNE = flattenTele . Tele . map unNE . unTeleNE
+unApps :: Exp -> [Binder]
+unApps (App e (Var b)) = unApps e ++ [b]
+unApps (Var b)         = [b]
+unApps e               = error $ "unApps bad input: " ++ show e
+
+unPiDecl :: PiDecl -> VDecl
+unPiDecl (PiDecl e t) = VDecl (unApps e) t
+
+flattenTelePi :: [PiDecl] -> [VDecl]
+flattenTelePi = flattenTele . Tele . map unPiDecl
 
 namesTele :: Tele -> [String]
 namesTele (Tele vs) = unions [ unArgsBinder args | VDecl args _ <- vs ]
@@ -73,7 +75,6 @@ defToNames (Def n _ _)     = [unIdent n]
 defToNames (DefTDecl n _)  = [unIdent n]
 defToNames (DefData n _ _) = [unIdent n]
 defToNames (DefPrim defs)  = defsToNames defs
-defToNames (DefImport _)   = []
 
 defsToNames :: [Def] -> [String]
 defsToNames = nub . concatMap defToNames
@@ -109,7 +110,7 @@ resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
 resolveExp Top          = return A.Top
 resolveExp (App t s)    = A.App <$> resolveExp t <*> resolveExp s
-resolveExp (Pi tele b)  = resolveTelePi (flattenTeleNE tele) (resolveExp b)
+resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
@@ -124,8 +125,6 @@ resolveExp (Var n)      = do
     else case elemIndex i e of
       Just n  -> return $ A.Ref n
       Nothing -> throwError ("unknown identifier: " ++ show i)
--- resolveExp (Case e brs) =
---   A.App <$> (A.Fun <$> mapM resolveBranch brs) <*> resolveExp e
 
 resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
@@ -177,7 +176,6 @@ defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
     unfoldPrimitive d@(DefTDecl n a) = [d,Def n [] (NoWhere (PN n a))]
     unfoldPrimitive d =
       error ("only type declarations are allowed in primitives " ++ show d)
-defToGraph (DefImport _) = []
 
 freeVarsExp :: Exp -> [String]
 freeVarsExp U           = []
@@ -192,12 +190,9 @@ freeVarsExp (Split bs)  =
   unions [ unIdent bn : (freeVarsExp (unWhere e) \\ unArgs args)
          | Branch bn args e <- bs ]
 freeVarsExp (Con cn es) = [unIdent cn] `union` unions (map freeVarsExp es)
-freeVarsExp (Pi (TeleNE []) e)                        = freeVarsExp e
-freeVarsExp (Pi (TeleNE (VDeclNE (VDecl bs a):vs)) e) =
-  freeVarsExp a `union` (freeVarsExp (Pi (TeleNE vs) e) \\ unArgsBinder bs)
--- freeVarsExp (Case e bs) =
---   freeVarsExp e `union` unions [ str:(freeVarsExp (unWhere ew) \\ unArgs args)
---                             | Branch (AIdent (_,str)) args ew <- bs ]
+freeVarsExp (Pi [] e)                        = freeVarsExp e
+freeVarsExp (Pi (PiDecl bs a:vs) e) =
+  freeVarsExp a `union` (freeVarsExp (Pi vs e) \\ unArgsBinder (unApps bs))
 
 -- The free variables of the right hand side.
 freeVarsDef :: Def -> [String]
@@ -206,7 +201,6 @@ freeVarsDef (DefTDecl _ e)          = freeVarsExp e
 freeVarsDef (DefPrim defs)          = unions (map freeVarsDef defs)
 freeVarsDef (DefData _ vdecls lbls) = freeVarsTele vdecls `union`
   (unions [ freeVarsTele vs | Sum _ vs <- lbls ] \\ namesTele vdecls)
-freeVarsDef (DefImport _)           = [] -- Should only be imports
 
 freeVarsTele :: Tele -> [String]
 freeVarsTele (Tele ts) = fvT ts
@@ -260,4 +254,4 @@ handleDefs defs re = do
   return (handleLet e xs)
 
 handleModule :: Module -> Resolver A.Exp
-handleModule (Module _ defs)      = handleDefs defs (return A.Top)
+handleModule (Module _ _ defs) = handleDefs defs (return A.Top)
