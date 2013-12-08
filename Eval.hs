@@ -55,7 +55,6 @@ fromBox (Box d x v nvs) = ((x,d),v) : nvs
 --                                         in  Box d' x' nv' (nv:nvs')
 -- toBox _ _ [] = error $ "toBox: not a box!"
 
--- TODO: Change the order of the arguments to f?
 modBox :: ((Name,Dir) -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
   Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
@@ -144,7 +143,7 @@ mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
 faceEnv :: Env -> (Name,Dir) -> Env
 faceEnv e xd = mapEnv (\u -> u `face` xd) e
 
-face :: Val -> Name -> Dir -> Val
+face :: Val -> (Name,Dir) -> Val
 face u xdir@(x,dir) =
   let fc v = v `face` (x,dir) in case u of
   VU          -> VU
@@ -451,23 +450,23 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     in VComp (Box tdir x principal nonprincipal)
   | otherwise       = -- x' `elem` nK
     let -- assumes zc in defBox tbox
-        auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
-        -- extend input box along x' with orientation tdir'; results
-        -- in the non-principal faces on the intersection of defBox
-        -- box and defBox tbox; note, that the intersection contains
-        -- (x',dir'), but not (x',dir) (and (x,_))
-        npintbox@(Box _ _ _ npintaux) =
-          modBox (\ zc boxside -> fill (lookBox zc tbox)
-                                     (Box tdir' x boxside (auxsides zc)))
-            (subBox nK box)
-        npint = fromBox npintbox
-        npintfacebox = mapBox (`face` (x,tdir')) npintbox
-        principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
-        nplp  = principal `face` (x',dir)
-        nplnp = auxsides (x',dir)
-                ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
-        -- the missing non-principal face on side (x',dir)
-        nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
+      auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
+      -- extend input box along x' with orientation tdir'; results
+      -- in the non-principal faces on the intersection of defBox
+      -- box and defBox tbox; note, that the intersection contains
+      -- (x',dir'), but not (x',dir) (and (x,_))
+      npintbox@(Box _ _ _ npintaux) =
+        modBox (\ zc boxside -> fill (lookBox zc tbox)
+                                  (Box tdir' x boxside (auxsides zc)))
+          (subBox nK box)
+      npint = fromBox npintbox
+      npintfacebox = mapBox (`face` (x,tdir')) npintbox
+      principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
+      nplp  = principal `face` (x',dir)
+      nplnp = auxsides (x',dir)
+              ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
+      -- the missing non-principal face on side (x',dir)
+      nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
     in VComp (Box tdir x principal (nplast:npint))
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
