@@ -24,7 +24,7 @@ gensym xs = maximum xs + 1
 gensyms :: Dim -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
 
--- The pair of values is (down,up)
+-- The pair of values is (down,up).
 data Box a = Box Dir Name a [((Name,Dir),a)]
   deriving (Eq,Show)
 
@@ -32,16 +32,59 @@ mapBox :: (a -> b) -> Box a -> Box b
 mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
                           -- (map (second f) xs)
 
--- assumes name appears as non principal a direction of the box
+instance Functor Box where fmap = mapBox
+
 lookBox :: Box a -> (Name,Dir) -> a
-lookBox (Box _ _ _ nvs) x = case lookup x nvs of
+lookBox (Box d x v _) (y,dir) | x == y && mirror d == dir = v
+lookBox (Box _ _ _ nvs) xd    | otherwise = case lookup xd nvs of
   Just v  -> v
-  Nothing -> error $ "lookBox: box not defined on " ++ show x
+  Nothing -> error $ "lookBox: box not defined on " ++ show xd
 
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
-instance Functor Box where fmap = mapBox
+defBox :: Box a -> [(Name, Dir)]
+defBox (Box d x _ nvs) = (x,d) : [ zd | (zd,_) <- nvs ]
+
+fromBox :: Box a -> [((Name,Dir),a)]
+fromBox (Box d x v nvs) = ((x,d),v) : nvs
+
+toBox :: Dir -> Name -> [((Name,Dir),a)] -> Box a
+toBox d x (nv@(zd,v):nvs) | zd == (x, mirror d) = Box d x v nvs
+                          | otherwise = let Box d' x' nv' nvs' = toBox d x nvs
+                                        in  Box d' x' nv' (nv:nvs')
+toBox _ _ [] = error $ "toBox: not a box!"
+
+-- TODO: Change the order of the arguments to f?
+modBox :: (Dir -> Name -> a -> b) -> Box a -> Box b
+modBox f (Box dir x v nvs) =
+  Box dir x (f (mirror dir) x v) [ ((n,nd),f nd n v) | ((n,nd),v) <- nvs ]
+
+-- Restricts the non-principal faces to np.
+subBox :: [Name] -> Box a -> Box a
+subBox np (Box dir x v nvs) = Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
+
+cubeToBox :: Val -> Box () -> Box Val
+cubeToBox v box = modBox (\d n _ -> face v n d) box
+--  Box dir x (face v x (mirror dir)) [ ((n,d),face v n d) | ((n,d),_) <- nvs ]
+
+shapeOfBox :: Box a -> Box ()
+shapeOfBox = mapBox (const ())
+
+-- fst is down, snd is up
+consBox :: (Name,(a,a)) -> Box a -> Box a
+consBox (n,(v0,v1)) (Box dir x v nvs) =
+  Box dir x v $ ((n,Down),v0) : ((n,Up),v1) : nvs
+
+appendBox :: [(Name,(a,a))] -> Box a -> Box a
+appendBox xs b = foldr consBox b xs
+
+arrangeSide :: Show a => Name -> (Dir, a) -> (Dir, a) -> (Name, (a,a))
+arrangeSide n (Down, u) (Up, u') = (n, (u,u'))
+arrangeSide n (Up, u) (Down, u') = (n, (u',u))
+arrangeSide _ a b = error $ "arrangeSide: not a valid side: " ++ show a
+                    ++ " and " ++ show b
+
 
 data KanType = Fill | Com deriving (Show, Eq)
 
@@ -54,13 +97,12 @@ data Val = VU
          | VPi Val Val
          | VInh Val
          | VInc Val
-         | VSquash Name Val Val  -- has dimension (name:dim); vals
-                                     -- of dimension dim
+         | VSquash Name Val Val  -- connects the two values along the name
          | VCon Ident [Val]
          | Kan KanType Val (Box Val)
-         | VEquivEq Name Val Val Val Val Val -- of type U of dimension name:dim
-           -- VEquivEq x d a b f s t where
-         | VPair Name Val Val -- of type VEquiv
+         | VEquivEq Name Val Val Val Val Val -- of type U connecting a and b along x
+           -- VEquivEq x a b f s t
+         | VPair Name Val Val -- of type VEquivEq
          | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
   deriving (Show, Eq)
 
@@ -186,8 +228,6 @@ swapName z x y | z == x    = y
 swapEnv :: Env -> Name -> Name -> Env
 swapEnv e x y = mapEnv (\u -> swap u x y) e
 
--- TODO: Define swapBox?
-
 swapBox :: Box Val -> Name -> Name -> Box Val
 swapBox (Box dir z v nvs) x y =
   let sw u = swap u x y
@@ -280,10 +320,6 @@ eval e (EquivEq a b f s t) =  -- TODO: are the dimensions of a,b,f,s,t okay?
   Path x $ VEquivEq x (eval e a) (eval e b) (eval e f) (eval e s) (eval e t)
     where x = freshEnv e
 
-modBox :: (Dir -> Name -> a -> b) -> Box a -> Box b
-modBox f (Box dir x v nvs) =
-  Box dir x (f dir x v) [ ((n,nd),f nd n v) | ((n,nd),v) <- nvs ]
-
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
 inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
@@ -303,20 +339,16 @@ unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
 unCon v           = error $ "unCon: not a constructor: " ++ show v
 
+unComp :: Val -> Box Val
+unComp (VComp box) = box
+unComp v           = error $ "unComp: not a Comp: " ++ show v
+
 -- TODO: Clean
 transposeBox :: Box [Val] -> [Box Val]
 transposeBox b@(Box dir _ [] _)      = []
 transposeBox (Box dir x (v:vs) nvss) =
   Box dir x v [ (nnd,head vs) | (nnd,vs) <- nvss ] :
   transposeBox (Box dir x vs [ (nnd,tail vs) | (nnd,vs) <- nvss ])
-
--- fst is down, snd is up
-consBox :: (Name,(a,a)) -> Box a -> Box a
-consBox (n,(v0,v1)) (Box dir x v nvs) =
-  Box dir x v $ ((n,Down),v0) : ((n,Up),v1) : nvs
-
-appendBox :: [(Name,(a,a))] -> Box a -> Box a
-appendBox xs b = foldr consBox b xs
 
 -- Kan filling
 fill :: Val -> Box Val -> Val
@@ -375,7 +407,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
          vsqs   = [ ((n,d),vpTSq n d v) | ((n,d),v) <- nvs]
          box1   = Box Up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
          afill  = fill a box1
-                          
+
          acom   = face afill y Up
          fafill = app f afill
          box2   = Box Up y vy (((x,Down),fafill) : ((x,Up),vz) :
@@ -384,62 +416,62 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
      in trace ("VEquivEq case 4\n" ++ "box1 = " ++ show box1 ++ "\nbox2 = " ++ show box2) $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
 fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
-  | toAdd /= []     = fill v newBox
+  | toAdd /= []     = -- W.l.o.g. assume that box contains faces for
+                      -- the non-principal sides of tbox.
+    fill v newBox
   | x' `notElem` nK =
-    let VComp vxbox@(Box _ _ vxp vxnp) = vx'
-        nL      = nJ \\ nK
-        tdir'   = mirror tdir
-        axtdirs = [ let VComp (Box _ _ zdp _) = lookBox box zd in (zd,zdp)
-                  | zd <- allDirs nL ] 
-        axtdir' = fill tx (Box dir x' vxp axtdirs)
-        -- TODO: Swap order of arguments to lookBox
-        -- TODO: Face and swap should take pairs 
-        xs = [ let ax'      = lookBox vxbox zd 
-                   innerbox = Box dir x' ax' $
-                              ((x,tdir),lookBox box zd) : ((x,tdir'),face axtdir' z d ) :
-                              [ let VComp b = lookBox box zd' in (zd',lookBox b zd)
-                              | zd' <- allDirs nL ]
-               in (zd,fill (lookBox tbox zd) innerbox)
-             | zd@(z,d) <- allDirs nK ]
-    in VComp (Box tdir x axtdir' xs)
+    let nL    = nJ \\ nK
+        tdir' = mirror tdir
+        boxL  = subBox nL box
+        principal = fill tx (mapBox (pickout (x,dir')) boxL)
+        nonprincipal =
+          [ let side = arrangeSide x (tdir,lookBox box zd)
+                       (tdir',face principal z d)
+            in (zd, fill (lookBox tbox zd)
+                    (side `consBox` mapBox (pickout zd) boxL))
+          | zd@(z,d) <- allDirs nK ]
+    in VComp (Box tdir x principal nonprincipal)
   | otherwise       = -- x' `elem` nK
     let nL     = nJ \\ nK
-        dir'   = mirror dir
-        tdir'  = mirror tdir
-
-        axtdir's = [ let VComp (Box _ _ zdp _) = lookBox box zd in (zd,zdp)
-                   | zd <- allDirs nL ]
---        ap     = let VComp (Box _ _ zdp _) = vx' in zdp
-        ainter = [ (zd,fill (lookBox tbox zd) (Box tdir' x nv
-                               [ let VComp b = lookBox box zd' in (zd',lookBox b zd)
-                               | zd' <- allDirs nL ])) -- EXACTLY the same as above
-                 | (zd@(n,ndir),nv) <- ((x',dir'), vx'):nvs', zd /= (x',dir) && n `elem` nK ] -- (Jtilde /\ Ktilde)
-        aintertdir' = map (\(zc,azc) -> (zc,face azc x tdir')) ainter
-
-        Just apx0 = lookup (x',dir') aintertdir'
-
-        axdir'  = ((x,dir'),fill tx (Box dir x' apx0 (axtdir's ++ delete ((x',dir'),apx0) aintertdir')))
-        a'inter = map (\(zc,azc) -> (zc,face azc x' dir)) (deleteKey (x',dir') ainter)
-
-        deleteKey k (x@(k',_):xs) | k == k' = xs
-                                  | otherwise = x: deleteKey k xs
-
-        a'comp  = [ let VComp b = lookBox box zd in (zd,lookBox b (x',dir))
-                  | zd <- allDirs nL ]
---        ap'     = face vx' x dir' -- let VComp b = vx' in lookBox b (x,dir')
-        ap' = face (snd axdir') x' dir
-        ax'dir  = ((x',dir),fill (lookBox tbox (x',dir)) (Box dir x ap' (a'inter ++ a'comp)))
-
-    in VComp (Box tdir x (snd axdir') (ax'dir : ainter))
+        interJK = nJ `intersect` nK
+        boxL  = subBox nL box
+        nJt = defBox box
+        nKt = defBox tbox
+        -- contains (x',dir'), but not (x',dir) (and (x,_))
+        interJtKt = nJt `intersect` nKt
+        -- assumes zc in nKt
+        auxsides zc = [ (yd,pickout zc (lookBox box yd)) | yd <- allDirs nL ]
+        -- extend input box along x' with orientation tdir'; results
+        -- in the non-principal faces on the intersection
+        npint =
+          [ (zc, fill (lookBox tbox zc)
+                 (Box tdir' x boxside (auxsides zc)))
+          | (zc,boxside) <- fromBox box, zc `elem` interJtKt ]
+        npintbox@(Box _ _ _ npintaux) = toBox dir x' npint
+        npintfacebox = mapBox (\v -> face v x tdir') npintbox
+        principal = fill tx (auxsides (x,tdir') `appendBox` npintfacebox)
+        nplp  = face principal x' dir
+        nplnp = auxsides (x',dir)
+                ++ map (\(zc,v) -> (zc,face v x' dir)) npintaux
+        -- the missing non-principal face on side (x',dir)
+        nplast = ((x',dir),fill (lookBox tbox (x',dir)) (Box tdir x nplp nplnp))
+    in VComp (Box tdir x principal (nplast:npint))
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
+        dir'   = mirror dir
+        tdir'  = mirror tdir
         toAdd = nK \\ (x' : nJ)
 
         add :: (Name,Dir) -> Val
         add zc@(z,c) = fill (lookBox tbox zc) (mapBox (\v -> face v z c) box)
 
         newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
-          
+
+        -- asumes zd is in the sides of tbox
+        pickout zd vcomp = lookBox (unComp vcomp) zd
+
+
+
 fill v b = Kan Fill v b
 
 allDirs :: [Name] -> [(Name,Dir)]
@@ -469,18 +501,11 @@ com veq@VEquivEq{} box@(Box dir i _ _)   = face (fill veq box) i dir
 com u@(Kan Com VU _) box@(Box dir i _ _) = face (fill u box) i dir
 com v box                                = Kan Com v box
 
-cubeToBox :: Val -> Box () -> Box Val
-cubeToBox v (Box dir x () nvs) =
-  Box dir x (face v x (mirror dir)) [ ((n,d),face v n d) | ((n,d),_) <- nvs ]
-
-shapeOfBox :: Box a -> Box ()
-shapeOfBox = mapBox (const ())
-
 -- Maybe generalize?
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
   where nvus      = [ (nnd,app v (lookup' nnd nus)) | (nnd,v) <- nvs ]
-        lookup' x = maybe (error "appBox") id . lookup x 
+        lookup' x = maybe (error "appBox") id . lookup x
 
 -- TODO: Function for (x,Up) (x,down)...
 
