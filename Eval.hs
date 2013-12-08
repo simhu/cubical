@@ -56,16 +56,16 @@ fromBox (Box d x v nvs) = ((x,d),v) : nvs
 -- toBox _ _ [] = error $ "toBox: not a box!"
 
 -- TODO: Change the order of the arguments to f?
-modBox :: (Dir -> Name -> a -> b) -> Box a -> Box b
+modBox :: ((Name,Dir) -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
-  Box dir x (f (mirror dir) x v) [ ((n,nd),f nd n v) | ((n,nd),v) <- nvs ]
+  Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
 
 -- Restricts the non-principal faces to np.
 subBox :: [Name] -> Box a -> Box a
 subBox np (Box dir x v nvs) = Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
 
 cubeToBox :: Val -> Box () -> Box Val
-cubeToBox v box = modBox (\d n _ -> v `face` (n,d)) box
+cubeToBox v box = modBox (\nd _ -> v `face` nd) box
 --  Box dir x (face v x (mirror dir)) [ ((n,d),face v n d) | ((n,d),_) <- nvs ]
 
 shapeOfBox :: Box a -> Box ()
@@ -164,7 +164,8 @@ face u xdir@(x,dir) =
   VCon c us -> VCon c (map fc us)
   VEquivEq y a b f s t | x == y && dir == Down -> a
                        | x == y && dir == Up   -> b
-                       | otherwise             -> VEquivEq y (fc a) (fc b) (fc f) (fc s) (fc t)
+                       | otherwise             ->
+                         VEquivEq y (fc a) (fc b) (fc f) (fc s) (fc t)
   VPair y a v | x == y && dir == Down -> a
               | x == y && dir == Up   -> fc v
               | otherwise             -> VPair y (fc a) (fc v)
@@ -346,7 +347,7 @@ inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
         b1     = inhrec (fc b Up)   (fc p Up)   (fc phi Up)   a1
 inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
-    where irec dir j v = let fc v = v `face` (j,dir)
+    where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
 
 kan :: KanType -> Val -> Box Val -> Val
@@ -394,8 +395,8 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     in trace "VEquivEq case 1" $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,Down) box
-        bx  = modBox (\dy ny vy -> if x /= ny then sndVal vy else
-                                      if dy == Down then app f ax0 else vy) box
+        bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
+                                       if dy == Down then app f ax0 else vy) box
         v   = fill b bx
     in trace "VEquivEq case 2" VPair x ax0 v
   | x == z && dir == Up =
@@ -456,8 +457,8 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
         -- box and defBox tbox; note, that the intersection contains
         -- (x',dir'), but not (x',dir) (and (x,_))
         npintbox@(Box _ _ _ npintaux) =
-          modBox (\ c z boxside -> fill (lookBox (z,c) tbox)
-                                     (Box tdir' x boxside (auxsides (z,c))))
+          modBox (\ zc boxside -> fill (lookBox zc tbox)
+                                     (Box tdir' x boxside (auxsides zc)))
             (subBox nK box)
         npint = fromBox npintbox
         npintfacebox = mapBox (`face` (x,tdir')) npintbox
