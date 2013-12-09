@@ -1,0 +1,31 @@
+-- Impredicative encoding of propositional truncation
+module impredicative where
+
+import weq 
+
+-- TODO: Why doesn't this work:
+-- propPi : (A : U) (B : A -> U) ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+
+propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+propPi A B h f0 f1 = ext A B f0 f1 (\x -> h x (f0 x) (f1 x)) 
+
+propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
+propImply A B h = propPi A (\_ -> B) h
+
+inh' : U -> U
+inh' A = (X : U) -> prop X -> (A -> X) -> X
+
+inc' : (A : U) -> A -> inh' A
+inc' A a = \X h f -> f a
+
+squash' : (A : U) -> prop (inh' A)
+squash' A = propPi U (\X -> prop X -> (A -> X) -> X) rem
+  where
+  rem : (X : U) -> prop (prop X -> (A -> X) -> X)
+  rem X = propImply (prop X) ((A -> X) -> X) (rem1 X)
+
+  rem1 : (X : U) -> prop X -> prop ((A -> X) -> X)
+  rem1 X h = propImply (A -> X) X (\_ -> h)
+
+inhrec' : (A : U) (B : U) (p : prop B) (f : A -> B) (h : inh' A) -> B
+inhrec' A B p f h = h B p f

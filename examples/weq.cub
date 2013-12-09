@@ -693,11 +693,11 @@ andBool = split
   true -> \x -> x
   false -> \x -> false
 
-mBool1 : monoid Bool
-mBool1 = pair (true) andBool
+monoidAndBool : monoid Bool
+monoidAndBool = pair (true) andBool
 
 mBool2 : monoid Bool
-mBool2 = transm Bool Bool eqBoolBool mBool1
+mBool2 = transm Bool Bool eqBoolBool monoidAndBool
 
 opBool2 : Bool -> Bool -> Bool
 opBool2 = opm Bool mBool2
