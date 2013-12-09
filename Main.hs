@@ -80,7 +80,7 @@ runInterpreter fs = do
   where
     -- TODO: All the concrete to abstract to internal should be more
     -- modular so that we don't have to repeat the translations.
-    loop :: Env -> [[([String],A.Exp,A.Exp)]] -> InputT IO ()
+    loop :: Env -> [[([String],(A.Exp,A.Exp))]] -> InputT IO ()
     loop env re = do
       input <- getInputLine defaultPrompt
       case input of

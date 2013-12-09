@@ -255,7 +255,7 @@ freeVarsTele (VDecl bs e:ds) =
 resolveLabel :: Sum -> Resolver (String,[A.Exp])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-handleMutual :: [[Def]] -> [String] -> Resolver [([String],A.Exp,A.Exp)]
+handleMutual :: [[Def]] -> [String] -> Resolver [([String],(A.Exp,A.Exp))]
 handleMutual []       _  = return []
 handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def before DefTDecl
   [d@(DefData _ vdcls cs)]        -> do
@@ -265,26 +265,26 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def befo
     exp  <- local (insertNames ns) $ lams args labels
     typ  <- resolveTelePi flat (return A.U) -- data-decls. have type U
     rest <- handleMutual dss ns
-    return ((ns,exp,typ):rest)
+    return ((ns,(exp,typ)):rest)
   [Def iden args body,DefTDecl _ t] -> do
     exp  <- local (insertNames ns) $ lams args (resolveWhere body)
     typ  <- resolveExp t
     rest <- handleMutual dss ns
-    return ((ns,exp,typ):rest)
+    return ((ns,(exp,typ)):rest)
   x -> throwError $ "handleMutual: Something is missing or too many "
                   ++ "definition/declarations: " ++ show x
 
 --                                         names  , exp : type
-handleMutuals :: [[[Def]]] -> Resolver [[([String],A.Exp,A.Exp)]]
+handleMutuals :: [[[Def]]] -> Resolver [[([String],(A.Exp,A.Exp))]]
 handleMutuals []       = return []
 handleMutuals (ds:dss) = do
   let ns = defsToNames $ concat ds
   handleMutual ds ns <:> local (insertNames ns) (handleMutuals dss)
 
-handleLet :: A.Exp -> [[([String],A.Exp,A.Exp)]] -> A.Exp
+handleLet :: A.Exp -> [[([String],(A.Exp,A.Exp))]] -> A.Exp
 handleLet e []     = e
-handleLet e (x:xs) = A.Def (handleLet e xs) es ts (concat nss)
-  where (nss,es,ts) = unzip3 x
+handleLet e (x:xs) = A.Def (handleLet e xs) es (concat nss)
+  where (nss,es) = unzip x
 
 handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
 handleDefs defs re = do
