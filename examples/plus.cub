@@ -10,13 +10,13 @@ data N = zero | suc (n : N)
 
 idnat : N -> N
 idnat = split
-  zero -> $ zero
-  suc n -> $ suc (idnat n)
+  zero -> zero
+  suc n -> suc (idnat n)
 
 plus : N -> N -> N
 plus = split
   zero -> \m -> m
-  suc n -> \m -> $ suc (plus n m)
+  suc n -> \m -> suc (plus n m)
 
 two : N
-two = $ suc ($ suc ($ zero))
+two = suc (suc (zero))

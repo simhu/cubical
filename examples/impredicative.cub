@@ -1,4 +1,5 @@
-module weq where
+-- Impredicative encoding of propositional truncation
+module impredicative where
 
 primitive
   Id   : (A : U) (a b : A) -> U
@@ -9,26 +10,25 @@ primitive
       (x : A) -> (p : Id A a x) -> C x p
   Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
         Id (C a (refl A a)) d (J A a C d a (refl A a))
-  inh : U -> U
-  inc : (A : U) -> A -> inh A
---  squash : (A : U) -> prop (inh A)
-  squash : (A : U) (a b : inh A) -> Id (inh A) a b
-  inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+  -- inh : U -> U
+  -- inc : (A : U) -> A -> inh A
+  -- squash : (A : U) (a b : inh A) -> Id (inh A) a b
+  -- inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
   equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
             (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
             Id U A B
-  subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+--  subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
   substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
 
-subst' : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
-subst' A P a x p d = J A a (\ x q -> P x) d x p
+subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+subst A P a x p d = J A a (\ x q -> P x) d x p
 
-subst'eq : (A : U) (P : A -> U) (a : A) (d : P a) ->
-          Id (P a) d (subst' A P a a (refl A a) d)
-subst'eq A P a d = Jeq A a (\ x q -> P x) d
+substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
+          Id (P a) d (subst A P a a (refl A a) d)
+substeq A P a d = Jeq A a (\ x q -> P x) d
 
 cong : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)
-cong A B f a b p = subst' A (\x -> Id B (f a) (f x)) a b p (refl B (f a))
+cong A B f a b p = subst A (\x -> Id B (f a) (f x)) a b p (refl B (f a))
 
 prop : U -> U
 prop A = (a b : A) -> Id A a b
@@ -37,14 +37,14 @@ UIP : U -> U
 UIP A = (a b : A) -> (p q : Id A a b) -> Id (Id A a b) p q
 
 comp : (A : U) -> (a b c : A) -> Id A a b -> Id A b c -> Id A a c
-comp A a b c p q = subst' A (Id A a) b c q p
+comp A a b c p q = subst A (Id A a) b c q p
 
 
 compInvIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) p (comp A a b b p (refl A b))
-compInvIdr A a b p = subst'eq A (\x -> Id A a x) b p
+compInvIdr A a b p = substeq A (\x -> Id A a x) b p
 
 inv : (A : U) -> (a b :A) -> Id A a b -> Id A b a
-inv A a b p = subst' A (\ x -> Id A x a) a b p (refl A a)
+inv A a b p = subst A (\ x -> Id A x a) a b p (refl A a)
 
 
 compIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) (comp A a b b p (refl A b)) p
@@ -65,15 +65,15 @@ compIdl A b c q = inv (Id A b c) q (comp A b b c (refl A b) q) (compInvIdl A b c
 
 compInvIdl' : (A : U) (a b : A) (p : Id A a b) ->
                Id (Id A a b) p (compInv A a a b (refl A a) p)
-compInvIdl' A a b p = subst'eq A (\x -> Id A x b) a p
+compInvIdl' A a b p = substeq A (\x -> Id A x b) a p
 
 compInv : (A : U) -> (a b c : A) -> Id A a b -> Id A a c -> Id A b c
-compInv A a b c p r = subst' A (\ x -> Id A x c) a b p r
+compInv A a b c p r = subst A (\ x -> Id A x c) a b p r
 
 
 lemTrans : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a b -> Id A a' b'
 lemTrans A a a' b b' p q r =
- subst' A (\ x -> Id A x b') a a' p rem
+ subst A (\ x -> Id A x b') a a' p rem
  where
   rem : Id A a b'
   rem = comp A a b b' r q
@@ -81,7 +81,7 @@ lemTrans A a a' b b' p q r =
 
 lem2Trans : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a' b' -> Id A a b
 lem2Trans A a a' b b' p q r =
- subst' A (\ x -> Id A a x) b' b (inv A b b' q) rem
+ subst A (\ x -> Id A a x) b' b (inv A b b' q) rem
  where
   rem : Id A a b'
   rem = comp A a a' b' p r
@@ -263,7 +263,7 @@ hedberg A h a b p q = lemSimpl A a a b r p q rem5
 
 
 znots : (n : N) -> neg (Id N (zero) (suc n))
-znots n h = subst' N T (zero) (suc n) h (zero)
+znots n h = subst N T (zero) (suc n) h (zero)
   where
     T : N -> U
     T = split
@@ -311,7 +311,7 @@ test3 = NIsSet (zero) (zero) (refl N (zero)) (refl N (zero))
 data Bool = true | false
 
 tnotf : neg (Id Bool (true) (false))
-tnotf h = subst' Bool T (true) (false) h (zero)
+tnotf h = subst Bool T (true) (false) h (zero)
   where
     T : Bool -> U
     T = split
@@ -336,23 +336,23 @@ boolIsSet : UIP Bool
 boolIsSet = hedberg Bool boolDec
 
 
--- subst' : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+-- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
 eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
-          (u : B a) (v : B b) (q : Id (B b) (subst' A B a b p u) v) ->
+          (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
           Id (Sigma A B) (pair a u) (pair b v)
 eqSigma A B a =
-  J A a (\b p -> (u : B a) (v : B b) (q : Id (B b) (subst' A B a b p u) v) ->
+  J A a (\b p -> (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
          Id (Sigma A B) (pair a u) (pair b v)) rem2
   where
     rem1 : (u v : B a) -> Id (B a) u v ->
            Id (Sigma A B) (pair a u) (pair a v)
     rem1 = cong (B a) (Sigma A B) (\x -> pair a x)
 
-    rem2 : (u v : B a) -> Id (B a) (subst' A B a a (refl A a) u) v ->
+    rem2 : (u v : B a) -> Id (B a) (subst A B a a (refl A a) u) v ->
            Id (Sigma A B) (pair a u) (pair a v)
     rem2 u v q = rem1 u v q'
       where q' : Id (B a) u v
-            q' = comp (B a) u (subst' A B a a (refl A a) u) v (subst'eq A B a u) q
+            q' = comp (B a) u (subst A B a a (refl A a) u) v (substeq A B a u) q
 
 propFam : (A : U) (B : A -> U) -> U
 propFam A B = (a : A) -> prop (B a)
@@ -361,14 +361,14 @@ eqPropFam : (A : U) (B : A -> U) (h : propFam A B) (au bv : Sigma A B) ->
             Id A (fst A B au) (fst A B bv) -> Id (Sigma A B) au bv
 eqPropFam A B h = split
   pair a u -> split
-    pair b v -> \p -> eqSigma A B a b p u v (h b (subst' A B a b p u) v)
+    pair b v -> \p -> eqSigma A B a b p u v (h b (subst A B a b p u) v)
 
 exist : (A : U) (B : A -> U) -> U
 exist A B = inh (Sigma A B)
 
 -- TODO: fix parser for "Fun"
-exElim : (A : U) (B : A -> U) (C : U) -> prop C -> (Sigma A B -> C) ->
-         exist A B -> C
+exElim : (A : U) (B : A -> U) (C : U) (_ : prop C) (_ : Sigma A B -> C)
+         (_ : exist A B) -> C
 exElim A B C p f = inhrec (Sigma A B) C p f
 
 atmostOne : (A : U) (B : A -> U) -> U
@@ -659,7 +659,7 @@ test2Bool : Bool
 test2Bool = transport' Bool Bool newCompEqBool (true)
 
 transport' : (A B : U) -> Id U A B -> A -> B
-transport' = subst' U (\x -> x)
+transport' = subst U (\x -> x)
 
 monoid : U -> U
 monoid A = and A (A -> A -> A)
@@ -671,10 +671,10 @@ opm : (A : U) (m : monoid A) -> (A -> A -> A)
 opm A m = snd A (\x -> A -> A -> A) m
 
 transm : (A B : U) -> Id U A B -> monoid A -> monoid B
-transm = subst' U monoid 
+transm = subst U monoid
 
 transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
-transun = subst' U (\X -> (X -> X))
+transun = subst U (\X -> (X -> X))
 
 transid : Bool -> Bool
 transid = transun Bool Bool eqBoolBool (\x -> x)
@@ -744,8 +744,36 @@ testTT = opBool2 True True
 --   lem1 = cong (Id U Bool Bool) (Bool -> Bool) (transport' Bool Bool) (refl U Bool) eqBoolBool eqreflnot
 
 --   lem2 : Id Bool (true) (frefl (true))
---   lem2 = subst'eq U (\x -> x) Bool (true)
+--   lem2 = substeq U (\x -> x) Bool (true)
 
 --   lem3 : Id Bool (false) (fnot (true))
 --   lem3 = -- Cannot be proved yet...
 
+
+
+-- TODO: Why doesn't this work:
+-- propPi : (A : U) (B : A -> U) ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+
+propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+propPi A B h f0 f1 = ext A B f0 f1 (\x -> h x (f0 x) (f1 x)) 
+
+propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
+propImply A B h = propPi A (\_ -> B) h
+
+inh : U -> U
+inh A = (X : U) -> prop X -> (A -> X) -> X
+
+inc : (A : U) -> A -> inh A
+inc A a = \X h f -> f a
+
+squash : (A : U) -> prop (inh A)
+squash A = propPi U (\X -> prop X -> (A -> X) -> X) rem
+  where
+  rem : (X : U) -> prop (prop X -> (A -> X) -> X)
+  rem X = propImply (prop X) ((A -> X) -> X) (rem1 X)
+
+  rem1 : (X : U) -> prop X -> prop ((A -> X) -> X)
+  rem1 X h = propImply (A -> X) X (\_ -> h)
+
+inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (h : inh A) -> B
+inhrec A B p f h = h B p f
