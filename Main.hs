@@ -76,7 +76,7 @@ runInterpreter fs = do
         Left err -> outputStrLn $ "Type checking failed: " ++ err
         Right () -> do
           outputStrLn $ "Files loaded."
-          loop (Env ns cs) re
+          loop (Env (reverse ns) cs) re
   where
     -- TODO: All the concrete to abstract to internal should be more
     -- modular so that we don't have to repeat the translations.
