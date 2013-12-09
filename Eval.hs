@@ -490,7 +490,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 1) W.l.o.g. K subset x', J
   -- 2) x' = x &  dir = tdir
   -- 3) x' = x &  dir = mirror tdir
-  -- 4) x `notElem` J
+  -- 4) x `notElem` J (maybe combine with 1?)
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
 
@@ -534,8 +534,16 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                                        (nonprincipalfaces ++ auxsides (x,tdir')))
     in
      VFill z (Box tdir x' principal nonprincipal)
-  | x `notElem` nJ = undefined  -- assume x /= x' and K subset x', J
-  | x' `notElem` nK = undefined
+  | x `notElem` nJ =  -- assume x /= x' and K subset x', J
+      let
+        comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=Up))
+        xsides = undefined
+        -- xsides = [((x,tdir), undefined)
+        --          ,((x,tdir'),fill (lookBox (x,tdir') tbox) )  undefined]
+      in fill v (xsides `appendSides` box)
+  | x' `notElem` nK =
+    undefined
+
   | x' `elem` nK =              -- assumes x,K subset x',J
       let -- surprisingly close to the last case of the Kan-Com-VU filling
         upperbox = unCompAs (lookBox (x,dir') box) x

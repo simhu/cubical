@@ -671,10 +671,10 @@ opm : (A : U) (m : monoid A) -> (A -> A -> A)
 opm A m = snd A (\x -> A -> A -> A) m
 
 transm : (A B : U) -> Id U A B -> monoid A -> monoid B
-transm = subst U monoid 
+transm = subst' U monoid 
 
 transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
-transun = subst U (\X -> (X -> X))
+transun = subst' U (\X -> (X -> X))
 
 transid : Bool -> Bool
 transid = transun Bool Bool eqBoolBool (\x -> x) 
