@@ -17,10 +17,10 @@ data N = zero | suc (n : N)
 -- names.... should c-names be tagged with a "$"?)
 
 zero' : N
-zero' = $ zero
+zero' = zero
 
 suc : N -> N
-suc n = $ suc n
+suc n = suc n
 
 cong : (A B : U) (f : A -> B) (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
 cong A B f a0 a1 p = subst A (\ a -> Id B (f a0) (f a)) a0 a1 p (refl B (f a0))
@@ -30,12 +30,12 @@ natid x = x
 
 natid' : N -> N
 natid' = split
-  zero  -> $ zero
-  suc n -> $ suc (natid' n)
+  zero  -> zero
+  suc n -> suc (natid' n)
 
 idsexteq : (n : N) -> Id N (natid n) (natid' n)
 idsexteq = split
-   zero -> refl N ($ zero)
+   zero -> refl N (zero)
    suc n -> cong N N suc (natid n) (natid' n) (idsexteq n)
 
 idseq : Id (N -> N) natid natid'
@@ -44,13 +44,13 @@ idseq = ext N (\_ -> N) natid natid' idsexteq
 plus : N -> N -> N
 plus = split
   zero -> \m -> m
-  suc n -> \m -> $ suc (plus n m)
+  suc n -> \m -> suc (plus n m)
 
 two : N
-two = $ suc ($ suc ($ zero))
+two = suc (suc (zero))
 
 three : N
-three = $ suc two
+three = suc two
 
 addvals : (N -> N) -> N
 addvals f = plus (f two) (f three)
@@ -65,6 +65,6 @@ data List (A : U) = nil | cons (x : A) (xs : List A)
 append : (A : U) -> List A -> List A -> List A
 append A = split
   nil       -> \ys -> ys
-  cons x xs -> \ys -> $ cons x (append A xs ys)
+  cons x xs -> \ys -> cons x (append A xs ys)
 
 

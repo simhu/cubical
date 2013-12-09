@@ -27,7 +27,6 @@ Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PiDecl] "->" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
-Con.      Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
 PN.       Exp2 ::= "PN" AIdent Exp3 ;
 Var.      Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.        Exp3 ::= "U" ;

@@ -152,13 +152,13 @@ data Unit = tt
 propunit : prop Unit
 propunit = split
   tt -> split
-     tt -> refl Unit ($ tt)
+     tt -> refl Unit (tt)
 
 lemunit : UIP Unit
 lemunit = lem3 Unit propunit
 
-test2 : Id (Id Unit ($ tt) ($ tt) ) (refl Unit ($ tt)) (refl Unit ($ tt))
-test2 = lemunit($ tt) ($ tt)(refl Unit ($ tt))(refl Unit ($ tt))
+test2 : Id (Id Unit (tt) (tt) ) (refl Unit (tt)) (refl Unit (tt))
+test2 = lemunit(tt) (tt)(refl Unit (tt))(refl Unit (tt))
 
 inhuip : (A : U) -> UIP (inh A)
 inhuip A = lem3 (inh A) (squash A)
@@ -166,7 +166,7 @@ inhuip A = lem3 (inh A) (squash A)
 data N = zero | suc (n : N)
 
 zz : inh N
-zz = inc N ($ zero)
+zz = inc N (zero)
 
 eq1 : Id (inh N) zz zz
 eq1 = refl (inh N) zz
@@ -200,8 +200,8 @@ exConst A = Sigma (A -> A) (const A)
 
 decConst : (A : U) -> dec A -> exConst A
 decConst A = split
-  inl a -> $ pair (\x -> a) (\ x y -> refl A a)
-  inr h -> $ pair (\x -> x) (\ x y -> efq (Id A x y) (h x))
+  inl a -> pair (\x -> a) (\ x y -> refl A a)
+  inr h -> pair (\x -> x) (\ x y -> efq (Id A x y) (h x))
 
 
 mainLemma : (A: U) (f : (a b : A) -> Id A a b -> Id A a b) (a b : A)
@@ -251,75 +251,75 @@ hedberg A h a b p q = lemSimpl A a a b r p q rem5
 
 
 
-znots : (n : N) -> neg (Id N ($ zero) ($ suc n))
-znots n h = subst N T ($ zero) ($ suc n) h ($ zero)
+znots : (n : N) -> neg (Id N (zero) (suc n))
+znots n h = subst N T (zero) (suc n) h (zero)
   where
     T : N -> U
     T = split
           zero -> N
           suc n -> N0
 
-snotz : (n : N) -> neg (Id N ($ suc n) ($ zero))
-snotz n h = znots n (inv N ($ suc n) ($ zero) h)
+snotz : (n : N) -> neg (Id N (suc n) (zero))
+snotz n h = znots n (inv N (suc n) (zero) h)
 
 pred : N -> N
 pred = split
-  zero -> $ zero
+  zero -> zero
   suc n -> n
 
-sucInj : (n m : N) -> Id N ($ suc n) ($ suc m) -> Id N n m
-sucInj n m h = cong N N pred ($ suc n) ($ suc m) h
+sucInj : (n m : N) -> Id N (suc n) (suc m) -> Id N n m
+sucInj n m h = cong N N pred (suc n) (suc m) h
 
-sucCong : (n m : N) -> Id N n m -> Id N ($ suc n) ($ suc m)
-sucCong n m h = cong N N (\n -> $ suc n) n m h
+sucCong : (n m : N) -> Id N n m -> Id N (suc n) (suc m)
+sucCong n m h = cong N N (\n -> suc n) n m h
 
 decEqCong : (A B : U) (f : A -> B) (g : B -> A) -> dec A -> dec B
 decEqCong A B f g = split
-  inl a -> $inl (f a)
-  inr h -> $inr (\b -> h (g b))
+  inl a -> inl (f a)
+  inr h -> inr (\b -> h (g b))
 
 
 natDec : discrete N
 natDec = split
   zero  -> split
     zero -> rem
-      where rem : dec (Id N ($ zero) ($ zero))
-            rem = $ inl (refl N ($ zero))
-    suc m -> $ inr (znots m)
+      where rem : dec (Id N (zero) (zero))
+            rem = inl (refl N (zero))
+    suc m -> inr (znots m)
   suc n -> split
-    zero -> $ inr (snotz n)
-    suc m -> decEqCong (Id N n m) (Id N ($ suc n) ($ suc m))
+    zero -> inr (snotz n)
+    suc m -> decEqCong (Id N n m) (Id N (suc n) (suc m))
                        (sucCong n m) (sucInj n m) (natDec n m)
 
 NIsSet : UIP N
 NIsSet = hedberg N natDec
 
-test3 : Id (Id N ($ zero) ($ zero)) (refl N ($ zero)) (refl N ($ zero))
-test3 = NIsSet ($ zero) ($ zero) (refl N ($ zero)) (refl N ($ zero))
+test3 : Id (Id N (zero) (zero)) (refl N (zero)) (refl N (zero))
+test3 = NIsSet (zero) (zero) (refl N (zero)) (refl N (zero))
 
 data Bool = true | false
 
 
-tnotf : neg (Id Bool ($ true) ($ false))
-tnotf h = subst Bool T ($ true) ($ false) h ($ zero)
+tnotf : neg (Id Bool (true) (false))
+tnotf h = subst Bool T (true) (false) h (zero)
   where
     T : Bool -> U
     T = split
           true  -> N
           false -> N0
 
-fnott : neg (Id Bool ($ false) ($ true))
-fnott h = tnotf (inv Bool ($ false) ($ true) h)
+fnott : neg (Id Bool (false) (true))
+fnott h = tnotf (inv Bool (false) (true) h)
 
 
 boolDec : discrete Bool
 boolDec = split
   true -> split
-    true -> $ inl (refl Bool ($ true))
-    false -> $ inr tnotf
+    true -> inl (refl Bool (true))
+    false -> inr tnotf
   false -> split
-    true -> $ inr fnott
-    false -> $ inl (refl Bool ($ false))
+    true -> inr fnott
+    false -> inl (refl Bool (false))
 
 
 boolIsSet : UIP Bool
@@ -329,17 +329,17 @@ boolIsSet = hedberg Bool boolDec
 -- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
 eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
           (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
-          Id (Sigma A B) ($ pair a u) ($ pair b v)
+          Id (Sigma A B) (pair a u) (pair b v)
 eqSigma A B a =
   J A a (\b p -> (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
-         Id (Sigma A B) ($ pair a u) ($ pair b v)) rem2
+         Id (Sigma A B) (pair a u) (pair b v)) rem2
   where
     rem1 : (u v : B a) -> Id (B a) u v ->
-           Id (Sigma A B) ($ pair a u) ($ pair a v)
-    rem1 = cong (B a) (Sigma A B) (\x -> $ pair a x)
+           Id (Sigma A B) (pair a u) (pair a v)
+    rem1 = cong (B a) (Sigma A B) (\x -> pair a x)
 
     rem2 : (u v : B a) -> Id (B a) (subst A B a a (refl A a) u) v ->
-           Id (Sigma A B) ($ pair a u) ($ pair a v)
+           Id (Sigma A B) (pair a u) (pair a v)
     rem2 u v q = rem1 u v q'
       where q' : Id (B a) u v
             q' = comp (B a) u (subst A B a a (refl A a) u) v (substeq A B a u) q
@@ -447,14 +447,14 @@ propRel A R = (a b : A) -> prop (R a b)
 
 canSurj : (A : U) (R : rel A) -> equivalence A R -> propRel A R ->
             A -> Quot A R
-canSurj A R h h' c = $ class (R c) un cp ex pr
+canSurj A R h h' c = class (R c) un cp ex pr
   where un : (a b : A) -> R c a -> R c b -> R a b
         un a b p q = eqToInvEucl A R h a b c p q
 
         cp : (a b : A) -> R c a -> R a b -> R c b
         cp a b p q = eqToEucl A R h c b a p (eqToSym A R h a b q)
         ex : exist A (R c)
-        ex = inc (Sigma A (R c)) ($ pair c (eqToRefl A R h c))
+        ex = inc (Sigma A (R c)) (pair c (eqToRefl A R h c))
         pr : propFam A (R c)
         pr a = h' c a
 
@@ -476,7 +476,7 @@ univQuot : (A B : U) (R : rel A) (f : A -> B) ->
 --         Sigma
                  (_ : Quot A R) -> B
 --               (\g -> (a : A) -> Id B (f a) (g (canSurj A R eqR pR a)))
-univQuot A B R f uip fresp eqR pR = g -- $ pair g rem
+univQuot A B R f uip fresp eqR pR = g -- pair g rem
   where
     g : Quot A R -> B
     g = split
@@ -487,12 +487,12 @@ univQuot A B R f uip fresp eqR pR = g -- $ pair g rem
           rem1 : propFam B imfP
           rem1 b = squash (Sigma A (\a -> and (P a) (Id B (f a) b)))
           rem2 : exactOne B imfP
-          rem2 = $ pair rem4 rem5
+          rem2 = pair rem4 rem5
 
           rem3 : Sigma A P -> exist B imfP
           rem3 = split
             pair a p -> inc (Sigma B imfP)
-                        ($ pair (f a) (inc (Sigma A (S (f a))) ($ pair a ($ pair p (refl B (f a))))))
+                        (pair (f a) (inc (Sigma A (S (f a))) (pair a (pair p (refl B (f a))))))
           rem4 : exist B imfP
           rem4 = inhrec (Sigma A P) (exist B imfP) (squash (Sigma B imfP)) rem3 ex
 
@@ -539,16 +539,16 @@ kerEucl A B f a b c p q = compInv B (f c) (f a) (f b) rem rem1
        rem1 = inv B (f b) (f c) q
 
 kerEquiv : (A B : U) (f : A -> B) -> equivalence A (kernel A B f)
-kerEquiv A B f = $ pair (kerRef A B f) (kerEucl A B f)
+kerEquiv A B f = pair (kerRef A B f) (kerEucl A B f)
 
 not : Bool -> Bool
 not = split
-  true -> $ false
-  false -> $ true
+  true -> false
+  false -> true
 
 isEven : N -> Bool
 isEven = split
-  zero -> $ true
+  zero -> true
   suc n -> not (isEven n)
 
 mod2 : rel N
@@ -568,7 +568,7 @@ barIsEven = univQuot N Bool mod2 isEven boolIsSet respIsEven (kerEquiv N Bool is
 
 
 five : N
-five = $ suc ($ suc ($ suc ($ suc  ($ suc ($ zero)))))
+five = suc (suc (suc (suc  (suc (zero)))))
 
 fiveBar : Z2
 fiveBar = canSurj N mod2 (kerEquiv N Bool isEven) propMod2 five
