@@ -81,6 +81,7 @@ appendBox xs b = foldr consBox b xs
 appendSides :: [((Name,Dir), a)] -> Box a -> Box a
 appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
 
+-- TODO: This is not really the reight way to do it.
 arrangeSide :: Show a => Name -> (Dir, a) -> (Dir, a) -> (Name, (a,a))
 arrangeSide n (Down, u) (Up, u') = (n, (u,u'))
 arrangeSide n (Up, u) (Down, u') = (n, (u',u))
@@ -298,7 +299,7 @@ eval e (TransInv c p t) = com (app (eval e c) pv) box
   where x   = freshEnv e
         pv  = appName (eval e p) x
         box = Box Down x (eval e t) []
--- TODO: throw out _, not needed?
+-- TODO: Throw out _, not needed?
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
     x:y:_ = gensyms $ supportEnv e
@@ -357,11 +358,15 @@ unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
 unCon v           = error $ "unCon: not a constructor: " ++ show v
 
-unComp :: Val -> Box Val
-unComp (VComp box) = box
-unComp v           = error $ "unComp: not a Comp: " ++ show v
+unCompAs :: Val -> Name -> Box Val
+unCompAs (VComp box@(Box _ x _ _)) y = swapBox box x y
+unCompAs v _ = error $ "unCompAs: not a VComp: " ++ show v
 
--- TODO: Clean
+unFillAs :: Val -> Name -> Box Val
+unFillAs (VFill x box) y = swapBox box x y
+unFillAs v             _ = error $ "unFillAs: not a VFill: " ++ show v
+
+-- TODO: Clean.
 transposeBox :: Box [Val] -> [Box Val]
 transposeBox b@(Box dir _ [] _)      = []
 transposeBox (Box dir x (v:vs) nvss) =
@@ -434,13 +439,13 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
 fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | toAdd /= []     = -- W.l.o.g. assume that box contains faces for
     let               -- the non-principal sides of tbox.
-      add :: (Name,Dir) -> Val
+      add :: (Name,Dir) -> Val  -- TODO: Is this correct? Do we have
+                                -- to consider the auxsides?
       add zc@(z,c) = fill (lookBox zc tbox) (mapBox (`face` (z,c)) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
     in fill v newBox
   | x' `notElem` nK =
-    let boxL  = subBox nL box
-        principal = fill tx (mapBox (pickout (x,dir')) boxL)
+    let principal = fill tx (mapBox (pickout (x,dir')) boxL)
         nonprincipal =
           [ let side = arrangeSide x (tdir,lookBox zd box)
                        (tdir',principal `face` (z,d))
@@ -450,6 +455,7 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     in VComp (Box tdir x principal nonprincipal)
   | otherwise       = -- x' `elem` nK
     let -- assumes zc in defBox tbox
+      -- TODO: same as mapBox (pickout zd) boxL? Merge with above?
       auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
       -- extend input box along x' with orientation tdir'; results
       -- in the non-principal faces on the intersection of defBox
@@ -470,13 +476,106 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     in VComp (Box tdir x principal (nplast:npint))
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
+        z     = gensym $ support v ++ supportBox box
         toAdd = nK \\ (x' : nJ)
         nL    = nJ \\ nK
         boxL  = subBox nL box
-        dir'   = mirror dir
-        tdir'  = mirror tdir
+        dir'  = mirror dir
+        tdir' = mirror tdir
         -- asumes zd is in the sides of tbox
-        pickout zd vcomp = lookBox zd (unComp vcomp)
+        pickout zd vcomp = lookBox zd (unCompAs vcomp z)
+
+fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
+  -- the cases should be (in order):
+  -- 1) W.l.o.g. K subset x', J
+  -- 2) x' = x &  dir = tdir
+  -- 3) x' = x &  dir = mirror tdir
+  -- 4) x `notElem` J
+  -- 5) x' `notElem` K
+  -- 6) x' `elem` K
+
+  | toAdd /= [] =
+    let                         -- TODO: Okay?
+      add :: (Name,Dir) -> Val
+      add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
+      newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
+    in fill v newBox            -- W.l.o.g. nK subset x:nJ
+  | x == x' && dir == tdir = -- assumes K subset x',J
+    let
+      boxp = lookBox (x,dir') box  -- is vx'
+      principal = fill (lookBox (x',tdir') tbox) (Box Up z boxp (auxsides (x',tdir')))
+      nonprincipal =
+        [ (zc,
+           let principzc = lookBox zc box
+               sides = [((x,tdir'),principal `face` zc)
+                       ,((x,tdir),principzc)] -- "degenerate" along z!
+           in fill (lookBox zc tbox) (Box Up z principzc (sides ++ auxsides zc)))
+        | zc <- allDirs nK ]
+    in
+     VFill z (Box tdir x' principal nonprincipal)
+
+  | x == x' && dir == mirror tdir = let -- assumes K subset x',J
+      -- the principal side of box must be a VComp
+      upperbox = unCompAs (lookBox (x,dir') box) x
+      nonprincipal =
+        [ (zc,
+           let top    = lookBox zc upperbox
+               bottom = lookBox zc box
+               princ  = top `face` (x',tdir) -- same as: bottom `face` (x',tdir)
+               sides  = [((z,Down),bottom),((z,Up),top)]
+           in fill (lookBox zc tbox)
+                (Box tdir' x princ -- "degenerate" along z!
+                 (sides ++ auxsides zc)))
+        | zc <- allDirs nK ]
+      nonprincipalfaces =
+        map (\(zc,u) -> (zc,u `face` (x,dir))) nonprincipal
+      principal =
+        fill (lookBox (x,tdir') tbox) (Box Up z (lookBox (x,tdir') upperbox)
+                                       (nonprincipalfaces ++ auxsides (x,tdir')))
+    in
+     VFill z (Box tdir x' principal nonprincipal)
+  | x `notElem` nJ = undefined  -- assume x /= x' and K subset x', J
+  | x' `notElem` nK = undefined
+  | x' `elem` nK =              -- assumes x,K subset x',J
+      let -- surprisingly close to the last case of the Kan-Com-VU filling
+        upperbox = unCompAs (lookBox (x,dir') box) x
+        npintbox@(Box _ _ _ npintaux) =
+          modBox (\zc downside ->
+                   let bottom = lookBox zc box
+                       top    = lookBox zc upperbox
+                       princ  = downside -- same as bottom `face` (x',tdir) and
+                                         -- top `face` (x',tdir)
+                       sides  = [((z,Down),bottom),((z,Up),top)]
+                   in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
+                                              (sides ++ auxsides zc)))
+                 (subBox nK box) -- nK = nK /\ nJ
+        npint = fromBox npintbox
+        npintfacebox = mapBox (`face` (x,tdir)) npintbox
+        principalbox = ([((z,Down),lookBox (x,tdir') box)
+                       ,((z,Up)  ,lookBox (x,tdir')upperbox)] ++
+                       auxsides (x,tdir')) `appendSides` npintfacebox
+        principal = fill tx principalbox
+        nplp   = lookBox (x',dir) upperbox
+        nplnp  = [((x',dir), nplp `face` (x',dir)) -- deg along z!
+                 ,((x', dir'),principal `face` (x',dir))]
+                 ++ auxsides (x',dir)
+                 ++ map (\(zc,u) -> (zc,u `face` (x',dir))) npintaux
+        nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box Down z nplp nplnp))
+      in
+       VFill z (Box tdir x' principal (nplast:npint))
+
+  where z     = gensym $ support v ++ supportBox box
+        nK    = nonPrincipal tbox
+        nJ    = nonPrincipal box
+        toAdd = nK \\ (x' : nJ)
+        nL    = nJ \\ nK
+        boxL  = subBox nL box
+        dir'  = mirror dir
+        tdir' = mirror tdir
+        -- asumes zc is in the sides of tbox
+        pickout zc vfill = lookBox zc (unFillAs vfill z)
+        -- asumes zc is in the sides of tbox
+        auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
 
 fill v b = Kan Fill v b
 
@@ -491,16 +590,15 @@ fills (a:as) e (box:boxes) = v : fills as (Pair e v) boxes
 fills _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
--- Note that the dimension is not the dimension of the output value,
--- but the one where the open box is specified
 com :: Val -> Box Val -> Val
-com vid@VId{} box@(Box dir i _ _)        = fill vid box `face` (i,dir)
-com ter@Ter{} box@(Box dir i _ _)        = fill ter box `face` (i,dir)
-com veq@VEquivEq{} box@(Box dir i _ _)   = fill veq box `face` (i,dir)
-com u@(Kan Com VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
-com v box                                = Kan Com v box
+com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
+com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
+com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
+com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
+com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
+com v box                                 = Kan Com v box
 
--- Maybe generalize?
+-- TODO: Maybe generalize?
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
   where nvus      = [ (nnd,app v (lookup' nnd nus)) | (nnd,v) <- nvs ]
