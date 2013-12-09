@@ -19,6 +19,8 @@ import Data.Graph
 import Data.List
 import Data.Maybe
 
+type Tele = [VDecl]
+
 -- | Useful auxiliary functions
 unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
@@ -38,9 +40,6 @@ unArg NoArg   = "_"
 unArgs :: [Arg] -> [String]
 unArgs = map unArg
 
-unTele :: Tele -> [VDecl]
-unTele (Tele n) = n
-
 unBinder :: Binder -> Arg
 unBinder (Binder b) = b
 
@@ -57,7 +56,7 @@ unWhere (NoWhere e)  = e
 -- Flatten a telescope, e.g., flatten (a b : A) (c : C) into
 -- (a : A) (b : A) (c : C).
 flattenTele :: Tele -> [VDecl]
-flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs]) . unTele
+flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs])
 
 -- Note: It is important to only apply unApps to e1 as otherwise the
 -- structure of the application will be destroyed which leads to trouble
@@ -66,21 +65,21 @@ unApps :: Exp -> [Exp]
 unApps (App e1 e2) = unApps e1 ++ [e2]
 unApps e           = [e]
 
-unVar :: Exp -> Binder
+unVar :: Exp -> Arg
 unVar (Var b) = b
 unVar e       = error $ "unVar bad input: " ++ show e
 
 unVarBinder :: Exp -> String
-unVarBinder = unArgBinder . unVar
+unVarBinder = unArg . unVar
 
 unPiDecl :: PiDecl -> VDecl
-unPiDecl (PiDecl e t) = VDecl (map unVar (unApps e)) t
+unPiDecl (PiDecl e t) = VDecl (map (Binder . unVar) (unApps e)) t
 
 flattenTelePi :: [PiDecl] -> [VDecl]
-flattenTelePi = flattenTele . Tele . map unPiDecl
+flattenTelePi = flattenTele . map unPiDecl
 
 namesTele :: Tele -> [String]
-namesTele (Tele vs) = unions [ unArgsBinder args | VDecl args _ <- vs ]
+namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
 defToNames :: Def -> [String]
 defToNames (Def n _ _)     = [unIdent n]
@@ -159,7 +158,7 @@ resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (PN n t)     = A.PN (unIdent n) <$> resolveExp t
 resolveExp (Var n)      = do
-  let x = unArgBinder n
+  let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
   Env vs cs <- getEnv
   if x `elem` cs
@@ -224,7 +223,7 @@ freeVarsExp U           = []
 freeVarsExp Undef       = []
 freeVarsExp (Fun e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (App e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
-freeVarsExp (Var x)     = [unArgBinder x]
+freeVarsExp (Var x)     = [unArg x]
 freeVarsExp (Lam bs e)  = freeVarsExp e \\ unArgsBinder bs
 freeVarsExp (PN _ t)    = freeVarsExp t
 freeVarsExp (Let ds e)  =
@@ -235,7 +234,7 @@ freeVarsExp (Split bs)  =
 freeVarsExp (Pi [] e)               = freeVarsExp e
 freeVarsExp (Pi (PiDecl bs a:vs) e) =
   freeVarsExp a `union` (freeVarsExp (Pi vs e) \\
-                         unArgsBinder (map unVar $ unApps bs))
+                         unArgs (map unVar (unApps bs)))
 
 -- The free variables of the right hand side.
 freeVarsDef :: Def -> [String]
@@ -246,10 +245,9 @@ freeVarsDef (DefData _ vdecls lbls) = freeVarsTele vdecls `union`
   (unions [ freeVarsTele vs | Sum _ vs <- lbls ] \\ namesTele vdecls)
 
 freeVarsTele :: Tele -> [String]
-freeVarsTele (Tele ts) = fvT ts
-  where
-    fvT []              = []
-    fvT (VDecl bs e:ds) = freeVarsExp e `union` (fvT ds \\ unArgsBinder bs)
+freeVarsTele []              = []
+freeVarsTele (VDecl bs e:ds) =
+  freeVarsExp e `union` (freeVarsTele ds \\ unArgsBinder bs)
 
 --------------------------------------------------------------------------------
 -- | Handling mutual definitions
