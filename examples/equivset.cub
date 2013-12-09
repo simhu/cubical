@@ -43,6 +43,7 @@ equivSet A B f g sfg injf setB = equivEq A B f sf tf
     rem1 = comp B (f (g b)) b (f a') (sfg b)
            (inv B (f a') b (snd A (\x -> Id B (f x) b) v))
 
+-- Bool tests:
 
 equivBool : Id U Bool Bool
 equivBool = equivSet Bool Bool not not notK notInj boolIsSet
@@ -64,3 +65,4 @@ testFF3 = opBool3 False False
 
 testTT3 : Bool
 testTT3 = opBool3 True True
+

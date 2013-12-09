@@ -149,8 +149,8 @@ lem2 A a h x y p q =
                remp remq (refl (Id A a y) (h y))
 
 
-lem3 : (A:U) -> prop A -> UIP A
-lem3 A h a = lem2 A a (h a) a
+propUIP : (A:U) -> prop A -> UIP A
+propUIP A h a = lem2 A a (h a) a
 
 data Unit = tt
 
@@ -160,13 +160,13 @@ propunit = split
      tt -> refl Unit (tt)
 
 lemunit : UIP Unit
-lemunit = lem3 Unit propunit
+lemunit = propUIP Unit propunit
 
 test2 : Id (Id Unit (tt) (tt) ) (refl Unit (tt)) (refl Unit (tt))
 test2 = lemunit(tt) (tt)(refl Unit (tt))(refl Unit (tt))
 
 inhuip : (A : U) -> UIP (inh A)
-inhuip A = lem3 (inh A) (squash A)
+inhuip A = propUIP (inh A) (squash A)
 
 data N = zero | suc (n : N)
 
