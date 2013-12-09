@@ -30,6 +30,7 @@ App.      Exp2 ::= Exp2 Exp3 ;
 PN.       Exp2 ::= "PN" AIdent Exp3 ;
 Var.      Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
 U.        Exp3 ::= "U" ;
+Undef.    Exp3 ::= "undefined" ;
 internal Top. Exp3 ::= "Top" ;
 terminator Exp3 "" ;
 coercions Exp 3 ;

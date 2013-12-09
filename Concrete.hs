@@ -7,6 +7,8 @@ import Exp.Abs
 import qualified MTT as A
 
 import Control.Applicative
+import Control.Monad.Trans
+import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
@@ -98,13 +100,13 @@ data Env = Env { vars    :: [String]
                }
          deriving (Eq, Show)
 
-type Resolver a = ReaderT Env (ErrorT String Identity) a
+type Resolver a = ReaderT Env (StateT Integer (ErrorT String Identity)) a
 
 emptyEnv :: Env
 emptyEnv = Env [] []
 
 runResolver :: Resolver a -> Either String a
-runResolver x = runIdentity $ runErrorT $ runReaderT x emptyEnv
+runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) 0
 
 -- Insert a variable in an environment and remove it from the constructor list
 insertVar :: Arg -> Env -> Env
@@ -122,11 +124,17 @@ getEnv :: Resolver Env
 getEnv = ask
 
 getVars, getConstrs :: Resolver [String]
-getVars    = ask >>= return . vars
-getConstrs = ask >>= return . constrs
+getVars    = getEnv >>= return . vars
+getConstrs = getEnv >>= return . constrs
 
 insertNames :: [String] -> Env -> Env
 insertNames ns e@Env{vars = vs} = e{vars = reverse ns ++ vs}
+
+gensym :: Resolver Integer
+gensym = do
+  g <- lift get
+  lift (modify succ)
+  return g
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
 lam a e = A.Lam <$> local (insertVar a) e
@@ -136,6 +144,7 @@ lams as e = foldr lam e as
 
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
+resolveExp Undef        = A.Undef <$> gensym
 resolveExp Top          = return A.Top
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
@@ -212,6 +221,7 @@ defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
 
 freeVarsExp :: Exp -> [String]
 freeVarsExp U           = []
+freeVarsExp Undef       = []
 freeVarsExp (Fun e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (App e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (Var x)     = [unArgBinder x]

@@ -26,6 +26,7 @@ data Exp = Comp Exp Env
 --         | RSum Lb [Exp]
          | PN String Exp        -- primitive notion (typed)
          | Top
+         | Undef Integer  
   deriving (Eq,Show)
 
 data Env = Empty
@@ -123,6 +124,7 @@ check k rho gam a t = case (a,t) of
       checkD k rho gam es as
       let rho1 = PDef es as rho
       check k rho1 (addC gam as rho (evals es rho1)) a e)
+  (t,Undef n) -> return ()                       
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
 
