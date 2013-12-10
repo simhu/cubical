@@ -81,10 +81,10 @@ data Ter = Var Int
            -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
          | EquivEqRef Ter Ter Ter
 
-           -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) -> 
+           -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
            -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
            -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
-         | TransUEquivEq Ter Ter Ter Ter Ter Ter 
+         | TransUEquivEq Ter Ter Ter Ter Ter Ter
   deriving (Show,Eq)
 
 type Def = [Ter]                -- without type annotations for now

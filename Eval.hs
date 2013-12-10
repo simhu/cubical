@@ -34,17 +34,17 @@ mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 
 instance Functor Box where fmap = mapBox
 
-lookBox :: (Name,Dir) -> Box a -> a
+lookBox :: Show a => (Name,Dir) -> Box a -> a
 lookBox (y,dir) (Box d x v _) | x == y && mirror d == dir = v
-lookBox xd (Box _ _ _ nvs)    | otherwise = case lookup xd nvs of
+lookBox xd box@(Box _ _ _ nvs)    | otherwise = case lookup xd nvs of
   Just v  -> v
-  Nothing -> error $ "lookBox: box not defined on " ++ show xd
+  Nothing -> error $ "lookBox: box not defined on " ++ show xd ++ "\nbox = " ++ show box
 
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
 defBox :: Box a -> [(Name, Dir)]
-defBox (Box d x _ nvs) = (x,d) : [ zd | (zd,_) <- nvs ]
+defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
 fromBox :: Box a -> [((Name,Dir),a)]
 fromBox (Box d x v nvs) = ((x,d),v) : nvs
@@ -107,7 +107,7 @@ data Val = VU
          | VEquivSquare Name Name Val Val Val -- names x, y and values a, s, t
            -- VEquivEq x a b f s t
          | VPair Name Val Val -- of type VEquivEq
-         | VSquare Name Name Val  
+         | VSquare Name Name Val
          | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
          | VFill Name (Box Val) -- a value of type Kan Fill VU (Box
                                 -- (type of values minus name)); the name is bound
@@ -319,16 +319,16 @@ eval e (TransInv c p t) = com (app (eval e c) pv) box
   where x   = freshEnv e
         pv  = appName (eval e p) x
         box = Box Down x (eval e t) []
-eval e (TransU p t) = com pv box
+eval e (TransU p t) = -- trace ("TransU pv= " ++ show pv)
+  com pv box
   where x   = freshEnv e
         pv  = appName (eval e p) x
         box = Box Up x (eval e t) []
 eval e (TransURef t) = Path (freshEnv e) (eval e t)
 eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
   where x   = freshEnv e
-        pv  = fill (VEquivEq x (eval e a) (eval e b) (eval e f)
-                               (eval e s) (eval e t)) box
-        box = Box Up x (eval e u) []     
+        pv  = fill (eval e b) box
+        box = Box Up x (app (eval e f) (eval e u)) []
 -- TODO: Throw out _, not needed?
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
@@ -437,7 +437,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
         unPack (z,c) v | z /= x && z /= y  = unSquare v
                        | z == y && c == Up = sndPair v
                        | otherwise         = v
-          
+
 -- a and b should be independent of x
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x /= z && x `notElem` nonPrincipal box =
@@ -548,7 +548,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
 
-  | toAdd /= [] = 
+  | toAdd /= [] =
     let                         -- TODO: Okay?
       add :: (Name,Dir) -> Val
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
@@ -565,7 +565,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        ,((x,tdir),principzc)] -- "degenerate" along z!
            in fill (lookBox zc tbox) (Box Up z principzc (sides ++ auxsides zc)))
         | zc <- allDirs nK ]
-    in     trace "Kan Fill VU Case 2"
+    in     trace ("Kan Fill VU Case 2 v= " ++ show v ++ "\nbox= " ++ show box)
      VFill z (Box tdir x' principal nonprincipal)
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
