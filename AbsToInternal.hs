@@ -63,18 +63,22 @@ type PrimHandle = [(String, (Int, [Exp] -> Either String I.Ter))]
 
 primHandle :: PrimHandle
 primHandle =
-  [ ("Id",    (3, primId))
-  , ("refl",  (2, primRefl))
-  , ("subst", (6, primSubst)) -- TODO: remove, better only J
-  , ("substInv", (6, primSubstInv)) -- TODO: remove
-  , ("ext",   (5, primExt))
-  , ("J",     (6, primJ))
-  , ("Jeq",   (4, primJeq))
-  , ("inh",   (1, primInh))
-  , ("inc",   (2, primInc))
-  , ("squash",(3, primSquash))
-  , ("inhrec",(5, primInhRec))
-  , ("equivEq", (5, primEquivEq))
+  [ ("Id",            (3, primId))
+  , ("refl",          (2, primRefl))
+  , ("subst",         (6, primSubst)) -- TODO: remove, better only J
+  , ("substInv",      (6, primSubstInv)) -- TODO: remove
+  , ("ext",           (5, primExt))
+  , ("J",             (6, primJ))
+  , ("Jeq",           (4, primJeq))
+  , ("inh",           (1, primInh))
+  , ("inc",           (2, primInc))
+  , ("squash",        (3, primSquash))
+  , ("inhrec",        (5, primInhRec))
+  , ("equivEq",       (5, primEquivEq))
+  , ("transport",     (4, primTransport))
+  , ("transportRef",  (2, primTransportRef))
+  , ("equivEqRef",    (3, primEquivEqRef))
+  , ("transpEquivEq", (6, primTransUEquivEq))
   ]
 
 -- TODO: Even though these can assume to have the right amount of
@@ -124,6 +128,25 @@ primEquivEq [a,b,f,s,t] =
   I.EquivEq <$> translate a <*> translate b <*> translate f
             <*> translate s <*> translate t
 
+
+primTransport :: [Exp] -> Either String I.Ter
+primTransport [a,b,p,x] = I.TransU <$> translate p <*> translate x
+
+primTransportRef :: [Exp] -> Either String I.Ter
+primTransportRef [a,x] = I.TransURef <$> translate x
+
+-- (A:U) -> (s: (y:A) -> pathTo A a) -> (t : (y:B) -> (v:pathTo A a) -> Id (path To A a) (s y) v) ->
+-- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
+primEquivEqRef :: [Exp] -> Either String I.Ter
+primEquivEqRef [a,s,t] = I.EquivEqRef <$> translate a <*> translate s <*> translate t
+
+-- (A B : U) -> (f : A -> B) (s:(y:B) -> fiber A B f y) -> (t : (y:B) -> (v:fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+-- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
+primTransUEquivEq :: [Exp] -> Either String I.Ter
+primTransUEquivEq [a,b,f,s,t,x] =
+  I.TransUEquivEq <$> translate a <*> translate b <*> translate f <*>
+                      translate s <*> translate t <*> translate x
+
 -- Gets a name for a primitive notion, a list of arguments which might
 -- be to long and returns the corresponding concept in the internal
 -- syntax (Core).  Applies the rest of the terms if the list of terms
@@ -142,3 +165,4 @@ translatePrimitive n ts = case lookup n primHandle of
 
 manyApps :: I.Ter -> [I.Ter] -> I.Ter
 manyApps = foldl I.App
+
