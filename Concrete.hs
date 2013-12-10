@@ -7,14 +7,19 @@ import Exp.Abs
 import qualified MTT as A
 
 import Control.Applicative
+import Control.Monad.Trans
+import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
+import Control.Monad
 import Data.Functor.Identity
 import Data.Function
 import Data.Graph
 import Data.List
 import Data.Maybe
+
+type Tele = [VDecl]
 
 -- | Useful auxiliary functions
 unions :: Eq a => [[a]] -> [a]
@@ -35,9 +40,6 @@ unArg NoArg   = "_"
 unArgs :: [Arg] -> [String]
 unArgs = map unArg
 
-unTele :: Tele -> [VDecl]
-unTele (Tele n) = n
-
 unBinder :: Binder -> Arg
 unBinder (Binder b) = b
 
@@ -54,21 +56,30 @@ unWhere (NoWhere e)  = e
 -- Flatten a telescope, e.g., flatten (a b : A) (c : C) into
 -- (a : A) (b : A) (c : C).
 flattenTele :: Tele -> [VDecl]
-flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs]) . unTele
+flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs])
 
-unApps :: Exp -> [Binder]
-unApps (App e (Var b)) = unApps e ++ [b]
-unApps (Var b)         = [b]
-unApps e               = error $ "unApps bad input: " ++ show e
+-- Note: It is important to only apply unApps to e1 as otherwise the
+-- structure of the application will be destroyed which leads to trouble
+-- for constructor disambiguation!
+unApps :: Exp -> [Exp]
+unApps (App e1 e2) = unApps e1 ++ [e2]
+unApps e           = [e]
+
+unVar :: Exp -> Arg
+unVar (Var b) = b
+unVar e       = error $ "unVar bad input: " ++ show e
+
+unVarBinder :: Exp -> String
+unVarBinder = unArg . unVar
 
 unPiDecl :: PiDecl -> VDecl
-unPiDecl (PiDecl e t) = VDecl (unApps e) t
+unPiDecl (PiDecl e t) = VDecl (map (Binder . unVar) (unApps e)) t
 
 flattenTelePi :: [PiDecl] -> [VDecl]
-flattenTelePi = flattenTele . Tele . map unPiDecl
+flattenTelePi = flattenTele . map unPiDecl
 
 namesTele :: Tele -> [String]
-namesTele (Tele vs) = unions [ unArgsBinder args | VDecl args _ <- vs ]
+namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
 defToNames :: Def -> [String]
 defToNames (Def n _ _)     = [unIdent n]
@@ -82,23 +93,47 @@ defsToNames = nub . concatMap defToNames
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
--- local environment for variables
-type Env        = [String]
-type Resolver a = ReaderT Env (ErrorT String Identity) a
+-- local environment for variables and constructors
+data Env = Env { vars    :: [String]
+               , constrs :: [String]
+               }
+         deriving (Eq, Show)
+
+type Resolver a = ReaderT Env (StateT Integer (ErrorT String Identity)) a
+
+emptyEnv :: Env
+emptyEnv = Env [] []
 
 runResolver :: Resolver a -> Either String a
-runResolver x = runIdentity $ runErrorT $ runReaderT x []
+runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) 0
 
--- Insert a variable in an environment.
+-- Insert a variable in an environment and remove it from the constructor list
 insertVar :: Arg -> Env -> Env
-insertVar a e = unArg a : e
+insertVar a e@Env{vars = vs, constrs = cs} =
+  let a' = unArg a in e{vars = a' : vs, constrs = delete a' cs}
 
 -- Note: reverses order
 insertVars :: [Arg] -> Env -> Env
 insertVars as e = foldl (flip insertVar) e as
 
+insertConstrs :: [String] -> Env -> Env
+insertConstrs cs e@Env{constrs = cs'} = e{constrs = cs ++ cs'}
+
+getEnv :: Resolver Env
+getEnv = ask
+
+getVars, getConstrs :: Resolver [String]
+getVars    = getEnv >>= return . vars
+getConstrs = getEnv >>= return . constrs
+
 insertNames :: [String] -> Env -> Env
-insertNames = (++) . reverse
+insertNames ns e@Env{vars = vs} = e{vars = reverse ns ++ vs}
+
+gensym :: Resolver Integer
+gensym = do
+  g <- lift get
+  lift (modify succ)
+  return g
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
 lam a e = A.Lam <$> local (insertVar a) e
@@ -108,23 +143,29 @@ lams as e = foldr lam e as
 
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
+resolveExp Undef        = A.Undef <$> gensym
 resolveExp Top          = return A.Top
-resolveExp (App t s)    = A.App <$> resolveExp t <*> resolveExp s
+resolveExp e@(App t s)  = do
+  let x:xs = unApps e
+  cs <- getConstrs
+  if unVarBinder x `elem` cs
+    then A.Con (unVarBinder x) <$> mapM resolveExp xs
+    else A.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
-resolveExp (Con c es)   = A.Con (unIdent c) <$> mapM resolveExp es
 resolveExp (PN n t)     = A.PN (unIdent n) <$> resolveExp t
 resolveExp (Var n)      = do
-  let i = unArgBinder n
-  e <- ask
-  if i == "_"
-    then throwError "_ not a valid variable name "
-    else case elemIndex i e of
-      Just n  -> return $ A.Ref n
-      Nothing -> throwError ("unknown identifier: " ++ show i)
+  let x = unArg n
+  when (x == "_") (throwError "_ not a valid variable name")
+  Env vs cs <- getEnv
+  if x `elem` cs
+     then return $ A.Con x []
+     else case elemIndex x vs of
+       Just n  -> return $ A.Ref n
+       Nothing -> throwError ("unknown identifier: " ++ show x)
 
 resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
@@ -179,9 +220,10 @@ defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
 
 freeVarsExp :: Exp -> [String]
 freeVarsExp U           = []
+freeVarsExp Undef       = []
 freeVarsExp (Fun e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (App e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
-freeVarsExp (Var x)     = [unArgBinder x]
+freeVarsExp (Var x)     = [unArg x]
 freeVarsExp (Lam bs e)  = freeVarsExp e \\ unArgsBinder bs
 freeVarsExp (PN _ t)    = freeVarsExp t
 freeVarsExp (Let ds e)  =
@@ -189,10 +231,10 @@ freeVarsExp (Let ds e)  =
 freeVarsExp (Split bs)  =
   unions [ unIdent bn : (freeVarsExp (unWhere e) \\ unArgs args)
          | Branch bn args e <- bs ]
-freeVarsExp (Con cn es) = [unIdent cn] `union` unions (map freeVarsExp es)
-freeVarsExp (Pi [] e)                        = freeVarsExp e
+freeVarsExp (Pi [] e)               = freeVarsExp e
 freeVarsExp (Pi (PiDecl bs a:vs) e) =
-  freeVarsExp a `union` (freeVarsExp (Pi vs e) \\ unArgsBinder (unApps bs))
+  freeVarsExp a `union` (freeVarsExp (Pi vs e) \\
+                         unArgs (map unVar (unApps bs)))
 
 -- The free variables of the right hand side.
 freeVarsDef :: Def -> [String]
@@ -203,10 +245,9 @@ freeVarsDef (DefData _ vdecls lbls) = freeVarsTele vdecls `union`
   (unions [ freeVarsTele vs | Sum _ vs <- lbls ] \\ namesTele vdecls)
 
 freeVarsTele :: Tele -> [String]
-freeVarsTele (Tele ts) = fvT ts
-  where
-    fvT []              = []
-    fvT (VDecl bs e:ds) = freeVarsExp e `union` (fvT ds \\ unArgsBinder bs)
+freeVarsTele []              = []
+freeVarsTele (VDecl bs e:ds) =
+  freeVarsExp e `union` (freeVarsTele ds \\ unArgsBinder bs)
 
 --------------------------------------------------------------------------------
 -- | Handling mutual definitions
@@ -214,7 +255,7 @@ freeVarsTele (Tele ts) = fvT ts
 resolveLabel :: Sum -> Resolver (String,[A.Exp])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-handleMutual :: [[Def]] -> [String] -> Resolver [([String],A.Exp,A.Exp)]
+handleMutual :: [[Def]] -> [String] -> Resolver [([String],(A.Exp,A.Exp))]
 handleMutual []       _  = return []
 handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def before DefTDecl
   [d@(DefData _ vdcls cs)]        -> do
@@ -224,26 +265,26 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def befo
     exp  <- local (insertNames ns) $ lams args labels
     typ  <- resolveTelePi flat (return A.U) -- data-decls. have type U
     rest <- handleMutual dss ns
-    return ((ns,exp,typ):rest)
+    return ((ns,(exp,typ)):rest)
   [Def iden args body,DefTDecl _ t] -> do
     exp  <- local (insertNames ns) $ lams args (resolveWhere body)
     typ  <- resolveExp t
     rest <- handleMutual dss ns
-    return ((ns,exp,typ):rest)
+    return ((ns,(exp,typ)):rest)
   x -> throwError $ "handleMutual: Something is missing or too many "
                   ++ "definition/declarations: " ++ show x
 
 --                                         names  , exp : type
-handleMutuals :: [[[Def]]] -> Resolver [[([String],A.Exp,A.Exp)]]
+handleMutuals :: [[[Def]]] -> Resolver [[([String],(A.Exp,A.Exp))]]
 handleMutuals []       = return []
 handleMutuals (ds:dss) = do
   let ns = defsToNames $ concat ds
   handleMutual ds ns <:> local (insertNames ns) (handleMutuals dss)
 
-handleLet :: A.Exp -> [[([String],A.Exp,A.Exp)]] -> A.Exp
+handleLet :: A.Exp -> [[([String],(A.Exp,A.Exp))]] -> A.Exp
 handleLet e []     = e
-handleLet e (x:xs) = A.Def (handleLet e xs) es ts (concat nss)
-  where (nss,es,ts) = unzip3 x
+handleLet e (x:xs) = A.Def (handleLet e xs) es (concat nss)
+  where (nss,es) = unzip x
 
 handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
 handleDefs defs re = do

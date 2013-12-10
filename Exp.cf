@@ -14,7 +14,7 @@ separator Imp ";" ;
 
 Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
-DefData.  Def ::= "data" AIdent Tele "=" [Sum] ;
+DefData.  Def ::= "data" AIdent [VDecl] "=" [Sum] ;
 DefPrim.  Def ::= "primitive" "{" [Def] "}" ; -- only allows TDecls
 separator Def ";" ;
 
@@ -27,12 +27,11 @@ Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PiDecl] "->" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
-Con.      Exp2 ::= "$" AIdent [Exp3] ; -- Could be just Exp
-PN.       Exp2 ::= "PN" AIdent Exp3 ;
-Var.      Exp3 ::= Binder ;     -- check for "_". this also lead to s/r conflicts
+Var.      Exp3 ::= Arg ;
 U.        Exp3 ::= "U" ;
+Undef.    Exp3 ::= "undefined" ;
+internal PN.  Exp3 ::= "PN" AIdent Exp3 ;
 internal Top. Exp3 ::= "Top" ;
-terminator Exp3 "" ;
 coercions Exp 3 ;
 
 Binder.   Binder ::= Arg ;
@@ -48,12 +47,10 @@ Branch.   Branch ::= AIdent [Arg] "->" ExpWhere ;
 separator Branch ";" ;
 
 -- Labelled sum alternatives
-Sum.      Sum   ::= AIdent Tele ;
+Sum.      Sum   ::= AIdent [VDecl] ;
 separator Sum "|" ;
 
 -- Telescopes
-Tele.    Tele  ::= [VDecl] ;
-
 VDecl.     VDecl ::= "(" [Binder] ":" Exp ")" ;
 terminator VDecl "" ;
 

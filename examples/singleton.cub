@@ -1,0 +1,19 @@
+module singleton where
+
+import weq
+
+singleton : (A : U) -> A -> U
+singleton A a = Sigma A (Id A a)
+
+loop : (A : U) (a : A) -> singleton A a
+loop A a = pair a (refl A a)
+
+singlIsContr : (A : U) (a : A) (z : singleton A a) -> Id (singleton A a) (loop A a) z
+singlIsContr A a = split 
+  pair x p -> rem x p 
+  where
+  rem : (x : A) (p : Id A a x) -> Id (singleton A a) (loop A a) (pair x p)
+  rem = J A a (\x p -> Id (singleton A a) (loop A a) (pair x p)) 
+              (refl (singleton A a) (loop A a))
+
+

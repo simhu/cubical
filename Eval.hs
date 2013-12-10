@@ -443,7 +443,7 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                                 -- to consider the auxsides?
       add zc@(z,c) = fill (lookBox zc tbox) (mapBox (`face` (z,c)) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
-    in fill v newBox
+    in trace ("Kan Com 1\nnewBox " ++ show newBox) fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,dir')) boxL)
         nonprincipal =
@@ -452,8 +452,9 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
             in (zd, fill (lookBox zd tbox)
                     (side `consBox` mapBox (pickout zd) boxL))
           | zd@(z,d) <- allDirs nK ]
-    in VComp (Box tdir x principal nonprincipal)
-  | otherwise = -- x' `elem` nK
+        newBox = Box tdir x principal nonprincipal
+    in trace ("Kan Com 2\nnewBox " ++ show newBox) VComp newBox
+  | otherwise       = -- x' `elem` nK
     let -- assumes zc in defBox tbox
       -- TODO: same as mapBox (pickout zd) boxL? Merge with above?
       auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
@@ -473,7 +474,8 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
               ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
-    in VComp (Box tdir x principal (nplast:npint))
+      newBox = Box tdir x principal (nplast:npint)
+    in trace ("Kan Com 3\nnewBox " ++ show newBox) VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
         z     = gensym $ support v ++ supportBox box

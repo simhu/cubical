@@ -13,8 +13,7 @@ data Exp = Comp Exp Env
          | App Exp Exp
          | Pi Exp Exp
          | Lam Exp
-           -- TODO: Should be a list of pairs!
-         | Def Exp [Exp] [Exp] [String]	-- unit substitutions (strings names of definitions)
+         | Def Exp [(Exp,Exp)] [String]	-- unit substitutions (strings names of definitions)
          | Var Int 		-- generic values
          | Ref Int		-- de Bruijn index
          | U
@@ -26,18 +25,19 @@ data Exp = Comp Exp Env
 --         | RSum Lb [Exp]
          | PN String Exp        -- primitive notion (typed)
          | Top
+         | Undef Integer  
   deriving (Eq,Show)
 
 data Env = Empty
          | Pair Env Exp
-         | PDef [Exp] [Exp] Env
+         | PDef [(Exp,Exp)] Env
   deriving (Eq,Show)
 
 upds :: Env -> [Exp] -> Env
 upds = foldl Pair
 
 eval :: Exp -> Env -> Exp       -- eval is also composition!
-eval (Def e es as _) s = eval e (PDef es as s)
+eval (Def e es _) s = eval e (PDef es s)
 eval (App t1 t2)     s = app (eval t1 s) (eval t2 s)
 eval (Pi a b)        s = Pi (eval a s) (eval b s)
 eval (Con c ts)    s = Con c (evals ts s)
@@ -68,7 +68,7 @@ app f                    u            = App f u
 getE :: Int -> Env -> Exp
 getE 0 (Pair _ u)       = u
 getE k (Pair s _)       = getE (pred k) s
-getE l r@(PDef es _ r1) = getE l (upds r1 (evals es r))
+getE l r@(PDef es r1) = getE l (upds r1 (evals (map fst es) r))
 
 addC :: [Exp] -> [Exp] -> Env -> [Exp] -> [Exp]
 addC gam _      _  []     = gam
@@ -83,10 +83,11 @@ m =?= s2 = do
   --trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
   unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
-checkD :: Int -> Env -> [Exp] -> [Exp] -> [Exp] -> Error ()
-checkD k rho gam es as = do
+checkD :: Int -> Env -> [Exp] -> [(Exp,Exp)] -> Error ()
+checkD k rho gam es = do
+  let as = map snd es
   (rho1,gam1,l) <- checkTs k rho gam as
-  checks l rho1 gam1 as rho es
+  checks l rho1 gam1 as rho (map fst es)
 
 checkTs :: Int -> Env -> [Exp] -> [Exp] -> Error (Env,[Exp],Int)
 checkTs k rho gam []     = return (rho,gam,k)
@@ -118,11 +119,12 @@ check k rho gam a t = case (a,t) of
                       | ((c,e), (_,as)) <- zip ces cas]
        else fail "case branches does not match the data type"
   (Pi a f,Lam t)  -> check (k+1) (Pair rho (Var k)) (a:gam) (app f (Var k)) t
-  (_,Def e es as str) -> trace ("checking definition " ++ show str)
+  (_,Def e es str) -> trace ("checking definition " ++ show str)
     (do
-      checkD k rho gam es as
-      let rho1 = PDef es as rho
-      check k rho1 (addC gam as rho (evals es rho1)) a e)
+      checkD k rho gam es
+      let rho1 = PDef es rho
+      check k rho1 (addC gam (map snd es) rho (evals (map fst es) rho1)) a e)
+  (t,Undef n) -> return ()                       
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
 
@@ -155,11 +157,11 @@ checkI k rho gam e = case e of
         check k rho gam a m
         return (app f (eval m rho))
       _      ->  Left $ show c ++ " is not a product"
-  Def t es as str -> trace ("checking definition " ++ show str)
+  Def t es str -> trace ("checking definition " ++ show str)
     (do
-      checkD k rho gam es as
-      let rho1 = PDef es as rho
-      checkI k rho1 (addC gam as rho (evals es rho1)) t)
+      checkD k rho gam es
+      let rho1 = PDef es rho
+      checkI k rho1 (addC gam (map snd es) rho (evals (map fst es) rho1)) t)
   PN _ a -> do
     checkT k rho gam a          -- ??
     return (eval a rho)
@@ -206,7 +208,7 @@ reifyExp k (PN n a) = PN n (reifyExp k a)
 reifyEnv :: Int -> Env -> Env
 reifyEnv _ Empty = Empty
 reifyEnv k (Pair r u) = Pair (reifyEnv k r) (reifyExp k u)
-reifyEnv k (PDef ts as r) = reifyEnv k r
+reifyEnv k (PDef _ r) = reifyEnv k r
 
 -- reifyEnv :: Int -> Env -> [Exp]
 -- reifyEnv _ Empty = []
