@@ -508,24 +508,24 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | x' `elem` nK =
     let -- assumes zc in defBox tbox
       -- TODO: same as mapBox (pickout zd) boxL? Merge with above?
-      auxsides zc = trace "let1" [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
+      auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
       -- extend input box along x' with orientation tdir'; results
       -- in the non-principal faces on the intersection of defBox
       -- box and defBox tbox; note, that the intersection contains
       -- (x',dir'), but not (x',dir) (and (x,_))
-      npintbox@(Box _ _ _ npintaux) = trace "let2"
+      npintbox@(Box _ _ _ npintaux) =
         modBox (\ zc boxside -> fill (lookBox zc tbox)
                                   (Box tdir' x boxside (auxsides zc)))
           (subBox nK box)
-      npint = trace "let3" fromBox npintbox
-      npintfacebox = trace "let4" mapBox (`face` (x,tdir')) npintbox
-      principal = trace "let5" fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
-      nplp  = trace "let6" principal `face` (x',dir)
-      nplnp = trace "let7" auxsides (x',dir)
+      npint = fromBox npintbox
+      npintfacebox = mapBox (`face` (x,tdir')) npintbox
+      principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
+      nplp  = principal `face` (x',dir)
+      nplnp = auxsides (x',dir)
               ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
       -- the missing non-principal face on side (x',dir)
-      nplast = trace "let8" ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
-      newBox = trace "let9" Box tdir x principal (nplast:npint)
+      nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
+      newBox = Box tdir x principal (nplast:npint)
     in trace ("Kan Com 3") -- \nnewBox " ++ show newBox)
        VComp newBox
   where nK    = nonPrincipal tbox

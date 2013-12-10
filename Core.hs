@@ -12,7 +12,7 @@ data Ter = Var Int
          | Pi Ter Ter | Lam Ter | App Ter Ter
          | Where Ter Def
          | U
-           
+
            -- constructor c Ms
          | Con Ident [Ter]
 
@@ -20,7 +20,7 @@ data Ter = Var Int
          | Branch [(Ident, Ter)]
 
            -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | LSum [(Ident, [Ter])] 
+         | LSum [(Ident, [Ter])]
 
            -- TODO: Remove
          | TransInv Ter Ter Ter
@@ -29,7 +29,7 @@ data Ter = Var Int
            -- (Trans to be removed in favor of J ?)
            -- TODO: witness for singleton contractible and equation
          | Trans Ter Ter Ter
-           
+
            -- (A B:U) -> Id U A B -> A -> B
            -- For TransU we only need the eqproof and the element in A is needed
          | TransU Ter Ter
@@ -58,7 +58,7 @@ data Ter = Var Int
 
            -- Inc a : Inh A for a:A (A not needed ??)
          | Inc Ter
-           
+
            -- Squash a b : Id (Inh A) a b
          | Squash Ter Ter
 
