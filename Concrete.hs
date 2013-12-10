@@ -154,7 +154,7 @@ resolveExp e@(App t s)  = do
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Split brs)  = A.Fun <$> mapM resolveBranch brs
+resolveExp (Split brs)  = A.Fun <$> gensym <*> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (PN n t)     = A.PN (unIdent n) <$> resolveExp t
 resolveExp (Var n)      = do
@@ -261,7 +261,7 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def befo
   [d@(DefData _ vdcls cs)]        -> do
     let flat   = flattenTele vdcls
     let args   = concatMap (\(VDecl binds _) -> map unBinder binds) flat
-    let labels = A.Sum <$> mapM resolveLabel cs
+    let labels = A.Sum <$> gensym <*> mapM resolveLabel cs
     exp  <- local (insertNames ns) $ lams args labels
     typ  <- resolveTelePi flat (return A.U) -- data-decls. have type U
     rest <- handleMutual dss ns

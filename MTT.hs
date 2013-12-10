@@ -18,15 +18,18 @@ data Exp = Comp Exp Env
          | Ref Int		-- de Bruijn index
          | U
          | Con String [Exp]
-         | Fun Brc
-         | Sum Lb
--- for reify
---         | RFun Brc [Exp]
---         | RSum Lb [Exp]
+         | Fun Integer Brc
+         | Sum Integer Lb
          | PN String Exp        -- primitive notion (typed)
          | Top
-         | Undef Integer  
+         | Undef Integer
+         | EPrim Prim [Exp]  
   deriving (Eq,Show)
+
+data Prim = PFun Integer
+          | PSum Integer
+          | PUndef Integer
+  deriving (Eq,Show)            
 
 data Env = Empty
          | Pair Env Exp
@@ -60,7 +63,7 @@ evals es r = map (\e -> eval e r) es
 
 app :: Exp -> Exp -> Exp
 app (Comp (Lam b) s)     u            = eval b (Pair s u)
-app a@(Comp (Fun ces) r) b@(Con c us) = case lookup c ces of
+app a@(Comp (Fun _ ces) r) b@(Con c us) = case lookup c ces of
   Just e  -> eval e (upds r us)
   Nothing -> error $ "app: " ++ show a ++ " " ++ show b
 app f                    u            = App f u
@@ -112,8 +115,8 @@ check k rho gam a t = case (a,t) of
   (U,Pi a (Lam b)) -> do
     check k rho gam U a
     check (k+1) (Pair rho (Var k)) (eval a rho:gam) U b
-  (U,Sum bs) -> sequence_ [checkTUs k rho gam as | (_,as) <- bs]
-  (Pi (Comp (Sum cas) nu) f,Fun ces) ->
+  (U,Sum _ bs) -> sequence_ [checkTUs k rho gam as | (_,as) <- bs]
+  (Pi (Comp (Sum _ cas) nu) f,Fun _ ces) ->
     if map fst ces == map fst cas
        then sequence_ [ fix k rho gam as nu f c e
                       | ((c,e), (_,as)) <- zip ces cas]
@@ -141,7 +144,7 @@ fix k rho gam as nu f c e = do
   check (k+l) (upds rho us) (addC gam as nu us) (app f (Con c us)) e
 
 extSG :: String -> Exp -> Error ([Exp], Env)
-extSG c (Comp (Sum cas) r) = case lookup c cas of
+extSG c (Comp (Sum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> Left ("extSG " ++ show c)
 extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
@@ -192,27 +195,21 @@ checkExpInfer t = do
 
 -- Reification of a value to a term
 reifyExp :: Int -> Exp -> Exp
-reifyExp k (Comp (Lam t) r) = Lam $ reifyExp (k+1) (eval t (Pair r (Var k)))
-reifyExp k (Var l) = Ref (k-l-1)
-reifyExp k (App u v) = App (reifyExp k u) (reifyExp k v)
-reifyExp k (Pi a f) = Pi (reifyExp k a) (reifyExp k f)
-reifyExp _ U = U
-reifyExp k (Con n ts) = Con n (map (reifyExp k) ts)
-reifyExp k (Comp (Fun bs) r) = eval (Fun bs) (reifyEnv k r) -- ?
-reifyExp k (Comp (Sum ls) r) = eval (Sum ls) (reifyEnv k r) -- ?
--- reifyExp k (Comp (Sum ls) r) = RSum ls (reifyEnv k r)
--- reifyExp k (Comp (Fun bs) r) = RFun bs (reifyEnv k r)
-reifyExp _ Top = Top
-reifyExp k (PN n a) = PN n (reifyExp k a)
+reifyExp _ Top                 = Top
+reifyExp _ U                   = U
+reifyExp k (Comp (Lam t) r)    = Lam $ reifyExp (k+1) (eval t (Pair r (Var k)))
+reifyExp k (Var l)             = Ref (k-l-1)
+reifyExp k (App u v)           = App (reifyExp k u) (reifyExp k v)
+reifyExp k (Pi a f)            = Pi (reifyExp k a) (reifyExp k f)
+reifyExp k (Con n ts)          = Con n (map (reifyExp k) ts)
+reifyExp k (Comp (Fun l bs) r) = EPrim (PFun l) (reifyEnv k r)
+reifyExp k (Comp (Sum l ls) r) = EPrim (PSum l) (reifyEnv k r)
+reifyExp k (Comp (Undef l) r)  = EPrim (PUndef l) (reifyEnv k r)
+reifyExp k (PN n a)            = PN n (reifyExp k a)
 
-reifyEnv :: Int -> Env -> Env
-reifyEnv _ Empty = Empty
-reifyEnv k (Pair r u) = Pair (reifyEnv k r) (reifyExp k u)
-reifyEnv k (PDef _ r) = reifyEnv k r
-
--- reifyEnv :: Int -> Env -> [Exp]
--- reifyEnv _ Empty = []
--- reifyEnv k (Pair r u) = reifyExp k u:reifyEnv k r
--- reifyEnv k (PDef ts as r) = reifyEnv k r
+reifyEnv :: Int -> Env -> [Exp]
+reifyEnv _ Empty       = []
+reifyEnv k (Pair r u)  = reifyEnv k r ++ [reifyExp k u] -- TODO: inefficient
+reifyEnv k (PDef ts r) = reifyEnv k r
 
 

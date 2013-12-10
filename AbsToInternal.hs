@@ -49,10 +49,10 @@ translate (Def e ts _) = -- ignores types for now
 translate (Ref i) = return (I.Var i)
 translate U = return I.U
 translate (Con n ts) = I.Con n <$> mapM translate ts
-translate (Fun bs) = I.Branch <$> mapM (\(n,b) -> do
+translate (Fun _ bs) = I.Branch <$> mapM (\(n,b) -> do
                                            t <- translate b
                                            return (n,t)) bs
-translate (Sum lbs) = I.LSum <$> mapM (\(n,ls) -> do
+translate (Sum _ lbs) = I.LSum <$> mapM (\(n,ls) -> do
                                           ts <- mapM translate ls
                                           --let ts' = lambdaTele ts
                                           return (n,ts)) lbs
