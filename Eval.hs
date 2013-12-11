@@ -47,7 +47,7 @@ defBox :: Box a -> [(Name, Dir)]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
 fromBox :: Box a -> [((Name,Dir),a)]
-fromBox (Box d x v nvs) = ((x,d),v) : nvs
+fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
 
 -- toBox :: Dir -> Name -> [((Name,Dir),a)] -> Box a
 -- toBox d x (nv@(zd,v):nvs) | zd == (x, mirror d) = Box d x v nvs
@@ -80,13 +80,6 @@ appendBox xs b = foldr consBox b xs
 
 appendSides :: [((Name,Dir), a)] -> Box a -> Box a
 appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
-
--- TODO: This is not really the right way to do it.
-arrangeSide :: Show a => Name -> (Dir, a) -> (Dir, a) -> (Name, (a,a))
-arrangeSide n (Down, u) (Up, u') = (n, (u,u'))
-arrangeSide n (Up, u) (Down, u') = (n, (u',u))
-arrangeSide _ a b = error $ "arrangeSide: not a valid side: " ++ show a
-                    ++ " and " ++ show b
 
 
 data KanType = Fill | Com deriving (Show, Eq)
@@ -486,23 +479,23 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         VPair x acom bcom
   | otherwise = error "fill EqEquiv"
 
-fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
+fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let               -- the non-principal sides of tbox.
       add :: (Name,Dir) -> Val  -- TODO: Is this correct? Do we have
                                 -- to consider the auxsides?
-      add zc@(z,c) = fill (lookBox zc tbox) (mapBox (`face` (z,c)) box)
+      add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
     in trace ("Kan Com 1") -- \nnewBox " ++ show newBox)
        fill v newBox
   | x' `notElem` nK =
-    let principal = fill tx (mapBox (pickout (x,dir')) boxL)
+    let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
-          [ let side = arrangeSide x (tdir,lookBox zd box)
-                       (tdir',principal `face` (z,d))
+          [ let side = [((x,tdir),lookBox zd box)
+                       , ((x,tdir'),principal `face` zd)]
             in (zd, fill (lookBox zd tbox)
-                    (side `consBox` mapBox (pickout zd) boxL))
-          | zd@(z,d) <- allDirs nK ]
+                    (side `appendSides` mapBox (pickout zd) boxL))
+          | zd <- allDirs nK ]
         newBox = Box tdir x principal nonprincipal
     in trace ("Kan Com 2\nnewBox " ++ show newBox) VComp newBox
   | x' `elem` nK =
@@ -516,7 +509,7 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       npintbox@(Box _ _ _ npintaux) =
         modBox (\ zc boxside -> fill (lookBox zc tbox)
                                   (Box tdir' x boxside (auxsides zc)))
-          (subBox nK box)
+          (subBox (nK `intersect` nJ) box)
       npint = fromBox npintbox
       npintfacebox = mapBox (`face` (x,tdir')) npintbox
       principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
@@ -530,7 +523,9 @@ fill v@(Kan Com VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
        VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
-        z     = gensym $ support v ++ supportBox box
+        z     = gensym $ supportBox tbox' ++ supportBox box
+        -- x is z
+        tbox@(Box tdir x tx nvs) = swapBox tbox' tboxname z
         toAdd = nK \\ (x' : nJ)
         nL    = nJ \\ nK
         boxL  = subBox nL box
@@ -629,7 +624,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        sides  = [((z,Down),bottom),((z,Up),top)]
                    in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
                                               (sides ++ auxsides zc)))
-                 (subBox nK box) -- nK = nK /\ nJ
+                 (subBox nK box) -- nK = nK /\ nJ -- TODO ? intersect needed?
         npint = fromBox npintbox
         npintfacebox = mapBox (`face` (x,tdir)) npintbox
         principalbox = ([((z,Down),lookBox (x,tdir') box)
