@@ -1,4 +1,4 @@
-module Core (Ter(..), Def, Ident) where
+module Core (Ter(..), Def, Ident,Binder) where
 
 import Control.Monad.Reader hiding (ap)
 import Data.Graph
@@ -6,21 +6,23 @@ import Data.List (elemIndex)
 
 --import qualified Program as P
 
+type Binder = String
+
 -- The core language:
-data Ter = Var Int
+data Ter = Var Binder
          | Id Ter Ter Ter | Refl Ter
-         | Pi Ter Ter | Lam Ter | App Ter Ter
+         | Pi Ter Ter | Lam Binder Ter | App Ter Ter
          | Where Ter Def
          | U
 
            -- constructor c Ms
          | Con Ident [Ter]
 
-           -- branches c1 -> M1,..., cn -> Mn
-         | Branch [(Ident, Ter)]
+           -- branches c1 xs1  -> M1,..., cn xsn -> Mn
+         | Branch [(Ident, ([Binder],Ter))]
 
            -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | LSum [(Ident, [Ter])]
+         | LSum [(Ident, [(Binder,Ter)])]
 
            -- TODO: Remove
          | TransInv Ter Ter Ter
@@ -87,7 +89,7 @@ data Ter = Var Int
          | TransUEquivEq Ter Ter Ter Ter Ter Ter
   deriving (Show,Eq)
 
-type Def = [Ter]                -- without type annotations for now
+type Def = [(Binder,Ter)]       -- without type annotations for now
 type Ident = String
 
 -- Show instance for terms which insert names instead of De Bruijn

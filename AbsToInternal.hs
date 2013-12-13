@@ -43,7 +43,7 @@ translate (PN n a) = manyLams i <$> translatePrimitive n vars -- eta expand PNs
         vars = map Ref [i-1,i-2..0]
 translate (App r s) = I.App <$> translate r <*> translate s
 translate (Pi a f) = I.Pi <$> translate a <*> translate f
-translate (Lam t) = I.Lam <$> translate t
+translate (Lam x t) = I.Lam x <$> translate t
 translate (Def e ts _) = -- ignores types for now
   I.Where <$> translate e <*> mapM translate (map fst ts)
 translate (Ref i) = return (I.Var i)

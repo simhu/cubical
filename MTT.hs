@@ -130,7 +130,7 @@ check k rho gam a t = case (a,t) of
                       | ((c,(xs,e)), (_,as)) <- zip ces cas ]
        else fail "case branches does not match the data type"
   (Pi a f,Lam x t)  -> check (k+1) (Pair rho (x,mVar k)) ((x,a):gam) (app f (mVar k)) t
-  (_,Def e d@(ts,es)) -> -- trace ("checking definition " ++ show str)
+  (_,Def e d@(ts,es)) -> trace ("checking definition " ++ show (map fst es))
     (do
       checkD k rho gam d
       let rho1 = PDef d rho

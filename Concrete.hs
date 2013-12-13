@@ -94,8 +94,7 @@ defsToNames = nub . concatMap defToNames
 -- | Resolver and environment
 
 -- local environment for variables and constructors
-data Env = Env { vars    :: [String]
-               , constrs :: [String]
+data Env = Env { constrs :: [String]
                }
          deriving (Eq, Show)
 
@@ -107,27 +106,14 @@ emptyEnv = Env [] []
 runResolver :: Resolver a -> Either String a
 runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) 0
 
--- Insert a variable in an environment and remove it from the constructor list
-insertVar :: Arg -> Env -> Env
-insertVar a e@Env{vars = vs, constrs = cs} =
-  let a' = unArg a in e{vars = a' : vs, constrs = delete a' cs}
-
--- Note: reverses order
-insertVars :: [Arg] -> Env -> Env
-insertVars as e = foldl (flip insertVar) e as
-
 insertConstrs :: [String] -> Env -> Env
 insertConstrs cs e@Env{constrs = cs'} = e{constrs = cs ++ cs'}
 
 getEnv :: Resolver Env
 getEnv = ask
 
-getVars, getConstrs :: Resolver [String]
-getVars    = getEnv >>= return . vars
+getConstrs :: Resolver [String]
 getConstrs = getEnv >>= return . constrs
-
-insertNames :: [String] -> Env -> Env
-insertNames ns e@Env{vars = vs} = e{vars = reverse ns ++ vs}
 
 gensym :: Resolver Integer
 gensym = do
@@ -136,7 +122,7 @@ gensym = do
   return g
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
-lam a e = A.Lam <$> local (insertVar a) e
+lam a e = A.Lam (unArg a) <$> e
 
 lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
 lams as e = foldr lam e as
@@ -162,23 +148,21 @@ resolveExp (Var n)      = do
   when (x == "_") (throwError "_ not a valid variable name")
   Env vs cs <- getEnv
   if x `elem` cs
-     then return $ A.Con x []
-     else case elemIndex x vs of
-       Just n  -> return $ A.Ref n
-       Nothing -> throwError ("unknown identifier: " ++ show x)
+    then return $ A.Con x []
+    else  return $ A.Ref x
 
 resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
 
-resolveBranch :: Branch -> Resolver (String,A.Exp)
+resolveBranch :: Branch -> Resolver (String,([String],A.Exp))
 resolveBranch (Branch name args e) =
-  (unIdent name,) <$> local (insertVars args) (resolveWhere e)
+  (unIdent name,) <$> (unArgs args,) <*> resolveWhere e
 
 -- Assumes a flattened telescope.
-resolveTele :: [VDecl] -> Resolver [A.Exp]
+resolveTele :: [VDecl] -> Resolver [(String,A.Exp)]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
-  resolveExp t <:> local (insertVar a) (resolveTele ds)
+  (a,) <$> (resolveExp t <:> (resolveTele ds))
 resolveTele ds                      =
   throwError $ "resolveTele: non flattened telescope " ++ show ds
 
@@ -252,7 +236,7 @@ freeVarsTele (VDecl bs e:ds) =
 --------------------------------------------------------------------------------
 -- | Handling mutual definitions
 
-resolveLabel :: Sum -> Resolver (String,[A.Exp])
+resolveLabel :: Sum -> Resolver (String,[(String,A.Exp)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
 handleMutual :: [[Def]] -> [String] -> Resolver [([String],(A.Exp,A.Exp))]

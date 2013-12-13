@@ -113,27 +113,27 @@ sndVal (VPair _ _ v) = v
 sndVal x             = error $ "error sndVal: " ++ show x
 
 data Env = Empty
-         | Pair Env Val
-         | PDef [Ter] Env
+         | Pair Env (Binder,Val)
+         | PDef [(Binder,Ter)] Env
   deriving (Eq,Show)
 
-upds :: Env -> [Val] -> Env
+upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
 
-look :: Int -> Env -> Val
-look 0 (Pair _ u)     = u
-look k (Pair s _)     = look (k-1) s
-look k r@(PDef es r1) = look k (upds r1 (evals r es))
+look :: Binder -> Env -> Val
+look x (Pair s (y,u)) | x == y = u
+                      | otherwise = look x s
+look x r@(PDef es r1) = look x (upds r1 (evals r es))
 
 ter :: Ter -> Env -> Val
 ter t e = eval e t
 
-evals :: Env -> [Ter] -> [Val]
-evals e = map (eval e)
+evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
+evals e = map (\(b,t) -> (b,eval e t))
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty = Empty
-mapEnv f (Pair e v) = Pair (mapEnv f e) (f v)
+mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,(f v))
 mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
 
 faceEnv :: Env -> (Name,Dir) -> Env
@@ -195,7 +195,7 @@ face u xdir@(x,dir) =
         VComp $ mapBox (`face` (z,Up)) b
 
 idV :: Val
-idV = Ter (Lam (Var 0)) Empty
+idV = Ter (Lam "x" (Var "x")) Empty
 
 idVPair :: Name -> Val -> Val
 idVPair x v = VPair x (v `face` (x,Down)) v
@@ -232,7 +232,7 @@ supportBox (Box dir n v vns) = [n] `union` support v `union`
 
 supportEnv :: Env -> [Name]
 supportEnv Empty      = []
-supportEnv (Pair e v) = supportEnv e `union` support v
+supportEnv (Pair e (_,v)) = supportEnv e `union` support v
 supportEnv (PDef _ e) = supportEnv e
 
 -- TODO: Typeclass for freshness!
@@ -346,7 +346,7 @@ eval e (Ext b f g p) =
   Path x $ VExt x (eval e b) (eval e f) (eval e g) (eval e p)
     where x = freshEnv e
 eval e (Pi a b)      = VPi (eval e a) (eval e b)
-eval e (Lam t)       = Ter (Lam t) e -- stop at lambdas
+eval e (Lam x t)     = Ter (Lam x t) e -- stop at lambdas
 eval e (App r s)     = app (eval e r) (eval e s)
 eval e (Inh a)       = VInh (eval e a)
 eval e (Inc t)       = VInc (eval e t)
@@ -413,7 +413,7 @@ fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = gensym (support vid `union` supportBox box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) = VCon n ws
+fill (Ter (LSum nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
   where as = case lookup n nass of
                Just as -> as
                Nothing -> error $ "fill: missing constructor "
@@ -421,7 +421,7 @@ fill (Ter (LSum nass) e) box@(Box _ _ (VCon n _) _) = VCon n ws
         boxes :: [Box Val]
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
-        ws    = fills as e boxes
+        ws    = fills as env boxes
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
@@ -659,9 +659,9 @@ allDirs :: [Name] -> [(Name,Dir)]
 allDirs []     = []
 allDirs (n:ns) = (n,Down) : (n,Up) : allDirs ns
 
-fills :: [Ter] -> Env -> [Box Val] -> [Val]
+fills :: [(Binder,Ter)] -> Env -> [Box Val] -> [Val]
 fills [] _ []              = []
-fills (a:as) e (box:boxes) = v : fills as (Pair e v) boxes
+fills ((x,a):as) e (box:boxes) = v : fills as (Pair e (x,v)) boxes
   where v = fill (eval e a) box
 fills _ _ _ = error "fills: different lengths of types and values"
 
@@ -681,7 +681,7 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
         lookup' x = maybe (error "appBox") id . lookup x
 
 app :: Val -> Val -> Val
-app (Ter (Lam t) e) u                           = eval (Pair e u) t
+app (Ter (Lam x t) e) u                           = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
   trace ("Pi Com:\nufill = " ++ show ufill ++ "\nbcu = " ++ show bcu) com (app b ufill) (appBox box bcu)
   where ufill = fill a (Box (mirror dir) x u [])
@@ -705,7 +705,7 @@ app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [((x,Down),left)
         right = app gv (swap w x y)
         pvxw  = appName (app pv w0) x
 app (Ter (Branch nvs) e) (VCon name us) = case lookup name nvs of
-    Just t  -> eval (upds e us) t
+    Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
 app _ _ = error "app"
