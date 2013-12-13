@@ -94,14 +94,11 @@ runInterpreter fs = do
             Ok exp  ->
               case runResolver (local (const env) (resolveExp exp)) of
                 Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop env re
-                Right body -> let term = handleLet body re in
-                  case A.checkExpInfer term of
-                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop env re
-                    Right _  -> case translate term of
-                      Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
-                                  loop env re
-                      Right t  -> let value = E.eval E.Empty t in
-                        outputStrLn ("EVAL: " ++ show value) >> loop env re
+                Right body -> let term = handleLet body re in case translate term of
+                  Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
+                              loop env re
+                  Right t  -> let value = E.eval E.Empty t in
+                    outputStrLn ("EVAL: " ++ show value) >> loop env re
 
 help :: String
 help = "\nAvailable commands:\n" ++
