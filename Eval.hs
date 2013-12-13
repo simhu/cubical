@@ -484,38 +484,38 @@ fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
     let               -- the non-principal sides of tbox.
       add :: (Name,Dir) -> Val  -- TODO: Is this correct? Do we have
                                 -- to consider the auxsides?
-      add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
+      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
     in trace ("Kan Com 1") -- \nnewBox " ++ show newBox)
        fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
-          [ let side = [((x,tdir),lookBox zd box)
-                       , ((x,tdir'),principal `face` zd)]
-            in (zd, fill (lookBox zd tbox)
-                    (side `appendSides` mapBox (pickout zd) boxL))
-          | zd <- allDirs nK ]
+          [ let side = [((x,tdir),lookBox yc box)
+                       ,((x,tdir'),principal `face` yc)]
+            in (yc, fill (lookBox yc tbox)
+                    (side `appendSides` mapBox (pickout yc) boxL))
+          | yc <- allDirs nK ]
         newBox = Box tdir x principal nonprincipal
     in trace ("Kan Com 2\nnewBox " ++ show newBox) VComp newBox
   | x' `elem` nK =
     let -- assumes zc in defBox tbox
       -- TODO: same as mapBox (pickout zd) boxL? Merge with above?
       auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
-      -- extend input box along x' with orientation tdir'; results
+      -- extend input box along x with orientation tdir'; results
       -- in the non-principal faces on the intersection of defBox
       -- box and defBox tbox; note, that the intersection contains
       -- (x',dir'), but not (x',dir) (and (x,_))
       npintbox@(Box _ _ _ npintaux) =
-        modBox (\ zc boxside -> fill (lookBox zc tbox)
-                                  (Box tdir' x boxside (auxsides zc)))
+        modBox (\ yc boxside -> fill (lookBox yc tbox)
+                                  (Box tdir' x boxside (auxsides yc)))
           (subBox (nK `intersect` nJ) box)
       npint = fromBox npintbox
       npintfacebox = mapBox (`face` (x,tdir')) npintbox
       principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
       nplp  = principal `face` (x',dir)
       nplnp = auxsides (x',dir)
-              ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
+              ++ map (\(yc,v) -> (yc,v `face` (x',dir))) npintaux
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
@@ -593,12 +593,12 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
      fill v (xsides `appendSides` box)
   | x' `notElem` nK =  -- assumes x,K subset x',J
       let
-        xaux      = unCompAs (lookBox (x,tdir) box) x
+        xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
         boxprinc  = unFillAs (lookBox (x',dir') box) z
         princnp   = [((z,Up),lookBox (x,tdir') xaux)
-                    ,((z, Down), lookBox (x,tdir') box)]
-                    ++ auxsides (x',tdir')
-        principal = fill (lookBox (x',tdir') tbox) -- tx
+                    ,((z,Down),lookBox (x,tdir') box)]
+                    ++ auxsides (x,tdir')
+        principal = fill (lookBox (x,tdir') tbox) -- tx
                       (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
         nonprincipal =
           [ let up = lookBox yc xaux
@@ -624,7 +624,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        sides  = [((z,Down),bottom),((z,Up),top)]
                    in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
                                               (sides ++ auxsides zc)))
-                 (subBox nK box) -- nK = nK /\ nJ -- TODO ? intersect needed?
+                 (subBox (nK `intersect` nJ) box)
         npint = fromBox npintbox
         npintfacebox = mapBox (`face` (x,tdir)) npintbox
         principalbox = ([((z,Down),lookBox (x,tdir') box)
@@ -683,7 +683,7 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
 app :: Val -> Val -> Val
 app (Ter (Lam t) e) u                           = eval (Pair e u) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
-  trace ("Pi Com:\nufill = " ++ show ufill ++ "\nbcu = " ++ show bcu) com (app b ufill) (appBox box bcu)
+  trace ("Pi Com" ) (com (app b ufill) (appBox box bcu))
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
