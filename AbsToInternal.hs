@@ -39,6 +39,7 @@ translate (Sum lbs) = I.LSum <$> mapM (\(n,tele) -> do
                                           return (n,ts)) lbs
 translate t = throwError ("translate: can not handle " ++ show t)
 
+
 -- name, (arity for Exp, handler)
 type PrimHandle = [(String, (Int, [Exp] -> Either String I.Ter))]
 

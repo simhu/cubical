@@ -14,7 +14,7 @@ separator Imp ";" ;
 
 Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
-DefData.  Def ::= "data" AIdent [VDecl] "=" [Sum] ;
+DefData.  Def ::= "data" AIdent [Arg] "=" [Sum] ;
 DefPrim.  Def ::= "primitive" "{" [Def] "}" ; -- only allows TDecls
 separator Def ";" ;
 

@@ -302,3 +302,23 @@ handleDefs defs re = do
 
 handleModule :: Module -> Resolver A.Exp
 handleModule (Module _ _ defs) = handleDefs defs (return A.Top)
+
+
+
+
+concrToAbs :: [Def] -> Resolver [A.Def]
+concrToAbs [] = return []
+concrToAbs (DefTDecl n e:d:ds) = do
+  e' <- resolveWhere e
+  xd <- checkDef n d
+  rest <- concrToAbs ds
+  return $ ([(unIdent n, e')],[xd]) : rest
+
+
+checkDef :: AIdent -> Def -> Resolver (Binder,A.Exp)
+checkDef (_,n) (Def (_,m) args body) | n == m =
+  (n,) <$> lams args (resolveWhere body)
+checkDef checkDef (_,n) (DefData (_,m) args sums) | n == m =
+  (n,) <$> lams args (A.Sum <$> mapM resolveLabel sums)
+checkDef (_,n) d = throwError ("Mismatching names in " ++ show n ++ " and " ++
+                               show d)

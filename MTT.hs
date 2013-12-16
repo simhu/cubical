@@ -3,11 +3,22 @@ module MTT where
 
 import Control.Monad
 import Debug.Trace
-import Control.Monad.Error hiding (Error,fix)
+import Control.Monad.Trans.Error hiding (fix,throwError)
+import Control.Monad.Trans.Reader
+import Control.Monad.Identity
+import Control.Monad.Error (throwError)
 import Control.Applicative
 
-type Brc = [(String,([String],Exp))]
-type Lb  = [(String,Tele)]
+
+type Binder = String
+type Label = String
+
+-- TODO: hack
+toBinder ::  String -> Binder
+toBinder x = x
+
+type Brc = [(Label,([String],Exp))]
+type Lb  = [(Label,Tele)]
 
 type Val = Exp
 
@@ -15,22 +26,19 @@ type Cont = [(String,Val)]
 
 type Def = (Tele,[(String,Exp)])
 
-type Binder = String
-
 type Tele = [(String,Exp)]
 
 mVar :: Int -> Exp
 mVar k = Ref (genName k)
 
-genName :: Int -> Binder
+genName :: Int -> String
 genName n = "X" ++ show n
 
 data Exp = Comp Exp Env
          | App Exp Exp
          | Pi Exp Exp
-         | Lam Binder Exp
+         | Lam String Exp
          | Def Exp Def		-- unit substitutions (strings names of definitions)
---         | Var Int 		-- generic values
          | Ref String		-- use names
          | U
          | Con String [Exp]
@@ -51,6 +59,22 @@ data Env = Empty
          | Pair Env (String,Val)
          | PDef Def Env
   deriving (Eq,Show)
+
+-- data LEnv = LEnv
+type LEnv = (Int,Env,Cont)
+
+lEmpty :: LEnv
+lEmpty = (0,Empty,[])
+
+lets :: [Def] -> Exp -> Exp
+lets [] e = e
+lets (d:ds) e = Def (lets ds e) d
+
+defs :: Env -> Exp -> Exp
+defs Empty e = e
+defs (PDef d env) e = defs env (Def e d)
+defs env _ = error $ "defs: environment should a list of definitions "
+             ++ show env
 
 upds :: Env -> [(String,Val)] -> Env
 upds env []          = env
@@ -82,125 +106,191 @@ getE x (Pair _ (y,u)) | x == y       = u
 getE x (Pair s _)                = getE x s
 getE x r@(PDef d r1) = getE x (upds r1 (evals (snd d) r))
 
-addC :: Cont -> Tele -> Env -> [(String,Val)] -> Cont
-addC gam _      _  []     = gam
-addC gam ((y,a):as) nu ((x,u):xus) = addC ((x,eval a nu):gam) as (Pair nu (y,u)) xus
+addC :: Cont -> (Tele,Env) -> [(String,Val)] -> Cont
+addC gam _ [] = gam
+addC gam (((y,a):as),nu) ((x,u):xus) =
+  addC ((x,eval a nu):gam) (as,Pair nu (y,u)) xus
 
--- An error monad
-type Error a = Either String a
+type Typing a = ReaderT LEnv (ErrorT String Identity) a
 
-(=?=) :: Error Exp -> Exp -> Error ()
+runTyping :: Typing a -> LEnv -> ErrorT String Identity a
+runTyping = runReaderT
+
+addType :: String -> Exp -> LEnv -> LEnv
+addType x a (k,rho,gam) = (k+1,Pair rho (x,mVar k),(x,eval a rho):gam)
+
+addTypeVal :: String -> Val -> LEnv -> LEnv
+addTypeVal x a (k,rho,gam) = (k+1,Pair rho (x,mVar k),(x,a):gam)
+
+addBranch :: [(String,Val)] -> (Tele,Env) -> LEnv -> LEnv
+addBranch nvs (tele,env) (k,rho,gam) = (k+l,upds rho nvs,addC gam (tele,env) nvs)
+  where l = length nvs
+
+addDef :: Def -> LEnv -> LEnv
+addDef d@(ts,es) (k,rho,gam) =
+  let rho1 = PDef d rho
+  in (k,rho1,addC gam (ts,rho) (evals es rho1))
+
+addTele :: Tele -> LEnv -> LEnv
+addTele []          lenv = lenv
+addTele ((x,a):xas) lenv = addTele xas (addType x a lenv)
+
+getFresh :: Typing Exp
+getFresh = do
+  (k,_,_) <- ask
+  return $ mVar k
+
+getIndex :: Typing Int
+getIndex = do
+  (k,_,_) <- ask
+  return k
+
+getEnv :: Typing Env
+getEnv = do
+  (_,rho,_) <- ask
+  return rho
+
+getCont :: Typing Cont
+getCont = do
+  (_,_,gam) <- ask
+  return gam
+
+(=?=) :: Typing Exp -> Exp -> Typing ()
 m =?= s2 = do
   s1 <- m
   --trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
-  unless (s1 == s2) $ Left ("eqG " ++ show s1 ++ " =/= " ++ show s2)
+  unless (s1 == s2) $ throwError ("eqG " ++ show s1 ++ " =/= " ++ show s2)
 
-checkD :: Int -> Env -> Cont -> Def -> Error ()
-checkD k rho gam (xas,xes) = do
-  (rho1,gam1,l) <- checkTs k rho gam xas
-  checks l rho1 gam1 xas rho (map snd xes)
+checkDef :: Def -> Typing ()
+checkDef (xas,xes) = do
+  checkTs xas
+  rho <- getEnv
+  local (addTele xas) $ checks (xas,rho) (map snd xes)
 
-checkTs :: Int -> Env -> Cont -> [(String,Exp)] -> Error (Env,Cont,Int)
-checkTs k rho gam []     = return (rho,gam,k)
-checkTs k rho gam ((x,a):xas) = do
-  checkT k rho gam a
-  checkTs (k+1) (Pair rho (x,mVar k)) ((x,eval a rho):gam) xas
+checkTs :: [(String,Exp)] -> Typing ()
+checkTs [] = return ()
+checkTs ((x,a):xas) = do
+  checkT a
+  local (addType x a) (checkTs xas)
 
-checkT :: Int -> Env -> Cont -> Exp -> Error ()
-checkT k rho gam t = case t of
-  U            -> return ()
+checkT :: Exp -> Typing ()
+checkT t = case t of
+  U              -> return ()
   Pi a (Lam x b) -> do
-    checkT k rho gam a
-    checkT (k+1) (Pair rho (x,mVar k)) ((x,eval a rho):gam) b
-  _ -> checkI k rho gam t =?= U
+    checkT a
+    local (addType x a) (checkT b)
+  _ -> checkInfer t =?= U
 
-check :: Int -> Env -> Cont -> Val -> Exp -> Error ()
-check k rho gam a t = case (a,t) of
+check :: Val -> Exp -> Typing ()
+check a t = case (a,t) of
   (Top,Top)    -> return ()
   (_,Con c es) -> do
     (bs,nu) <- extSG c a
-    checks k rho gam bs nu es
+    checks (bs,nu) es
   (U,Pi a (Lam x b)) -> do
-    check k rho gam U a
-    check (k+1) (Pair rho (x,mVar k)) ((x,eval a rho):gam) U b
-  (U,Sum bs) -> sequence_ [checkTUs k rho gam as | (_,as) <- bs]
+    check U a
+    local (addType x a) $ check U b
+  (U,Sum bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (Pi (Comp (Sum cas) nu) f,Fun ces) ->
     if map fst ces == map fst cas
-       then sequence_ [ checkBranch k rho gam as nu f c xs e
+       then sequence_ [ checkBranch as nu f c xs e
                       | ((c,(xs,e)), (_,as)) <- zip ces cas ]
-       else fail "case branches does not match the data type"
-  (Pi a f,Lam x t)  -> check (k+1) (Pair rho (x,mVar k)) ((x,a):gam) (app f (mVar k)) t
-  (_,Def e d@(ts,es)) -> trace ("checking definition " ++ show (map fst es))
+       else throwError "case branches does not match the data type"
+  (Pi a f,Lam x t)  -> do
+    var <- getFresh
+    local (addTypeVal x a) $ check (app f var) t
+  (_,Def e d@(_,es)) -> trace ("checking definition " ++ show (map fst es))
     (do
-      checkD k rho gam d
-      let rho1 = PDef d rho
-      check k rho1 (addC gam ts rho (evals es rho1)) a e)
+      checkDef d
+      local (addDef d) $ check a e)
   (_,PN _) -> return ()
   (_,Undef _) -> return ()
   _ -> do
-    (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
+    k <- getIndex
+    (reifyExp k <$> checkInfer t) =?= reifyExp k a
 
-checkTUs :: Int -> Env -> Cont -> Tele -> Error ()
-checkTUs _ _   _   []     = return ()
-checkTUs k rho gam ((x,a):xas) = do
-  check k rho gam U a
-  checkTUs (k+1) (Pair rho (x,mVar k)) ((x,eval a rho):gam) xas
+checkTele :: Tele -> Typing ()
+checkTele []          = return ()
+checkTele ((x,a):xas) = do
+  check U a
+  local (addType x a) $ checkTele xas
 
---addC :: Cont -> [Exp] -> Env -> [(String,Val)] -> Cont
--- What does this do?
-checkBranch :: Int -> Env -> Cont -> Tele -> Env -> Val -> String -> [Binder] -> Exp -> Error ()
-checkBranch k rho gam xas nu f c xs e = do
+checkBranch :: Tele -> Env -> Val -> String -> [String] -> Exp -> Typing ()
+checkBranch xas nu f c xs e = do
+  k <- getIndex
   let l  = length xas
   let us = map mVar [k..k+l-1]
-  check (k+l) (upds rho (zip xs us)) (addC gam xas nu (zip xs us)) (app f (Con c us)) e
+  local (addBranch (zip xs us) (xas,nu)) $ check (app f (Con c us)) e
 
-extSG :: String -> Exp -> Error (Tele, Env)
+extSG :: String -> Exp -> Typing (Tele, Env)
 extSG c (Comp (Sum cas) r) = case lookup c cas of
   Just as -> return (as,r)
-  Nothing -> Left ("extSG " ++ show c)
-extSG c u = Left ("extSG " ++ c ++ " " ++ show u)
+  Nothing -> throwError ("extSG " ++ show c)
+extSG c u = throwError ("extSG " ++ c ++ " " ++ show u)
 
-checkI :: Int -> Env -> Cont -> Exp -> Error Exp
-checkI k rho gam e = case e of
+checkInfer :: Exp -> Typing Exp
+checkInfer e = case e of
   U -> return U                 -- U : U
-  Ref k   -> case lookup k gam of
-    Just v  -> return v
-    Nothing -> Left $ show k ++ " is not declared!"
-  App n m -> do
-    c <- checkI k rho gam n
+  Ref n -> do
+    gam <- getCont
+    case lookup n gam of
+      Just v  -> return v
+      Nothing -> throwError $ show n ++ " is not declared!"
+  App t u -> do
+    c <- checkInfer t
     case c of
       Pi a f -> do
-        check k rho gam a m
-        return (app f (eval m rho))
-      _      ->  Left $ show c ++ " is not a product"
-  Def t d@(xas,xes) -> -- trace ("checking definition " ++ show str)
+        check a u
+        rho <- getEnv
+        return (app f (eval u rho))
+      _      ->  throwError $ show c ++ " is not a product"
+  Def t d -> -- trace ("checking definition " ++ show str)
     (do
-      checkD k rho gam d
-      let rho1 = PDef d rho
-      checkI k rho1 (addC gam xas rho (evals xes rho1)) t)
-  _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
+      checkDef d
+      local (addDef d) $ checkInfer t)
+  _ -> throwError ("checkInfer " ++ show e)
 
 
-checks :: Int -> Env -> Cont -> Tele -> Env -> [Exp] -> Error ()
-checks _ _   _    []    _  []     = return ()
-checks k rho gam ((x,a):xas) nu (e :es) = do
+
+checks :: (Tele,Env) -> [Exp] -> Typing ()
+checks _  []     = return ()
+checks ((x,a):xas,nu) (e:es) = do
   -- trace ("checking " ++ show e ++ "\nof type " ++ show a
   --        ++ "\nin " ++ show rho ++ "\n")
-  check k rho gam (eval a nu) e
-  checks k rho gam xas (Pair nu (x,eval e rho)) es
-checks k rho gam _ _ _ = Left "checks"
+  check (eval a nu) e
+  rho <- getEnv
+  checks (xas,Pair nu (x,eval e rho)) es
+checks _ _ = throwError "checks"
 
 
-checkExp :: Exp -> Error ()
-checkExp = check 0 Empty [] Top
+runDefs :: LEnv -> [Def] -> Either String LEnv
+runDefs = foldM runDef
 
-checkExpType :: Exp -> Exp -> Error ()
-checkExpType t a = check 0 Empty [] a t
+runDef :: LEnv -> Def -> Either String LEnv
+runDef lenv d = do
+  runIdentity $ runErrorT $ runTyping (checkDef d) lenv
+  return $ addDef d lenv
 
-checkExpInfer :: Exp -> Error ()
-checkExpInfer t = do
-  a <- checkI 0 Empty [] t
-  checkExpType t a
+runInfer :: LEnv -> Exp -> Either String Exp
+runInfer lenv e = do
+  runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
+
+-- type Typing a = ReaderT LEnv (ErrorT String Identity) a
+
+-- runTyping :: Typing a -> LEnv -> ErrorT String Identity a
+-- runTyping = runReaderT
+
+
+-- checkExp :: Exp -> Typing ()
+-- checkExp = check 0 Empty [] Top
+
+-- checkExpType :: Exp -> Exp -> Typing ()
+-- checkExpType t a = check a t
+
+-- checkExpInfer :: Exp -> Typing ()
+-- checkExpInfer t = do
+--   a <- checkInfer t
+--   checkExpType t a
 
 -- Reification of a value to a term
 reifyExp :: Int -> Exp -> Exp
@@ -220,5 +310,6 @@ reifyEnv :: Int -> Env -> [Exp]
 reifyEnv _ Empty       = []
 reifyEnv k (Pair r (_,u))  = reifyEnv k r ++ [reifyExp k u] -- TODO: inefficient
 reifyEnv k (PDef ts r) = reifyEnv k r
+
 
 
