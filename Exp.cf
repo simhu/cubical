@@ -30,7 +30,7 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Var.      Exp3 ::= Arg ;
 U.        Exp3 ::= "U" ;
 Undef.    Exp3 ::= "undefined" ;
-internal PN.  Exp3 ::= "PN" AIdent Exp3 ;
+internal PN.  Exp3 ::= "PN" AIdent ;
 internal Top. Exp3 ::= "Top" ;
 coercions Exp 3 ;
 

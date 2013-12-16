@@ -18,7 +18,7 @@ unApps t         = (t,[])
 
 
 numberOfPis :: Exp -> Int
-numberOfPis (Pi a (Lam b)) = 1 + numberOfPis b
+numberOfPis (Pi a (Lam _ b)) = 1 + numberOfPis b
 numberOfPis _              = 0
 
 -- etaPN :: Int -> I.Ter -> I.Ter
@@ -46,7 +46,7 @@ translate (Pi a f) = I.Pi <$> translate a <*> translate f
 translate (Lam x t) = I.Lam x <$> translate t
 translate (Def e ts _) = -- ignores types for now
   I.Where <$> translate e <*> mapM translate (map fst ts)
-translate (Ref i) = return (I.Var i)
+translate (Ref n) = return (I.Var n)
 translate U = return I.U
 translate (Con n ts) = I.Con n <$> mapM translate ts
 translate (Fun _ bs) = I.Branch <$> mapM (\(n,b) -> do

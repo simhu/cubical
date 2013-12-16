@@ -36,7 +36,7 @@ data Exp = Comp Exp Env
          | Con String [Exp]
          | Fun Brc
          | Sum Lb
-         | PN String Exp        -- primitive notion (typed)
+         | PN String            -- primitive notion
          | Top
          | Undef Integer
          | EPrim Prim [Exp]
@@ -57,15 +57,15 @@ upds env []          = env
 upds env (xv:xvs) = upds (Pair env xv) xvs
 
 eval :: Exp -> Env -> Val       -- eval is also composition!
-eval (Def e d) s     = eval e (PDef d s)
+eval (Def e d)   s = eval e (PDef d s)
 eval (App t1 t2) s = app (eval t1 s) (eval t2 s)
 eval (Pi a b)    s = Pi (eval a s) (eval b s)
-eval (Con c ts)    s   = Con c (map (\ e -> eval e s) ts)
-eval (Ref k)       s   = getE k s
-eval U             _   = U
-eval (PN n a)      s   = PN n (eval a s)
+eval (Con c ts)  s = Con c (map (\ e -> eval e s) ts)
+eval (Ref k)     s = getE k s
+eval U           _ = U
+eval (PN n)      s = PN n
 --eval (Comp t s')   s = eval t (compose s' s) -- ??
-eval t             s   = Comp t s
+eval t           s = Comp t s
 
 evals :: [(String,Exp)] -> Env -> [(String,Val)]
 evals es r = map (\(x,e) -> (x,eval e r)) es
@@ -135,7 +135,8 @@ check k rho gam a t = case (a,t) of
       checkD k rho gam d
       let rho1 = PDef d rho
       check k rho1 (addC gam ts rho (evals es rho1)) a e)
-  (t,Undef n) -> return ()
+  (_,PN _) -> return ()
+  (_,Undef _) -> return ()
   _ -> do
     (reifyExp k <$> checkI k rho gam t) =?= reifyExp k a
 
@@ -177,9 +178,6 @@ checkI k rho gam e = case e of
       checkD k rho gam d
       let rho1 = PDef d rho
       checkI k rho1 (addC gam xas rho (evals xes rho1)) t)
-  PN _ a -> do
-    checkT k rho gam a          -- ??
-    return (eval a rho)
   _ -> Left ("checkI " ++ show e ++ " in " ++ show rho)
 
 
@@ -206,17 +204,17 @@ checkExpInfer t = do
 
 -- Reification of a value to a term
 reifyExp :: Int -> Exp -> Exp
-reifyExp _ Top                 = Top
-reifyExp _ U                   = U
-reifyExp k (Comp (Lam x t) r)  = Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mVar k)))
-reifyExp k v@(Ref l)           = v
-reifyExp k (App u v)           = App (reifyExp k u) (reifyExp k v)
-reifyExp k (Pi a f)            = Pi (reifyExp k a) (reifyExp k f)
-reifyExp k (Con n ts)          = Con n (map (reifyExp k) ts)
-reifyExp k (Comp (Fun bs) r)   = EPrim (PFun bs) (reifyEnv k r)
-reifyExp k (Comp (Sum ls) r)   = EPrim (PSum ls) (reifyEnv k r)
-reifyExp k (Comp (Undef l) r)  = EPrim (PUndef l) (reifyEnv k r)
-reifyExp k (PN n a)            = PN n (reifyExp k a)
+reifyExp _ Top                = Top
+reifyExp _ U                  = U
+reifyExp k (Comp (Lam x t) r) = Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mVar k)))
+reifyExp k v@(Ref l)          = v
+reifyExp k (App u v)          = App (reifyExp k u) (reifyExp k v)
+reifyExp k (Pi a f)           = Pi (reifyExp k a) (reifyExp k f)
+reifyExp k (Con n ts)         = Con n (map (reifyExp k) ts)
+reifyExp k (Comp (Fun bs) r)  = EPrim (PFun bs) (reifyEnv k r)
+reifyExp k (Comp (Sum ls) r)  = EPrim (PSum ls) (reifyEnv k r)
+reifyExp k (Comp (Undef l) r) = EPrim (PUndef l) (reifyEnv k r)
+reifyExp k (PN n)             = PN n
 
 reifyEnv :: Int -> Env -> [Exp]
 reifyEnv _ Empty       = []

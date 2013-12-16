@@ -142,7 +142,7 @@ resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Split brs)  = A.Fun <$> gensym <*> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
-resolveExp (PN n t)     = A.PN (unIdent n) <$> resolveExp t
+resolveExp (PN n)       = return (A.PN (unIdent n))
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
@@ -198,7 +198,7 @@ defToGraph d@(DefData n vdecls labels) =
 defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
   where
     unfoldPrimitive :: Def -> [Def]
-    unfoldPrimitive d@(DefTDecl n a) = [d,Def n [] (NoWhere (PN n a))]
+    unfoldPrimitive d@(DefTDecl n a) = [d,Def n [] (NoWhere (PN n))]
     unfoldPrimitive d =
       error ("only type declarations are allowed in primitives " ++ show d)
 
@@ -209,7 +209,7 @@ freeVarsExp (Fun e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (App e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
 freeVarsExp (Var x)     = [unArg x]
 freeVarsExp (Lam bs e)  = freeVarsExp e \\ unArgsBinder bs
-freeVarsExp (PN _ t)    = freeVarsExp t
+freeVarsExp (PN _)      = []
 freeVarsExp (Let ds e)  =
   (freeVarsExp e `union` unions (map freeVarsDef ds)) \\ defsToNames ds
 freeVarsExp (Split bs)  =
