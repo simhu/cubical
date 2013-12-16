@@ -244,7 +244,7 @@ checkInfer e = case e of
         rho <- getEnv
         return (app f (eval u rho))
       _      ->  throwError $ show c ++ " is not a product"
-  Def t d -> -- trace ("checking definition " ++ show str)
+  Def t d@(_,es) -> trace ("checking definition " ++ show (map fst es))
     (do
       checkDef d
       local (addDef d) $ checkInfer t)

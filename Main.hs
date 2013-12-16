@@ -22,6 +22,9 @@ import qualified Eval as E
 
 type Interpreter a = StateT A.LEnv (InputT IO) a
 
+outputLn :: String -> Interpreter ()
+outputLn = lift . outputStrLn
+
 defaultPrompt :: String
 defaultPrompt = "> "
 
@@ -33,31 +36,31 @@ showTree tree = do
   putStrLn $ "\n[Abstract Syntax]\n\n" ++ show tree
   putStrLn $ "\n[Linearized tree]\n\n" ++ printTree tree
 
-parseFiles :: [FilePath] -> IO ([Imp],[Def])
+parseFiles :: [FilePath] -> Interpreter ([Imp],[Def])
 parseFiles []     = return ([],[])
 parseFiles (f:fs) = do
-  s <- readFile f
+  s <- lift $ lift $ readFile f
   let ts = lexer s
   case pModule ts of
     Bad s  -> do
-      putStrLn $ "Parse Failed in file " ++ show f ++ "\n"
-      putStrLn $ "Tokens: " ++ show ts
-      putStrLn s
+      outputLn $ "Parse Failed in file " ++ show f ++ "\n"
+--      outputLn $ "Tokens: " ++ show ts
+      outputLn s
       return ([],[])
     Ok mod@(Module _ imps defs) -> do
-      putStrLn $ "Parsed file " ++ show f ++ " successfully!"
-      showTree mod
+      outputLn $ "Parsed file " ++ show f ++ " successfully!"
+--      showTree mod
       (imps',defs') <- parseFiles fs
       return $ (imps ++ imps',defs ++ defs')
 
 main :: IO ()
-main = getArgs >>= runInputT defaultSettings . runInterpreter . evalStateT A.lEmpty
+main = getArgs >>= runInputT defaultSettings . (`evalStateT` A.lEmpty) . runInterpreter
 
 --  names to import -> files already imported -> all definitions
 imports :: [String] -> [FilePath] -> [Def] -> Interpreter [Def]
 imports [] _  defs = return defs
 imports xs fs defs = do
-  (imps,newDefs) <- lift $ parseFiles xs
+  (imps,newDefs) <- parseFiles xs
   let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
   imports (nub imps' \\ fs) (fs ++ xs) (defs ++ newDefs)
 
@@ -69,42 +72,42 @@ runInterpreter fs = do
   let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
   let res = runResolver (local (insertConstrs cs) (concrToAbs defs))
   case res of
-    Left err    -> outputStrLn $ "Resolver failed: " ++ err
+    Left err    -> outputLn $ "Resolver failed: " ++ err
     Right adefs -> case A.runDefs A.lEmpty adefs of
-      Left err   -> outputStrLn $ "Type checking failed: " ++ err
+      Left err   -> outputLn $ "Type checking failed: " ++ err
       Right lenv -> do
-        modify lenv
-        outputStrLn $ "Files loaded."
+        modify (const lenv)
+        outputLn $ "Files loaded."
         loop cs
   where
     -- TODO: All the concrete to abstract to internal should be more
     -- modular so that we don't have to repeat the translations.
     loop :: [String] -> Interpreter ()
     loop cs = do
-      input <- getInputLine defaultPrompt
+      input <- lift (getInputLine defaultPrompt)
       case input of
-        Nothing    -> outputStrLn help >> loop cs
+        Nothing    -> outputLn help >> loop cs
         Just ":q"  -> return ()
         Just ":r"  -> runInterpreter fs
 --        Just (":l":xs) -> runInterpreter (words xs)
-        Just ":h"  -> outputStrLn help >> loop cs
+        Just ":h"  -> outputLn help >> loop cs
         Just str   -> let ts = lexer str in
           case pExp ts of
-            Bad err -> outputStrLn ("Parse error: " ++ err) >> loop cs
+            Bad err -> outputLn ("Parse error: " ++ err) >> loop cs
             Ok exp  ->
-              case runResolver (local (Env cs) (resolveExp exp)) of
-                Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs
+              case runResolver (local (const (Env cs)) (resolveExp exp)) of
+                Left err   -> outputLn ("Resolver failed: " ++ err) >> loop cs
                 Right body -> do
                   lenv <- get
-                  case A.runInfer body lenv of
-                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs
+                  case A.runInfer lenv body of
+                    Left err -> outputLn ("Could not type-check: " ++ err) >> loop cs
                     Right _  -> do
                       (_,rho,_) <- get
                       case translate (A.defs rho body) of
-                        Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
+                        Left err -> outputLn ("Could not translate to internal syntax: " ++ err) >>
                                     loop cs
                         Right t  -> let value = E.eval E.Empty t in
-                          (lift . outputStrLn) ("EVAL: " ++ show value) >> loop cs
+                          outputLn ("EVAL: " ++ show value) >> loop cs
 
 help :: String
 help = "\nAvailable commands:\n" ++

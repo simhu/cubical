@@ -186,7 +186,7 @@ concrToAbs (DefTDecl n e:d:ds) = do
   xd <- checkDef (unIdent n) d
   rest <- concrToAbs ds
   return $ ([(unIdent n, e')],[xd]) : rest
-
+concrToAbs (d:_) = error $ "Type declaration expected: " ++ show d
 
 checkDef :: String -> Def -> Resolver (String,A.Exp)
 checkDef n (Def (AIdent (_,m)) args body) | n == m =
