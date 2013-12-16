@@ -15,6 +15,8 @@ data Ter = Var Binder
          | Where Ter Def
          | U
 
+         | PN String
+
            -- constructor c Ms
          | Con Ident [Ter]
 

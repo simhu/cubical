@@ -708,4 +708,4 @@ app (Ter (Branch nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
-app _ _ = error "app"
+app r s = error $ "app"  ++ show r ++ show s

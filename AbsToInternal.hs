@@ -1,14 +1,12 @@
-{-# LANGUAGE PatternGuards #-}
-
+{-# LANGUAGE TupleSections #-}
 -- Tranlates the terms of MiniTT into the Core terms.
 module AbsToInternal where
 
 import qualified Core as I
 import Control.Monad.Error
 import Control.Applicative
+import Control.Arrow
 import MTT hiding (Error)
-
-import Debug.Trace
 
 -- For an expression t, returns (u,ts) where u is no application
 -- and t = u ts
@@ -16,44 +14,27 @@ unApps :: Exp -> (Exp,[Exp])
 unApps (App r s) = let (t,ts) = unApps r in (t, s:ts)
 unApps t         = (t,[])
 
-
-numberOfPis :: Exp -> Int
-numberOfPis (Pi a (Lam _ b)) = 1 + numberOfPis b
-numberOfPis _              = 0
-
--- etaPN :: Int -> I.Ter -> I.Ter
--- etaPN 0 t = t
--- etaPN n t = I.Lam $ etaPN (n-1) (I.App t (I.Var (n-1)))
-
-manyLams :: Int -> I.Ter -> I.Ter
-manyLams 0 t = t
-manyLams n t = I.Lam (manyLams (n-1) t)
-
--- lambdaTele :: [I.Ter] -> [I.Ter]
--- lambdaTele [] = []
--- lambdaTele (t:ts) = t : map I.Lam (lambdaTele ts)
-
 translate :: Exp -> Either String I.Ter
--- translate t | PN n _ <- hd = translatePrimitive n ts
---   -- First we try to handle primitive notions by looking whether the
---   -- head term is a PN.
---   where (hd,ts) = unApps t
-translate (PN n a) = manyLams i <$> translatePrimitive n vars -- eta expand PNs
-  where i = numberOfPis a
-        vars = map Ref [i-1,i-2..0]
-translate (App r s) = I.App <$> translate r <*> translate s
+translate (PN n) = -- translatePrimitive n []
+  return $ I.PN n
+--  throwError $ "No primitive expected: " ++ show n
+translate t@(App _ _) = let (hd,rest) = unApps t in case hd of
+  Ref n | n `elem` reservedNames -> translatePrimitive n rest
+  _ -> manyApps <$> translate hd <*> mapM translate rest
 translate (Pi a f) = I.Pi <$> translate a <*> translate f
 translate (Lam x t) = I.Lam x <$> translate t
-translate (Def e ts _) = -- ignores types for now
-  I.Where <$> translate e <*> mapM translate (map fst ts)
+translate (Def e (_,ts)) = -- ignores types for now
+  I.Where <$> translate e <*> mapM (\(n,e') -> do
+                                       t <- translate e'
+                                       return (n,t)) ts
 translate (Ref n) = return (I.Var n)
 translate U = return I.U
 translate (Con n ts) = I.Con n <$> mapM translate ts
-translate (Fun _ bs) = I.Branch <$> mapM (\(n,b) -> do
+translate (Fun bs) = I.Branch <$> mapM (\(n,(ns,b)) -> do
                                            t <- translate b
-                                           return (n,t)) bs
-translate (Sum _ lbs) = I.LSum <$> mapM (\(n,ls) -> do
-                                          ts <- mapM translate ls
+                                           return (n,(ns,t))) bs
+translate (Sum lbs) = I.LSum <$> mapM (\(n,tele) -> do
+                                          ts <- mapM (\(n',e') -> (n',) <$> translate e') tele
                                           --let ts' = lambdaTele ts
                                           return (n,ts)) lbs
 translate t = throwError ("translate: can not handle " ++ show t)
@@ -80,6 +61,9 @@ primHandle =
   , ("equivEqRef",    (3, primEquivEqRef))
   , ("transpEquivEq", (6, primTransUEquivEq))
   ]
+
+reservedNames :: [String]
+reservedNames = map fst primHandle
 
 -- TODO: Even though these can assume to have the right amount of
 -- arguments, the pattern matching is pretty ugly... (?)
@@ -147,6 +131,11 @@ primTransUEquivEq [a,b,f,s,t,x] =
   I.TransUEquivEq <$> translate a <*> translate b <*> translate f <*>
                       translate s <*> translate t <*> translate x
 
+
+manyLams :: [Binder] -> I.Ter -> I.Ter
+manyLams [] t = t
+manyLams (b:bs) t = I.Lam b (manyLams bs t)
+
 -- Gets a name for a primitive notion, a list of arguments which might
 -- be to long and returns the corresponding concept in the internal
 -- syntax (Core).  Applies the rest of the terms if the list of terms
@@ -154,9 +143,15 @@ primTransUEquivEq [a,b,f,s,t,x] =
 translatePrimitive :: String -> [Exp] -> Either String I.Ter
 translatePrimitive n ts = case lookup n primHandle of
   Just (arity,_) | length ts < arity ->
-    throwError ("not enough arguments supplied to " ++ show n ++
-                " primitive (" ++ show arity ++ " arguments required)\n"
-                ++ "Arguments given: " ++ show ts)
+    let r = arity - length ts
+        binders = map (\n -> "_" ++ show n) [1..r]
+        vars = map Ref binders
+    in
+     manyLams binders <$> translatePrimitive n (ts ++ vars)
+    -- throwError ("not enough arguments supplied to " ++ show n ++
+    --             " primitive (" ++ show arity ++ " arguments required)\n"
+    --             ++ "Arguments given: " ++ show ts)
+
   Just (arity,handler)               ->
     let (args,rest) = splitAt arity ts in
     manyApps <$> handler args <*> mapM translate rest

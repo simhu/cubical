@@ -101,7 +101,7 @@ data Env = Env { constrs :: [String]
 type Resolver a = ReaderT Env (StateT Integer (ErrorT String Identity)) a
 
 emptyEnv :: Env
-emptyEnv = Env [] []
+emptyEnv = Env []
 
 runResolver :: Resolver a -> Either String a
 runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) 0
@@ -140,13 +140,14 @@ resolveExp e@(App t s)  = do
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Split brs)  = A.Fun <$> gensym <*> mapM resolveBranch brs
+resolveExp (Split brs)  = -- A.Fun <$> gensym <*> mapM resolveBranch brs
+  A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = handleDefs defs (resolveExp e)
 resolveExp (PN n)       = return (A.PN (unIdent n))
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
-  Env vs cs <- getEnv
+  Env cs <- getEnv
   if x `elem` cs
     then return $ A.Con x []
     else  return $ A.Ref x
@@ -156,13 +157,13 @@ resolveWhere = resolveExp . unWhere
 
 resolveBranch :: Branch -> Resolver (String,([String],A.Exp))
 resolveBranch (Branch name args e) =
-  (unIdent name,) <$> (unArgs args,) <*> resolveWhere e
+  ((unIdent name,) . (unArgs args,)) <$> resolveWhere e
 
 -- Assumes a flattened telescope.
 resolveTele :: [VDecl] -> Resolver [(String,A.Exp)]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
-  (a,) <$> (resolveExp t <:> (resolveTele ds))
+  ((unArg a,) <$> resolveExp t) <:> (resolveTele ds)
 resolveTele ds                      =
   throwError $ "resolveTele: non flattened telescope " ++ show ds
 
@@ -198,9 +199,25 @@ defToGraph d@(DefData n vdecls labels) =
 defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
   where
     unfoldPrimitive :: Def -> [Def]
-    unfoldPrimitive d@(DefTDecl n a) = [d,Def n [] (NoWhere (PN n))]
+    unfoldPrimitive d@(DefTDecl n a) = -- [d,Def n [] (NoWhere (etaExpand a (PN n)))]
+      [d,Def n [] (NoWhere (PN n))]
     unfoldPrimitive d =
       error ("only type declarations are allowed in primitives " ++ show d)
+
+-- etaExpand :: Exp -> Exp -> Exp
+-- etaExpand (Fun _ e2) t = etaExpand e2 (A.Lam "_" t)
+-- etaExpand (Pi tele b) = etaExpand er
+--   where manyLam = folr (\a s -> A.Lam (unArg a) s)
+-- etaExpand _ t = t
+
+--resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
+
+-- lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
+-- lam a e = A.Lam (unArg a) <$> e
+
+-- lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
+-- lams as e = foldr lam e as
+
 
 freeVarsExp :: Exp -> [String]
 freeVarsExp U           = []
@@ -245,13 +262,14 @@ handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def befo
   [d@(DefData _ vdcls cs)]        -> do
     let flat   = flattenTele vdcls
     let args   = concatMap (\(VDecl binds _) -> map unBinder binds) flat
-    let labels = A.Sum <$> gensym <*> mapM resolveLabel cs
-    exp  <- local (insertNames ns) $ lams args labels
+    let labels = -- A.Sum <$> gensym <*> mapM resolveLabel cs
+          A.Sum <$> mapM resolveLabel cs
+    exp  <- lams args labels
     typ  <- resolveTelePi flat (return A.U) -- data-decls. have type U
     rest <- handleMutual dss ns
     return ((ns,(exp,typ)):rest)
   [Def iden args body,DefTDecl _ t] -> do
-    exp  <- local (insertNames ns) $ lams args (resolveWhere body)
+    exp  <- lams args (resolveWhere body)
     typ  <- resolveExp t
     rest <- handleMutual dss ns
     return ((ns,(exp,typ)):rest)
@@ -263,19 +281,23 @@ handleMutuals :: [[[Def]]] -> Resolver [[([String],(A.Exp,A.Exp))]]
 handleMutuals []       = return []
 handleMutuals (ds:dss) = do
   let ns = defsToNames $ concat ds
-  handleMutual ds ns <:> local (insertNames ns) (handleMutuals dss)
+  handleMutual ds ns <:> handleMutuals dss
 
 handleLet :: A.Exp -> [[([String],(A.Exp,A.Exp))]] -> A.Exp
 handleLet e []     = e
-handleLet e (x:xs) = A.Def (handleLet e xs) es (concat nss)
-  where (nss,es) = unzip x
+handleLet e (x:xs) = A.Def (handleLet e xs) (tele, ens)
+  where (nss,ets) = unzip x
+        (es,ts)   = unzip ets
+        ns        = concat nss
+        tele      = zip ns ts
+        ens       = zip ns es
 
 handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
 handleDefs defs re = do
   let cg = callGraph defs
   let ns = defsToNames $ concat $ concat cg
   xs <- handleMutuals cg
-  e  <- local (insertNames ns) re
+  e  <- re
   return (handleLet e xs)
 
 handleModule :: Module -> Resolver A.Exp
