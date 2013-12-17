@@ -1,6 +1,6 @@
 module Eval where
 
--- import Control.Arrow hiding (app)
+import Control.Arrow hiding (app)
 import Data.Either
 import Data.List
 import Data.Maybe
@@ -20,7 +20,7 @@ type Dim  = [Name]
 data Dir  = Up | Down deriving (Eq, Show)
 
 mirror :: Dir -> Dir
-mirror Up = Down
+mirror Up   = Down
 mirror Down = Up
 
 gensym :: Dim -> Name
@@ -30,7 +30,6 @@ gensym xs = maximum xs + 1
 gensyms :: Dim -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
 
--- The pair of values is (down,up).
 data Box a = Box Dir Name a [((Name,Dir),a)]
   deriving (Eq,Show)
 
@@ -40,8 +39,8 @@ mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 instance Functor Box where fmap = mapBox
 
 lookBox :: Show a => (Name,Dir) -> Box a -> a
-lookBox (y,dir) (Box d x v _) | x == y && mirror d == dir = v
-lookBox xd box@(Box _ _ _ nvs)    | otherwise = case lookup xd nvs of
+lookBox (y,dir) (Box d x v _)  | x == y && mirror d == dir = v
+lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
   Just v  -> v
   Nothing -> error $ "lookBox: box not defined on " ++ show xd ++ "\nbox = " ++ show box
 
@@ -63,7 +62,7 @@ subBox :: [Name] -> Box a -> Box a
 subBox np (Box dir x v nvs) = Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
 
 cubeToBox :: Val -> Box () -> Box Val
-cubeToBox v box = modBox (\nd _ -> v `face` nd) box
+cubeToBox v = modBox (\nd _ -> v `face` nd)
 
 shapeOfBox :: Box a -> Box ()
 shapeOfBox = mapBox (const ())
@@ -78,7 +77,6 @@ appendBox xs b = foldr consBox b xs
 
 appendSides :: [((Name,Dir), a)] -> Box a -> Box a
 appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
-
 
 data KanType = Fill | Com deriving (Show, Eq)
 
@@ -113,6 +111,7 @@ fstVal x             = error $ "error fstVal: " ++ show x
 sndVal (VPair _ _ v) = v
 sndVal x             = error $ "error sndVal: " ++ show x
 
+-- TODO: Almost the same as in MTT, make it more abstract?
 data Env = Empty
          | Pair Env (Binder,Val)
          | PDef [(Binder,Ter)] Env
@@ -122,20 +121,20 @@ upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
 
 look :: Binder -> Env -> Val
-look x (Pair s (y,u)) | x == y = u
+look x (Pair s (y,u)) | x == y    = u
                       | otherwise = look x s
-look x r@(PDef es r1) = look x (upds r1 (evals r es))
+look x r@(PDef es r1)             = look x (upds r1 (evals r es))
 
 ter :: Ter -> Env -> Val
 ter t e = eval e t
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
-evals e = map (\(b,t) -> (b,eval e t))
+evals e = map (second (eval e))
 
 mapEnv :: (Val -> Val) -> Env -> Env
-mapEnv _ Empty = Empty
+mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
-mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
+mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
 faceEnv :: Env -> (Name,Dir) -> Env
 faceEnv e xd = mapEnv (`face` xd) e
@@ -376,7 +375,7 @@ inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
-inhrec b p phi v = error $ "inhrec : " ++ showVal v
+inhrec b p phi v = error $ "inhrec : " ++ show v
 
 kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
@@ -420,7 +419,6 @@ fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
                Just as -> as
                Nothing -> error $ "fill: missing constructor "
                                ++ "in labelled sum " ++ n
-        boxes :: [Box Val]
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
         ws    = fills as env boxes
@@ -447,13 +445,12 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
                                        if dy == Down then app f ax0 else vy) box
         v   = fill b bx
-    in traceb "VEquivEq case 2" VPair x ax0 v
+    in traceb "VEquivEq case 2" $ VPair x ax0 v
   | x == z && dir == Up =
     let ax0  = vz
         bx0  = app f ax0
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
-    in traceb ("VEquivEq case 3")
-       VPair x ax0 v
+    in traceb "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == Down =
      let y  = gensym (support veq `union` supportBox box)
          VCon "pair" [gb,sb] = app s vz
@@ -477,8 +474,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
          box2   = Box Up y vy (((x,Down),fafill) : ((x,Up),vz) :
                                       [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
          bcom   = com b box2
-     in traceb ("VEquivEq case 4")
-        VPair x acom bcom
+     in traceb "VEquivEq case 4" $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
 
 fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
@@ -488,8 +484,7 @@ fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
                                 -- to consider the auxsides?
       add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
-    in traceb ("Kan Com 1")
-       fill v newBox
+    in traceb "Kan Com 1" $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
@@ -520,8 +515,7 @@ fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
-    in traceb ("Kan Com 3")
-       VComp newBox
+    in traceb "Kan Com 3" $ VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
         z     = gensym $ supportBox tbox' ++ supportBox box
@@ -678,7 +672,7 @@ com v box                                 = Kan Com v box
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
   where nvus      = [ (nnd,app v (lookup' nnd nus)) | (nnd,v) <- nvs ]
-        lookup' x = maybe (error "appBox") id . lookup x
+        lookup' x = fromMaybe (error "appBox") . lookup x
 
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
@@ -688,7 +682,7 @@ app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
-  traceb ("Pi fill") $ com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
+  traceb "Pi fill" $ com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
   where x     = gensym (support kf `union` support v)
         u     = v `face` (i,dir)
         ufill = fill a (Box (mirror dir) i u [])
@@ -712,7 +706,7 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
 app r s = error $ "app"  ++ show r ++ show s
 
 
-
+-- TODO: Use pretty library
 showVal :: Val -> String
 showVal VU = "U"
 showVal (Ter t env) = showTer t ++ showEnv env
@@ -734,7 +728,7 @@ showVal (VFill n box)   = "vfill " ++ show n ++ " " ++ showBox box
 
 showVals :: [Val] -> String
 showVals [] = ""
-showVals us = " " ++ unwords (map showVal1 us)
+showVals us = ' ' : unwords (map showVal1 us)
 
 showBox :: Box Val -> String
 showBox box = "(" ++ show box ++ ")"
