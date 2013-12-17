@@ -34,7 +34,7 @@ mkVar :: Int -> Exp
 mkVar k = Var (genName k)
 
 genName :: Int -> String
-genName n = "X" ++ show n
+genName n = 'X' : show n
 
 type Prim = (Integer,String)
 
@@ -69,14 +69,13 @@ defs env          _ =
   error $ "defs: environment should a list of definitions " ++ show env
 
 upds :: Env -> [(String,Val)] -> Env
-upds env []       = env
-upds env (xv:xvs) = upds (Pair env xv) xvs
+upds = foldl Pair
 
 eval :: Exp -> Env -> Val
 eval (Def e d)   s = eval e (PDef d s)
 eval (App t1 t2) s = app (eval t1 s) (eval t2 s)
 eval (Pi a b)    s = Pi (eval a s) (eval b s)
-eval (Con c ts)  s = Con c (map (\e -> eval e s) ts)
+eval (Con c ts)  s = Con c (map (`eval` s) ts)
 eval (Var k)     s = getE k s
 eval U           _ = U
 eval t           s = Comp t s
@@ -151,8 +150,7 @@ addDef d@(ts,es) (TEnv k rho gam) =
   in TEnv k rho1 (addC gam (ts,rho) (evals es rho1))
 
 addTele :: Tele -> TEnv -> TEnv
-addTele []       lenv = lenv
-addTele (xa:xas) lenv = addTele xas (addType xa lenv)
+addTele xas lenv = foldl (flip addType) lenv xas
 
 getIndex :: Typing Int
 getIndex = index <$> ask
@@ -259,7 +257,7 @@ reifyExp k (Comp (Undef prim) r) = EPrim prim (reifyEnv k r)
 
 reifyEnv :: Int -> Env -> [Exp]
 reifyEnv _ Empty          = []
-reifyEnv k (Pair r (_,u)) = reifyEnv k r ++ [reifyExp k u] -- TODO: inefficient
+reifyEnv k (Pair r (_,u)) = reifyEnv k r ++ [reifyExp k u]
 reifyEnv k (PDef ts r)    = reifyEnv k r
 
 -- Not used since we have U : U

@@ -98,13 +98,13 @@ runResolver :: Resolver a -> Either String a
 runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) (0,"")
 
 insertConstrs :: [String] -> Env -> Env
-insertConstrs cs e@Env{constrs = cs'} = e{constrs = cs ++ cs'}
+insertConstrs cs (Env cs') = Env $ cs ++ cs'
 
 getEnv :: Resolver Env
 getEnv = ask
 
 getConstrs :: Resolver [String]
-getConstrs = getEnv >>= return . constrs
+getConstrs = constrs <$> getEnv
 
 genPrim :: Resolver A.Prim
 genPrim = do

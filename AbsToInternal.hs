@@ -14,30 +14,51 @@ unApps :: Exp -> (Exp,[Exp])
 unApps (App r s) = let (t,ts) = unApps r in (t, ts ++ [s])
 unApps t         = (t,[])
 
-translate :: Exp -> Either String I.Ter
-translate (Undef prim)   = return $ I.Undef prim
-translate t@(App _ _) =
-  let (hd,rest) = unApps t in case hd of
-    Var n | n `elem` reservedNames -> translatePrimitive n rest
-    _ -> manyApps <$> translate hd <*> mapM translate rest
-translate (Pi a f)    = I.Pi <$> translate a <*> translate f
-translate (Lam x t)   = I.Lam x <$> translate t
-translate (Def e (_,ts)) = -- ignores types for now
-  I.Where <$> translate e <*> mapM (\(n,e') -> do
-                                       t <- translate e'
-                                       return (n,t)) ts
-translate (Var n) | n `elem` reservedNames = translatePrimitive n []
-                  | otherwise = return (I.Var n)
-translate U = return I.U
-translate (Con n ts) = I.Con n <$> mapM translate ts
-translate (Fun pr bs) = I.Branch pr <$> mapM (\(n,(ns,b)) -> do
-                                           t <- translate b
-                                           return (n,(ns,t))) bs
-translate (Sum pr lbs) = I.LSum pr <$> mapM (\(n,tele) -> do
-                                          ts <- mapM (\(n',e') -> (n',) <$> translate e') tele
-                                          return (n,ts)) lbs
-translate t = throwError ("translate: can not handle " ++ show t)
+apps :: I.Ter -> [I.Ter] -> I.Ter
+apps = foldl I.App
 
+lams :: [String] -> I.Ter -> I.Ter
+lams bs t = foldr I.Lam t bs
+
+translate :: Exp -> Either String I.Ter
+translate U              = return I.U
+translate (Undef prim)   = return $ I.Undef prim
+translate (Lam x t)      = I.Lam x <$> translate t
+translate (Pi a f)       = I.Pi <$> translate a <*> translate f
+translate t@(App _ _)    =
+  let (hd,rest) = unApps t
+  in case hd of
+    Var n | n `elem` reservedNames -> translatePrimitive n rest
+    _ -> apps <$> translate hd <*> mapM translate rest
+translate (Def e (_,ts)) = -- ignores types for now
+  I.Where <$> translate e <*> mapM (\(n,e') -> (n,) <$> translate e') ts
+translate (Var n) | n `elem` reservedNames = translatePrimitive n []
+                  | otherwise              = return (I.Var n)
+translate (Con n ts)     = I.Con n <$> mapM translate ts
+translate (Fun pr bs)    =
+  I.Branch pr <$> mapM (\(n,(ns,b)) -> (n,) <$> (ns,) <$> translate b) bs
+translate (Sum pr lbs)   =
+  I.LSum pr <$> sequence [ (n,) <$> mapM (\(n',e') -> (n',) <$> translate e') tl
+                         | (n,tl) <- lbs ]
+translate t              = throwError $ "translate: can not handle " ++ show t
+
+-- Gets a name for a primitive notion, a list of arguments which might be too
+-- long and returns the corresponding concept in the internal syntax. Applies
+-- the rest of the terms if the list of terms is longer than the arity.
+translatePrimitive :: String -> [Exp] -> Either String I.Ter
+translatePrimitive n ts = case lookup n primHandle of
+  Just (arity,_) | length ts < arity ->
+    let r       = arity - length ts
+        binders = map (\n -> '_' : show n) [1..r]
+        vars    = map Var binders
+    in lams binders <$> translatePrimitive n (ts ++ vars)
+  Just (arity,handler)               ->
+    let (args,rest) = splitAt arity ts
+    in apps <$> handler args <*> mapM translate rest
+  Nothing                            ->
+    throwError ("unknown primitive: " ++ show n)
+
+-- | Primitive notions
 
 -- name, (arity for Exp, handler)
 type PrimHandle = [(String, (Int, [Exp] -> Either String I.Ter))]
@@ -46,7 +67,7 @@ primHandle :: PrimHandle
 primHandle =
   [ ("Id",            (3, primId))
   , ("refl",          (2, primRefl))
-  , ("subst",         (6, primSubst)) -- TODO: remove, better only J
+  , ("subst",         (6, primSubst))    -- TODO: remove, better only J
   , ("substInv",      (6, primSubstInv)) -- TODO: remove
   , ("funExt",        (5, primExt))
   , ("J",             (6, primJ))
@@ -65,8 +86,6 @@ primHandle =
 reservedNames :: [String]
 reservedNames = map fst primHandle
 
--- TODO: Even though these can assume to have the right amount of
--- arguments, the pattern matching is pretty ugly... (?)
 primId :: [Exp] -> Either String I.Ter
 primId [a,x,y] = I.Id <$> translate a <*> translate x <*> translate y
 
@@ -112,52 +131,16 @@ primEquivEq [a,b,f,s,t] =
   I.EquivEq <$> translate a <*> translate b <*> translate f
             <*> translate s <*> translate t
 
-
 primTransport :: [Exp] -> Either String I.Ter
 primTransport [a,b,p,x] = I.TransU <$> translate p <*> translate x
 
 primTransportRef :: [Exp] -> Either String I.Ter
 primTransportRef [a,x] = I.TransURef <$> translate x
 
--- (A:U) -> (s: (y:A) -> pathTo A a) -> (t : (y:B) -> (v:pathTo A a) -> Id (path To A a) (s y) v) ->
--- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
 primEquivEqRef :: [Exp] -> Either String I.Ter
 primEquivEqRef [a,s,t] = I.EquivEqRef <$> translate a <*> translate s <*> translate t
 
--- (A B : U) -> (f : A -> B) (s:(y:B) -> fiber A B f y) -> (t : (y:B) -> (v:fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
--- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
 primTransUEquivEq :: [Exp] -> Either String I.Ter
 primTransUEquivEq [a,b,f,s,t,x] =
-  I.TransUEquivEq <$> translate a <*> translate b <*> translate f <*>
-                      translate s <*> translate t <*> translate x
-
-
-manyLams :: [String] -> I.Ter -> I.Ter
-manyLams [] t = t
-manyLams (b:bs) t = I.Lam b (manyLams bs t)
-
--- Gets a name for a primitive notion, a list of arguments which might
--- be to long and returns the corresponding concept in the internal
--- syntax (Core).  Applies the rest of the terms if the list of terms
--- is longer than the arity.
-translatePrimitive :: String -> [Exp] -> Either String I.Ter
-translatePrimitive n ts = case lookup n primHandle of
-  Just (arity,_) | length ts < arity ->
-    let r = arity - length ts
-        binders = map (\n -> "_" ++ show n) [1..r]
-        vars = map Var binders
-    in
-     manyLams binders <$> translatePrimitive n (ts ++ vars)
-    -- throwError ("not enough arguments supplied to " ++ show n ++
-    --             " primitive (" ++ show arity ++ " arguments required)\n"
-    --             ++ "Arguments given: " ++ show ts)
-
-  Just (arity,handler)               ->
-    let (args,rest) = splitAt arity ts in
-    manyApps <$> handler args <*> mapM translate rest
-  Nothing                            ->
-    throwError ("unknown primitive: " ++ show n)
-
-manyApps :: I.Ter -> [I.Ter] -> I.Ter
-manyApps = foldl I.App
-
+  I.TransUEquivEq <$> translate a <*> translate b <*> translate f
+                  <*> translate s <*> translate t <*> translate x
