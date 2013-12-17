@@ -87,14 +87,14 @@ runInterpreter [f] = do
   let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
   case res of
     Left err    -> outputStrLn $ "Resolver failed: " ++ err
-    Right adefs -> case A.runDefs A.lEmpty adefs of
+    Right adefs -> case A.runDefs A.tEmpty adefs of
       Left err   -> outputStrLn $ "Type checking failed: " ++ err
       Right lenv -> do
         outputStrLn "Files loaded."
         loop cs lenv
   where
-    loop :: [String] -> A.LEnv -> Interpreter ()
-    loop cs lenv@(_,rho,_) = do
+    loop :: [String] -> A.TEnv -> Interpreter ()
+    loop cs lenv@(A.TEnv _ rho _) = do
       input <- getInputLine defaultPrompt
       case input of
         Nothing    -> outputStrLn help >> loop cs lenv

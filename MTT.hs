@@ -9,17 +9,16 @@ import Control.Monad.Identity
 import Control.Monad.Error (throwError)
 import Control.Applicative
 
-type Binder = String
-type Label = String
+type Label  = String
 
 -- Branch of the form: c x1 .. xn -> e
-type Brc = (Label,([String],Exp))
+type Brc    = (Label,([String],Exp))
 
 -- Telescope (x1 : A1) .. (xn : An)
-type Tele = [(String,Exp)]
+type Tele   = [(String,Exp)]
 
 -- Labelled sum: c (x1 : A1) .. (xn : An)
-type Lb  = [(Label,Tele)]
+type LblSum = [(Label,Tele)]
 
 -- Mix values and expressions
 type Val = Exp
@@ -48,7 +47,7 @@ data Exp = Comp Exp Env         -- for closures
          | U
          | Con String [Exp]
          | Fun Prim [Brc]
-         | Sum Prim Lb
+         | Sum Prim LblSum
          | Undef Prim
          | EPrim Prim [Exp]     -- used for reification
   deriving (Eq,Show)
@@ -77,7 +76,7 @@ eval :: Exp -> Env -> Val
 eval (Def e d)   s = eval e (PDef d s)
 eval (App t1 t2) s = app (eval t1 s) (eval t2 s)
 eval (Pi a b)    s = Pi (eval a s) (eval b s)
-eval (Con c ts)  s = Con c (map (\ e -> eval e s) ts)
+eval (Con c ts)  s = Con c (map (\e -> eval e s) ts)
 eval (Var k)     s = getE k s
 eval U           _ = U
 eval t           s = Comp t s
@@ -88,17 +87,17 @@ evals es r = map (\(x,e) -> (x,eval e r)) es
 app :: Val -> Val -> Val
 app (Comp (Lam x b) s)     u            = eval b (Pair s (x,u))
 app a@(Comp (Fun _ ces) r) b@(Con c us) = case lookup c ces of
-  Just (xs,e)  -> eval e (upds r (zip xs us))
-  Nothing -> error $ "app: " ++ show a ++ " " ++ show b
+  Just (xs,e) -> eval e (upds r (zip xs us))
+  Nothing     -> error $ "app: " ++ show a ++ " " ++ show b
 app f                      u            = App f u
 
 getE :: String -> Env -> Exp
-getE x (Pair _ (y,u)) | x == y       = u
-getE x (Pair s _)                = getE x s
-getE x r@(PDef d r1) = getE x (upds r1 (evals (snd d) r))
+getE x (Pair _ (y,u)) | x == y = u
+getE x (Pair s _)              = getE x s
+getE x r@(PDef d r1)           = getE x (upds r1 (evals (snd d) r))
 
 addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Ctxt
-addC gam _ [] = gam
+addC gam _             []          = gam
 addC gam ((y,a):as,nu) ((x,u):xus) =
   addC ((x,eval a nu):gam) (as,Pair nu (y,u)) xus
 
@@ -109,61 +108,68 @@ getLblType c (Comp (Sum _ cas) r) = case lookup c cas of
   Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("getLblType " ++ c ++ " " ++ show u)
 
--- Int is for de Bruijn levels
-type LEnv = (Int,Env,Ctxt)
+-- Environment for type checker
+data TEnv = TEnv { index :: Int   -- for de Bruijn levels
+                 , env   :: Env
+                 , ctxt  :: Ctxt }
+          deriving Eq
 
-lEmpty :: LEnv
-lEmpty = (0,Empty,[])
+tEmpty :: TEnv
+tEmpty = TEnv 0 Empty []
 
-type Typing a = ReaderT LEnv (ErrorT String Identity) a
+-- Type checking monad
+type Typing a = ReaderT TEnv (ErrorT String Identity) a
 
-runTyping :: Typing a -> LEnv -> ErrorT String Identity a
+runTyping :: Typing a -> TEnv -> ErrorT String Identity a
 runTyping = runReaderT
 
-addType :: (String,Exp) -> LEnv -> LEnv
-addType (x,a) lenv@(k,rho,gam) = addTypeVal (x,eval a rho) lenv
+-- Used in the interaction loop
+runDef :: TEnv -> Def -> Either String TEnv
+runDef lenv d = do
+  runIdentity $ runErrorT $ runTyping (checkDef d) lenv
+  return $ addDef d lenv
 
-addTypeVal :: (String,Val) -> LEnv -> LEnv
-addTypeVal (x,a) (k,rho,gam) = (k+1,Pair rho (x,mkVar k),(x,a):gam)
+runDefs :: TEnv -> [Def] -> Either String TEnv
+runDefs = foldM runDef
 
-addBranch :: [(String,Val)] -> (Tele,Env) -> LEnv -> LEnv
-addBranch nvs (tele,env) (k,rho,gam) = (k+l,upds rho nvs,addC gam (tele,env) nvs)
-  where l = length nvs
+runInfer :: TEnv -> Exp -> Either String Exp
+runInfer lenv e = runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
 
-addDef :: Def -> LEnv -> LEnv
-addDef d@(ts,es) (k,rho,gam) =
+addTypeVal :: (String,Val) -> TEnv -> TEnv
+addTypeVal p@(x,_) (TEnv k rho gam) = TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam)
+
+addType :: (String,Exp) -> TEnv -> TEnv
+addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,eval a rho) tenv
+
+addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> TEnv
+addBranch nvs (tele,env) (TEnv k rho gam) =
+  TEnv (k + length nvs) (upds rho nvs) (addC gam (tele,env) nvs)
+
+addDef :: Def -> TEnv -> TEnv
+addDef d@(ts,es) (TEnv k rho gam) =
   let rho1 = PDef d rho
-  in (k,rho1,addC gam (ts,rho) (evals es rho1))
+  in TEnv k rho1 (addC gam (ts,rho) (evals es rho1))
 
-addTele :: Tele -> LEnv -> LEnv
-addTele []          lenv = lenv
+addTele :: Tele -> TEnv -> TEnv
+addTele []       lenv = lenv
 addTele (xa:xas) lenv = addTele xas (addType xa lenv)
 
-getFresh :: Typing Exp
-getFresh = do
-  (k,_,_) <- ask
-  return $ mkVar k
-
 getIndex :: Typing Int
-getIndex = do
-  (k,_,_) <- ask
-  return k
+getIndex = index <$> ask
+
+getFresh :: Typing Exp
+getFresh = mkVar <$> getIndex
 
 getEnv :: Typing Env
-getEnv = do
-  (_,rho,_) <- ask
-  return rho
+getEnv = env <$> ask
 
 getCtxt :: Typing Ctxt
-getCtxt = do
-  (_,_,gam) <- ask
-  return gam
+getCtxt = ctxt <$> ask
 
 (=?=) :: Typing Exp -> Exp -> Typing ()
 m =?= s2 = do
   s1 <- m
-  --trace ("comparing " ++ show s1 ++ " =?= " ++ show s2)
-  unless (s1 == s2) $ throwError ("eqG " ++ show s1 ++ " =/= " ++ show s2)
+  unless (s1 == s2) $ throwError (show s1 ++ " =/= " ++ show s2)
 
 checkDef :: Def -> Typing ()
 checkDef (xas,xes) = trace ("checking definition " ++ show (map fst xes)) $ do
@@ -238,18 +244,6 @@ checks ((x,a):xas,nu) (e:es) = do
   checks (xas,Pair nu (x,eval e rho)) es
 checks _              _      = throwError "checks"
 
--- Used in the interaction loop
-runDefs :: LEnv -> [Def] -> Either String LEnv
-runDefs = foldM runDef
-
-runDef :: LEnv -> Def -> Either String LEnv
-runDef lenv d = do
-  runIdentity $ runErrorT $ runTyping (checkDef d) lenv
-  return $ addDef d lenv
-
-runInfer :: LEnv -> Exp -> Either String Exp
-runInfer lenv e = runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
-
 -- Reification of a value to an expression
 reifyExp :: Int -> Val -> Exp
 reifyExp _ U                     = U
@@ -267,7 +261,6 @@ reifyEnv :: Int -> Env -> [Exp]
 reifyEnv _ Empty          = []
 reifyEnv k (Pair r (_,u)) = reifyEnv k r ++ [reifyExp k u] -- TODO: inefficient
 reifyEnv k (PDef ts r)    = reifyEnv k r
-
 
 -- Not used since we have U : U
 -- checkTs :: [(String,Exp)] -> Typing ()

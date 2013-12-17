@@ -132,7 +132,7 @@ primTransUEquivEq [a,b,f,s,t,x] =
                       translate s <*> translate t <*> translate x
 
 
-manyLams :: [Binder] -> I.Ter -> I.Ter
+manyLams :: [String] -> I.Ter -> I.Ter
 manyLams [] t = t
 manyLams (b:bs) t = I.Lam b (manyLams bs t)
 
