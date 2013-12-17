@@ -1,6 +1,6 @@
 module equivset where
 
-import weq
+import testprim
 
 -- g is a section of f 
 section : (A B : U) (f : A -> B) (g : B -> A) -> U
@@ -8,6 +8,22 @@ section A B f g = (b : B) -> Id B (f (g b)) b
 
 injective : (A B : U) (f : A -> B) -> U
 injective A B f = (a0 a1 : A) -> Id B (f a0) (f a1) -> Id A a0 a1
+
+retract : (A B : U) (f : A -> B) (g : B -> A) -> U
+retract A B f g = section B A g f
+
+retractInj : (A B : U) (f : A -> B) (g : B -> A) -> 
+             retract A B f g -> injective A B f
+retractInj A B f g h a0 a1 h' = lemTrans A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
+  where
+  rem1 : Id A (g (f a0)) a0
+  rem1 = h a0
+
+  rem2 : Id A (g (f a1)) a1
+  rem2 = h a1
+
+  rem3 : Id A (g (f a0)) (g (f a1))
+  rem3 = cong B A g (f a0) (f a1) h'
 
 
 set : U -> U
@@ -36,12 +52,12 @@ equivSet A B f g sfg injf setB = equivEq A B f sf tf
     a' : A
     a' = fstfFiber b v
 
-    rem : Id A (g b) a'
-    rem = injf (g b) a' rem1
-
     rem1 : Id B (f (g b)) (f a')
     rem1 = comp B (f (g b)) b (f a') (sfg b)
            (inv B (f a') b (snd A (\x -> Id B (f x) b) v))
+
+    rem : Id A (g b) a'
+    rem = injf (g b) a' rem1
 
 -- Bool tests:
 

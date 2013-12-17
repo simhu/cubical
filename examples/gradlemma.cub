@@ -1,0 +1,1510 @@
+module gradlemma where
+
+import equivprop
+
+-- TODO: Debug import!
+-- import idequiv
+
+Pi : (A:U) -> (A -> U) -> U
+Pi A B = (x:A) -> B x
+
+appId : (A B : U) (a : A) (f0 f1 : A -> B) -> Id (A -> B) f0 f1 -> Id B (f0 a) (f1 a)
+appId A B a = cong (A->B) B (\ f -> f a) 
+
+appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
+appEq A B a = cong (Pi A B) (B a) (\ f -> f a) 
+
+sId : (A : U) (a : A) -> pathTo A a
+sId A a = pair a (refl A a)
+
+tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
+tId A a = split 
+  pair x p -> rem x a p 
+  where 
+  rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (pair x p)
+  rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (pair x p)) (refl (pathTo A x) (sId A x))
+
+corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
+corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1) 
+
+corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) -> 
+            prop (fiber A A h a)
+corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
+  where 
+  rem : Id (A -> A) h (id A)
+  rem = funExt A (\_ -> A) h (id A) ph 
+
+-- All of these lemmas on cong will be trivial with definitional equalities
+congRefl : (A B : U) (f : A -> B) (a : A) -> 
+           Id (Id B (f a) (f a)) (refl B (f a)) (cong A B f a a (refl A a))
+congRefl A B f a = Jeq A a (\v p -> Id B (f a) (f v)) (refl B (f a))
+
+congId : (A : U) (a0 a1 : A) -> 
+         Id (Id A a0 a1 -> Id A a0 a1) (id (Id A a0 a1)) (cong A A (id A) a0 a1)
+congId A a0 a1 = funExt (Id A a0 a1) (\_ -> Id A a0 a1) (id (Id A a0 a1)) 
+                        (cong A A (id A) a0 a1) (rem a0 a1)
+  where
+  rem1 : (u : A) -> Id (Id A u u) (refl A u) (cong A A (id A) u u (refl A u))
+  rem1 = congRefl A A (id A)
+
+  rem : (u0 u1 : A) -> (p : Id A u0 u1) -> Id (Id A u0 u1) p (cong A A (id A) u0 u1 p) 
+  rem u0 = J A u0 (\u1 p -> Id (Id A u0 u1) p (cong A A (id A) u0 u1 p)) (rem1 u0)
+
+injId : (X : U) -> injective X X (id X)
+injId X a0 a1 h = h
+
+injCong : (A : U) (a0 a1 : A) -> injective (Id A a0 a1) (Id A a0 a1) (cong A A (id A) a0 a1)
+injCong A a0 a1 = subst (X -> X) (\f -> injective X X f) 
+                        (id X) (cong A A (id A) a0 a1) (congId A a0 a1) (injId X)
+  where
+  X : U
+  X = Id A a0 a1
+
+congComp : (A B C : U) (f : A -> B) (g : B -> C) (a0 a1 : A) -> 
+           Id (Id A a0 a1 -> Id C (g (f a0)) (g (f a1))) 
+              (cong A C (\x -> g (f x)) a0 a1)
+              (\p -> cong B C g (f a0) (f a1) (cong A B f a0 a1 p))
+congComp A B C f g a0 a1 = funExt (Id A a0 a1) (\_ -> Tgf a0 a1)
+                                  (conggf a0 a1) (\p -> congg a0 a1 (congf a0 a1 p)) (rem a0 a1)
+  where
+  Tgf : (a0 a1 : A) -> U 
+  Tgf a0 a1 = Id C (g (f a0)) (g (f a1))
+
+  congf : (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
+  congf = cong A B f
+  
+  congg : (a0 a1 : A) -> Id B (f a0) (f a1) -> Tgf a0 a1
+  congg a0 a1 = cong B C g (f a0) (f a1)
+
+  conggf : (a0 a1 : A) -> Id A a0 a1 -> Tgf a0 a1
+  conggf = cong A C (\x -> g (f x))
+
+  rem : (a0 a1 : A) (p : Id A a0 a1) -> 
+        Id (Tgf a0 a1) (conggf a0 a1 p) (congg a0 a1 (congf a0 a1 p))
+  rem a = J A a (\a1 p -> Id (Tgf a a1) (conggf a a1 p) (congg a a1 (congf a a1 p)))
+             rem1
+    where
+    rem2 : Id (Tgf a a) (refl C (g (f a))) (conggf a a (refl A a))
+    rem2 = congRefl A C (\x -> g (f x)) a
+
+    rem4 : Id (Id B (f a) (f a)) (refl B (f a)) (congf a a (refl A a))
+    rem4 = congRefl A B f a
+
+    rem3 : Id (Tgf a a) (congg a a (refl B (f a))) (congg a a (congf a a (refl A a)))
+    rem3 = cong (Id B (f a) (f a)) (Tgf a a) (congg a a) (refl B (f a)) 
+                (congf a a (refl A a)) rem4
+
+    rem5 : Id (Tgf a a) (refl C (g (f a))) (congg a a (refl B (f a)))
+    rem5 = congRefl B C g (f a)
+
+    rem1 : Id (Tgf a a) (conggf a a (refl A a)) (congg a a (congf a a (refl A a)))
+    rem1 = lemTrans (Tgf a a) (refl C (g (f a))) (conggf a a (refl A a))
+                              (congg a a (refl B (f a))) (congg a a (congf a a (refl A a)))
+                    rem2 rem3 rem5
+
+
+injProp : (A B : U) (f : A -> B) -> injective A B f -> prop B -> prop A
+injProp A B f injf pB a0 a1 = injf a0 a1 (pB (f a0) (f a1))
+
+
+contr : U -> U
+contr A = Id U Unit A
+
+propContr : (A : U) -> A -> prop A -> contr A
+propContr A a pA = propExt Unit A propUnit pA (\_ -> a) (\_ -> tt)
+
+-- another definition of contr
+
+contr' : U -> U
+contr' A = Sigma A (\ a -> (x:A) -> Id A a x)
+
+
+typEquivS : (A B : U) -> (f : A -> B) -> U
+typEquivS A B f = (y : B) -> fiber A B f y
+
+typEquivT : (A B : U) -> (f : A -> B) -> (typEquivS A B f) -> U
+typEquivT A B f s =  (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
+
+isEquiv : (A B : U) (f : A -> B) -> U
+isEquiv A B f = Sigma (typEquivS A B f) (typEquivT A B f)
+
+isEquivEq : (A B : U) (f : A -> B) -> isEquiv A B f -> Id U A B
+isEquivEq A B f = split 
+  pair s t -> equivEq A B f s t
+
+-- this implies the other definition
+
+isContr : (A:U) -> contr' A -> contr A
+isContr A = split
+             pair a f -> rem a f
+               where 
+                  rem : (a:A) -> ((x:A) -> Id A a x) -> contr A
+                  rem a f = propContr A a (\ a0 a1 -> compInv A a a0 a1 (f a0) (f a1))
+
+isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> 
+                 ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
+isEquivSection A B f g sfg h = pair s t
+  where
+  s : (y : B) -> fiber A B f y
+  s y = pair (g y) (sfg y)
+
+  t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
+  t y v = h y (s y) v
+
+gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+            isEquiv A B f
+gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
+  where
+  injf : injective A B f
+  injf = retractInj A B f g rfg
+
+  rem : (b : B) -> prop (Sigma A (\a -> Id B (f a) b))
+  rem b = split
+    pair a0 e0 -> 
+      split
+       pair a1 e1 -> rem19
+        where
+         E : A -> U
+         E a = Id B (f a) b
+         F : A -> U
+         F a = Id A (g (f a)) (g b)
+         G : A -> U
+         G a = Id B (f (g (f a))) (f (g b))
+
+         z0 : Sigma A E
+         z0 = pair a0 e0
+         z1 : Sigma A E
+         z1 = pair a1 e1
+        
+         cg : (a:A) -> E a -> F a
+         cg a = cong B A g (f a) b
+
+         cf : (a:A) -> F a -> G a
+         cf a = cong A B f (g (f a)) (g b)
+
+         cfg : (a:A) -> E a -> G a
+         cfg a = cong B B (\ x -> f (g x)) (f a) b
+
+         pcg : Sigma A E -> Sigma A F
+         pcg = split
+                pair a e -> pair a (cg a e)
+
+         pcf : Sigma A F -> Sigma A G
+         pcf = split
+                pair a e -> pair a (cf a e)
+
+         fg : B -> B
+         fg y = f (g y)
+
+         pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
+         pc u = split
+                pair a e -> pair a (cong B B u (f a) b e)
+
+         rem1 : prop (Sigma A F)
+         rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)         
+
+         rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
+         rem2 = rem1 (pcg z0) (pcg z1)
+
+         rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
+         rem3 = cong (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
+
+         rem4 : Id (E a0 -> G a0) (cfg a0) (\ e -> cf a0 (cg a0 e))
+         rem4 = congComp B A B g f (f a0) b 
+
+         rem5 : Id (G a0) (cfg a0 e0) (cf a0 (cg a0 e0))
+         rem5 = appId (E a0) (G a0) e0 (cfg a0) (\ e -> cf a0 (cg a0 e)) rem4
+
+         rem6 : Id (Sigma A G) (pc fg z0) (pcf (pcg z0))
+         rem6 = cong (G a0) (Sigma A G) (\ e -> pair a0 e)  (cfg a0 e0) (cf a0 (cg a0 e0)) rem5
+
+         rem7 : Id (E a1 -> G a1) (cfg a1) (\ e -> cf a1 (cg a1 e))
+         rem7 = congComp B A B g f (f a1) b 
+
+         rem8 : Id (G a1) (cfg a1 e1) (cf a1 (cg a1 e1))
+         rem8 = appId (E a1) (G a1) e1 (cfg a1) (\ e -> cf a1 (cg a1 e)) rem7
+
+         rem9 : Id (Sigma A G) (pc fg z1) (pcf (pcg z1))
+         rem9 = cong (G a1) (Sigma A G) (\ e -> pair a1 e)  (cfg a1 e1) (cf a1 (cg a1 e1)) rem8
+
+         rem10 : Id (Sigma A G) (pc fg z0) (pc fg z1)
+         rem10 = lem2Trans (Sigma A G) (pc fg z0) (pcf (pcg z0)) (pc fg z1) (pcf (pcg z1)) rem6 rem9 rem3
+
+         rem11 : Id (B -> B) fg (id B)
+         rem11 = funExt B (\ _ -> B)  fg (id B) sfg
+
+         rem12 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
+         rem12 = subst (B->B) (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem11 rem10
+
+         c1 : (a:A) -> E a -> E a
+         c1 a = cong B B (id B) (f a) b
+
+         rem13 : Id (E a0 -> E a0) (id (E a0)) (c1 a0) 
+         rem13 = congId B (f a0) b
+
+         rem14 : Id (E a0) e0 (c1 a0 e0) 
+         rem14 = appId (E a0) (E a0) e0  (id (E a0)) (c1 a0) rem13
+
+         rem15 : Id (Sigma A E) z0 (pc (id B) z0)
+         rem15 = cong (E a0) (Sigma A E) (\ e -> pair a0 e) e0 (c1 a0 e0) rem14
+
+         rem16 : Id (E a1 -> E a1) (id (E a1)) (c1 a1) 
+         rem16 = congId B (f a1) b
+
+         rem17 : Id (E a1) e1 (c1 a1 e1) 
+         rem17 = appId (E a1) (E a1) e1  (id (E a1)) (c1 a1) rem16
+
+         rem18 : Id (Sigma A E) z1 (pc (id B) z1)
+         rem18 = cong (E a1) (Sigma A E) (\ e -> pair a1 e) e1 (c1 a1 e1) rem17
+
+         rem19 : Id (Sigma A E) z0 z1
+         rem19 = lem2Trans (Sigma A E) z0 (pc (id B) z0) z1 (pc (id B) z1) rem15 rem18 rem12
+
+
+isoId : (A B:U) ->  (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+            Id U A B
+isoId A B f g sfg rfg = isEquivEq A B f (gradLemma A B f g sfg rfg)
+
+-- a product of contractibles is contractible
+
+isContrProd : (A:U) (B:A->U) -> ((x:A) -> contr (B x)) -> contr (Pi A B)
+isContrProd A B pB = subst U contr (A->Unit) (Pi A B) rem1 rem2
+ where
+   rem : Id (A -> U) (\ _ -> Unit) B
+   rem = funExt A (\ _ -> U) (\ _ -> Unit) B pB
+
+   rem1 : Id U (A -> Unit) (Pi A B)
+   rem1 = cong (A -> U) U (Pi A)  (\ _ -> Unit) B rem
+
+   f : Unit -> A -> Unit
+   f z a = tt
+
+   g : (A -> Unit) -> Unit
+   g _ = tt
+
+   sfg : (z : A -> Unit) -> Id (A -> Unit) (f (g z)) z
+   sfg z = funExt A (\ _ -> Unit) (f (g z)) z (\ x -> propUnit (f (g z) x) (z x))
+
+   rfg : (z:Unit) -> Id Unit (g (f z)) z
+   rfg z = propUnit (g (f z)) z
+
+   rem2 : Id U Unit (A -> Unit)
+   rem2 = isoId Unit (A -> Unit) f g sfg rfg
+
+-- this is always a proposition
+
+lemProp1 : (A : U) -> (A -> prop A) -> prop A
+lemProp1 A h a0 = h a0 a0
+
+-- a product of propositions is a proposition
+
+isPropProd : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop (Pi A B)
+isPropProd A B pB f0 f1 = funExt A B f0 f1 (\ x -> pB x (f0 x) (f1 x))
+
+-- a sigma of props over a prop is a prop
+
+sigIsProp : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop A -> prop (Sigma A B)
+sigIsProp A B pB pA =
+ split
+  pair a0 b0 -> split
+                 pair a1 b1 -> eqSigma A B a0 a1 (pA a0 a1) b0 b1 (pB a1 (subst' A B a0 a1 (pA a0 a1) b0) b1)
+
+contrIsProp : (A : U) -> prop (contr' A)
+contrIsProp A = lemProp1 (contr' A) rem
+ where rem : contr' A -> prop (contr' A)
+       rem = split
+              pair a p -> sigIsProp A (\ a0 -> (x:A) -> Id A a0 x) rem3 rem1 
+                where
+                 rem1 : prop A
+                 rem1 a0 a1 = compInv A a a0 a1 (p a0) (p a1)
+
+                 rem2 : (a0 a1:A) -> prop (Id A a0 a1)
+                 rem2 = propUIP A rem1
+
+                 rem3 : (a0:A) -> prop ((x:A) -> Id A a0 x)
+                 rem3 a0 = isPropProd A (Id A a0) (rem2 a0) 
+
+-- Voevodsky's definition of propositions
+
+propIsContr : (A:U) -> prop A -> (a0 a1:A) -> contr (Id A a0 a1)
+propIsContr A pA a0 a1 = propContr (Id A a0 a1) (pA a0 a1) (propUIP A pA a0 a1)
+
+-- propContr : (A : U) -> A -> prop A -> contr A
+
+
+propIsProp : (A : U) -> prop (prop A)
+propIsProp A = lemProp1 (prop A) rem
+  where
+   rem : prop A -> prop (prop A)
+   rem pA = rem3 
+    where
+      rem1 : UIP A
+      rem1 = propUIP A pA
+
+      rem2 : (a0:A) -> (f g : Pi A (Id A a0)) -> Id (Pi A (Id A a0)) f g
+      rem2 a0 f g = funExt A (\ a1 -> Id A a0 a1) f g (\ a1 -> rem1 a0 a1 (f a1) (g a1))
+
+      rem3 : (f g : (a0 a1 :A) -> Id A a0 a1) -> Id ((a0 a1:A) -> Id A a0 a1) f g
+      rem3 f g = funExt A (\ a0 -> (Pi A (Id A a0))) f g (\ a0 -> rem2 a0 (f a0) (g a0))
+
+-- not needed if we have eta
+
+etaId : (A:U) (B:A -> U) -> (f:Pi A B) -> Id (Pi A B) (\ x -> f x) f
+etaId A B f = funExt A B (\ x -> f x) f (\ x -> refl (B x) (f x))
+
+funSplit : (A:U) (B:A->U) (C: (Pi A B) -> U) -> ((f:Pi A B) -> C (\ x -> f x)) -> Pi (Pi A B) C
+funSplit A B C eC f = subst (Pi A B) C (\ x -> f x) f (etaId A B f) (eC f)
+
+surjPair : (A:U) (B:A -> U) -> (s:Sigma A B) -> Id (Sigma A B) (pair (fst A B s) (snd A B s)) s
+surjPair A B = split
+                pair a b -> refl (Sigma A B) (pair a b)
+
+-- an interesting isomorphism/equality
+
+idTelProp : (A:U) (B:A -> U) (C:(x:A) -> B x -> U) -> 
+              Id U ((x:A) -> Sigma (B x) (C x)) (Sigma ((x:A) -> B x) (\ f -> (x:A) -> C x (f x)))
+idTelProp A B C = isoId T0 T1 f g sfg rfg 
+ where
+  T0 : U 
+  T0 = (x:A) -> Sigma (B x) (C x) 
+
+  T1 : U 
+  T1 = Sigma ((x:A) -> B x) (\ f -> (x:A) -> C x (f x))
+
+  f : T0 -> T1
+  f = \ s -> pair (\ x -> fst (B x) (C x) (s x)) (\ x -> snd (B x) (C x) (s x))
+
+  g : T1 -> T0
+  g = split
+       pair u v -> \ x -> pair (u x) (v x)
+
+  sfg : (y:T1) -> Id T1 (f (g y)) y
+  sfg = split
+         pair u v -> rem u v 
+           where
+             rem2 : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) (\ x -> v x))
+             rem2 u v = refl T1 (pair (\ x -> u x) (\ x -> v x))
+
+             rem1 : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) v)
+             rem1 u = funSplit A (\ x -> C x (u x)) (\ v -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) v)) (rem2 u)
+
+             rem : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair u v)
+             rem = funSplit A B (\ u -> (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair u v)) rem1
+
+  rfg : (s:T0) -> Id T0 (g (f s)) s
+  rfg s = funExt A (\ x ->  Sigma (B x) (C x)) (g (f s)) s rem
+    where
+      rem : (x:A) -> Id (Sigma (B x) (C x)) (pair (fst (B x) (C x) (s x)) (snd (B x) (C x) (s x))) (s x)
+      rem x = surjPair (B x) (C x) (s x)
+
+-- we deduce from this equality that isEquiv f is a proposition
+
+propIsEquiv : (A B : U) -> (f : A -> B) -> prop (isEquiv A B f)
+propIsEquiv A B f = subst U prop ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f) rem rem1
+ where 
+   rem : Id U ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f) 
+   rem = idTelProp B (fiber A B f) (\ y -> \ s -> (v :fiber A B f y) -> Id (fiber A B f y) s v)
+
+   rem1 : prop ((y:B) -> contr' (fiber A B f y))
+   rem1 = isPropProd B (\ y -> contr' (fiber A B f y)) (\ y -> contrIsProp (fiber A B f y))
+
+
+
+
+-- some applications of the gradlemma
+
+propId : (A B:U) ->  prop A -> prop B ->  (f : A -> B) (g : B -> A) -> 
+            Id U A B
+propId A B pA pB f g = isEquivEq A B f (gradLemma A B f g sfg rfg)
+ where
+  sfg : (b:B) -> Id B (f (g b)) b
+  sfg b = pB (f (g b)) b
+ 
+  rfg : (a:A) -> Id A (g (f a)) a
+  rfg a = pA (g (f a)) a
+
+-- any idempotent function defines an equality 
+
+idempotent : (A:U) -> (A->A) -> U
+idempotent A f = section A A f f 
+
+idemIsEquiv : (A:U) -> (f : A -> A) -> idempotent A f -> isEquiv A A f
+idemIsEquiv A f if = gradLemma A A f f if if
+
+idemEq : (A:U) -> (f : A -> A) -> idempotent A f -> Id U A A
+idemEq A f if = isEquivEq A A f (idemIsEquiv A f if)
+
+
+
+-- the inverse function on Id A a a is idempotent
+
+-- the inverse of refl is refl
+
+invRefl : (A:U) -> (a:A) -> Id (Id A a a) (refl A a) (inv A a a (refl A a))
+invRefl A a = subst'eq A  (\ x -> Id A x a) a (refl A a)
+
+remIdFunEq : (A:U) -> (f:A -> A) -> (x:A) -> Id A x (f x) -> Id A x (f (f x))
+remIdFunEq A f x p = subst A (\ y -> Id A x (f y)) x (f x) p p
+
+invInvEq : (A:U) -> (a b :A) -> (p : Id A a b) -> Id (Id A a b) p (inv A b a (inv A a b p))
+invInvEq A a = J A a (\ b p -> Id (Id A a b) p (inv A b a (inv A a b p))) rem
+ where rem : Id (Id A a a) (refl A a) (inv A a a (inv A a a (refl A a)))
+       rem = remIdFunEq (Id A a a) (inv A a a) (refl A a) (invRefl A a)
+
+idemInv : (A:U) -> (a:A) -> idempotent (Id A a a) (inv A a a)
+idemInv A a = rem 
+ where 
+      T : U
+      T = Id A a a
+      g : T -> T
+      g = inv A a a 
+      rem : (p: T) -> Id T (g (g p)) p
+      rem p = inv T p (g (g p)) (invInvEq A a a p)
+
+-- type of all loops 
+aLoop : U -> U
+aLoop A = Sigma A (\ a -> Id A a a)
+
+invALoop : (A:U) -> aLoop A -> aLoop A
+invALoop A = split
+              pair a l -> pair a (inv A a a l)
+
+idemInvALoop : (A:U) -> idempotent (aLoop A) (invALoop A)
+idemInvALoop A = split
+                  pair a l -> cong (Id A a a) (aLoop A) (\ x -> pair a x) (inv A a a (inv A a a l)) l (idemInv A a l)
+
+
+-- equality associated to this idempotent map
+
+eqInvALoop : (A:U) -> Id U (aLoop A) (aLoop A)
+eqInvALoop A = idemEq (aLoop A) (invALoop A) (idemInvALoop A)
+
+-- type of types with automorphisms
+
+autoM : U
+autoM = aLoop U
+
+-- this type is equal to itself
+
+eqAutoM : Id U autoM autoM
+eqAutoM = eqInvALoop U
+
+-- a particular element of autoM
+
+boolAuto : autoM
+boolAuto = pair Bool eqBoolBool
+
+-- by transport we deduce another type and another equality
+
+boolAuto' : autoM
+boolAuto' = subst U (\ X -> X) autoM autoM eqAutoM boolAuto
+
+bool' : U
+bool' = fst U (\ X -> Id U X X) boolAuto'
+
+eqBool' : Id U bool' bool'
+eqBool' = snd  U (\ X -> Id U X X) boolAuto'
+
+-- the swap function defines an equality
+
+swap : (A B :U) -> and A B -> and B A
+swap A B = split
+            pair a b -> pair b a
+
+lemSwap : (A B:U) -> (z: and A B) -> Id (and A B) (swap B A (swap A B z)) z
+lemSwap A B = split
+               pair a b -> refl (and A B) (pair a b)
+
+eqSwap : (A B :U) -> Id U (and A B) (and B A)
+eqSwap A B = isEquivEq (and A B) (and B A) (swap A B) rem
+ where
+  rem : isEquiv (and A B) (and B A) (swap A B)
+  rem = gradLemma (and A B) (and B A) (swap A B) (swap B A) (lemSwap B A) (lemSwap A B)
+
+-- a simple test example
+
+incr : and Bool N -> and Bool N
+incr = split
+     pair b n -> pair b (suc n)
+
+incr' : and N Bool -> and N Bool
+incr' = subst U (\ X -> X -> X) (and Bool N) (and N Bool) (eqSwap Bool N) incr
+
+test6 : and N Bool
+test6 = incr' (pair zero true)
+
+test7 : and N Bool
+test7 = incr' (pair (suc zero) true)
+
+-- what happens if we compose eqSwap with itself?
+
+eqSwap2 : (A B : U) -> Id U (and A B) (and A B)
+eqSwap2 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B) (eqSwap B A)
+
+incr2 : and Bool N -> and Bool N
+incr2 = subst U (\ X -> X -> X) (and Bool N) (and Bool N) (eqSwap2 Bool N) incr
+
+test8 : and Bool N
+test8 = incr2 (pair true zero)
+
+test9 : and Bool N
+test9 = incr2 (pair true (suc zero))
+
+-- what happens if we compose eqSwap with its inverse?
+
+eqSwap3 : (A B : U) -> Id U (and A B) (and A B)
+eqSwap3 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B) (inv U (and A B) (and B A) (eqSwap A B))
+
+incr3 : and Bool N -> and Bool N
+incr3 = subst U (\ X -> X -> X) (and Bool N) (and Bool N) (eqSwap2 Bool N) incr
+
+test10 : and Bool N
+test10 = incr3 (pair true zero)
+
+test11 : and Bool N
+test11 = incr3 (pair true (suc zero))
+
+
+-- simple example with swap and product
+
+eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
+eqPi A B0 B1 eB = cong (A->U) U (Pi A) B0 B1 rem
+ where rem : Id (A -> U) B0 B1
+       rem = funExt A (\ _ -> U) B0 B1 eB
+
+eqSig : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Sigma A B0) (Sigma A B1)
+eqSig A B0 B1 eB = cong (A->U) U (Sigma A) B0 B1 rem
+ where rem : Id (A -> U) B0 B1
+       rem = funExt A (\ _ -> U) B0 B1 eB
+
+eqPiTest : Id U (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X))
+eqPiTest = eqPi U (\ X -> X -> and X Bool) (\ X -> X -> and Bool X) rem1
+ where rem : (X:U) -> Id U (and X Bool) (and Bool X)
+       rem X = eqSwap X Bool
+
+       rem1 : (X:U) -> Id U (X -> and X Bool) (X -> and Bool X)
+       rem1 X = eqPi X (\ _ -> and X Bool) (\ _ -> and Bool X) (\ _ -> rem X)
+
+       
+transPiTest : ((X:U) -> X -> and X Bool) -> (X:U) -> X -> and Bool X
+transPiTest = transport  (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X)) eqPiTest
+
+test12 : and Bool N
+test12 = transPiTest (\ X -> \ x -> pair x true) N zero
+
+eqSigTest : Id U (Sigma U (\ X -> and X Bool)) (Sigma U (\ X -> and Bool X))
+eqSigTest = eqSig U (\ X -> and X Bool) (\ X -> and Bool X) rem1
+ where rem1 : (X:U) -> Id U (and X Bool) (and Bool X)
+       rem1 X = eqSwap X Bool
+
+transSigTest : (Sigma U (\ X -> and X Bool)) -> Sigma U (and Bool)
+transSigTest = transport (Sigma U (\ X -> and X Bool)) (Sigma U (\ X -> and Bool X)) eqSigTest
+
+test13 : U
+test13 = fst U (and Bool) (transSigTest (pair Bool (pair false true)))
+
+test14 : and Bool test13
+test14 = snd U (and Bool) (transSigTest (pair Bool (pair false true)))
+
+test15 : Bool
+test15 = fst Bool (\ _ -> test13) test14
+
+
+
+
+
+
+
+
+
+eqSig1Test : Id U (Sigma U (\ X -> and N Bool)) (Sigma U (\ X -> and Bool N))
+eqSig1Test = eqSig U (\ X -> and N Bool) (\ X -> and Bool N) rem1
+ where rem1 : (X:U) -> Id U (and N Bool) (and Bool N)
+       rem1 X = eqSwap N Bool
+
+transSig1Test : (and U (and N Bool)) -> and U (and Bool N)
+transSig1Test = transport (and U (and N Bool)) (and U (and Bool N)) eqSig1Test
+
+--test113 : U
+-- est113 = fst U (\ _ -> and Bool N) (transSig1Test (pair Bool (pair zero true)))
+
+--test114 : and Bool N
+--test114 = snd U (\ _ -> and Bool N) (transSig1Test (pair Bool (pair zero true)))
+
+--test115 : Bool
+--test115 = fst Bool (\ _ -> N) test114
+
+eqSig2Test : Id U (Sigma N (\ _ -> and N Bool)) (Sigma N (\ _ -> and Bool N))
+eqSig2Test = eqSig N (\ _ -> and N Bool) (\ _ -> and Bool N) rem1
+ where rem1 : N -> Id U (and N Bool) (and Bool N)
+       rem1 n = eqSwap N Bool
+
+transSig2Test : (Sigma N (\ X -> and N Bool)) -> Sigma N (\ _ -> and Bool N)
+transSig2Test = transport (Sigma N (\ _ -> and N Bool)) (Sigma N (\ _ -> and Bool N)) eqSig2Test
+
+test213 : N
+test213 = fst N (\ _ -> and Bool N) (transSig2Test (pair zero (pair zero true)))
+
+test214 : and Bool N
+test214 = snd N (\ _ -> and Bool N) (transSig2Test (pair zero (pair zero true)))
+
+test215 : Bool
+test215 = fst Bool (\ _ -> N) test214
+
+-- now we try to prove univalence
+-- the identity is an equivalence
+
+idIsEquiv : (A:U) -> isEquiv A A (id A)
+idIsEquiv A = pair (sId A) (tId A)
+
+-- the transport of the reflexity is equal to the identity function
+
+transpReflId : (A:U) -> Id (A->A) (id A) (transport A A (refl U A))
+transpReflId A = funExt A (\ _ -> A)  (id A) (transport A A (refl U A)) (transportRef A)
+
+-- the transport of any equality proof is an equivalence
+
+transpIsEquiv : (A B:U) -> (p:Id U A B) -> isEquiv A B (transport A B p)
+transpIsEquiv A = J U A (\ B p -> isEquiv A B (transport A B p)) rem
+ where rem : isEquiv A A (transport A A (refl U A))
+       rem = subst (A -> A) (isEquiv A A)  (id A) (transport A A (refl U A)) (transpReflId A) (idIsEquiv A)
+
+Equiv : U -> U -> U
+Equiv A B = Sigma (A->B) (isEquiv A B)
+
+funEquiv : (A B : U) -> Equiv A B -> A -> B
+funEquiv A B = fst (A->B) (isEquiv A B)
+
+eqEquiv : (A B : U) (e0 e1:Equiv A B) -> Id (A -> B) (funEquiv A B e0) (funEquiv A B e1) -> Id (Equiv A B) e0 e1
+eqEquiv A B = eqPropFam (A->B) (isEquiv A B) (propIsEquiv A B)
+
+IdToEquiv : (A B:U) -> Id U A B -> Equiv A B
+IdToEquiv A B p = pair (transport A B p) (transpIsEquiv A B p)
+
+EquivToId : (A B:U) -> Equiv A B -> Id U A B
+EquivToId A B = split
+                  pair f ef -> isEquivEq A B f ef
+
+lemSecIdEquiv : (A:U) -> (eid : isEquiv A A (id A)) -> Id (Id U A A) (refl U A) (EquivToId A A (pair (id A) eid))
+lemSecIdEquiv A = 
+  split
+   pair s t -> equivEqRef A s t
+
+lem1SecIdEquiv : (A:U) -> (f:A -> A) -> Id (A->A) (id A) f -> (eid : isEquiv A A f) -> 
+      Id (Id U A A) (refl U A) (EquivToId A A (pair f eid))
+lem1SecIdEquiv A f if eid = 
+  comp (Id U A A)  (refl U A)  (EquivToId A A (pair (id A) (idIsEquiv A))) (EquivToId A A (pair f eid)) rem2 rem1
+  where
+    rem : Id (Equiv A A) (pair (id A) (idIsEquiv A)) (pair f eid)
+    rem = eqEquiv A A (pair (id A) (idIsEquiv A)) (pair f eid) if
+
+    rem1 : Id (Id U A A) (EquivToId A A (pair (id A) (idIsEquiv A))) (EquivToId A A (pair f eid))
+    rem1 = cong (Equiv A A) (Id U A A) (EquivToId A A) (pair (id A) (idIsEquiv A)) (pair f eid) rem
+
+    rem2 : Id (Id U A A) (refl U A)  (EquivToId A A (pair (id A) (idIsEquiv A)))
+    rem2 = lemSecIdEquiv A (idIsEquiv A)
+
+secIdEquiv : (A B :U) -> (p : Id U A B) -> Id (Id U A B) (EquivToId A B (IdToEquiv A B p)) p
+secIdEquiv A B p = inv (Id U A B)  p (EquivToId A B (IdToEquiv A B p)) (rem A B p)
+ where 
+  rem1 : (A:U) -> Id (Id U A A) (refl U A) (EquivToId A A (IdToEquiv A A (refl U A)))
+  rem1 A = lem1SecIdEquiv A tA rem3 rem2
+       where
+         tA : A -> A
+         tA = transport A A (refl U A)
+
+         rem2 : isEquiv A A tA
+         rem2 = transpIsEquiv A A (refl U A)
+
+         rem3 : Id (A -> A) (id A) tA
+         rem3 = transpReflId A
+
+  rem : (A B :U) -> (p : Id U A B) -> Id (Id U A B) p (EquivToId A B (IdToEquiv A B p))
+  rem A = J U A (\ B p ->  Id (Id U A B) p (EquivToId A B (IdToEquiv A B p))) (rem1 A)
+
+retIdEquiv : (A B :U) (s : Equiv A B) -> Id (Equiv A B) (IdToEquiv A B (EquivToId A B s)) s
+retIdEquiv A B s = inv (Equiv A B) s (IdToEquiv A B (EquivToId A B s)) (rem s)
+ where
+   rem : (s : Equiv A B) -> Id (Equiv A B) s (IdToEquiv A B (EquivToId A B s))
+   rem = 
+     split
+       pair f ef -> 
+          rem1 ef
+            where
+              p : Id U A B 
+              p = isEquivEq A B f ef
+
+              rem1 : (ef : isEquiv A B f) -> 
+                      Id (Equiv A B) (pair f ef) (pair (transport A B (isEquivEq A B f ef)) (transpIsEquiv A B (isEquivEq A B f ef)))
+              rem1 = 
+                split
+                 pair s t -> rem2
+                  where
+                    rem3 : Id (A->B) f (transport A B (equivEq A B f s t))
+                    rem3 = funExt A (\ _ -> B) f (transport A B (equivEq A B f s t)) (transpEquivEq A B f s t)
+                    rem2 : Id (Equiv A B) (pair f (pair s t))
+                                          (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+                    rem2 = eqEquiv A B (pair f (pair s t))
+                                       (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+                                       rem3
+
+-- and now univalence
+
+univAx : (A B:U) -> isEquiv (Id U A B) (Equiv A B) (IdToEquiv A B)
+univAx A B = gradLemma (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
+
+-- in particular Id U A B and Equiv A B are equal
+
+corUnivAx : (A B : U) -> Id U (Id U A B) (Equiv A B)
+corUnivAx A B = isEquivEq (Id U A B) (Equiv A B) (IdToEquiv A B) (univAx A B)
+
+-- a simple application
+
+idPropIsProp : (A B : U) -> prop A -> prop B -> prop (Id U A B)
+idPropIsProp A B pA pB = substInv U prop (Id U A B) (Equiv A B) (corUnivAx A B) rem
+ where
+  rem : prop (Equiv A B)
+  rem = sigIsProp (A->B) (isEquiv A B) (propIsEquiv A B) (isPropProd A (\ _ -> B) (\ _ -> pB))
+
+--- simple test
+
+eqNN : Id U (and N N) (and N N)
+eqNN = eqSwap N N
+
+testNN : and N N
+testNN = transport (and N N) (and N N) eqNN (pair zero (suc zero))
+
+eqUU : Id U (U -> and U U) (U -> and U U)
+eqUU = eqPi U (\ _ -> and U U) (\ _ -> and U U) (\ _ -> eqSwap U U)
+
+testUU : U
+testUU = fst U (\ _ -> U) (transport (U -> and U U) (U -> and U U) eqUU (\ X -> pair X X) Bool)
+
+-- eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
+
+-- an example with N and 1 + N isomorphic
+
+-- data or (A B:U) = Inl (x:A) | Inr (y:B)
+
+NToOr : N -> or N Unit
+NToOr = split
+           zero -> inr tt
+           suc n -> inl n
+
+OrToN : or N Unit -> N
+OrToN = split
+            inl n -> suc n
+            inr _ -> zero
+
+secNO : (x:N) -> Id N (OrToN (NToOr x)) x
+secNO = split
+         zero -> refl N zero
+         suc n -> refl N (suc n)
+
+retNO : (z:or N Unit) -> Id (or N Unit) (NToOr (OrToN z)) z
+retNO = split
+         inl n -> refl (or N Unit) (inl n)
+         inr y -> lem y
+              where lem : (y:Unit) -> Id (or N Unit) (inr tt) (inr y)
+                    lem = split
+                            tt -> refl (or N Unit) (inr tt)
+
+isoNO : Id U N (or N Unit)
+isoNO = isoId N (or N Unit) NToOr OrToN retNO secNO
+
+-- trying to build an example which involves Kan filling for product
+
+pBool : N -> U
+pBool = split
+         zero -> Bool
+         suc n -> and Bool (pBool n)
+
+notSN : (x:N) -> pBool x -> pBool x
+notSN = split
+         zero -> not
+         suc n -> split
+                    pair b u -> pair (not b) (notSN n u)
+
+sBool : (x:N) -> pBool x
+sBool = split
+        zero -> true
+        suc n -> pair false (sBool n)
+
+stBool : (x:N) -> pBool x -> Bool
+stBool = split
+           zero -> \ z -> z
+           suc n -> split
+                      pair b u -> stBool n (notSN n u)
+
+hasSec : U -> U
+hasSec X = Sigma (X->U) (\ P -> (x:X) -> and (P x) (P x -> Bool))
+
+hSN : hasSec N
+hSN = pair pBool (\ n -> pair (sBool n) (stBool n))
+
+hSN' : hasSec (or N Unit)
+hSN' = subst U hasSec N (or N Unit) isoNO hSN
+
+pB' : (or N Unit) -> U
+pB' = fst ((or N Unit) -> U)  (\ P -> (x:or N Unit) -> and (P x) (P x -> Bool)) hSN'
+
+sB' : (z: or N Unit) -> and (pB' z) (pB' z -> Bool)
+sB' = snd ((or N Unit) -> U)  (\ P -> (x:or N Unit) -> and (P x) (P x -> Bool)) hSN'
+
+appBool : (A : U) -> and A (A -> Bool) -> Bool
+appBool A = split
+             pair a f -> f a
+
+pred : N -> N
+pred = split
+        zero -> zero
+        suc n -> n
+
+pred' : or N Unit -> or N Unit
+pred' = subst U (\ X -> X -> X) N (or N Unit) isoNO pred
+
+testPred : or N Unit
+testPred = pred' (inr tt)
+
+saB' : or N Unit -> Bool
+saB' z = appBool (pB' z) (sB' z)
+
+testSN : Bool
+testSN = saB' (inr tt)
+
+testSN1 : Bool
+testSN1 = saB' (inl zero)
+
+testSN2 : Bool
+testSN2 = saB' (inl (suc zero))
+
+testSN3 : Bool
+testSN3 = saB' (inl (suc (suc zero)))
+
+add : N -> N -> N
+add x = split 
+         zero -> x
+         suc y -> suc (add x y)
+
+-- add' : (or N Unit) -> (or N Unit) -> or N Unit
+-- add' = subst U (\ X -> X -> X -> X) N (or N Unit) isoNO add
+
+
+-- a property that we can transport
+
+propAdd : (x:N) -> Id N (add zero x) x
+propAdd = split
+           zero -> refl N zero
+           suc n -> cong N N (\ x -> suc x) (add zero n) n (propAdd n)
+
+-- propAdd' : (z:or N Unit) 
+
+
+
+
+-- a property of N
+
+aZero : U -> U
+aZero X = Sigma X (\ z -> Sigma (X -> X -> X) (\ f -> (x:X) -> Id X (f z x) x))
+
+aZN : aZero N
+aZN = pair zero (pair add propAdd)
+
+aZN' : aZero (or N Unit)
+aZN' = subst U aZero N (or N Unit) isoNO aZN
+
+zero' : or N Unit
+zero' = fst (or N Unit) (\ z -> Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f z x) x)) aZN'
+
+sndaZN' : Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x)
+sndaZN' = snd (or N Unit) (\ z -> Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f z x) x)) aZN'
+
+add' : (or N Unit) -> (or N Unit) -> or N Unit
+add' = fst ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x) sndaZN'
+
+propAdd' : (x:or N Unit) -> Id (or N Unit) (add' zero' x) x
+propAdd' = snd ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x) sndaZN'
+
+
+testNO : or N Unit
+testNO = add' (inl zero) (inl (suc zero))
+
+testNO1 : Id (or N Unit) (add' zero' zero') zero'
+testNO1 = propAdd' zero'
+
+-- zero' evaluates to inr tt
+-- isoId : (A B:U) ->  (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+--            Id U A B
+
+
+propN0 : prop N0
+propN0 a b = efq (Id N0 a b) a
+
+propNeg : (A:U) -> prop (neg A)
+propNeg A = isPropProd A (\ _ -> N0) (\ _ -> propN0)
+
+-- isPropProd : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop (Pi A B)
+
+lemProp2 : (A : U) -> prop A -> prop (dec A)
+lemProp2 A pA  = split
+ inl a -> split 
+           inl b -> cong A (dec A) (\ x -> inl x) a b (pA a b)
+           inr nb -> efq (Id (dec A) (inl a) (inr nb)) (nb a)
+ inr na -> split 
+           inl b -> efq (Id (dec A) (inr na) (inl b)) (na b)
+           inr nb -> cong (neg A) (dec A) (\ x -> inr x) na nb (propNeg A na nb)
+
+-- a non trivial equivalence: two different ways to represent subsets
+
+subset1 : U -> U
+subset1 A = Sigma U (\ X -> X -> A)
+
+subset2 : U -> U
+subset2 A = A -> U
+
+-- map in both directions
+
+sub12 : (A:U) -> subset1 A -> subset2 A
+sub12 A = split
+           pair X f -> fiber X A f
+
+sub21 : (A:U) -> subset2 A -> subset1 A
+sub21 A P = pair (Sigma A P) (fst A P)
+
+-- they are inverse maps
+
+-- secsub : (A:U) -> (Xf : subset1 A) -> Id (subset1 A) (sub21 A (sub12 A Xf)) Xf
+-- secsub A = split
+--             pair X f -> rem
+--               where rem : Id (subset1 A) (pair (Sigma A (fiber X A f)) (fst A (fiber X A f))) (pair X f)
+--                    rem = undefined
+
+
+lem2Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) 
+                                          (Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z)))
+lem2Sub A P a = isoId F T f g sfg rfg
+ where
+   T : U
+   T = Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z))
+
+   F : U
+   F = fiber (Sigma A P) A (fst A P) a
+
+   f : F -> T
+   f = split
+        pair z p -> rem z p 
+          where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> T
+                rem = split
+                      pair x u -> \ p -> pair (pair x p) u
+
+   g : T -> F
+   g = split
+        pair z u -> rem z u
+          where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> fiber (Sigma A P) A (fst A P) a
+                rem = split
+                        pair x p -> \ u -> pair (pair x u) p
+
+   rfg : (v :F) -> Id F (g (f v)) v
+   rfg = split
+          pair z p -> rem z p
+           where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> Id (fiber (Sigma A P) A (fst A P) a) (g (f (pair z p))) (pair z p)
+                 rem = split
+                        pair x u -> \ p -> refl F (pair (pair x u) p)
+
+   sfg : (v:T) -> Id T (f (g v)) v
+   sfg = split
+          pair z u -> rem z u
+            where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> Id T (f (g (pair z u))) (pair z u)
+                  rem = split
+                        pair x p -> \ u -> refl T (pair (pair x p) u)
+
+hasContrSig : U -> U
+hasContrSig A =  (P : A -> U) -> (x: A) -> Id U (Sigma A P) (P x)
+
+lemUnitSig : hasContrSig Unit
+lemUnitSig P = 
+ split
+  tt -> isoId T F f g rfg sfg
+   where 
+    T : U
+    T = Sigma Unit P
+
+    F : U
+    F = P tt
+
+    f : T -> F
+    f = split
+         pair x u -> rem x u
+          where rem : (x:Unit) -> P x -> P tt
+                rem = split
+                       tt -> \ u -> u
+
+    g : F -> T
+    g u = pair tt u
+
+    rfg : (v:F) -> Id F (f (g v)) v
+    rfg v = refl F v
+
+    sfg : (v:T) -> Id T (g (f v)) v
+    sfg = split
+           pair x u -> rem x u
+            where rem : (x:Unit) -> (u : P x) -> Id T (g (f (pair x u))) (pair x u)
+                  rem = split
+                         tt -> \ u -> refl T (pair tt u)
+
+lemContrSig : (A:U) -> contr A -> hasContrSig A
+lemContrSig A p = subst U hasContrSig Unit A p lemUnitSig
+
+singl : (A:U) -> A -> U
+singl A a = Sigma A (\ x -> Id A x a)
+
+singContr : (A:U) (a:A) -> contr (singl A a)
+singContr A a = isContr T (pair (pair a (refl A a)) f)
+ where T : U 
+       T = singl A a 
+ 
+       f : (z:T) -> Id T (pair a (refl A a)) z
+       f = split
+            pair b p -> rem b a p
+             where 
+               rem : (b:A) (a:A) (p:Id A b a) -> Id (singl A a) (pair a (refl A a)) (pair b p)
+               rem b = J A b (\ a p ->  Id (singl A a) (pair a (refl A a)) (pair b p)) (refl (singl A b) (pair b (refl A b)))
+ 
+
+
+lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+lem3Sub A P a = lemContrSig (singl A a) (singContr A a) Q (pair a (refl A a))
+ where
+   Q : singl A a -> U
+   Q z = P (fst A (\ x -> Id A x a) z)
+
+
+lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) (P a)
+lem1Sub A P a =
+ comp U (fiber (Sigma A P) A (fst A P) a) (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+     (lem2Sub A P a) (lem3Sub A P a)
+
+retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
+retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
+
+-- an induction principle for equivalences
+
+hasSection : (A B : U) -> (A -> B) -> U
+hasSection A B f = Sigma (B->A) (section A B f) 
+
+-- an equivalence has a section
+
+equivSec : (A B :U) -> (f:A->B) -> isEquiv A B f -> hasSection A B f
+equivSec A B f = 
+ split 
+  pair s t -> pair g rem
+    where g : B -> A
+          g y = fst A (\ x -> Id B (f x) y) (s y)
+
+          rem : (y:B) -> Id B (f (g y)) y
+          rem y = snd A (\ x -> Id B (f x) y) (s y)
+
+allSection : (A B : U) (f:A->B) -> hasSection A B f -> (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
+allSection A B f =
+ split
+  pair g sfg -> rem 
+     where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
+           rem Q h y = rem2
+                  where rem1 : Q (f (g y))
+                        rem1 = h (g y)
+
+                        rem2 : Q y
+                        rem2 = subst B Q (f (g y)) y (sfg y) rem1
+
+-- a corollary of equivalence
+
+allTransp : (A B : U) -> hasSection (Id U A B) (Equiv A B) (IdToEquiv A B)
+allTransp A B = equivSec (Id U A B) (Equiv A B)  (IdToEquiv A B) (univAx A B)
+
+-- the induction principle for isEquiv
+
+transpRef : (A : U) -> Id (A->A) (id A) (transport A A (refl U A))
+transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRef A)
+
+elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
+              (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
+elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
+ where 
+  rem1 : P A (transport A A (refl U A))
+  rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d
+
+  rem : (B:U) -> (p:Id U A B) -> P B (transport A B p)
+  rem = J U A (\ B p ->  P B (transport A B p)) rem1
+
+  rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
+  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B (funEquiv A B p)) (rem B)
+
+-- a simple application; with yet another problem with eta conversion
+
+equivSigId : (A B :U) -> (f:A -> B) -> isEquiv A B f -> (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
+equivSigId A = elimIsEquiv A P d
+ where 
+   P : (B:U) -> (A-> B) -> U
+   P B f =  (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
+
+   d : P A (id A)
+   d Q = rem
+      where
+         rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
+         rem = cong (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
+
+-- application to equivalences between total spaces
+
+liftTot :  (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) -> Sigma A P -> Sigma A Q
+liftTot A P Q g = split
+                  pair a u -> pair a (g a u)
+
+equivTot : (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) ->
+           isEquiv (Sigma A P) (Sigma A Q) (liftTot A P Q g) -> (a:A) -> Id U (P a) (Q a)
+equivTot A P Q g igl a = rem5
+ where
+  F : Sigma A P -> U
+  F z = Id A (fst A P z) a
+
+  T : U
+  T = Sigma (Sigma A P) F
+
+  G : Sigma A Q -> U
+  G z = Id A (fst A Q z) a
+
+  V : U
+  V = Sigma (Sigma A Q) G
+
+  rem : Id U T (P a)
+  rem = lem1Sub A P a
+
+  rem1 : Id U V (Q a)
+  rem1 = lem1Sub A Q a
+
+  F1 : Sigma A P -> U
+  F1 z = G (liftTot A P Q g z)
+
+  T1 : U
+  T1 = Sigma (Sigma A P) F1
+
+  rem2 : Id U T1 V
+  rem2 = equivSigId (Sigma A P) (Sigma A Q) (liftTot A P Q g) igl G
+
+  rem3 : Id U T T1
+  rem3 = cong (Sigma A P -> U) U (Sigma (Sigma A P)) F F1 eFF1
+      where fFF1 : (z : Sigma A P) -> Id U (F z) (F1 z)
+            fFF1 = split
+                    pair x u -> refl U (Id A x a)
+
+            eFF1 : Id (Sigma A P -> U) F F1
+            eFF1 = funExt (Sigma A P) (\ _ -> U) F F1 fFF1
+
+  rem4 : Id U T V
+  rem4 = comp U T T1 V rem3 rem2
+
+  rem5 : Id U (P a) (Q a)
+  rem5 = lemTrans U T (P a) V (Q a) rem rem1 rem4
+
+
+-- now we should be able to show that any map Id (Pi A B) f g -> (x:A) -> Id (B x) (f x) (g x)
+-- is an equivalence
+
+singlPi : (A:U) (B:A->U) -> Pi A B -> Pi A B -> U
+singlPi A B g f = (x:A) -> Id (B x) (f x) (g x)
+
+singlPiContr : (A:U) (B:A->U) (g:Pi A B) -> contr (Sigma (Pi A B) (singlPi A B g))
+singlPiContr A B g = subst U contr  ((x:A) -> Sigma (B x) (C x)) (Sigma (Pi A B) (\ z -> (x:A) -> C x (z x))) rem1 rem
+ where
+  C : (x:A) -> B x -> U
+  C x y = Id (B x) y (g x)
+
+  rem : contr ((x:A) -> Sigma (B x) (C x))
+  rem = isContrProd A (\ x -> Sigma (B x) (C x)) (\ x -> singContr (B x) (g x))
+
+  rem1 : Id U ((x:A) -> Sigma (B x) (C x)) (Sigma (Pi A B) (\ z -> (x:A) -> C x (z x)))
+  rem1 = idTelProp A B C
+
+-- any function between two contractible types is an equivalence
+
+equivUnit : (f : Unit -> Unit) -> isEquiv Unit Unit f
+equivUnit f = subst (Unit -> Unit) (isEquiv Unit Unit) (id Unit) f rem (idIsEquiv Unit)
+ where
+  rem : Id (Unit->Unit) (id Unit) f
+  rem = funExt Unit (\ _ -> Unit)  (id Unit) f (\ x -> propUnit x (f x))
+
+-- an elimination principle for Contr
+
+elimContr : (P : U -> U) -> P Unit -> (A : U) -> contr A -> P A
+elimContr P d A cA = subst U P Unit A cA d
+
+equivContr : (A : U) -> contr A -> (B : U) -> contr B -> (f : A -> B) -> isEquiv A B f
+equivContr = elimContr (\ A ->  (B : U) -> contr B -> (f : A -> B) -> isEquiv A B f) rem
+ where rem :  (B : U) -> contr B -> (f : Unit -> B) -> isEquiv Unit B f
+       rem = elimContr (\ X ->  (f : Unit -> X) -> isEquiv Unit X f) equivUnit
+
+-- we have enough to deduce that Id (Pi A B) f g and (x:A) -> Id (B x) (f x) (g x) are equal
+
+eqIdProd : (A:U) (B:A->U) -> (f g : Pi A B) -> Id U (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+eqIdProd A B f g = equivTot T P Q G rem f
+ where 
+  P : (Pi A B) -> U
+  P z = Id (Pi A B) z g
+
+  Q : (Pi A B) -> U
+  Q z = (x:A) -> Id (B x) (z x) (g x)
+
+  T : U
+  T = Pi A B
+
+  G : (z:Pi A B) -> P z -> Q z
+  G z ez x = cong (Pi A B) (B x) (\ u -> u x) z g ez
+
+  rem1 : contr (Sigma T P)
+  rem1 = singContr (Pi A B) g
+
+  rem2 : contr (Sigma T Q)
+  rem2 = singlPiContr A B g
+
+  rem : isEquiv (Sigma T P) (Sigma T Q) (liftTot T P Q G)
+  rem = equivContr (Sigma T P) rem1 (Sigma T Q) rem2 (liftTot T P Q G)
+
+
+-- it follows from this that a product of sets is a set
+
+isSetProd : (A:U) (B:A->U) (pB : (x:A) -> set (B x)) -> set (Pi A B)
+isSetProd A B pB f g = substInv U prop  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x)) rem2 rem1
+ where
+  rem : (x:A) -> prop (Id (B x) (f x) (g x))
+  rem x = pB x (f x) (g x)
+
+  rem1 : prop ((x:A) -> Id (B x) (f x) (g x))
+  rem1 = isPropProd A (\ x -> Id (B x) (f x) (g x)) rem
+
+  rem2 : Id U (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+  rem2 = eqIdProd A B f g
+
+-- surjective and epi maps
+
+isEpi : (A B: U) -> (A -> B) -> U
+isEpi A B f = (X:U) -> set X -> (g h:B->X) -> Id (A->X) (\ a -> g (f a)) (\ a -> h (f a)) -> Id (B->X) g h
+
+isSurj : (A B:U) -> (A->B) -> U
+isSurj A B f = (y:B) -> exist A (\ x -> Id B (f x) y)
+
+-- these properties should be equivalent
+
+surjIsEpi : (A B : U) (f : A -> B) -> isSurj A B f -> isEpi A B f
+surjIsEpi A B f sf X sX g h egh = funExt B (\ _ -> X) g h rem
+ where
+  rem : (y:B) -> Id X (g y) (h y)
+  rem y = rem6
+    where
+     G : U
+     G = Id X (g y) (h y)
+
+     rem1 : prop G
+     rem1 = sX (g y) (h y)
+
+     rem2 : exist A (\ x -> Id B (f x) y)
+     rem2 = sf y
+
+     rem4 : (x:A) -> Id X (g (f x)) (h (f x))
+     rem4 a = appId A X a (\ x -> g (f x)) (\ x -> h (f x)) egh
+
+     rem3 : (x:A) -> Id B (f x) y -> G
+     rem3 x p = subst B (\ z -> Id X (g z) (h z)) (f x) y p (rem4 x)
+
+     rem5 : (Sigma A (\ x -> Id B (f x) y)) -> G
+     rem5 = split
+             pair x p -> rem3 x p
+
+     rem6 : G
+     rem6 = exElim A (\ x -> Id B (f x) y) G rem1 rem5 rem2
+
+-- the converse is interesting
+
+Omega : U
+Omega = Sigma U prop
+
+-- Omega is the -set- of truth values
+
+-- a lemma about injective function
+
+lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
+              -> ((x:A) -> Id (Id A x x) (refl A x) (injf x x (refl B (f x))))
+              -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (cong A B f x y p))
+lemInj A B f injf h x = 
+ J A x (\ y p -> Id (Id A x y) p (injf x y (cong A B f x y p))) rem
+ where
+  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
+  rem1 = h x
+
+  rem2 : Id (Id A x x) (injf x x (refl B (f x))) (injf x x (cong A B f x x (refl A x)))
+  rem2 = cong (Id B (f x) (f x)) (Id A x x) (injf x x) (refl B (f x)) (cong A B f x x (refl A x)) (congRefl A B f x)
+
+  rem : Id (Id A x x) (refl A x) (injf x x (cong A B f x x (refl A x)))
+  rem = comp (Id A x x) (refl A x) (injf x x (refl B (f x))) (injf x x (cong A B f x x (refl A x)))
+             rem1 rem2
+
+
+-- if B is a family of proposition over A then Sigma A B -> A is injective
+
+lemPInj1 :  (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> (a0 a1:A) -> (p:Id A a0 a1) ->
+            (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
+lemPInj1 A B pB a0 =  J A a0 C rem
+ where
+  C : (a1:A) -> Id A a0 a1 -> U
+  C a1 p = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
+
+  rem : C a0 (refl A a0)
+  rem b0 b1 = cong (B a0) (Sigma A B) (\ b -> pair a0 b) b0 b1 (pB a0 b0 b1)
+
+lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (fst A B)
+lemPropInj A B pB =
+ split 
+  pair a0 b0 -> split
+                 pair a1 b1 -> \ p -> lemPInj1 A B pB a0 a1 p b0 b1
+
+lemPInj2 :  (A : U) (B : A -> U) -> (pB: (x:A) -> prop (B x)) -> (z:Sigma A B) ->
+            Id (Id (Sigma A B) z z) (refl (Sigma A B) z) (lemPropInj A B pB z z (refl A (fst A B z)))
+lemPInj2 A B pB = 
+ split 
+  pair a b -> rem
+   where
+    T : U
+    T = Sigma A B 
+
+    L : U
+    L = Id T (pair a b) (pair a b)
+
+    C : (a1:A) -> Id A a a1 -> U
+    C a1 p = (b0 : B a) ->  (b1:B a1) -> Id T (pair a b0) (pair a1 b1)
+
+    rem2 : C a (refl A a)
+    rem2 b0 b1 = cong (B a) T (\ b -> pair a b) b0 b1 (pB a b0 b1)
+
+    rem1 : Id (C a (refl A a)) rem2 (lemPInj1 A B pB a a (refl A a))
+    rem1 = Jeq A a C rem2
+             
+    Lb : U
+    Lb = Id (B a) b b
+
+    rem4 : Id Lb  (refl (B a) b) (pB a b b)
+    rem4 = propUIP (B a) (pB a) b b (refl (B a) b) (pB a b b)
+
+    rem3 : Id L (cong (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b)
+    rem3 = cong Lb L (cong (B a) T (\ b -> pair a b) b b) (refl (B a) b) (pB a b b) rem4
+        
+    rem5 : Id ((b1 : B a) -> Id T (pair a b) (pair a b1)) (rem2 b) (lemPInj1 A B pB a a (refl A a) b)
+    rem5 = appEq (B a) (\ b0 -> (b1 : B a) -> Id T (pair a b0) (pair a b1)) b rem2 (lemPInj1 A B pB a a (refl A a)) rem1
+     
+    rem6 : Id L (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b)
+    rem6 = appEq (B a) (\ b1 -> Id T (pair a b) (pair a b1)) b (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
+
+    rem7 : Id L (refl T (pair a b)) (cong (B a) T (\ b -> pair a b) b b (refl (B a) b))
+    rem7 = congRefl (B a) T (\ b -> pair a b) b
+
+    rem8 : Id L (refl T (pair a b)) (rem2 b b)
+    rem8 = comp L (refl T (pair a b)) (cong (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
+
+    rem : Id L (refl T (pair a b)) (lemPInj1 A B pB a a (refl A a) b b)
+    rem = comp L (refl T (pair a b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem8 rem6
+
+
+
+
+
+-- we should be able to deduce from all this that Omega is a set
+
+isTrue : Omega -> U
+isTrue = fst U prop
+
+lemIsTrue : (x y : Omega) -> (isTrue x -> isTrue y) -> (isTrue y -> isTrue x) -> Id Omega x y
+lemIsTrue x y f g = injf x y rem
+ where 
+   G : (x:Omega) -> prop (isTrue x)
+   G = snd U prop
+
+   injf : injective Omega U isTrue
+   injf = lemPropInj U prop propIsProp
+
+   rem : Id U (isTrue x) (isTrue y)
+   rem = propId (isTrue x) (isTrue y) (G x) (G y) f g 
+
+
+omegaIsSet : set Omega
+omegaIsSet = rem4
+ where
+   rem : (A:U) -> prop (prop A)
+   rem = propIsProp
+
+   g : (x:Omega) -> prop (isTrue x)
+   g = snd U prop
+
+   injf : injective Omega U isTrue
+   injf = lemPropInj U prop rem 
+
+   rem1 : (z:Omega) -> Id (Id Omega z z) (refl Omega z) (injf z z (refl U (isTrue z)))
+   rem1 = lemPInj2 U prop rem
+   
+   rem2 : (x y : Omega) -> (p : Id Omega x y) -> Id (Id Omega x y) p (injf x y (cong Omega U isTrue x y p))
+   rem2 = lemInj Omega U isTrue injf rem1
+
+   rem3 : (x y : Omega) -> prop (Id U (isTrue x) (isTrue y))
+   rem3 x y = idPropIsProp (isTrue x) (isTrue y) (g x) (g y)
+
+   rem4 : (x y : Omega) -> (p q : Id Omega x y) -> Id (Id Omega x y) p q
+   rem4 x y p q = lem2Trans (Id Omega x y) p (injf x y (h p)) q (injf x y (h q)) rem6 rem7 rem8
+     where
+        h : Id Omega x y -> Id U (isTrue x) (isTrue y)
+        h = cong Omega U isTrue x y
+
+        rem5 : Id (Id U (isTrue x) (isTrue y)) (h p) (h q)
+        rem5 = rem3 x y (h p) (h q)
+
+        rem6 : Id (Id Omega x y) p (injf x y (h p))
+        rem6 = rem2 x y p
+
+        rem7 : Id (Id Omega x y) q (injf x y (h q))
+        rem7 = rem2 x y q
+
+        rem8 : Id (Id Omega x y) (injf x y (h p)) (injf x y (h q))
+        rem8 = cong (Id U (isTrue x) (isTrue y)) (Id Omega x y) (injf x y) (h p) (h q) rem5
+
+-- corPropId : (x:Omega) -> prop A -> A -> Id U Unit A
+-- corPropId A pA a = propId Unit A propUnit pA (\ _ -> a) (\ _ -> tt)
+
+epiIsSurj : (A B : U) (f : A -> B) -> isEpi A B f -> isSurj A B f
+epiIsSurj A B f ef = rem6
+ where 
+   rem : (g h : B -> Omega) -> Id (A -> Omega) (\ x -> g (f x)) (\ x -> h (f x)) -> Id (B -> Omega) g h
+   rem = ef Omega omegaIsSet
+
+   g : B -> Omega
+   g y = pair Unit propUnit
+
+   h : B -> Omega
+   h y = pair (exist A (\ x -> Id B (f x) y)) (squash (Sigma A (\ x -> Id B (f x) y)))
+
+   rem1 : (x:A) -> isTrue (h (f x))
+   rem1 x = inc (Sigma A (\ z -> Id B (f z) (f x))) (pair x (refl B (f x)))
+
+   rem2 : (x:A) -> Id Omega (g (f x)) (h (f x))
+   rem2 x = lemIsTrue (g (f x)) (h (f x)) (\ _ -> rem1 x) (\ _ -> tt)
+
+   rem3 : Id (A -> Omega) (\ x -> g (f x)) (\ x -> h (f x))
+   rem3 = funExt A (\ _ -> Omega)  (\ x -> g (f x)) (\ x -> h (f x)) rem2
+
+   rem4 : Id (B -> Omega) g h 
+   rem4 = rem g h rem3
+
+   rem5 : (y:B) -> Id Omega (g y) (h y)
+   rem5 y = appId B Omega y g h rem4
+
+   rem6 : (y:B) -> isTrue (h y)
+   rem6 y = subst Omega isTrue (g y) (h y) (rem5 y) tt
