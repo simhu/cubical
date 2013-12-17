@@ -20,10 +20,7 @@ import SimpConcrete
 import qualified MTT as A
 import qualified Eval as E
 
-type Interpreter a = StateT A.LEnv (InputT IO) a
-
-outputLn :: String -> Interpreter ()
-outputLn = lift . outputStrLn
+type Interpreter a = InputT IO a
 
 defaultPrompt :: String
 defaultPrompt = "> "
@@ -39,75 +36,87 @@ showTree tree = do
 parseFiles :: [FilePath] -> Interpreter ([Imp],[Def])
 parseFiles []     = return ([],[])
 parseFiles (f:fs) = do
-  s <- lift $ lift $ readFile f
+  s <- lift $ readFile f
   let ts = lexer s
   case pModule ts of
     Bad s  -> do
-      outputLn $ "Parse Failed in file " ++ show f ++ "\n"
---      outputLn $ "Tokens: " ++ show ts
-      outputLn s
+      outputStrLn $ "Parse Failed in file " ++ show f ++ "\n"
+--      outputStrLn $ "Tokens: " ++ show ts
+      outputStrLn s
       return ([],[])
     Ok mod@(Module _ imps defs) -> do
-      outputLn $ "Parsed file " ++ show f ++ " successfully!"
+      outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
 --      showTree mod
       (imps',defs') <- parseFiles fs
       return $ (imps ++ imps',defs ++ defs')
 
 main :: IO ()
-main = getArgs >>= runInputT defaultSettings . (`evalStateT` A.lEmpty) . runInterpreter
+main = getArgs >>= runInputT defaultSettings . runInterpreter
 
 --  names to import -> files already imported -> all definitions
-imports :: [String] -> [FilePath] -> [Def] -> Interpreter [Def]
-imports [] _  defs = return defs
-imports xs fs defs = do
-  (imps,newDefs) <- parseFiles xs
-  let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
-  imports (nub imps' \\ fs) (fs ++ xs) (defs ++ newDefs)
+-- imports :: [String] -> [FilePath] -> [Def] -> Interpreter [Def]
+-- imports [] _  defs = return defs
+-- imports xs fs defs = do
+--   (imps,newDefs) <- parseFiles xs
+--   let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
+--   imports (nub imps' \\ fs) (fs ++ xs) (defs ++ newDefs)
+
+-- (not ok,loaded,already loaded defs) -> to load  -> (newnotok, newloaded, newdefs)
+imports :: ([String],[String],[Def])  -> String-> Interpreter ([String],[String],[Def])
+imports st@(notok,loaded,defs) f
+  | f `elem` notok  = fail ("Looping imports in " ++ f)
+  | f `elem` loaded = return st
+  | otherwise       = do
+    s <- lift $ readFile f
+    let ts = lexer s
+    case pModule ts of
+      Bad s  -> fail $ "Parse Failed in file " ++ show f ++ "\n"
+      Ok mod@(Module _ imps defs') -> do
+        let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
+        (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
+        outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
+        return (notok1,f:loaded1,def1 ++ defs')
+
 
 runInterpreter :: [FilePath] -> Interpreter ()
-runInterpreter fs = do
+runInterpreter [f] = do
   -- parse and type-check files
-  defs <- imports fs [] []
+  (_,_,defs) <- imports ([],[],[]) f
   -- Compute all constructors
   let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
-  let res = runResolver (local (insertConstrs cs) (concrToAbs defs))
+  let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
   case res of
-    Left err    -> outputLn $ "Resolver failed: " ++ err
+    Left err    -> outputStrLn $ "Resolver failed: " ++ err
     Right adefs -> case A.runDefs A.lEmpty adefs of
-      Left err   -> outputLn $ "Type checking failed: " ++ err
+      Left err   -> outputStrLn $ "Type checking failed: " ++ err
       Right lenv -> do
-        modify (const lenv)
-        outputLn $ "Files loaded."
-        loop cs
+        outputStrLn $ "Files loaded."
+        loop cs lenv
   where
-    -- TODO: All the concrete to abstract to internal should be more
-    -- modular so that we don't have to repeat the translations.
-    loop :: [String] -> Interpreter ()
-    loop cs = do
-      input <- lift (getInputLine defaultPrompt)
+    loop :: [String] -> A.LEnv -> Interpreter ()
+    loop cs lenv@(_,rho,_) = do
+      input <- getInputLine defaultPrompt
       case input of
-        Nothing    -> outputLn help >> loop cs
+        Nothing    -> outputStrLn help >> loop cs lenv
         Just ":q"  -> return ()
-        Just ":r"  -> runInterpreter fs
---        Just (":l":xs) -> runInterpreter (words xs)
-        Just ":h"  -> outputLn help >> loop cs
+        Just ":r"  -> runInterpreter [f]
+        Just ":h"  -> outputStrLn help >> loop cs lenv
         Just str   -> let ts = lexer str in
           case pExp ts of
-            Bad err -> outputLn ("Parse error: " ++ err) >> loop cs
+            Bad err -> outputStrLn ("Parse error: " ++ err) >> loop cs lenv
             Ok exp  ->
               case runResolver (local (const (Env cs)) (resolveExp exp)) of
-                Left err   -> outputLn ("Resolver failed: " ++ err) >> loop cs
+                Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs lenv
                 Right body -> do
-                  lenv <- get
                   case A.runInfer lenv body of
-                    Left err -> outputLn ("Could not type-check: " ++ err) >> loop cs
+                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs lenv
                     Right _  -> do
-                      (_,rho,_) <- get
                       case translate (A.defs rho body) of
-                        Left err -> outputLn ("Could not translate to internal syntax: " ++ err) >>
-                                    loop cs
+                        Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
+                                    loop cs lenv
                         Right t  -> let value = E.eval E.Empty t in
-                          outputLn ("EVAL: " ++ show value) >> loop cs
+                          outputStrLn ("EVAL: " ++ E.showVal value) >> loop cs lenv
+runInterpreter fs = fail $ "Exactly one file expected: " ++ show fs
 
 help :: String
 help = "\nAvailable commands:\n" ++

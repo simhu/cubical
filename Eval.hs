@@ -356,8 +356,8 @@ eval e (InhRec b p phi a)  =
   inhrec (eval e b) (eval e p) (eval e phi) (eval e a)
 eval e (Where t def)       = eval (PDef def e) t
 eval e (Con name ts)       = VCon name (map (eval e) ts)
-eval e (Branch alts)       = Ter (Branch alts) e
-eval e (LSum ntss)         = Ter (LSum ntss) e
+eval e (Branch pr alts)    = Ter (Branch pr alts) e
+eval e (LSum pr ntss)      = Ter (LSum pr ntss) e
 eval e (EquivEq a b f s t) =
   Path x $ VEquivEq x (eval e a) (eval e b) (eval e f) (eval e s) (eval e t)
     where x = freshEnv e
@@ -375,6 +375,7 @@ inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
+inhrec b p phi v = error $ "inhrec : " ++ showVal v
 
 kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
@@ -413,7 +414,7 @@ fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = gensym (support vid `union` supportBox box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill (Ter (LSum nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
+fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
   where as = case lookup n nass of
                Just as -> as
                Nothing -> error $ "fill: missing constructor "
@@ -704,8 +705,66 @@ app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [((x,Down),left)
         left  = app fv w0
         right = app gv (swap w x y)
         pvxw  = appName (app pv w0) x
-app (Ter (Branch nvs) e) (VCon name us) = case lookup name nvs of
+app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
 app r s = error $ "app"  ++ show r ++ show s
+
+
+----
+
+-- data Val = VU
+--          | Ter Ter Env
+--          | VId Val Val Val
+--          | Path Name Val             -- tag values which are paths
+--          | VExt Name Val Val Val Val -- has dimension (name:dim);
+--                                      -- vals of dimension dim
+--          | VPi Val Val
+--          | VInh Val
+--          | VInc Val
+--          | VSquash Name Val Val  -- connects the two values along the name
+--          | VCon Ident [Val]
+--          | Kan KanType Val (Box Val)
+--          | VEquivEq Name Val Val Val Val Val -- of type U connecting a and b along x
+--          | VEquivSquare Name Name Val Val Val -- names x, y and values a, s, t
+--            -- VEquivEq x a b f s t
+--          | VPair Name Val Val -- of type VEquivEq
+--          | VSquare Name Name Val
+--          | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
+--          | VFill Name (Box Val) -- a value of type Kan Fill VU (Box
+--                                 -- (type of values minus name)); the name is bound
+--   deriving (Show, Eq)
+
+
+showVal :: Val -> String
+showVal VU = "U"
+showVal (Ter t env) = showTer t ++ showEnv env
+showVal (VId a u v) = "Id " ++ showVal1 a ++ " " ++ showVal1 u ++ " " ++ showVal1 v
+showVal (Path n u)  = "<" ++ show n ++ "> " ++ showVal u
+showVal (VExt n b f g p) = "funExt " ++ show n ++ intercalate " " (map showVal1 [b,f,g,p])
+showVal (VCon c us) = c ++ intercalate " " (map showVal1 us)
+showVal u = show u
+
+showVal1 :: Val -> String
+--showVal1 u@(VApp _ _) = "(" ++ showVal u ++ ")"
+showVal1 u@(Path {}) = "(" ++ showVal u ++ ")"
+showVal1 u           = showVal u
+
+showTer t = show t
+
+
+-- data Env = Empty
+--          | Pair Env (Binder,Val)
+--          | PDef [(Binder,Ter)] Env
+--   deriving (Eq,Show)
+
+
+showEnv :: Env -> String
+showEnv Empty            = ""
+showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ ", " ++ x ++ " = " ++ showVal u ++ ")"
+showEnv (PDef xas env)   = showEnv env
+
+showEnv1 Empty            = ""
+showEnv1 (Pair env (x,u)) = showEnv1 env ++ ", " ++ x ++ " = " ++ showVal u
+showEnv1 (PDef xas env)   = showEnv env

@@ -37,6 +37,8 @@ mkVar k = Var (genName k)
 genName :: Int -> String
 genName n = "X" ++ show n
 
+type Prim = (Integer,String)
+
 data Exp = Comp Exp Env         -- for closures
          | App Exp Exp
          | Pi Exp Exp
@@ -45,15 +47,10 @@ data Exp = Comp Exp Env         -- for closures
          | Var String
          | U
          | Con String [Exp]
-         | Fun [Brc]
-         | Sum Lb
-         | Undef Integer
+         | Fun Prim [Brc]
+         | Sum Prim Lb
+         | Undef Prim
          | EPrim Prim [Exp]     -- used for reification
-  deriving (Eq,Show)
-
-data Prim = PFun [Brc]
-          | PSum Lb
-          | PUndef Integer
   deriving (Eq,Show)
 
 data Env = Empty
@@ -89,11 +86,11 @@ evals :: [(String,Exp)] -> Env -> [(String,Val)]
 evals es r = map (\(x,e) -> (x,eval e r)) es
 
 app :: Val -> Val -> Val
-app (Comp (Lam x b) s)   u            = eval b (Pair s (x,u))
-app a@(Comp (Fun ces) r) b@(Con c us) = case lookup c ces of
+app (Comp (Lam x b) s)     u            = eval b (Pair s (x,u))
+app a@(Comp (Fun _ ces) r) b@(Con c us) = case lookup c ces of
   Just (xs,e)  -> eval e (upds r (zip xs us))
   Nothing -> error $ "app: " ++ show a ++ " " ++ show b
-app f                    u            = App f u
+app f                      u            = App f u
 
 getE :: String -> Env -> Exp
 getE x (Pair _ (y,u)) | x == y       = u
@@ -107,7 +104,7 @@ addC gam (((y,a):as),nu) ((x,u):xus) =
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Exp -> Typing (Tele, Env)
-getLblType c (Comp (Sum cas) r) = case lookup c cas of
+getLblType c (Comp (Sum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("getLblType " ++ c ++ " " ++ show u)
@@ -188,8 +185,8 @@ check a t = case (a,t) of
   (U,Pi a (Lam x b)) -> do
     check U a
     local (addType (x,a)) $ check U b
-  (U,Sum bs) -> sequence_ [checkTele as | (_,as) <- bs]
-  (Pi (Comp (Sum cas) nu) f,Fun ces) ->
+  (U,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
+  (Pi (Comp (Sum _ cas) nu) f,Fun _ ces) ->
     if map fst ces == map fst cas
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces cas ]
@@ -256,15 +253,15 @@ runInfer lenv e = do
 
 -- Reification of a value to an expression
 reifyExp :: Int -> Val -> Exp
-reifyExp _ U                  = U
-reifyExp k (Comp (Lam x t) r) = Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mkVar k)))
-reifyExp k v@(Var l)          = v
-reifyExp k (App u v)          = App (reifyExp k u) (reifyExp k v)
-reifyExp k (Pi a f)           = Pi (reifyExp k a) (reifyExp k f)
-reifyExp k (Con n ts)         = Con n (map (reifyExp k) ts)
-reifyExp k (Comp (Fun bs) r)  = EPrim (PFun bs) (reifyEnv k r)
-reifyExp k (Comp (Sum ls) r)  = EPrim (PSum ls) (reifyEnv k r)
-reifyExp k (Comp (Undef l) r) = EPrim (PUndef l) (reifyEnv k r)
+reifyExp _ U                     = U
+reifyExp k (Comp (Lam x t) r)    = Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mkVar k)))
+reifyExp k v@(Var l)             = v
+reifyExp k (App u v)             = App (reifyExp k u) (reifyExp k v)
+reifyExp k (Pi a f)              = Pi (reifyExp k a) (reifyExp k f)
+reifyExp k (Con n ts)            = Con n (map (reifyExp k) ts)
+reifyExp k (Comp (Fun prim _) r) = EPrim prim (reifyEnv k r)
+reifyExp k (Comp (Sum prim _) r) = EPrim prim (reifyEnv k r)
+reifyExp k (Comp (Undef prim) r) = EPrim prim (reifyEnv k r)
 
 reifyEnv :: Int -> Env -> [Exp]
 reifyEnv _ Empty          = []

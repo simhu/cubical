@@ -11,11 +11,11 @@ import MTT hiding (Error)
 -- For an expression t, returns (u,ts) where u is no application
 -- and t = u ts
 unApps :: Exp -> (Exp,[Exp])
-unApps (App r s) = let (t,ts) = unApps r in (t, s:ts)
+unApps (App r s) = let (t,ts) = unApps r in (t, ts ++ [s])
 unApps t         = (t,[])
 
 translate :: Exp -> Either String I.Ter
-translate (Undef n)   = return $ I.Undef n
+translate (Undef prim)   = return $ I.Undef prim
 translate t@(App _ _) =
   let (hd,rest) = unApps t in case hd of
     Var n | n `elem` reservedNames -> translatePrimitive n rest
@@ -30,10 +30,10 @@ translate (Var n) | n `elem` reservedNames = translatePrimitive n []
                   | otherwise = return (I.Var n)
 translate U = return I.U
 translate (Con n ts) = I.Con n <$> mapM translate ts
-translate (Fun bs) = I.Branch <$> mapM (\(n,(ns,b)) -> do
+translate (Fun pr bs) = I.Branch pr <$> mapM (\(n,(ns,b)) -> do
                                            t <- translate b
                                            return (n,(ns,t))) bs
-translate (Sum lbs) = I.LSum <$> mapM (\(n,tele) -> do
+translate (Sum pr lbs) = I.LSum pr <$> mapM (\(n,tele) -> do
                                           ts <- mapM (\(n',e') -> (n',) <$> translate e') tele
                                           return (n,ts)) lbs
 translate t = throwError ("translate: can not handle " ++ show t)
