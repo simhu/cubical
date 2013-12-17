@@ -15,19 +15,19 @@ unApps (App r s) = let (t,ts) = unApps r in (t, s:ts)
 unApps t         = (t,[])
 
 translate :: Exp -> Either String I.Ter
-translate (PN n) = -- translatePrimitive n []
-  return $ I.PN n
---  throwError $ "No primitive expected: " ++ show n
-translate t@(App _ _) = let (hd,rest) = unApps t in case hd of
-  Ref n | n `elem` reservedNames -> translatePrimitive n rest
-  _ -> manyApps <$> translate hd <*> mapM translate rest
-translate (Pi a f) = I.Pi <$> translate a <*> translate f
-translate (Lam x t) = I.Lam x <$> translate t
+translate (Undef n)   = return $ I.Undef n
+translate t@(App _ _) =
+  let (hd,rest) = unApps t in case hd of
+    Var n | n `elem` reservedNames -> translatePrimitive n rest
+    _ -> manyApps <$> translate hd <*> mapM translate rest
+translate (Pi a f)    = I.Pi <$> translate a <*> translate f
+translate (Lam x t)   = I.Lam x <$> translate t
 translate (Def e (_,ts)) = -- ignores types for now
   I.Where <$> translate e <*> mapM (\(n,e') -> do
                                        t <- translate e'
                                        return (n,t)) ts
-translate (Ref n) = return (I.Var n)
+translate (Var n) | n `elem` reservedNames = translatePrimitive n []
+                  | otherwise = return (I.Var n)
 translate U = return I.U
 translate (Con n ts) = I.Con n <$> mapM translate ts
 translate (Fun bs) = I.Branch <$> mapM (\(n,(ns,b)) -> do
@@ -35,7 +35,6 @@ translate (Fun bs) = I.Branch <$> mapM (\(n,(ns,b)) -> do
                                            return (n,(ns,t))) bs
 translate (Sum lbs) = I.LSum <$> mapM (\(n,tele) -> do
                                           ts <- mapM (\(n',e') -> (n',) <$> translate e') tele
-                                          --let ts' = lambdaTele ts
                                           return (n,ts)) lbs
 translate t = throwError ("translate: can not handle " ++ show t)
 
@@ -146,7 +145,7 @@ translatePrimitive n ts = case lookup n primHandle of
   Just (arity,_) | length ts < arity ->
     let r = arity - length ts
         binders = map (\n -> "_" ++ show n) [1..r]
-        vars = map Ref binders
+        vars = map Var binders
     in
      manyLams binders <$> translatePrimitive n (ts ++ vars)
     -- throwError ("not enough arguments supplied to " ++ show n ++

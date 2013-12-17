@@ -130,7 +130,6 @@ lams as e = foldr lam e as
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
 resolveExp Undef        = A.Undef <$> gensym
-resolveExp Top          = return A.Top
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs
@@ -143,14 +142,13 @@ resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Split brs)  = -- A.Fun <$> gensym <*> mapM resolveBranch brs
   A.Fun <$> mapM resolveBranch brs
 resolveExp (Let defs e) = A.lets <$> concrToAbs defs <*> resolveExp e
-resolveExp (PN n)       = return (A.PN (unIdent n))
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
   Env cs <- getEnv
   if x `elem` cs
     then return $ A.Con x []
-    else  return $ A.Ref x
+    else  return $ A.Var x
 
 resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
@@ -177,7 +175,6 @@ resolveTelePi (t@(VDecl{}):as) _        =
 
 resolveLabel :: Sum -> Resolver (String,[(String,A.Exp)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
-
 
 concrToAbs :: [Def] -> Resolver [A.Def]
 concrToAbs [] = return []
