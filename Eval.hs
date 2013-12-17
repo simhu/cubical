@@ -142,11 +142,11 @@ evals e = map (\(b,t) -> (b,eval e t))
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty = Empty
-mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,(f v))
+mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e) = PDef ts (mapEnv f e)
 
 faceEnv :: Env -> (Name,Dir) -> Env
-faceEnv e xd = mapEnv (\u -> u `face` xd) e
+faceEnv e xd = mapEnv (`face` xd) e
 
 face :: Val -> (Name,Dir) -> Val
 face u xdir@(x,dir) =
@@ -767,7 +767,7 @@ showVal (VFill n box) = "vfill " ++ show n ++ " " ++ showBox box
 
 showVals :: [Val] -> String
 showVals [] = ""
-showVals us = " " ++ intercalate " " (map showVal1 us)
+showVals us = " " ++ unwords (map showVal1 us)
 
 showBox :: Box Val -> String
 showBox box = "(" ++ show box ++ ")"

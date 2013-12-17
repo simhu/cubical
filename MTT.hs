@@ -99,7 +99,7 @@ getE x r@(PDef d r1) = getE x (upds r1 (evals (snd d) r))
 
 addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Ctxt
 addC gam _ [] = gam
-addC gam (((y,a):as),nu) ((x,u):xus) =
+addC gam ((y,a):as,nu) ((x,u):xus) =
   addC ((x,eval a nu):gam) (as,Pair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
@@ -248,13 +248,13 @@ runDef lenv d = do
   return $ addDef d lenv
 
 runInfer :: LEnv -> Exp -> Either String Exp
-runInfer lenv e = do
-  runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
+runInfer lenv e = runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
 
 -- Reification of a value to an expression
 reifyExp :: Int -> Val -> Exp
 reifyExp _ U                     = U
-reifyExp k (Comp (Lam x t) r)    = Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mkVar k)))
+reifyExp k (Comp (Lam x t) r)    =
+  Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mkVar k)))
 reifyExp k v@(Var l)             = v
 reifyExp k (App u v)             = App (reifyExp k u) (reifyExp k v)
 reifyExp k (Pi a f)              = Pi (reifyExp k a) (reifyExp k f)

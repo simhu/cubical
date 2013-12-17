@@ -17,7 +17,7 @@ import Exp.Abs
 import Exp.Layout
 import Exp.ErrM
 import AbsToInternal
-import SimpConcrete
+import Concrete
 import qualified MTT as A
 import qualified Eval as E
 
@@ -49,7 +49,7 @@ parseFiles (f:fs) = do
       outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
 --      showTree mod
       (imps',defs') <- parseFiles fs
-      return $ (imps ++ imps',defs ++ defs')
+      return (imps ++ imps',defs ++ defs')
 
 main :: IO ()
 main = getArgs >>= runInputT defaultSettings . runInterpreter
@@ -91,7 +91,7 @@ runInterpreter [f] = do
     Right adefs -> case A.runDefs A.lEmpty adefs of
       Left err   -> outputStrLn $ "Type checking failed: " ++ err
       Right lenv -> do
-        outputStrLn $ "Files loaded."
+        outputStrLn "Files loaded."
         loop cs lenv
   where
     loop :: [String] -> A.LEnv -> Interpreter ()
@@ -108,10 +108,10 @@ runInterpreter [f] = do
             Ok exp  ->
               case runResolver (local (const (Env cs)) (resolveExp exp)) of
                 Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs lenv
-                Right body -> do
+                Right body ->
                   case A.runInfer lenv body of
                     Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs lenv
-                    Right _  -> do
+                    Right _  ->
                       case translate (A.defs rho body) of
                         Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
                                     loop cs lenv

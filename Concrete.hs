@@ -6,6 +6,7 @@ module Concrete where
 import Exp.Abs
 import qualified MTT as A
 
+import Control.Arrow
 import Control.Applicative
 import Control.Monad.Trans
 import Control.Monad.Trans.State
@@ -81,30 +82,20 @@ flattenTelePi = flattenTele . map unPiDecl
 namesTele :: Tele -> [String]
 namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
-defToNames :: Def -> [String]
-defToNames (Def n _ _)     = [unIdent n]
-defToNames (DefTDecl n _)  = [unIdent n]
-defToNames (DefData n _ _) = [unIdent n]
-defToNames (DefPrim defs)  = defsToNames defs
-
-defsToNames :: [Def] -> [String]
-defsToNames = nub . concatMap defToNames
-
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
--- local environment for variables and constructors
-data Env = Env { constrs :: [String]
-               }
+-- local environment for constructors
+data Env = Env { constrs :: [String] }
          deriving (Eq, Show)
 
-type Resolver a = ReaderT Env (StateT Integer (ErrorT String Identity)) a
+type Resolver a = ReaderT Env (StateT A.Prim (ErrorT String Identity)) a
 
 emptyEnv :: Env
 emptyEnv = Env []
 
 runResolver :: Resolver a -> Either String a
-runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) 0
+runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) (0,"")
 
 insertConstrs :: [String] -> Env -> Env
 insertConstrs cs e@Env{constrs = cs'} = e{constrs = cs ++ cs'}
@@ -115,11 +106,14 @@ getEnv = ask
 getConstrs :: Resolver [String]
 getConstrs = getEnv >>= return . constrs
 
-gensym :: Resolver Integer
-gensym = do
-  g <- lift get
-  lift (modify succ)
-  return g
+genPrim :: Resolver A.Prim
+genPrim = do
+  prim <- lift get
+  lift (modify (first succ))
+  return prim
+
+updateName :: String -> Resolver ()
+updateName str = lift $ modify (\(g,_) -> (g,str))
 
 lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
 lam a e = A.Lam (unArg a) <$> e
@@ -129,8 +123,8 @@ lams as e = foldr lam e as
 
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
-resolveExp Undef        = A.Undef <$> gensym
-resolveExp Top          = return A.Top
+resolveExp Undef        = A.Undef <$> genPrim
+resolveExp PN           = A.Undef <$> genPrim
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs
@@ -140,17 +134,13 @@ resolveExp e@(App t s)  = do
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Split brs)  = -- A.Fun <$> gensym <*> mapM resolveBranch brs
-  A.Fun <$> mapM resolveBranch brs
-resolveExp (Let defs e) = handleDefs defs (resolveExp e)
-resolveExp (PN n)       = return (A.PN (unIdent n))
+resolveExp (Split brs)  = A.Fun <$> genPrim <*> mapM resolveBranch brs
+resolveExp (Let defs e) = A.lets <$> resolveDefs defs <*> resolveExp e
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
   Env cs <- getEnv
-  if x `elem` cs
-    then return $ A.Con x []
-    else  return $ A.Ref x
+  return (if x `elem` cs then A.Con x [] else A.Var x)
 
 resolveWhere :: ExpWhere -> Resolver A.Exp
 resolveWhere = resolveExp . unWhere
@@ -163,7 +153,7 @@ resolveBranch (Branch name args e) =
 resolveTele :: [VDecl] -> Resolver [(String,A.Exp)]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
-  ((unArg a,) <$> resolveExp t) <:> (resolveTele ds)
+  ((unArg a,) <$> resolveExp t) <:> resolveTele ds
 resolveTele ds                      =
   throwError $ "resolveTele: non flattened telescope " ++ show ds
 
@@ -175,150 +165,24 @@ resolveTelePi (VDecl [Binder x] a:as) b =
 resolveTelePi (t@(VDecl{}):as) _        =
   throwError ("resolveTelePi: non flattened telescope " ++ show t)
 
---------------------------------------------------------------------------------
--- | Call graph
-
-callGraph :: [Def] -> [[[Def]]]
-callGraph = filter (/= [[]]) . map flattenSCC . stronglyConnComp . graph
-
-graph :: [Def] -> [([Def],String,[String])]
-graph = map ((\(as,b:_,xs) -> (concat as,b,concat xs)) . unzip3)
-      . groupBy ((==) `on` (\(_,n,_) -> n)) . concatMap defToGraph
-
-defToGraph :: Def -> [([Def], String, [String])]
-defToGraph d@(Def n args body) =
-  [([d],unIdent n,freeVarsExp (unWhere body) \\ unArgs args)]
-defToGraph d@(DefTDecl n exp)  = [([d],unIdent n,freeVarsExp exp)]
-defToGraph d@(DefData n vdecls labels) =
-  let iden = unIdent n
-      fvB  = unions [ freeVarsTele tele \\ namesTele tele
-                    | Sum _ tele <- labels ]
-      x    = ([d],iden,freeVarsTele vdecls `union` fvB)
-      xs   = [ ([],c,[iden]) | Sum (AIdent (_,c)) _ <- labels ]
-  in x : xs
-defToGraph (DefPrim defs) = graph (concatMap unfoldPrimitive defs)
-  where
-    unfoldPrimitive :: Def -> [Def]
-    unfoldPrimitive d@(DefTDecl n a) = -- [d,Def n [] (NoWhere (etaExpand a (PN n)))]
-      [d,Def n [] (NoWhere (PN n))]
-    unfoldPrimitive d =
-      error ("only type declarations are allowed in primitives " ++ show d)
-
--- etaExpand :: Exp -> Exp -> Exp
--- etaExpand (Fun _ e2) t = etaExpand e2 (A.Lam "_" t)
--- etaExpand (Pi tele b) = etaExpand er
---   where manyLam = folr (\a s -> A.Lam (unArg a) s)
--- etaExpand _ t = t
-
---resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
-
--- lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
--- lam a e = A.Lam (unArg a) <$> e
-
--- lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
--- lams as e = foldr lam e as
-
-
-freeVarsExp :: Exp -> [String]
-freeVarsExp U           = []
-freeVarsExp Undef       = []
-freeVarsExp (Fun e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
-freeVarsExp (App e1 e2) = freeVarsExp e1 `union` freeVarsExp e2
-freeVarsExp (Var x)     = [unArg x]
-freeVarsExp (Lam bs e)  = freeVarsExp e \\ unArgsBinder bs
-freeVarsExp (PN _)      = []
-freeVarsExp (Let ds e)  =
-  (freeVarsExp e `union` unions (map freeVarsDef ds)) \\ defsToNames ds
-freeVarsExp (Split bs)  =
-  unions [ unIdent bn : (freeVarsExp (unWhere e) \\ unArgs args)
-         | Branch bn args e <- bs ]
-freeVarsExp (Pi [] e)               = freeVarsExp e
-freeVarsExp (Pi (PiDecl bs a:vs) e) =
-  freeVarsExp a `union` (freeVarsExp (Pi vs e) \\
-                         unArgs (map unVar (unApps bs)))
-
--- The free variables of the right hand side.
-freeVarsDef :: Def -> [String]
-freeVarsDef (Def _ args e)          = freeVarsExp (unWhere e) \\ unArgs args
-freeVarsDef (DefTDecl _ e)          = freeVarsExp e
-freeVarsDef (DefPrim defs)          = unions (map freeVarsDef defs)
-freeVarsDef (DefData _ vdecls lbls) = freeVarsTele vdecls `union`
-  (unions [ freeVarsTele vs | Sum _ vs <- lbls ] \\ namesTele vdecls)
-
-freeVarsTele :: Tele -> [String]
-freeVarsTele []              = []
-freeVarsTele (VDecl bs e:ds) =
-  freeVarsExp e `union` (freeVarsTele ds \\ unArgsBinder bs)
-
---------------------------------------------------------------------------------
--- | Handling mutual definitions
-
 resolveLabel :: Sum -> Resolver (String,[(String,A.Exp)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-handleMutual :: [[Def]] -> [String] -> Resolver [([String],(A.Exp,A.Exp))]
-handleMutual []       _  = return []
-handleMutual (ds:dss) ns = case sort ds of -- use Ord for Def: will put Def before DefTDecl
-  [d@(DefData _ vdcls cs)]        -> do
-    let flat   = flattenTele vdcls
-    let args   = concatMap (\(VDecl binds _) -> map unBinder binds) flat
-    let labels = -- A.Sum <$> gensym <*> mapM resolveLabel cs
-          A.Sum <$> mapM resolveLabel cs
-    exp  <- lams args labels
-    typ  <- resolveTelePi flat (return A.U) -- data-decls. have type U
-    rest <- handleMutual dss ns
-    return ((ns,(exp,typ)):rest)
-  [Def iden args body,DefTDecl _ t] -> do
-    exp  <- lams args (resolveWhere body)
-    typ  <- resolveExp t
-    rest <- handleMutual dss ns
-    return ((ns,(exp,typ)):rest)
-  x -> throwError $ "handleMutual: Something is missing or too many "
-                  ++ "definition/declarations: " ++ show x
-
---                                         names  , exp : type
-handleMutuals :: [[[Def]]] -> Resolver [[([String],(A.Exp,A.Exp))]]
-handleMutuals []       = return []
-handleMutuals (ds:dss) = do
-  let ns = defsToNames $ concat ds
-  handleMutual ds ns <:> handleMutuals dss
-
-handleLet :: A.Exp -> [[([String],(A.Exp,A.Exp))]] -> A.Exp
-handleLet e []     = e
-handleLet e (x:xs) = A.Def (handleLet e xs) (tele, ens)
-  where (nss,ets) = unzip x
-        (es,ts)   = unzip ets
-        ns        = concat nss
-        tele      = zip ns ts
-        ens       = zip ns es
-
-handleDefs :: [Def] -> Resolver A.Exp -> Resolver A.Exp
-handleDefs defs re = do
-  let cg = callGraph defs
-  let ns = defsToNames $ concat $ concat cg
-  xs <- handleMutuals cg
-  e  <- re
-  return (handleLet e xs)
-
-handleModule :: Module -> Resolver A.Exp
-handleModule (Module _ _ defs) = handleDefs defs (return A.Top)
-
-
-
-
-concrToAbs :: [Def] -> Resolver [A.Def]
-concrToAbs [] = return []
-concrToAbs (DefTDecl n e:d:ds) = do
-  e' <- resolveWhere e
-  xd <- checkDef n d
-  rest <- concrToAbs ds
+resolveDefs :: [Def] -> Resolver [A.Def]
+resolveDefs [] = return []
+resolveDefs (DefTDecl n e:d:ds) = do
+  e' <- resolveExp e
+  xd <- checkDef (unIdent n) d
+  rest <- resolveDefs ds
   return $ ([(unIdent n, e')],[xd]) : rest
+resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
-
-checkDef :: AIdent -> Def -> Resolver (Binder,A.Exp)
-checkDef (_,n) (Def (_,m) args body) | n == m =
+checkDef :: String -> Def -> Resolver (String,A.Exp)
+checkDef n (Def (AIdent (_,m)) args body) | n == m = do
+  updateName n
   (n,) <$> lams args (resolveWhere body)
-checkDef checkDef (_,n) (DefData (_,m) args sums) | n == m =
-  (n,) <$> lams args (A.Sum <$> mapM resolveLabel sums)
-checkDef (_,n) d = throwError ("Mismatching names in " ++ show n ++ " and " ++
-                               show d)
+checkDef n (DefData (AIdent (_,m)) args sums) | n == m = do
+  updateName n
+  (n,) <$> lams args (A.Sum <$> genPrim <*> mapM resolveLabel sums)
+checkDef n d =
+  throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
