@@ -63,39 +63,39 @@ runInterpreter fs = case fs of
     let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
     case res of
       Left err    -> outputStrLn $ "Resolver failed: " ++ err
-      Right adefs -> case A.runDefs A.lEmpty adefs of
+      Right adefs -> case A.runDefs A.tEmpty adefs of
         Left err   -> outputStrLn $ "Type checking failed: " ++ err
-        Right lenv -> do
+        Right tenv -> do
           outputStrLn "File loaded."
-          loop cs lenv
+          loop cs tenv
   _   -> do outputStrLn $ "Exactly one file expected: " ++ show fs
-            loop [] A.lEmpty
+            loop [] A.tEmpty
   where
-    loop :: [String] -> A.LEnv -> Interpreter ()
-    loop cs lenv@(_,rho,_) = do
+    loop :: [String] -> A.TEnv -> Interpreter ()
+    loop cs tenv@(A.TEnv _ rho _) = do
       input <- getInputLine defaultPrompt
       case input of
-        Nothing    -> outputStrLn help >> loop cs lenv
+        Nothing    -> outputStrLn help >> loop cs tenv
         Just ":q"  -> return ()
         Just ":r"  -> runInterpreter fs
         Just (':':'l':' ':str) -> runInterpreter (words str)
-        Just (':':'c':'d':' ':str) -> lift (setCurrentDirectory str) >> loop cs lenv
-        Just ":h"  -> outputStrLn help >> loop cs lenv
+        Just (':':'c':'d':' ':str) -> lift (setCurrentDirectory str) >> loop cs tenv
+        Just ":h"  -> outputStrLn help >> loop cs tenv
         Just str   -> let ts = lexer str in
           case pExp ts of
-            Bad err -> outputStrLn ("Parse error: " ++ err) >> loop cs lenv
+            Bad err -> outputStrLn ("Parse error: " ++ err) >> loop cs tenv
             Ok exp  ->
               case runResolver (local (const (Env cs)) (resolveExp exp)) of
-                Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs lenv
+                Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs tenv
                 Right body ->
-                  case A.runInfer lenv body of
-                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs lenv
+                  case A.runInfer tenv body of
+                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs tenv
                     Right _  ->
                       case translate (A.defs rho body) of
                         Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
-                                    loop cs lenv
+                                    loop cs tenv
                         Right t  -> let value = E.eval E.Empty t in
-                          outputStrLn ("EVAL: " ++ E.showVal value) >> loop cs lenv
+                          outputStrLn ("EVAL: " ++ E.showVal value) >> loop cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++
