@@ -11,7 +11,6 @@ import System.Console.Haskeline
 
 import Exp.Lex
 import Exp.Par
-import Exp.Skel
 import Exp.Print
 import Exp.Abs
 import Exp.Layout

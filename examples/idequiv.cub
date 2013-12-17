@@ -24,20 +24,24 @@ tId A a = split
   rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (pair x p)
   rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (pair x p)) (refl (pathTo A x) (sId A x))
 
-eqU : Id U U U
-eqU = equivEq U U (id U) (sId U) (tId U)
+corrstId : (A : U) (a : A) -> prop (pathTo A a)
+corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1) 
 
-Bool' : U
-Bool' = transport U U eqU Bool
 
-eqBoolBool' : Id U Bool Bool'
-eqBoolBool' = transpEquivEq U U (id U) (sId U) (tId U) Bool
+-- eqU : Id U U U
+-- eqU = equivEq U U (id U) (sId U) (tId U)
 
-eqBool'Bool : Id U Bool' Bool
-eqBool'Bool = inv U Bool Bool' eqBoolBool'
+-- Bool' : U
+-- Bool' = transport U U eqU Bool
 
-True' : Bool'
-True' = transport' Bool Bool' eqBoolBool' True
+-- eqBoolBool' : Id U Bool Bool'
+-- eqBoolBool' = transpEquivEq U U (id U) (sId U) (tId U) Bool
 
-newTrue : Bool
-newTrue = transport' Bool' Bool eqBool'Bool True'
+-- eqBool'Bool : Id U Bool' Bool
+-- eqBool'Bool = inv U Bool Bool' eqBoolBool'
+
+-- True' : Bool'
+-- True' = transport' Bool Bool' eqBoolBool' True
+
+-- newTrue : Bool
+-- newTrue = transport' Bool' Bool eqBool'Bool True'

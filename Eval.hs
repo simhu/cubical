@@ -8,7 +8,7 @@ import Debug.Trace
 
 import Core
 
--- Switch to False to turn of debugging
+-- Switch to False to turn off debugging
 debug :: Bool
 debug = True
 
@@ -36,7 +36,6 @@ data Box a = Box Dir Name a [((Name,Dir),a)]
 
 mapBox :: (a -> b) -> Box a -> Box b
 mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
-                          -- (map (second f) xs)
 
 instance Functor Box where fmap = mapBox
 
@@ -55,12 +54,6 @@ defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 fromBox :: Box a -> [((Name,Dir),a)]
 fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
 
--- toBox :: Dir -> Name -> [((Name,Dir),a)] -> Box a
--- toBox d x (nv@(zd,v):nvs) | zd == (x, mirror d) = Box d x v nvs
---                           | otherwise = let Box d' x' nv' nvs' = toBox d x nvs
---                                         in  Box d' x' nv' (nv:nvs')
--- toBox _ _ [] = error $ "toBox: not a box!"
-
 modBox :: ((Name,Dir) -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
   Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
@@ -71,7 +64,6 @@ subBox np (Box dir x v nvs) = Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` n
 
 cubeToBox :: Val -> Box () -> Box Val
 cubeToBox v box = modBox (\nd _ -> v `face` nd) box
---  Box dir x (face v x (mirror dir)) [ ((n,d),face v n d) | ((n,d),_) <- nvs ]
 
 shapeOfBox :: Box a -> Box ()
 shapeOfBox = mapBox (const ())
@@ -321,7 +313,7 @@ eval e (TransInv c p t) = com (app (eval e c) pv) box
   where x   = freshEnv e
         pv  = appName (eval e p) x
         box = Box Down x (eval e t) []
-eval e (TransU p t) = -- traceb ("TransU pv= " ++ show pv)
+eval e (TransU p t) =
   com pv box
   where x   = freshEnv e
         pv  = appName (eval e p) x
@@ -460,7 +452,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     let ax0  = vz
         bx0  = app f ax0
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
-    in traceb ("VEquivEq case 3") -- \nax0 = " ++ show ax0 ++ "\nbx0 = " ++ show bx0)
+    in traceb ("VEquivEq case 3")
        VPair x ax0 v
   | x == z && dir == Down =
      let y  = gensym (support veq `union` supportBox box)
@@ -485,51 +477,50 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
          box2   = Box Up y vy (((x,Down),fafill) : ((x,Up),vz) :
                                       [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
          bcom   = com b box2
-     in traceb ("VEquivEq case 4") -- \n" ++ "box1 = " ++ show box1 ++ "\nbox2 = " ++ show box2)
+     in traceb ("VEquivEq case 4")
         VPair x acom bcom
   | otherwise = error "fill EqEquiv"
 
 fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
-    let               -- the non-principal sides of tbox.
+    let           -- the non-principal sides of tbox.
       add :: (Name,Dir) -> Val  -- TODO: Is this correct? Do we have
                                 -- to consider the auxsides?
-      add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
+      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
-    in traceb ("Kan Com 1") -- \nnewBox " ++ show newBox)
+    in traceb ("Kan Com 1")
        fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
-          [ let side = [((x,tdir),lookBox zd box)
-                       , ((x,tdir'),principal `face` zd)]
-            in (zd, fill (lookBox zd tbox)
-                    (side `appendSides` mapBox (pickout zd) boxL))
-          | zd <- allDirs nK ]
+          [ let side = [((x,tdir),lookBox yc box)
+                       ,((x,tdir'),principal `face` yc)]
+            in (yc, fill (lookBox yc tbox)
+                    (side `appendSides` mapBox (pickout yc) boxL))
+          | yc <- allDirs nK ]
         newBox = Box tdir x principal nonprincipal
     in traceb ("Kan Com 2\nnewBox " ++ show newBox) VComp newBox
   | x' `elem` nK =
     let -- assumes zc in defBox tbox
-      -- TODO: same as mapBox (pickout zd) boxL? Merge with above?
       auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
-      -- extend input box along x' with orientation tdir'; results
+      -- extend input box along x with orientation tdir'; results
       -- in the non-principal faces on the intersection of defBox
       -- box and defBox tbox; note, that the intersection contains
       -- (x',dir'), but not (x',dir) (and (x,_))
       npintbox@(Box _ _ _ npintaux) =
-        modBox (\ zc boxside -> fill (lookBox zc tbox)
-                                  (Box tdir' x boxside (auxsides zc)))
+        modBox (\ yc boxside -> fill (lookBox yc tbox)
+                                  (Box tdir' x boxside (auxsides yc)))
           (subBox (nK `intersect` nJ) box)
       npint = fromBox npintbox
       npintfacebox = mapBox (`face` (x,tdir')) npintbox
       principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
       nplp  = principal `face` (x',dir)
       nplnp = auxsides (x',dir)
-              ++ map (\(zc,v) -> (zc,v `face` (x',dir))) npintaux
+              ++ map (\(yc,v) -> (yc,v `face` (x',dir))) npintaux
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
-    in traceb ("Kan Com 3") -- \nnewBox " ++ show newBox)
+    in traceb ("Kan Com 3")
        VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
@@ -554,7 +545,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 6) x' `elem` K
 
   | toAdd /= [] =
-    let                         -- TODO: Okay?
+    let
       add :: (Name,Dir) -> Val
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
@@ -603,12 +594,12 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
      fill v (xsides `appendSides` box)
   | x' `notElem` nK =  -- assumes x,K subset x',J
       let
-        xaux      = unCompAs (lookBox (x,tdir) box) x
+        xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
         boxprinc  = unFillAs (lookBox (x',dir') box) z
         princnp   = [((z,Up),lookBox (x,tdir') xaux)
-                    ,((z, Down), lookBox (x,tdir') box)]
-                    ++ auxsides (x',tdir')
-        principal = fill (lookBox (x',tdir') tbox) -- tx
+                    ,((z,Down),lookBox (x,tdir') box)]
+                    ++ auxsides (x,tdir')
+        principal = fill (lookBox (x,tdir') tbox) -- tx
                       (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
         nonprincipal =
           [ let up = lookBox yc xaux
@@ -634,7 +625,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        sides  = [((z,Down),bottom),((z,Up),top)]
                    in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
                                               (sides ++ auxsides zc)))
-                 (subBox nK box) -- nK = nK /\ nJ -- TODO ? intersect needed?
+                 (subBox (nK `intersect` nJ) box)
         npint = fromBox npintbox
         npintfacebox = mapBox (`face` (x,tdir)) npintbox
         principalbox = ([((z,Down),lookBox (x,tdir') box)
@@ -684,7 +675,6 @@ com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
 com v box                                 = Kan Com v box
 
--- TODO: Maybe generalize?
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
   where nvus      = [ (nnd,app v (lookup' nnd nus)) | (nnd,v) <- nvs ]
@@ -693,7 +683,8 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
-  traceb ("Pi Com:\nufill = " ++ show ufill ++ "\nbcu = " ++ show bcu) com (app b ufill) (appBox box bcu)
+  traceb ("Pi Com:\nufill = " ++ show ufill ++ "\nbcu = " ++ show bcu)
+  com (app b ufill) (appBox box bcu)
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
@@ -721,30 +712,6 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
 app r s = error $ "app"  ++ show r ++ show s
 
 
-----
-
--- data Val = VU
---          | Ter Ter Env
---          | VId Val Val Val
---          | Path Name Val             -- tag values which are paths
---          | VExt Name Val Val Val Val -- has dimension (name:dim);
---                                      -- vals of dimension dim
---          | VPi Val Val
---          | VInh Val
---          | VInc Val
---          | VSquash Name Val Val  -- connects the two values along the name
---          | VCon Ident [Val]
---          | Kan KanType Val (Box Val)
---          | VEquivEq Name Val Val Val Val Val -- of type U connecting a and b along x
---          | VEquivSquare Name Name Val Val Val -- names x, y and values a, s, t
---            -- VEquivEq x a b f s t
---          | VPair Name Val Val -- of type VEquivEq
---          | VSquare Name Name Val
---          | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
---          | VFill Name (Box Val) -- a value of type Kan Fill VU (Box
---                                 -- (type of values minus name)); the name is bound
---   deriving (Show, Eq)
-
 
 showVal :: Val -> String
 showVal VU = "U"
@@ -758,12 +725,12 @@ showVal (VInh u)    = "inh " ++ showVal1 u
 showVal (VInc u)    = "inc " ++ showVal1 u
 showVal (VSquash n u v) = "squash " ++ show n ++ showVals [u,v]
 showVal (Kan typ v box) = "Kan " ++ show typ ++ " " ++ showVal1 v ++ " " ++ showBox box
-showVal (VEquivEq n a b f s t) = "equivEq " ++ show n ++ showVals [a,b,f,s,t]
+showVal (VEquivEq n a b f s t)   = "equivEq " ++ show n ++ showVals [a,b,f,s,t]
 showVal (VEquivSquare x y a s t) = "equivSquare " ++ show x ++ " " ++ show y ++ showVals [a,s,t]
-showVal (VPair n u v) = "vpair " ++ show n ++ showVals [u,v]
+showVal (VPair n u v)   = "vpair " ++ show n ++ showVals [u,v]
 showVal (VSquare x y u) = "vsquare " ++ show x ++ " " ++ show y ++ showVal1 u
-showVal (VComp box) = "vcomp " ++ showBox box
-showVal (VFill n box) = "vfill " ++ show n ++ " " ++ showBox box
+showVal (VComp box)     = "vcomp " ++ showBox box
+showVal (VFill n box)   = "vfill " ++ show n ++ " " ++ showBox box
 
 showVals :: [Val] -> String
 showVals [] = ""
@@ -773,14 +740,14 @@ showBox :: Box Val -> String
 showBox box = "(" ++ show box ++ ")"
 
 showVal1 :: Val -> String
-showVal1 VU = "U"
+showVal1 VU          = "U"
 showVal1 (VCon c []) = c
-showVal1 u  = "(" ++ showVal u ++ ")"
+showVal1 u           = "(" ++ showVal u ++ ")"
 
 showTer :: Ter -> String
-showTer (LSum (_,str) _) = str
+showTer (LSum (_,str) _)   = str
 showTer (Branch (n,str) _) = str ++ show n
-showTer (Undef (n,str)) = str ++ show n
+showTer (Undef (n,str))    = str ++ show n
 showTer t = show t
 
 showEnv :: Env -> String
