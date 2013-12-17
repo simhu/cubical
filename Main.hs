@@ -8,6 +8,7 @@ import Control.Monad.Error
 import Data.List
 import System.Environment
 import System.Console.Haskeline
+import System.Directory
 
 import Exp.Lex
 import Exp.Par
@@ -33,33 +34,8 @@ showTree tree = do
   putStrLn $ "\n[Abstract Syntax]\n\n" ++ show tree
   putStrLn $ "\n[Linearized tree]\n\n" ++ printTree tree
 
-parseFiles :: [FilePath] -> Interpreter ([Imp],[Def])
-parseFiles []     = return ([],[])
-parseFiles (f:fs) = do
-  s <- lift $ readFile f
-  let ts = lexer s
-  case pModule ts of
-    Bad s  -> do
-      outputStrLn $ "Parse Failed in file " ++ show f ++ "\n"
---      outputStrLn $ "Tokens: " ++ show ts
-      outputStrLn s
-      return ([],[])
-    Ok mod@(Module _ imps defs) -> do
-      outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
---      showTree mod
-      (imps',defs') <- parseFiles fs
-      return (imps ++ imps',defs ++ defs')
-
 main :: IO ()
 main = getArgs >>= runInputT defaultSettings . runInterpreter
-
---  names to import -> files already imported -> all definitions
--- imports :: [String] -> [FilePath] -> [Def] -> Interpreter [Def]
--- imports [] _  defs = return defs
--- imports xs fs defs = do
---   (imps,newDefs) <- parseFiles xs
---   let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
---   imports (nub imps' \\ fs) (fs ++ xs) (defs ++ newDefs)
 
 -- (not ok,loaded,already loaded defs) -> to load  -> (newnotok, newloaded, newdefs)
 imports :: ([String],[String],[Def])  -> String-> Interpreter ([String],[String],[Def])
@@ -77,21 +53,23 @@ imports st@(notok,loaded,defs) f
         outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
         return (notok,f:loaded1,def1 ++ defs')
 
-
 runInterpreter :: [FilePath] -> Interpreter ()
-runInterpreter [f] = do
-  -- parse and type-check files
-  (_,_,defs) <- imports ([],[],[]) f
-  -- Compute all constructors
-  let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
-  let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
-  case res of
-    Left err    -> outputStrLn $ "Resolver failed: " ++ err
-    Right adefs -> case A.runDefs A.lEmpty adefs of
-      Left err   -> outputStrLn $ "Type checking failed: " ++ err
-      Right lenv -> do
-        outputStrLn "Files loaded."
-        loop cs lenv
+runInterpreter fs = case fs of
+  [f] -> do
+    -- parse and type-check files
+    (_,_,defs) <- imports ([],[],[]) f
+    -- Compute all constructors
+    let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
+    let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
+    case res of
+      Left err    -> outputStrLn $ "Resolver failed: " ++ err
+      Right adefs -> case A.runDefs A.lEmpty adefs of
+        Left err   -> outputStrLn $ "Type checking failed: " ++ err
+        Right lenv -> do
+          outputStrLn "File loaded."
+          loop cs lenv
+  _   -> do outputStrLn $ "Exactly one file expected: " ++ show fs
+            loop [] A.lEmpty
   where
     loop :: [String] -> A.LEnv -> Interpreter ()
     loop cs lenv@(_,rho,_) = do
@@ -99,7 +77,9 @@ runInterpreter [f] = do
       case input of
         Nothing    -> outputStrLn help >> loop cs lenv
         Just ":q"  -> return ()
-        Just ":r"  -> runInterpreter [f]
+        Just ":r"  -> runInterpreter fs
+        Just (':':'l':' ':str) -> runInterpreter (words str)
+        Just (':':'c':'d':' ':str) -> lift (setCurrentDirectory str) >> loop cs lenv
         Just ":h"  -> outputStrLn help >> loop cs lenv
         Just str   -> let ts = lexer str in
           case pExp ts of
@@ -116,11 +96,12 @@ runInterpreter [f] = do
                                     loop cs lenv
                         Right t  -> let value = E.eval E.Empty t in
                           outputStrLn ("EVAL: " ++ E.showVal value) >> loop cs lenv
-runInterpreter fs = fail $ "Exactly one file expected: " ++ show fs
 
 help :: String
 help = "\nAvailable commands:\n" ++
        "  <statement>     infer type and evaluate statement\n" ++
        "  :q              quit\n" ++
+       "  :l <filename>   loads filename (and resets environment before)\n" ++
+       "  :cd <path>      change directory to path\n" ++
        "  :r              reload\n" ++
        "  :h              display this message\n"
