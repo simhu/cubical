@@ -6,7 +6,7 @@ import qualified Core as I
 import Control.Monad.Error
 import Control.Applicative
 import Control.Arrow
-import MTT hiding (Error)
+import MTT
 
 -- For an expression t, returns (u,ts) where u is no application
 -- and t = u ts

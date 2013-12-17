@@ -3,7 +3,7 @@ module MTT where
 
 import Control.Monad
 import Debug.Trace
-import Control.Monad.Trans.Error hiding (fix,throwError)
+import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Trans.Reader
 import Control.Monad.Identity
 import Control.Monad.Error (throwError)
