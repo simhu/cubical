@@ -124,6 +124,7 @@ lams as e = foldr lam e as
 resolveExp :: Exp -> Resolver A.Exp
 resolveExp U            = return A.U
 resolveExp Undef        = A.Undef <$> genPrim
+resolveExp PN           = A.Undef <$> genPrim
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs

@@ -29,6 +29,7 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Var.      Exp3 ::= Arg ;
 U.        Exp3 ::= "U" ;
 Undef.    Exp3 ::= "undefined" ;
+PN.       Exp3 ::= "PN" ;
 coercions Exp 3 ;
 
 Binder.   Binder ::= Arg ;
