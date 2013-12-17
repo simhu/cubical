@@ -76,7 +76,7 @@ imports st@(notok,loaded,defs) f
         let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
         (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
         outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
-        return (notok1,f:loaded1,def1 ++ defs')
+        return (notok,f:loaded1,def1 ++ defs')
 
 
 runInterpreter :: [FilePath] -> Interpreter ()

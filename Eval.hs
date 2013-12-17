@@ -769,7 +769,7 @@ showVals :: [Val] -> String
 showVals [] = ""
 showVals us = " " ++ intercalate " " (map showVal1 us)
 
-showBox :: Box -> String
+showBox :: Box Val -> String
 showBox box = "(" ++ show box ++ ")"
 
 showVal1 :: Val -> String
