@@ -104,7 +104,10 @@ data Val = VU
          | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
          | VFill Name (Box Val) -- a value of type Kan Fill VU (Box
                                 -- (type of values minus name)); the name is bound
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show Val where
+  show = showVal
 
 fstVal, sndVal :: Val -> Val
 fstVal (VPair _ a _) = a
@@ -742,15 +745,35 @@ showVal VU = "U"
 showVal (Ter t env) = showTer t ++ showEnv env
 showVal (VId a u v) = "Id " ++ showVal1 a ++ " " ++ showVal1 u ++ " " ++ showVal1 v
 showVal (Path n u)  = "<" ++ show n ++ "> " ++ showVal u
-showVal (VExt n b f g p) = "funExt " ++ show n ++ intercalate " " (map showVal1 [b,f,g,p])
-showVal (VCon c us) = c ++ intercalate " " (map showVal1 us)
-showVal u = show u
+showVal (VExt n b f g p) = "funExt " ++ show n ++ showVals [b,f,g,p]
+showVal (VCon c us) = c ++ showVals us
+showVal (VPi a f)   = "Pi" ++ showVals [a,f]
+showVal (VInh u)    = "inh " ++ showVal1 u
+showVal (VInc u)    = "inc " ++ showVal1 u
+showVal (VSquash n u v) = "squash " ++ show n ++ showVals [u,v]
+showVal (Kan typ v box) = "Kan " ++ show typ ++ " " ++ showVal1 v ++ " " ++ showBox box
+showVal (VEquivEq n a b f s t) = "equivEq " ++ show n ++ showVals [a,b,f,s,t]
+showVal (VEquivSquare x y a s t) = "equivSquare " ++ show x ++ " " ++ show y ++ showVals [a,s,t]
+showVal (VPair n u v) = "vpair " ++ show n ++ showVals [u,v]
+showVal (VSquare x y u) = "vsquare " ++ show x ++ " " ++ show y ++ showVal1 u
+showVal (VComp box) = "vcomp " ++ showBox box
+showVal (VFill n box) = "vfill " ++ show n ++ " " ++ showBox box
+
+showVals :: [Val] -> String
+showVals [] = ""
+showVals us = " " ++ intercalate " " (map showVal1 us)
+
+showBox box = "(" ++ show box ++ ")"
 
 showVal1 :: Val -> String
---showVal1 u@(VApp _ _) = "(" ++ showVal u ++ ")"
-showVal1 u@(Path {}) = "(" ++ showVal u ++ ")"
-showVal1 u           = showVal u
+showVal1 VU = "U"
+showVal1 (VCon c []) = c
+showVal1 u  = "(" ++ showVal u ++ ")"
 
+showTer :: Ter -> String
+showTer (LSum (_,str) _) = str
+showTer (Branch (n,str) _) = str ++ show n
+showTer (Undef (n,str)) = str ++ show n
 showTer t = show t
 
 
@@ -762,9 +785,9 @@ showTer t = show t
 
 showEnv :: Env -> String
 showEnv Empty            = ""
-showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ ", " ++ x ++ " = " ++ showVal u ++ ")"
+showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ showVal u ++ ")"
 showEnv (PDef xas env)   = showEnv env
 
 showEnv1 Empty            = ""
-showEnv1 (Pair env (x,u)) = showEnv1 env ++ ", " ++ x ++ " = " ++ showVal u
+showEnv1 (Pair env (x,u)) = showEnv1 env ++ showVal u ++ ", "
 showEnv1 (PDef xas env)   = showEnv env
