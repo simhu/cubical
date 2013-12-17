@@ -82,21 +82,11 @@ flattenTelePi = flattenTele . map unPiDecl
 namesTele :: Tele -> [String]
 namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 
-defToNames :: Def -> [String]
-defToNames (Def n _ _)     = [unIdent n]
-defToNames (DefTDecl n _)  = [unIdent n]
-defToNames (DefData n _ _) = [unIdent n]
-defToNames (DefPrim defs)  = defsToNames defs
-
-defsToNames :: [Def] -> [String]
-defsToNames = nub . concatMap defToNames
-
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
--- local environment for variables and constructors
-data Env = Env { constrs :: [String]
-               }
+-- local environment for constructors
+data Env = Env { constrs :: [String] }
          deriving (Eq, Show)
 
 type Resolver a = ReaderT Env (StateT A.Prim (ErrorT String Identity)) a

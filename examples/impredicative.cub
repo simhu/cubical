@@ -366,9 +366,8 @@ eqPropFam A B h = split
 exist : (A : U) (B : A -> U) -> U
 exist A B = inh (Sigma A B)
 
--- TODO: fix parser for "Fun"
-exElim : (A : U) (B : A -> U) (C : U) (_ : prop C) (_ : Sigma A B -> C)
-         (_ : exist A B) -> C
+exElim : (A : U) (B : A -> U) (C : U) -> prop C -> (Sigma A B -> C) ->
+         exist A B -> C
 exElim A B C p f = inhrec (Sigma A B) C p f
 
 atmostOne : (A : U) (B : A -> U) -> U
@@ -750,9 +749,6 @@ testTT = opBool2 True True
 --   lem3 = -- Cannot be proved yet...
 
 
-
--- TODO: Why doesn't this work:
--- propPi : (A : U) (B : A -> U) ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
 
 propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
 propPi A B h f0 f1 = ext A B f0 f1 (\x -> h x (f0 x) (f1 x)) 

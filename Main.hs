@@ -4,6 +4,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Identity
+import Control.Monad.Error
 import Data.List
 import System.Environment
 import System.Console.Haskeline
@@ -70,7 +71,7 @@ imports st@(notok,loaded,defs) f
     s <- lift $ readFile f
     let ts = lexer s
     case pModule ts of
-      Bad s  -> fail $ "Parse Failed in file " ++ show f ++ "\n"
+      Bad s  -> fail $ "Parse Failed in file " ++ show f ++ "\n" ++ show s
       Ok mod@(Module _ imps defs') -> do
         let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
         (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'

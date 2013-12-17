@@ -48,7 +48,7 @@ primHandle =
   , ("refl",          (2, primRefl))
   , ("subst",         (6, primSubst)) -- TODO: remove, better only J
   , ("substInv",      (6, primSubstInv)) -- TODO: remove
-  , ("ext",           (5, primExt))
+  , ("funExt",        (5, primExt))
   , ("J",             (6, primJ))
   , ("Jeq",           (4, primJeq))
   , ("inh",           (1, primInh))

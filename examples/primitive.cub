@@ -1,70 +1,72 @@
-module primitive_test where
+module primitive where
 
-primitive
-  Id   : (A : U) (a b : A) -> U
-  refl : (A : U) (a : A) -> Id A a a
-  ext  : (A : U) (B : (a:A) -> U) (f g : (a : A) -> B a)
+Id   : (A : U) (a b : A) -> U
+Id = undefined
+
+refl : (A : U) (a : A) -> Id A a a
+refl = undefined
+funExt : (A : U) (B : (a : A) -> U) (f g : (a : A) -> B a)
          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
-  -- J    : (A : U) (a : A) (C : (b : A) -> Id A a b -> U) (d : C a (refl A a))
-  --      	 (b : A) (p : Id A a b) -> C b p
-  -- Jeq  : (A : U) (a : A) (C : (b : A) -> Id A a b -> U) (d : C a (refl A a)) ->
-  --        Id (C a (refl A a)) d (J A a C d a (refl A a))
-  subst : (A : U) (C : A -> U) (a b : A) (p : Id A a b) -> C a -> C b
+funExt = undefined
 
-data N = zero | suc (n : N)
+J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
+      (x : A) -> (p : Id A a x) -> C x p
+J = undefined
 
--- doesn't work: (problems with how the call-graph handles constructor
--- names.... should c-names be tagged with a "$"?)
+Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
+        Id (C a (refl A a)) d (J A a C d a (refl A a))
+Jeq = undefined
 
-zero' : N
-zero' = zero
+inh : U -> U
+inh = undefined
 
-suc : N -> N
-suc n = suc n
+inc : (A : U) -> A -> inh A
+inc = undefined
 
-cong : (A B : U) (f : A -> B) (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
-cong A B f a0 a1 p = subst A (\ a -> Id B (f a0) (f a)) a0 a1 p (refl B (f a0))
+prop : U -> U
+prop A = (a b : A) -> Id A a b
 
-natid : N -> N
-natid x = x
+squash : (A : U) -> prop (inh A)
+squash = undefined
 
-natid' : N -> N
-natid' = split
-  zero  -> zero
-  suc n -> suc (natid' n)
+inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+inhrec = undefined
 
-idsexteq : (n : N) -> Id N (natid n) (natid' n)
-idsexteq = split
-   zero -> refl N (zero)
-   suc n -> cong N N suc (natid n) (natid' n) (idsexteq n)
+Sigma : (A : U) (B : A -> U) -> U
+data Sigma A B = pair (x : A) (y : B x)
 
-idseq : Id (N -> N) natid natid'
-idseq = ext N (\_ -> N) natid natid' idsexteq
+fiber : (A B : U) (f : A -> B) (y : B) -> U
+fiber A B f y = Sigma A (\x -> Id B (f x) y)
 
-plus : N -> N -> N
-plus = split
-  zero -> \m -> m
-  suc n -> \m -> suc (plus n m)
+id : (A : U) -> A -> A
+id A a = a
 
-two : N
-two = suc (suc (zero))
+pathTo : (A:U) -> A -> U
+pathTo A = fiber A A (id A)
 
-three : N
-three = suc two
+equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
+            (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+            Id U A B
+equivEq = undefined
 
-addvals : (N -> N) -> N
-addvals f = plus (f two) (f three)
+subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+subst = undefined
 
+substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
+substInv = undefined
 
---cong : (A B : U) (f : A -> B) (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
-addvalscong : Id N (addvals natid) (addvals natid')
-addvalscong = cong (N -> N) N addvals natid natid' idseq
+transport : (A B : U) -> Id U A B -> A -> B
+transport = undefined
 
-data List (A : U) = nil | cons (x : A) (xs : List A)
+transportRef : (A : U) -> (a : A) -> Id A a (transport A A (refl U A) a)
+transportRef = undefined
 
-append : (A : U) -> List A -> List A -> List A
-append A = split
-  nil       -> \ys -> ys
-  cons x xs -> \ys -> cons x (append A xs ys)
+equivEqRef : (A : U) -> (s : (y : A) -> pathTo A y) -> 
+             (t : (y : A) -> (v : pathTo A y) -> Id (pathTo A y) (s y) v) ->
+             Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
+equivEqRef = undefined	       
 
-
+transpEquivEq : (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) -> 
+                (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+                (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
+transpEquivEq = undefined

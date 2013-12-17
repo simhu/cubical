@@ -3,9 +3,9 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "of", "split", "primitive" ;
+layout "where", "let", "of", "split" ;
 layout stop "in" ;
--- Do not use layout toplevel as it make pExp fail!
+-- Do not use layout toplevel as it makes pExp fail!
 
 Module.   Module ::= "module" AIdent "where" "{" [Imp] [Def] "}" ;
 
@@ -15,7 +15,6 @@ separator Imp ";" ;
 Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl. Def ::= AIdent ":" Exp ;
 DefData.  Def ::= "data" AIdent [Arg] "=" [Sum] ;
-DefPrim.  Def ::= "primitive" "{" [Def] "}" ; -- only allows TDecls
 separator Def ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;
@@ -30,8 +29,6 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Var.      Exp3 ::= Arg ;
 U.        Exp3 ::= "U" ;
 Undef.    Exp3 ::= "undefined" ;
-internal PN.  Exp3 ::= "PN" AIdent ;
-internal Top. Exp3 ::= "Top" ;
 coercions Exp 3 ;
 
 Binder.   Binder ::= Arg ;
@@ -60,7 +57,3 @@ PiDecl.   PiDecl ::= "(" Exp ":" Exp ")" ;
 terminator nonempty PiDecl "" ;
 
 position token AIdent (letter(letter|digit|'\''|'_')*) ;
-terminator AIdent "" ;
-
--- TODO: Why is this not working:
--- token ImportIdent (letter(letter|digit)*) ;
