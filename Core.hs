@@ -183,11 +183,16 @@ mirror :: Dir -> Dir
 mirror Up   = Down
 mirror Down = Up
 
-allDirs :: [Name] -> [(Name,Dir)]
+type Side = (Name,Dir)
+
+allDirs :: [Name] -> [Side]
 allDirs []     = []
 allDirs (n:ns) = (n,Down) : (n,Up) : allDirs ns
 
-data Box a = Box Dir Name a [((Name,Dir),a)]
+data Box a = Box { dir   :: Dir
+                 , pname :: Name
+                 , pface :: a
+                 , sides :: [(Side,a)] }
   deriving (Eq,Show)
 
 -- Showing boxes with parenthesis around
@@ -200,7 +205,7 @@ mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 instance Functor Box where
   fmap = mapBox
 
-lookBox :: Show a => (Name,Dir) -> Box a -> a
+lookBox :: Show a => Side -> Box a -> a
 lookBox (y,dir) (Box d x v _)  | x == y && mirror d == dir = v
 lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
   Just v  -> v
@@ -213,10 +218,10 @@ nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 defBox :: Box a -> [(Name, Dir)]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
-fromBox :: Box a -> [((Name,Dir),a)]
+fromBox :: Box a -> [(Side,a)]
 fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
 
-modBox :: ((Name,Dir) -> a -> b) -> Box a -> Box b
+modBox :: (Side -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
   Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
 
@@ -236,7 +241,7 @@ consBox (n,(v0,v1)) (Box dir x v nvs) =
 appendBox :: [(Name,(a,a))] -> Box a -> Box a
 appendBox xs b = foldr consBox b xs
 
-appendSides :: [((Name,Dir), a)] -> Box a -> Box a
+appendSides :: [(Side, a)] -> Box a -> Box a
 appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
 
 transposeBox :: Box [a] -> [Box a]

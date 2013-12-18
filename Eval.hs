@@ -68,9 +68,8 @@ swapEnv :: Env -> Name -> Name -> Env
 swapEnv e x y = mapEnv (\u -> swap u x y) e
 
 unCompAs :: Val -> Name -> Box Val
-unCompAs (VComp box@(Box _ x _ _)) y = swapBox box x y
-unCompAs v                         _ =
-  error $ "unCompAs: " ++ show v ++ " is not a VComp"
+unCompAs (VComp box) y = swapBox box (pname box) y
+unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
 unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swapBox box x y
@@ -81,7 +80,7 @@ appName (Path x u) y = swap u x y
 appName v _          = error $ "appName: " ++ show v ++ " should be a path"
 
 -- Compute the face of a value
-face :: Val -> (Name,Dir) -> Val
+face :: Val -> Side -> Val
 face u xdir@(x,dir) =
   let fc v = v `face` (x,dir) in case u of
   VU          -> VU
@@ -143,7 +142,7 @@ idVPair :: Name -> Val -> Val
 idVPair x v = VPair x (v `face` (x,Down)) v
 
 -- Compute the face of an environment
-faceEnv :: Env -> (Name,Dir) -> Env
+faceEnv :: Env -> Side -> Env
 faceEnv e xd = mapEnv (`face` xd) e
 
 -- TODO: Define the face of a box!
@@ -307,10 +306,10 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
      in traceb "VEquivEq case 4" $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
 
-fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
+fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
-      add :: (Name,Dir) -> Val  -- TODO: Is this correct? Do we have
+      add :: Side -> Val  -- TODO: Is this correct? Do we have
                                 -- to consider the auxsides?
       add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
@@ -332,16 +331,15 @@ fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
       -- in the non-principal faces on the intersection of defBox
       -- box and defBox tbox; note, that the intersection contains
       -- (x',dir'), but not (x',dir) (and (x,_))
-      npintbox@(Box _ _ _ npintaux) =
-        modBox (\ yc boxside -> fill (lookBox yc tbox)
+      npintbox = modBox (\yc boxside -> fill (lookBox yc tbox)
                                   (Box tdir' x boxside (auxsides yc)))
-          (subBox (nK `intersect` nJ) box)
+                        (subBox (nK `intersect` nJ) box)
       npint = fromBox npintbox
       npintfacebox = mapBox (`face` (x,tdir')) npintbox
       principal = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
       nplp  = principal `face` (x',dir)
       nplnp = auxsides (x',dir)
-              ++ map (\(yc,v) -> (yc,v `face` (x',dir))) npintaux
+              ++ map (\(yc,v) -> (yc,v `face` (x',dir))) (sides npintbox)
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
@@ -350,7 +348,7 @@ fill v@(Kan Com VU tbox'@(Box _ tboxname _ _)) box@(Box dir x' vx' nvs')
         nJ    = nonPrincipal box
         z     = gensym $ supportBox tbox' ++ supportBox box
         -- x is z
-        tbox@(Box tdir x tx nvs) = swapBox tbox' tboxname z
+        tbox@(Box tdir x tx nvs) = swapBox tbox' (pname tbox') z
         toAdd = nK \\ (x' : nJ)
         nL    = nJ \\ nK
         boxL  = subBox nL box
@@ -370,7 +368,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
   | toAdd /= [] =
     let
-      add :: (Name,Dir) -> Val
+      add :: Side -> Val
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
     in traceb "Kan Fill VU Case 1" fill v newBox            -- W.l.o.g. nK subset x:nJ
@@ -440,7 +438,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | x' `elem` nK =              -- assumes x,K subset x',J
       let -- surprisingly close to the last case of the Kan-Com-VU filling
         upperbox = unCompAs (lookBox (x,dir') box) x
-        npintbox@(Box _ _ _ npintaux) =
+        npintbox =
           modBox (\zc downside ->
                    let bottom = lookBox zc box
                        top    = lookBox zc upperbox
@@ -460,7 +458,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
         nplnp  = [((x',dir), nplp `face` (x',dir)) -- deg along z!
                  ,((x', dir'),principal `face` (x',dir))]
                  ++ auxsides (x',dir)
-                 ++ map (\(zc,u) -> (zc,u `face` (x',dir))) npintaux
+                 ++ map (\(zc,u) -> (zc,u `face` (x',dir))) (sides npintbox)
         nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box Down z nplp nplnp))
       in       traceb "Kan Fill VU Case 6"
        VFill z (Box tdir x' principal (nplast:npint))
