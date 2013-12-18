@@ -1,0 +1,29 @@
+module description where
+
+import exists
+import set
+
+exAtOne : (A : U) (B : A -> U) -> exactOne A B -> atmostOne A B
+exAtOne A B = split
+  pair g h' -> h'
+
+propSig : (A : U) (B : A -> U) -> propFam A B -> atmostOne A B ->
+          prop (Sigma A B)
+propSig A B h h' au bv =
+  eqPropFam A B h au bv (h' (fst A B au) (fst A B bv) (snd A B au) (snd A B bv))
+
+descrAx : (A : U) (B : A -> U) -> propFam A B -> exactOne A B -> Sigma A B
+descrAx A B h = split
+  pair g h' -> lemInh (Sigma A B) rem g
+  where rem : prop (Sigma A B)
+        rem = propSig A B h h'
+
+iota : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> A
+iota A B h h' = fst A B (descrAx A B h h')
+
+iotaSound : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> B (iota A B h h')
+iotaSound A B h h' = snd A B (descrAx A B h h')
+
+iotaLem : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) ->
+          (a : A) -> B a -> Id A a (iota A B h h')
+iotaLem A B h h' a p = exAtOne A B h' a (iota A B h h') p (iotaSound A B h h')

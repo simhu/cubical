@@ -49,12 +49,6 @@ equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
             Id U A B
 equivEq = PN
 
-subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
-subst = PN
-
-substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
-substInv = PN
-
 transport : (A B : U) -> Id U A B -> A -> B
 transport = PN
 
@@ -70,3 +64,5 @@ transpEquivEq : (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
                 (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
                 (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
 transpEquivEq = PN
+
+

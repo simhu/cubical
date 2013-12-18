@@ -1,0 +1,34 @@
+module UnotSet where
+
+import BoolEqBool
+
+-- proves that U is not a set
+
+negUIP : neg (set U)
+negUIP uipU = tnotf lem5
+  where
+  eqreflnot : Id (Id U Bool Bool) (refl U Bool) eqBoolBool
+  eqreflnot = uipU Bool Bool (refl U Bool) eqBoolBool
+
+  frefl : Bool -> Bool
+  frefl = transport Bool Bool (refl U Bool)
+
+  fnot : Bool -> Bool
+  fnot = transport Bool Bool eqBoolBool
+
+  lem1 : Id (Bool -> Bool) frefl fnot
+  lem1 = cong (Id U Bool Bool) (Bool -> Bool) (transport Bool Bool) 
+              (refl U Bool) eqBoolBool eqreflnot
+
+  lem2 : Id Bool true (frefl true)
+  lem2 = transportRef Bool true
+
+  lem3 : Id Bool false (fnot true)
+  lem3 = transpEquivEq Bool Bool not sNot tNot true
+
+  lem4 : Id Bool (frefl true) (fnot true)
+  lem4 = cong (Bool -> Bool) Bool (\f -> f true) frefl fnot lem1
+
+  lem5 : Id Bool true false
+  lem5 = compDown Bool true (frefl true) false (fnot true) lem2 lem3 lem4
+

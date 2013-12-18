@@ -1,6 +1,9 @@
 -- miniTT, with recursive definitions
 module MTT where
 
+import Data.Either
+import Data.List
+import Data.Maybe
 import Control.Monad
 import Debug.Trace
 import Control.Monad.Trans.Error hiding (fix,throwError)
@@ -51,7 +54,10 @@ data Exp = Comp Exp Env         -- for closures
          | Sum Prim Lb
          | Undef Prim
          | EPrim Prim [Exp]     -- used for reification
-  deriving (Eq,Show)
+  deriving (Eq)
+
+instance Show Exp where
+ show = showExp
 
 data Env = Empty
          | Pair Env (String,Val)
@@ -107,7 +113,7 @@ getLblType :: String -> Exp -> Typing (Tele, Env)
 getLblType c (Comp (Sum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
-getLblType c u = throwError ("getLblType " ++ c ++ " " ++ show u)
+getLblType c u = throwError ("expected a data type for the constructor " ++ c ++ " but got " ++ show u)
 
 -- Int is for de Bruijn levels
 type LEnv = (Int,Env,Ctxt)
@@ -268,7 +274,6 @@ reifyEnv _ Empty          = []
 reifyEnv k (Pair r (_,u)) = reifyEnv k r ++ [reifyExp k u] -- TODO: inefficient
 reifyEnv k (PDef ts r)    = reifyEnv k r
 
-
 -- Not used since we have U : U
 -- checkTs :: [(String,Exp)] -> Typing ()
 -- checkTs [] = return ()
@@ -283,3 +288,41 @@ reifyEnv k (PDef ts r)    = reifyEnv k r
 --     checkType a
 --     local (addType (x,a)) (checkType b)
 --   _ -> checkInfer t =?= U
+
+-- a show function
+
+showExp :: Exp -> String
+showExp1 :: Exp -> String
+
+showExps :: [Exp] -> String
+showExps [] = ""
+showExps us = " " ++ intercalate " " (map showExp1 us)
+
+showExp1 U = "U"
+showExp1 (Con c []) = c
+showExp1 (Var x) = x
+showExp1 u = "(" ++ showExp u ++ ")"
+
+showEnv :: Env -> String
+showEnv Empty            = ""
+showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ showExp u ++ ")"
+showEnv (PDef xas env)   = showEnv env
+
+showEnv1 Empty            = ""
+showEnv1 (Pair env (x,u)) = showEnv1 env ++ showExp u ++ ", "
+showEnv1 (PDef xas env)   = showEnv env
+
+showExp e = case e of
+ App e0 e1 -> showExp e0 ++ showExp1 e1
+ Pi e0 e1 -> "Pi" ++ showExps [e0,e1]
+ Lam x e -> "\\" ++ x ++ "." ++ showExp e    
+ Def e d -> showExp e ++ " where..."
+ Var x -> x
+ U -> "U"
+ Con c es -> c ++ showExps es
+ Fun (n,str) _ -> str ++ show n
+ Sum (_,str) _ -> str
+ Undef (n,str) -> str ++ show n
+ EPrim (n,str) es -> str ++ show n ++ showExps es
+ Comp e env -> showExp e ++ showEnv env
+ 

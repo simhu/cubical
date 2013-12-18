@@ -1,0 +1,22 @@
+module exists where
+
+import prelude
+
+-- existence: a new modality
+
+exists : (A : U) (B : A -> U) -> U
+exists A B = inh (Sigma A B)
+
+exElim : (A : U) (B : A -> U) (C : U) -> prop C -> (Sigma A B -> C) ->
+         exists A B -> C
+exElim A B C p f = inhrec (Sigma A B) C p f
+
+atmostOne : (A : U) (B : A -> U) -> U
+atmostOne A B = (a b : A) -> B a -> B b -> Id A a b
+
+exactOne : (A : U) (B : A -> U) -> U
+exactOne A B = and (exists A B) (atmostOne A B)
+
+lemInh : (A : U) -> prop A -> inh A -> A
+lemInh A h = inhrec A A h (\x -> x)
+

@@ -1,0 +1,61 @@
+module hedberg where
+
+import set
+
+-- proves that a type with decidable equality is a set
+-- in particular both N and Bool are sets
+
+const : (A : U) (f : A -> A) -> U
+const A f = (x y : A) -> Id A (f x) (f y)
+
+exConst : (A : U) -> U
+exConst A = Sigma (A -> A) (const A)
+
+decConst : (A : U) -> dec A -> exConst A
+decConst A = split
+  inl a -> pair (\x -> a) (\ x y -> refl A a)
+  inr h -> pair (\x -> x) (\ x y -> efq (Id A x y) (h x))
+
+hedbergLemma : (A: U) (f : (a b : A) -> Id A a b -> Id A a b) (a b : A)
+            (p : Id A a b) ->
+            Id (Id A a b) (comp A a a b (f a a (refl A a)) p) (f a b p)
+hedbergLemma A f a = J A a (\ b p -> Id (Id A a b) (comp A a a b (f a a (refl A a)) p) (f a b p)) rem
+  where rem : Id (Id A a a) (comp A a a a (f a a (refl A a)) (refl A a)) (f a a (refl A a))
+        rem = compIdr A a a (f a a (refl A a))
+
+hedberg : (A : U) -> discrete A -> set A
+hedberg A h a b p q = lemSimpl A a a b r p q rem5
+  where
+    rem1 : (x y : A) -> exConst (Id A x y)
+    rem1 x y = decConst (Id A x y) (h x y)
+
+    f : (x y : A) -> Id A x y -> Id A x y
+    f x y = fst (Id A x y -> Id A x y) (const (Id A x y)) (rem1 x y)
+
+    fIsConst : (x y : A) -> const (Id A x y) (f x y)
+    fIsConst x y = snd (Id A x y -> Id A x y) (const (Id A x y)) (rem1 x y)
+
+    r : Id A a a
+    r = f a a (refl A a)
+
+    rem2 : Id (Id A a b) (comp A a a b r p) (f a b p)
+    rem2 = hedbergLemma A f a b p
+
+    rem3 : Id (Id A a b) (comp A a a b r q) (f a b q)
+    rem3 = hedbergLemma A f a b q
+
+    rem4 : Id (Id A a b) (f a b p) (f a b q)
+    rem4 = fIsConst a b p q
+
+    rem5 : Id (Id A a b) (comp A a a b r p) (comp A a a b r q)
+    rem5 = compDown (Id A a b) (comp A a a b r p) (f a b p) (comp A a a b r q) (f a b q) rem2 rem3 rem4
+
+NIsSet : set N
+NIsSet = hedberg N natDec
+
+test3 : Id (Id N zero zero) (refl N zero) (refl N zero)
+test3 = NIsSet zero zero (refl N zero) (refl N zero)
+
+boolIsSet : set Bool
+boolIsSet = hedberg Bool boolDec
+
