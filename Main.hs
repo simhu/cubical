@@ -1,9 +1,6 @@
 module Main where
 
-import Control.Monad.Trans
-import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
-import Control.Monad.Identity
 import Control.Monad.Error
 import Data.List
 import System.Environment
@@ -18,7 +15,8 @@ import Exp.Layout
 import Exp.ErrM
 import AbsToInternal
 import Concrete
-import qualified MTT as A
+import qualified MTT  as A
+import qualified Core as C
 import qualified Eval as E
 
 type Interpreter a = InputT IO a
@@ -94,8 +92,8 @@ runInterpreter fs = case fs of
                       case translate (A.defs rho body) of
                         Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
                                     loop cs tenv
-                        Right t  -> let value = E.eval E.Empty t in
-                          outputStrLn ("EVAL: " ++ E.showVal value) >> loop cs tenv
+                        Right t  -> let value = E.eval C.Empty t in
+                          outputStrLn ("EVAL: " ++ show value) >> loop cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++

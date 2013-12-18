@@ -6,19 +6,16 @@ module Concrete where
 import Exp.Abs
 import qualified MTT as A
 
-import Control.Arrow
+import Control.Arrow (first)
 import Control.Applicative
 import Control.Monad.Trans
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
-import Control.Monad
+import Control.Monad (when)
 import Data.Functor.Identity
-import Data.Function
-import Data.Graph
-import Data.List
-import Data.Maybe
+import Data.List (union)
 
 type Tele = [VDecl]
 

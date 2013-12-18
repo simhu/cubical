@@ -1,11 +1,8 @@
 module Eval where
 
-import Control.Arrow hiding ((<+>),app)
-import Data.Either
+import Control.Arrow (second)
 import Data.List
-import Data.Maybe
--- import Text.PrettyPrint
-
+import Data.Maybe (fromMaybe)
 import Debug.Trace
 
 import Core
@@ -17,135 +14,78 @@ debug = True
 traceb :: String -> a -> a
 traceb s x = if debug then trace s x else x
 
-type Name = Integer
-type Dim  = [Name]
-data Dir  = Up | Down deriving (Eq, Show)
-
-mirror :: Dir -> Dir
-mirror Up   = Down
-mirror Down = Up
-
-gensym :: Dim -> Name
-gensym [] = 0
-gensym xs = maximum xs + 1
-
-gensyms :: Dim -> [Name]
-gensyms d = let x = gensym d in x : gensyms (x : d)
-
-data Box a = Box Dir Name a [((Name,Dir),a)]
-  deriving (Eq,Show)
-
-mapBox :: (a -> b) -> Box a -> Box b
-mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
-
-instance Functor Box where fmap = mapBox
-
-lookBox :: Show a => (Name,Dir) -> Box a -> a
-lookBox (y,dir) (Box d x v _)  | x == y && mirror d == dir = v
-lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
-  Just v  -> v
-  Nothing -> error $ "lookBox: box not defined on " ++ show xd ++ "\nbox = " ++ show box
-
-nonPrincipal :: Box a -> [Name]
-nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
-
-defBox :: Box a -> [(Name, Dir)]
-defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
-
-fromBox :: Box a -> [((Name,Dir),a)]
-fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
-
-modBox :: ((Name,Dir) -> a -> b) -> Box a -> Box b
-modBox f (Box dir x v nvs) =
-  Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
-
--- Restricts the non-principal faces to np.
-subBox :: [Name] -> Box a -> Box a
-subBox np (Box dir x v nvs) = Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
-
-cubeToBox :: Val -> Box () -> Box Val
-cubeToBox v = modBox (\nd _ -> v `face` nd)
-
-shapeOfBox :: Box a -> Box ()
-shapeOfBox = mapBox (const ())
-
--- fst is down, snd is up
-consBox :: (Name,(a,a)) -> Box a -> Box a
-consBox (n,(v0,v1)) (Box dir x v nvs) =
-  Box dir x v $ ((n,Down),v0) : ((n,Up),v1) : nvs
-
-appendBox :: [(Name,(a,a))] -> Box a -> Box a
-appendBox xs b = foldr consBox b xs
-
-appendSides :: [((Name,Dir), a)] -> Box a -> Box a
-appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
-
-data KanType = Fill | Com deriving (Show, Eq)
-
-data Val = VU
-         | Ter Ter Env
-         | VId Val Val Val
-         | Path Name Val             -- tag values which are paths
-         | VExt Name Val Val Val Val -- has dimension (name:dim);
-                                     -- vals of dimension dim
-         | VPi Val Val
-         | VInh Val
-         | VInc Val
-         | VSquash Name Val Val  -- connects the two values along the name
-         | VCon Ident [Val]
-         | Kan KanType Val (Box Val)
-         | VEquivEq Name Val Val Val Val Val -- of type U connecting a and b along x
-         | VEquivSquare Name Name Val Val Val -- names x, y and values a, s, t
-           -- VEquivEq x a b f s t
-         | VPair Name Val Val -- of type VEquivEq
-         | VSquare Name Name Val
-         | VComp (Box Val)    -- a value of type Kan Com VU (Box (type of values))
-         | VFill Name (Box Val) -- a value of type Kan Fill VU (Box
-                                -- (type of values minus name)); the name is bound
-  deriving (Eq)
-
-instance Show Val where
-  show = showVal
-
-fstVal, sndVal :: Val -> Val
-fstVal (VPair _ a _) = a
-fstVal x             = error $ "error fstVal: " ++ show x
-sndVal (VPair _ _ v) = v
-sndVal x             = error $ "error sndVal: " ++ show x
-
--- TODO: Almost the same as in MTT, make it more abstract?
-data Env = Empty
-         | Pair Env (Binder,Val)
-         | PDef [(Binder,Ter)] Env
-  deriving (Eq,Show)
-
-upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
-
-look :: Binder -> Env -> Val
-look x (Pair s (y,u)) | x == y    = u
-                      | otherwise = look x s
-look x r@(PDef es r1)             = look x (upds r1 (evals r es))
-
-ter :: Ter -> Env -> Val
-ter t e = eval e t
-
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals e = map (second (eval e))
 
-mapEnv :: (Val -> Val) -> Env -> Env
-mapEnv _ Empty          = Empty
-mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
-mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
+-- Swap for values
+swap :: Val -> Name -> Name -> Val
+swap u x y =
+  let sw u = swap u x y in case u of
+  VU          -> VU
+  Ter t e     -> Ter t (swapEnv e x y)
+  VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
+  Path z v | z /= x && z /= y    -> Path z (sw v)
+           | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
+                              v' = swap v z z'
+                          in Path z' (sw v')
+  VExt z b f g p  -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
+  VPi a f         -> VPi (sw a) (sw f)
+  VInh v          -> VInh (sw v)
+  VInc v          -> VInc (sw v)
+  VSquash z v0 v1 -> VSquash (swapName z x y) (sw v0) (sw v1)
+  VCon c us       -> VCon c (map sw us)
+  VEquivEq z a b f s t ->
+    VEquivEq (swapName z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
+  VPair z a v  -> VPair (swapName z x y) (sw a) (sw v)
+  VEquivSquare z w a s t ->
+    VEquivSquare (swapName z x y) (swapName w x y) (sw a) (sw s) (sw t)
+  VSquare z w v -> VSquare (swapName z x y) (swapName w x y) (sw v)
+  Kan Fill a b  -> fill (sw a) (swapBox b x y)
+  Kan Com a b@(Box _ z _ _)
+    | z /= x && z /= y -> com (sw a) (swapBox b x y)
+    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+                       a' = swap a z z'
+                   in sw (Kan Com a' (swapBox b z z'))
+  VComp b@(Box _ z _ _)
+    | z /= x && z /= y -> VComp (swapBox b x y)
+    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+                   in sw (VComp (swapBox b z z'))
+  VFill z b@(Box dir n _ _)
+    | z /= x && z /= x -> VFill z (swapBox b x y)
+    | otherwise        -> let
+      z' = gensym ([x] `union` [y] `union` supportBox b)
+      in sw (VFill z' (swapBox b z z'))
 
-faceEnv :: Env -> (Name,Dir) -> Env
-faceEnv e xd = mapEnv (`face` xd) e
+-- Swap for boxes
+swapBox :: Box Val -> Name -> Name -> Box Val
+swapBox (Box dir z v nvs) x y =
+  let sw u = swap u x y
+  in Box dir (swapName z x y) (sw v)
+         [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ]
 
+-- Swap for environments
+swapEnv :: Env -> Name -> Name -> Env
+swapEnv e x y = mapEnv (\u -> swap u x y) e
+
+unCompAs :: Val -> Name -> Box Val
+unCompAs (VComp box@(Box _ x _ _)) y = swapBox box x y
+unCompAs v                         _ =
+  error $ "unCompAs: " ++ show v ++ " is not a VComp"
+
+unFillAs :: Val -> Name -> Box Val
+unFillAs (VFill x box) y = swapBox box x y
+unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
+
+appName :: Val -> Name -> Val
+appName (Path x u) y = swap u x y
+appName v _          = error $ "appName: " ++ show v ++ " should be a path"
+
+-- Compute the face of a value
 face :: Val -> (Name,Dir) -> Val
 face u xdir@(x,dir) =
   let fc v = v `face` (x,dir) in case u of
   VU          -> VU
-  Ter t e     -> ter t (e `faceEnv` xdir)
+  Ter t e     -> eval (e `faceEnv` xdir) t
   VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
   Path y v | x == y    -> u
            | otherwise -> Path y (fc v)
@@ -202,104 +142,19 @@ idV = Ter (Lam "x" (Var "x")) Empty
 idVPair :: Name -> Val -> Val
 idVPair x v = VPair x (v `face` (x,Down)) v
 
-unions :: Eq a => [[a]] -> [a]
-unions = foldr union []
+-- Compute the face of an environment
+faceEnv :: Env -> (Name,Dir) -> Env
+faceEnv e xd = mapEnv (`face` xd) e
 
-unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
-unionsMap f = unions . map f
+-- TODO: Define the face of a box!
 
--- test that names only occur once in support
-support :: Val -> [Name]
-support VU                = []
-support (Ter _ e)         = supportEnv e
-support (VId a v0 v1)     = unionsMap support [a,v0,v1]
-support (Path x v)        = delete x $ support v
-support (VInh v)          = support v
-support (VInc v)          = support v
-support (VPi v1 v2)       = unionsMap support [v1,v2]
-support (VCon _ vs)       = unionsMap support vs
-support (VSquash x v0 v1) = [x] `union` unionsMap support [v0,v1]
-support (VExt x b f g p)  = [x] `union` unionsMap support [b,f,g,p]
-support (Kan Fill a box)  = support a `union` supportBox box
-support (Kan Com a box@(Box _ n _ _)) =
-  delete n (support a `union` supportBox box)
-support (VEquivEq x a b f s t)    = [x] `union` unionsMap support [a,b,f,s,t]
-support (VPair x a v)             = [x] `union` unionsMap support [a,v]
-support (VComp box@(Box _ n _ _)) = delete n $ supportBox box
-support (VFill x box)             = delete x $ supportBox box
+look :: Binder -> Env -> Val
+look x (Pair s (y,u)) | x == y    = u
+                      | otherwise = look x s
+look x r@(PDef es r1)             = look x (upds r1 (evals r es))
 
-supportBox :: Box Val -> [Name]
-supportBox (Box dir n v vns) = [n] `union` support v `union`
-  unions [ [y] `union` support v | ((y,dir'),v) <- vns ]
-
-supportEnv :: Env -> [Name]
-supportEnv Empty      = []
-supportEnv (Pair e (_,v)) = supportEnv e `union` support v
-supportEnv (PDef _ e) = supportEnv e
-
--- TODO: Typeclass for freshness!
-fresh :: Val -> Name
-fresh = gensym . support
-
-freshEnv :: Env -> Name
-freshEnv = gensym . supportEnv
-
-swapName :: Name -> Name -> Name -> Name
-swapName z x y | z == x    = y
-               | z == y    = x
-               | otherwise = z
-
-swapEnv :: Env -> Name -> Name -> Env
-swapEnv e x y = mapEnv (\u -> swap u x y) e
-
-swapBox :: Box Val -> Name -> Name -> Box Val
-swapBox (Box dir z v nvs) x y =
-  let sw u = swap u x y
-  in Box dir (swapName z x y) (sw v)
-         [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ]
-
-swap :: Val -> Name -> Name -> Val
-swap u x y =
-  let sw u = swap u x y in case u of
-  VU          -> VU
-  Ter t e     -> Ter t (swapEnv e x y)
-  VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
-  Path z v | z /= x && z /= y    -> Path z (sw v)
-           | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
-                              v' = swap v z z'
-                          in Path z' (sw v')
-  VExt z b f g p  -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
-  VPi a f         -> VPi (sw a) (sw f)
-  VInh v          -> VInh (sw v)
-  VInc v          -> VInc (sw v)
-  VSquash z v0 v1 -> VSquash (swapName z x y) (sw v0) (sw v1)
-  VCon c us       -> VCon c (map sw us)
-  VEquivEq z a b f s t ->
-    VEquivEq (swapName z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
-  VPair z a v  -> VPair (swapName z x y) (sw a) (sw v)
-  VEquivSquare z w a s t ->
-    VEquivSquare (swapName z x y) (swapName w x y) (sw a) (sw s) (sw t)
-  VSquare z w v -> VSquare (swapName z x y) (swapName w x y) (sw v)
-  Kan Fill a b  -> fill (sw a) (swapBox b x y)
-  Kan Com a b@(Box _ z _ _)
-    | z /= x && z /= y -> com (sw a) (swapBox b x y)
-    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
-                       a' = swap a z z'
-                   in sw (Kan Com a' (swapBox b z z'))
-  VComp b@(Box _ z _ _)
-    | z /= x && z /= y -> VComp (swapBox b x y)
-    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
-                   in sw (VComp (swapBox b z z'))
-  VFill z b@(Box dir n _ _)
-    | z /= x && z /= x -> VFill z (swapBox b x y)
-    | otherwise        -> let
-      z' = gensym ([x] `union` [y] `union` supportBox b)
-      in sw (VFill z' (swapBox b z z'))
-
-
-appName :: Val -> Name -> Val
-appName (Path x u) y = swap u x y
-appName v _          = error $ "appName: should be a path: " ++ show v
+cubeToBox :: Val -> Box () -> Box Val
+cubeToBox v = modBox (\nd _ -> v `face` nd)
 
 eval :: Env -> Ter -> Val
 eval _ U             = VU
@@ -383,33 +238,6 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
-unCon :: Val -> [Val]
-unCon (VCon _ vs) = vs
-unCon v           = error $ "unCon: not a constructor: " ++ show v
-
-unCompAs :: Val -> Name -> Box Val
-unCompAs (VComp box@(Box _ x _ _)) y = swapBox box x y
-unCompAs v _ = error $ "unCompAs: not a VComp: " ++ show v
-
-unFillAs :: Val -> Name -> Box Val
-unFillAs (VFill x box) y = swapBox box x y
-unFillAs v             _ = error $ "unFillAs: not a VFill: " ++ show v
-
-unSquare :: Val -> Val
-unSquare (VSquare _ _ v) = v
-unSquare v               = error $ "unSquare bad input: " ++ show v
-
-sndPair :: Val -> Val
-sndPair (VPair _ _ v) = v
-sndPair v             = error $ "sndPair bad input: " ++ show v
-
--- TODO: Clean.
-transposeBox :: Box [Val] -> [Box Val]
-transposeBox b@(Box dir _ [] _)      = []
-transposeBox (Box dir x (v:vs) nvss) =
-  Box dir x v [ (nnd,head vs) | (nnd,vs) <- nvss ] :
-  transposeBox (Box dir x vs [ (nnd,tail vs) | (nnd,vs) <- nvss ])
-
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
@@ -430,7 +258,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
 
         unPack :: (Name,Dir) -> Val -> Val
         unPack (z,c) v | z /= x && z /= y  = unSquare v
-                       | z == y && c == Up = sndPair v
+                       | z == y && c == Up = sndVal v
                        | otherwise         = v
 
 -- a and b should be independent of x
@@ -652,12 +480,8 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
 fill v b = Kan Fill v b
 
-allDirs :: [Name] -> [(Name,Dir)]
-allDirs []     = []
-allDirs (n:ns) = (n,Down) : (n,Up) : allDirs ns
-
 fills :: [(Binder,Ter)] -> Env -> [Box Val] -> [Val]
-fills [] _ []              = []
+fills []         _ []          = []
 fills ((x,a):as) e (box:boxes) = v : fills as (Pair e (x,v)) boxes
   where v = fill (eval e a) box
 fills _ _ _ = error "fills: different lengths of types and values"
@@ -706,71 +530,3 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
 app r s = error $ "app"  ++ show r ++ show s
-
-
--- Pretty printing combinators. Use the same names as in pretty library.
-(<+>) :: String -> String -> String
-[] <+> y  = y
-x  <+> [] = x
-x  <+> y  = x ++ " " ++ y
-
-infixl 6 <+>
-
-hcat :: [String] -> String
-hcat []     = []
-hcat [x]    = x
-hcat (x:xs) = x <+> hcat xs
-
-parens :: String -> String
-parens p = "(" ++ p ++ ")"
-
--- Angled brackets, not present in pretty library.
-abrack :: String -> String
-abrack p = "<" ++ p ++ ">"
-
-showVal :: Val -> String
-showVal VU               = "U"
-showVal (Ter t env)      = showTer t <+> showEnv env
-showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
-showVal (Path n u)       = abrack (show n) <+> showVal u
-showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
-showVal (VCon c us)      = c <+> showVals us
-showVal (VPi a f)        = "Pi" <+> showVals [a,f]
-showVal (VInh u)         = "inh" <+> showVal1 u
-showVal (VInc u)         = "inc" <+> showVal1 u
-showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
-showVal (Kan typ v box)  = "Kan" <+> show typ <+> showVal1 v <+> showBox box
-showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
-showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
-showVal (VComp box)      = "vcomp" <+> showBox box
-showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
-showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
-showVal (VEquivSquare x y a s t) =
-  "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
-
-showVals :: [Val] -> String
-showVals = hcat . map showVal1
-
-showBox :: Show a => Box a -> String
-showBox = parens . show
-
-showVal1 :: Val -> String
-showVal1 VU          = "U"
-showVal1 (VCon c []) = c
-showVal1 u           = parens $ showVal u
-
-showTer :: Ter -> String
-showTer (LSum (_,str) _)   = str
-showTer (Branch (n,str) _) = str ++ show n
-showTer (Undef (n,str))    = str ++ show n
-showTer t                  = show t
-
-showEnv :: Env -> String
-showEnv Empty            = ""
-showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ showVal u
-showEnv (PDef xas env)   = showEnv env
-
-showEnv1 :: Env -> String
-showEnv1 Empty            = ""
-showEnv1 (Pair env (x,u)) = showEnv1 env ++ showVal u ++ ", "
-showEnv1 (PDef xas env)   = showEnv env
