@@ -1,9 +1,11 @@
 module Eval where
 
-import Control.Arrow hiding (app)
+import Control.Arrow hiding ((<+>),app)
 import Data.Either
 import Data.List
 import Data.Maybe
+-- import Text.PrettyPrint
+
 import Debug.Trace
 
 import Core
@@ -706,49 +708,69 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
 app r s = error $ "app"  ++ show r ++ show s
 
 
--- TODO: Use pretty library
+-- Pretty printing combinators. Use the same names as in pretty library.
+(<+>) :: String -> String -> String
+[] <+> y  = y
+x  <+> [] = x
+x  <+> y  = x ++ " " ++ y
+
+infixl 6 <+>
+
+hcat :: [String] -> String
+hcat []     = []
+hcat [x]    = x
+hcat (x:xs) = x <+> hcat xs
+
+parens :: String -> String
+parens p = "(" ++ p ++ ")"
+
+-- Angled brackets, not present in pretty library.
+abrack :: String -> String
+abrack p = "<" ++ p ++ ">"
+
 showVal :: Val -> String
-showVal VU = "U"
-showVal (Ter t env) = showTer t ++ showEnv env
-showVal (VId a u v) = "Id " ++ showVal1 a ++ " " ++ showVal1 u ++ " " ++ showVal1 v
-showVal (Path n u)  = "<" ++ show n ++ "> " ++ showVal u
-showVal (VExt n b f g p) = "funExt " ++ show n ++ showVals [b,f,g,p]
-showVal (VCon c us) = c ++ showVals us
-showVal (VPi a f)   = "Pi" ++ showVals [a,f]
-showVal (VInh u)    = "inh " ++ showVal1 u
-showVal (VInc u)    = "inc " ++ showVal1 u
-showVal (VSquash n u v) = "squash " ++ show n ++ showVals [u,v]
-showVal (Kan typ v box) = "Kan " ++ show typ ++ " " ++ showVal1 v ++ " " ++ showBox box
-showVal (VEquivEq n a b f s t)   = "equivEq " ++ show n ++ showVals [a,b,f,s,t]
-showVal (VEquivSquare x y a s t) = "equivSquare " ++ show x ++ " " ++ show y ++ showVals [a,s,t]
-showVal (VPair n u v)   = "vpair " ++ show n ++ showVals [u,v]
-showVal (VSquare x y u) = "vsquare " ++ show x ++ " " ++ show y ++ showVal1 u
-showVal (VComp box)     = "vcomp " ++ showBox box
-showVal (VFill n box)   = "vfill " ++ show n ++ " " ++ showBox box
+showVal VU               = "U"
+showVal (Ter t env)      = showTer t <+> showEnv env
+showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
+showVal (Path n u)       = abrack (show n) <+> showVal u
+showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VCon c us)      = c <+> showVals us
+showVal (VPi a f)        = "Pi" <+> showVals [a,f]
+showVal (VInh u)         = "inh" <+> showVal1 u
+showVal (VInc u)         = "inc" <+> showVal1 u
+showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
+showVal (Kan typ v box)  = "Kan" <+> show typ <+> showVal1 v <+> showBox box
+showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
+showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
+showVal (VComp box)      = "vcomp" <+> showBox box
+showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
+showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
+showVal (VEquivSquare x y a s t) =
+  "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 
 showVals :: [Val] -> String
-showVals [] = ""
-showVals us = ' ' : unwords (map showVal1 us)
+showVals = hcat . map showVal1
 
-showBox :: Box Val -> String
-showBox box = "(" ++ show box ++ ")"
+showBox :: Show a => Box a -> String
+showBox = parens . show
 
 showVal1 :: Val -> String
 showVal1 VU          = "U"
 showVal1 (VCon c []) = c
-showVal1 u           = "(" ++ showVal u ++ ")"
+showVal1 u           = parens $ showVal u
 
 showTer :: Ter -> String
 showTer (LSum (_,str) _)   = str
 showTer (Branch (n,str) _) = str ++ show n
 showTer (Undef (n,str))    = str ++ show n
-showTer t = show t
+showTer t                  = show t
 
 showEnv :: Env -> String
 showEnv Empty            = ""
-showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ showVal u ++ ")"
+showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ showVal u
 showEnv (PDef xas env)   = showEnv env
 
+showEnv1 :: Env -> String
 showEnv1 Empty            = ""
 showEnv1 (Pair env (x,u)) = showEnv1 env ++ showVal u ++ ", "
 showEnv1 (PDef xas env)   = showEnv env
