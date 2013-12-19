@@ -1,7 +1,7 @@
 CUBICAL
 =======
 
-Cubical implements an experimental simple type checker for type theory
+Cubical implements an experimental simple type-checker for type theory
 with univalence with an evaluator for closed terms.
 
 
@@ -11,12 +11,13 @@ INSTALL
 To install cubical a working Haskell and cabal installation are
 required.  To build cubical go to the main directory and do
 
+  cabal install
+
+To only build cubical do
+
   cabal configure
   cabal build
 
-To install the executable type
-
-  cabal install
 
 
 USAGE
@@ -27,6 +28,8 @@ To run cubical type
   cubical <filename>
 
 In the interaction loop type :h to get a list of available commands.
+Note that the current directory will be taken as the search path for
+the imports.
 
 
 OVERVIEW
