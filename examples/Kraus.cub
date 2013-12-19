@@ -39,7 +39,7 @@ lem1SwZero x neqzx = idemIsEquiv N (swZero x) (idemSwapDisc N natDec zero x neqz
 -- we deduce that (N,x) is equal to (N,0) for any x in N
 
 homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
-homogeneous x = undefined 
+homogeneous x = orElim (Id N zero x) (neg (Id N zero x)) (G x) rem1 rem (natDec zero x)
  where
    G : N -> U
    G y = Id ptU (pair N y) (pair N zero)
