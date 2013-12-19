@@ -1,0 +1,157 @@
+module contr where
+
+import gradlemma
+
+-- a product of contractibles is contractible
+
+contr : U -> U
+contr A = Id U Unit A
+
+contrIsProp : (A:U) -> contr A -> prop A
+contrIsProp A cA = subst U prop Unit A cA propUnit
+
+propContr : (A : U) -> A -> prop A -> contr A
+propContr A a pA = propExt Unit A propUnit pA (\_ -> a) (\_ -> tt)
+
+-- a singleton is a proposition
+
+singlIsProp : (A:U) (a:A) -> prop (singl A a)
+singlIsProp A a v0 v1 =
+ comp (singl A a) v0 (sId A a) v1 (inv (singl A a) (sId A a) v0 (tId A a v0)) (tId A a v1)
+
+-- another definition of contr
+
+contr' : U -> U
+contr' A = Sigma A (\ a -> (x:A) -> Id A a x)
+
+-- this implies the other definition
+
+isContr : (A:U) -> contr' A -> contr A
+isContr A = split
+             pair a f -> rem a f
+               where 
+                  rem : (a:A) -> ((x:A) -> Id A a x) -> contr A
+                  rem a f = propContr A a (\ a0 a1 -> compInv A a a0 a1 (f a0) (f a1))
+
+isContrProd : (A:U) (B:A->U) -> ((x:A) -> contr (B x)) -> contr (Pi A B)
+isContrProd A B pB = subst U contr (A->Unit) (Pi A B) rem1 rem2
+ where
+   rem : Id (A -> U) (\ _ -> Unit) B
+   rem = funExt A (\ _ -> U) (\ _ -> Unit) B pB
+
+   rem1 : Id U (A -> Unit) (Pi A B)
+   rem1 = cong (A -> U) U (Pi A)  (\ _ -> Unit) B rem
+
+   f : Unit -> A -> Unit
+   f z a = tt
+
+   g : (A -> Unit) -> Unit
+   g _ = tt
+
+   sfg : (z : A -> Unit) -> Id (A -> Unit) (f (g z)) z
+   sfg z = funExt A (\ _ -> Unit) (f (g z)) z (\ x -> propUnit (f (g z) x) (z x))
+
+   rfg : (z:Unit) -> Id Unit (g (f z)) z
+   rfg z = propUnit (g (f z)) z
+
+   rem2 : Id U Unit (A -> Unit)
+   rem2 = isoId Unit (A -> Unit) f g sfg rfg
+
+-- a sigma of props over a prop is a prop
+
+sigIsProp : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop A -> prop (Sigma A B)
+sigIsProp A B pB pA =
+ split
+  pair a0 b0 -> split
+                 pair a1 b1 -> eqSigma A B a0 a1 (pA a0 a1) b0 b1 (pB a1 (subst A B a0 a1 (pA a0 a1) b0) b1)
+
+contr'IsProp : (A : U) -> prop (contr' A)
+contr'IsProp A = lemProp1 (contr' A) rem
+ where rem : contr' A -> prop (contr' A)
+       rem = split
+              pair a p -> sigIsProp A (\ a0 -> (x:A) -> Id A a0 x) rem3 rem1 
+                where
+                 rem1 : prop A
+                 rem1 a0 a1 = compInv A a a0 a1 (p a0) (p a1)
+
+                 rem2 : (a0 a1:A) -> prop (Id A a0 a1)
+                 rem2 = propUIP A rem1
+
+                 rem3 : (a0:A) -> prop ((x:A) -> Id A a0 x)
+                 rem3 a0 = isPropProd A (Id A a0) (rem2 a0) 
+
+-- Voevodsky's definition of propositions
+
+propIsContr : (A:U) -> prop A -> (a0 a1:A) -> contr (Id A a0 a1)
+propIsContr A pA a0 a1 = propContr (Id A a0 a1) (pA a0 a1) (propUIP A pA a0 a1)
+
+-- if A is contractible and a:A then Sigma A P is equal to P a
+
+hasContrSig : U -> U
+hasContrSig A =  (P : A -> U) -> (x: A) -> Id U (Sigma A P) (P x)
+
+lemUnitSig : hasContrSig Unit
+lemUnitSig P = 
+ split
+  tt -> isoId T F f g rfg sfg
+   where 
+    T : U
+    T = Sigma Unit P
+
+    F : U
+    F = P tt
+
+    f : T -> F
+    f = split
+         pair x u -> rem x u
+          where rem : (x:Unit) -> P x -> P tt
+                rem = split
+                       tt -> \ u -> u
+
+    g : F -> T
+    g u = pair tt u
+
+    rfg : (v:F) -> Id F (f (g v)) v
+    rfg v = refl F v
+
+    sfg : (v:T) -> Id T (g (f v)) v
+    sfg = split
+           pair x u -> rem x u
+            where rem : (x:Unit) -> (u : P x) -> Id T (g (f (pair x u))) (pair x u)
+                  rem = split
+                         tt -> \ u -> refl T (pair tt u)
+
+lemContrSig : (A:U) -> contr A -> hasContrSig A
+lemContrSig A p = subst U hasContrSig Unit A p lemUnitSig
+
+singContr : (A:U) (a:A) -> contr (singl A a)
+singContr A a = isContr T (pair (pair a (refl A a)) f)
+ where T : U 
+       T = singl A a 
+ 
+       f : (z:T) -> Id T (pair a (refl A a)) z
+       f = split
+            pair b p -> rem b a p
+             where 
+               rem : (b:A) (a:A) (p:Id A b a) -> Id (singl A a) (pair a (refl A a)) (pair b p)
+               rem b = J A b (\ a p ->  Id (singl A a) (pair a (refl A a)) (pair b p)) (refl (singl A b) (pair b (refl A b)))
+ 
+
+-- any function between two contractible types is an equivalence
+
+equivUnit : (f : Unit -> Unit) -> isEquiv Unit Unit f
+equivUnit f = subst (Unit -> Unit) (isEquiv Unit Unit) (id Unit) f rem (idIsEquiv Unit)
+ where
+  rem : Id (Unit->Unit) (id Unit) f
+  rem = funExt Unit (\ _ -> Unit)  (id Unit) f (\ x -> propUnit x (f x))
+
+-- an elimination principle for Contr
+
+elimContr : (P : U -> U) -> P Unit -> (A : U) -> contr A -> P A
+elimContr P d A cA = subst U P Unit A cA d
+
+equivContr : (A : U) -> contr A -> (B : U) -> contr B -> (f : A -> B) -> isEquiv A B f
+equivContr = elimContr (\ A ->  (B : U) -> contr B -> (f : A -> B) -> isEquiv A B f) rem
+ where rem :  (B : U) -> contr B -> (f : Unit -> B) -> isEquiv Unit B f
+       rem = elimContr (\ X ->  (f : Unit -> X) -> isEquiv Unit X f) equivUnit
+

@@ -1,0 +1,75 @@
+-- the notion of surjection functions
+
+module epi where
+
+import omega
+
+-- surjective and epi maps
+
+isEpi : (A B: U) -> (A -> B) -> U
+isEpi A B f = (X:U) -> set X -> (g h:B->X) -> Id (A->X) (\ a -> g (f a)) (\ a -> h (f a)) -> Id (B->X) g h
+
+isSurj : (A B:U) -> (A->B) -> U
+isSurj A B f = (y:B) -> exist A (\ x -> Id B (f x) y)
+
+-- these properties should be equivalent
+
+surjIsEpi : (A B : U) (f : A -> B) -> isSurj A B f -> isEpi A B f
+surjIsEpi A B f sf X sX g h egh = funExt B (\ _ -> X) g h rem
+ where
+  rem : (y:B) -> Id X (g y) (h y)
+  rem y = rem6
+    where
+     G : U
+     G = Id X (g y) (h y)
+
+     rem1 : prop G
+     rem1 = sX (g y) (h y)
+
+     rem2 : exist A (\ x -> Id B (f x) y)
+     rem2 = sf y
+
+     rem4 : (x:A) -> Id X (g (f x)) (h (f x))
+     rem4 a = appId A X a (\ x -> g (f x)) (\ x -> h (f x)) egh
+
+     rem3 : (x:A) -> Id B (f x) y -> G
+     rem3 x p = subst B (\ z -> Id X (g z) (h z)) (f x) y p (rem4 x)
+
+     rem5 : (Sigma A (\ x -> Id B (f x) y)) -> G
+     rem5 = split
+             pair x p -> rem3 x p
+
+     rem6 : G
+     rem6 = exElim A (\ x -> Id B (f x) y) G rem1 rem5 rem2
+
+-- the converse is interesting
+
+epiIsSurj : (A B : U) (f : A -> B) -> isEpi A B f -> isSurj A B f
+epiIsSurj A B f ef = rem6
+ where 
+   rem : (g h : B -> Omega) -> Id (A -> Omega) (\ x -> g (f x)) (\ x -> h (f x)) -> Id (B -> Omega) g h
+   rem = ef Omega omegaIsSet
+
+   g : B -> Omega
+   g y = pair Unit propUnit
+
+   h : B -> Omega
+   h y = pair (exist A (\ x -> Id B (f x) y)) (squash (Sigma A (\ x -> Id B (f x) y)))
+
+   rem1 : (x:A) -> isTrue (h (f x))
+   rem1 x = inc (Sigma A (\ z -> Id B (f z) (f x))) (pair x (refl B (f x)))
+
+   rem2 : (x:A) -> Id Omega (g (f x)) (h (f x))
+   rem2 x = lemIsTrue (g (f x)) (h (f x)) (\ _ -> rem1 x) (\ _ -> tt)
+
+   rem3 : Id (A -> Omega) (\ x -> g (f x)) (\ x -> h (f x))
+   rem3 = funExt A (\ _ -> Omega)  (\ x -> g (f x)) (\ x -> h (f x)) rem2
+
+   rem4 : Id (B -> Omega) g h 
+   rem4 = rem g h rem3
+
+   rem5 : (y:B) -> Id Omega (g y) (h y)
+   rem5 y = appId B Omega y g h rem4
+
+   rem6 : (y:B) -> isTrue (h y)
+   rem6 y = subst Omega isTrue (g y) (h y) (rem5 y) tt

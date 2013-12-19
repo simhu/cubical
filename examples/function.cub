@@ -1,0 +1,79 @@
+module function where
+
+import lemId
+
+-- some general facts about functions
+
+-- g is a section of f 
+section : (A B : U) (f : A -> B) (g : B -> A) -> U
+section A B f g = (b : B) -> Id B (f (g b)) b
+
+injective : (A B : U) (f : A -> B) -> U
+injective A B f = (a0 a1 : A) -> Id B (f a0) (f a1) -> Id A a0 a1
+
+retract : (A B : U) (f : A -> B) (g : B -> A) -> U
+retract A B f g = section B A g f
+
+retractInj : (A B : U) (f : A -> B) (g : B -> A) -> 
+             retract A B f g -> injective A B f
+retractInj A B f g h a0 a1 h' = compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
+  where
+  rem1 : Id A (g (f a0)) a0
+  rem1 = h a0
+
+  rem2 : Id A (g (f a1)) a1
+  rem2 = h a1
+
+  rem3 : Id A (g (f a0)) (g (f a1))
+  rem3 = cong B A g (f a0) (f a1) h'
+
+
+
+hasSection : (A B : U) -> (A -> B) -> U
+hasSection A B f = Sigma (B->A) (section A B f) 
+
+-- an equivalence has a section
+
+equivSec : (A B :U) -> (f:A->B) -> isEquiv A B f -> hasSection A B f
+equivSec A B f = 
+ split 
+  pair s t -> pair g rem
+    where g : B -> A
+          g y = fst A (\ x -> Id B (f x) y) (s y)
+
+          rem : (y:B) -> Id B (f (g y)) y
+          rem y = snd A (\ x -> Id B (f x) y) (s y)
+
+allSection : (A B : U) (f:A->B) -> hasSection A B f -> (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
+allSection A B f =
+ split
+  pair g sfg -> rem 
+     where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
+           rem Q h y = rem2
+                  where rem1 : Q (f (g y))
+                        rem1 = h (g y)
+
+                        rem2 : Q y
+                        rem2 = subst B Q (f (g y)) y (sfg y) rem1
+
+
+isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> 
+                 ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
+isEquivSection A B f g sfg h = pair s t
+  where
+  s : (y : B) -> fiber A B f y
+  s y = pair (g y) (sfg y)
+
+  t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
+  t y v = h y (s y) v
+
+injProp : (A B : U) (f : A -> B) -> injective A B f -> prop B -> prop A
+injProp A B f injf pB a0 a1 = injf a0 a1 (pB (f a0) (f a1))
+
+injId : (X : U) -> injective X X (id X)
+injId X a0 a1 h = h
+
+
+idempotent : (A:U) -> (A->A) -> U
+idempotent A f = section A A f f 
+

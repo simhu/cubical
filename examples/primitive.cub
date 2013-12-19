@@ -1,0 +1,68 @@
+module primitive where
+
+Id   : (A : U) (a b : A) -> U
+Id = PN
+
+refl : (A : U) (a : A) -> Id A a a
+refl = PN
+funExt : (A : U) (B : (a : A) -> U) (f g : (a : A) -> B a)
+         (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
+funExt = PN
+
+J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
+      (x : A) -> (p : Id A a x) -> C x p
+J = PN
+
+Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
+        Id (C a (refl A a)) d (J A a C d a (refl A a))
+Jeq = PN
+
+inh : U -> U
+inh = PN
+
+inc : (A : U) -> A -> inh A
+inc = PN
+
+prop : U -> U
+prop A = (a b : A) -> Id A a b
+
+squash : (A : U) -> prop (inh A)
+squash = PN
+
+inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+inhrec = PN
+
+Sigma : (A : U) (B : A -> U) -> U
+data Sigma A B = pair (x : A) (y : B x)
+
+fiber : (A B : U) (f : A -> B) (y : B) -> U
+fiber A B f y = Sigma A (\x -> Id B (f x) y)
+
+id : (A : U) -> A -> A
+id A a = a
+
+pathTo : (A:U) -> A -> U
+pathTo A = fiber A A (id A)
+
+equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
+            (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+            Id U A B
+equivEq = PN
+
+transport : (A B : U) -> Id U A B -> A -> B
+transport = PN
+
+transportRef : (A : U) -> (a : A) -> Id A a (transport A A (refl U A) a)
+transportRef = PN
+
+equivEqRef : (A : U) -> (s : (y : A) -> pathTo A y) -> 
+             (t : (y : A) -> (v : pathTo A y) -> Id (pathTo A y) (s y) v) ->
+             Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
+equivEqRef = PN	       
+
+transpEquivEq : (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) -> 
+                (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+                (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
+transpEquivEq = PN
+
+

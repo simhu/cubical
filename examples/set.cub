@@ -1,0 +1,54 @@
+module set where
+
+import lemId
+
+UIP : U -> U
+UIP A = (a b : A) -> prop (Id A a b)
+
+set : U -> U
+set = UIP
+
+lem1 : (A :U) -> (a:A) -> (h : (x:A) -> Id A a x) ->
+       (x y : A) -> (p : Id A x y) -> Id (Id A a y) (comp A a x y (h x) p) (h y)
+lem1 A a h x =
+  J A x (\ y p -> Id (Id A a y) (comp A a x y (h x) p) (h y)) rem
+ where
+   rem : Id (Id A a x) (comp A a x x (h x) (refl A x)) (h x)
+   rem = compIdr A a x (h x)
+
+lem2 : (A :U) -> (a:A) -> ((x:A) -> Id A a x) -> UIP A
+lem2 A a h x y p q =
+ lemSimpl A a x y (h x) p q rem
+   where
+     remp : Id (Id A a y) (comp A a x y (h x) p) (h y)
+     remp = lem1 A a h x y p
+     remq : Id (Id A a y) (comp A a x y (h x) q) (h y)
+     remq = lem1 A a h x y q
+     rem : Id (Id A a y) (comp A a x y (h x) p) (comp A a x y (h x) q)
+     rem = compDown (Id A a y) (comp A a x y (h x) p) (h y) (comp A a x y (h x) q) (h y)
+               remp remq (refl (Id A a y) (h y))
+
+propUIP : (A:U) -> prop A -> UIP A
+propUIP A h a = lem2 A a (h a) a
+
+propIsProp : (A : U) -> prop (prop A)
+propIsProp A = lemProp1 (prop A) rem
+  where
+   rem : prop A -> prop (prop A)
+   rem pA = rem3 
+    where
+      rem1 : UIP A
+      rem1 = propUIP A pA
+
+      rem2 : (a0:A) -> (f g : Pi A (Id A a0)) -> Id (Pi A (Id A a0)) f g
+      rem2 a0 f g = funExt A (\ a1 -> Id A a0 a1) f g (\ a1 -> rem1 a0 a1 (f a1) (g a1))
+
+      rem3 : (f g : (a0 a1 :A) -> Id A a0 a1) -> Id ((a0 a1:A) -> Id A a0 a1) f g
+      rem3 f g = funExt A (\ a0 -> (Pi A (Id A a0))) f g (\ a0 -> rem2 a0 (f a0) (g a0))
+
+lemunit : set Unit
+lemunit = propUIP Unit propUnit
+
+test2 : Id (Id Unit tt tt) (refl Unit tt) (refl Unit tt)
+test2 = lemunit tt tt (refl Unit tt) (refl Unit tt)
+

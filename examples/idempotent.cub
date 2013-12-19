@@ -1,0 +1,74 @@
+module idempotent where
+
+import gradLemma
+
+-- any idempotent function defines an equality 
+
+idemIsEquiv : (A:U) -> (f : A -> A) -> idempotent A f -> isEquiv A A f
+idemIsEquiv A f if = gradLemma A A f f if if
+
+idemEq : (A:U) -> (f : A -> A) -> idempotent A f -> Id U A A
+idemEq A f if = isEquivEq A A f (idemIsEquiv A f if)
+
+remIdFunEq : (A:U) -> (f:A -> A) -> (x:A) -> Id A x (f x) -> Id A x (f (f x))
+remIdFunEq A f x p = subst A (\ y -> Id A x (f y)) x (f x) p p
+
+invInvEq : (A:U) -> (a b :A) -> (p : Id A a b) -> Id (Id A a b) p (inv A b a (inv A a b p))
+invInvEq A a = J A a (\ b p -> Id (Id A a b) p (inv A b a (inv A a b p))) rem
+ where rem : Id (Id A a a) (refl A a) (inv A a a (inv A a a (refl A a)))
+       rem = remIdFunEq (Id A a a) (inv A a a) (refl A a) (invRefl A a)
+
+idemInv : (A:U) -> (a:A) -> idempotent (Id A a a) (inv A a a)
+idemInv A a = rem 
+ where 
+      T : U
+      T = Id A a a
+      g : T -> T
+      g = inv A a a 
+      rem : (p: T) -> Id T (g (g p)) p
+      rem p = inv T p (g (g p)) (invInvEq A a a p)
+
+-- type of all loops 
+
+aLoop : U -> U
+aLoop A = Sigma A (\ a -> Id A a a)
+
+invALoop : (A:U) -> aLoop A -> aLoop A
+invALoop A = split
+              pair a l -> pair a (inv A a a l)
+
+idemInvALoop : (A:U) -> idempotent (aLoop A) (invALoop A)
+idemInvALoop A = split
+                  pair a l -> cong (Id A a a) (aLoop A) (\ x -> pair a x) (inv A a a (inv A a a l)) l (idemInv A a l)
+
+-- equality associated to this idempotent map
+
+eqInvALoop : (A:U) -> Id U (aLoop A) (aLoop A)
+eqInvALoop A = idemEq (aLoop A) (invALoop A) (idemInvALoop A)
+
+-- type of types with automorphisms
+
+autoM : U
+autoM = aLoop U
+
+-- this type is equal to itself
+
+eqAutoM : Id U autoM autoM
+eqAutoM = eqInvALoop U
+
+-- a particular element of autoM
+
+boolAuto : autoM
+boolAuto = pair Bool eqBoolBool
+
+-- by transport we deduce another type and another equality
+
+boolAuto' : autoM
+boolAuto' = subst U (\ X -> X) autoM autoM eqAutoM boolAuto
+
+bool' : U
+bool' = fst U (\ X -> Id U X X) boolAuto'
+
+eqBool' : Id U bool' bool'
+eqBool' = snd  U (\ X -> Id U X X) boolAuto'
+

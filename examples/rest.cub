@@ -1,0 +1,164 @@
+module rest where
+
+import subset
+
+lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+lem3Sub A P a = lemContrSig (singl A a) (singContr A a) Q (pair a (refl A a))
+ where
+   Q : singl A a -> U
+   Q z = P (fst A (\ x -> Id A x a) z)
+
+lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) (P a)
+lem1Sub A P a =
+ comp U (fiber (Sigma A P) A (fst A P) a) (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+     (lem2Sub A P a) (lem3Sub A P a)
+
+retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
+retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
+-- a corollary of equivalence
+
+allTransp : (A B : U) -> hasSection (Id U A B) (Equiv A B) (IdToEquiv A B)
+allTransp A B = equivSec (Id U A B) (Equiv A B)  (IdToEquiv A B) (univAx A B)
+
+-- an induction principle for isEquiv
+
+transpRef : (A : U) -> Id (A->A) (id A) (transport A A (refl U A))
+transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRef A)
+
+elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
+              (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
+elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
+ where 
+  rem1 : P A (transport A A (refl U A))
+  rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d
+
+  rem : (B:U) -> (p:Id U A B) -> P B (transport A B p)
+  rem = J U A (\ B p ->  P B (transport A B p)) rem1
+
+  rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
+  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B (funEquiv A B p)) (rem B)
+
+-- a simple application; with yet another problem with eta conversion
+
+equivSigId : (A B :U) -> (f:A -> B) -> isEquiv A B f -> (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
+equivSigId A = elimIsEquiv A P d
+ where 
+   P : (B:U) -> (A-> B) -> U
+   P B f =  (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
+
+   d : P A (id A)
+   d Q = rem
+      where
+         rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
+         rem = cong (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
+
+-- application to equivalences between total spaces
+
+liftTot :  (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) -> Sigma A P -> Sigma A Q
+liftTot A P Q g = split
+                  pair a u -> pair a (g a u)
+
+equivTot : (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) ->
+           isEquiv (Sigma A P) (Sigma A Q) (liftTot A P Q g) -> (a:A) -> Id U (P a) (Q a)
+equivTot A P Q g igl a = rem5
+ where
+  F : Sigma A P -> U
+  F z = Id A (fst A P z) a
+
+  T : U
+  T = Sigma (Sigma A P) F
+
+  G : Sigma A Q -> U
+  G z = Id A (fst A Q z) a
+
+  V : U
+  V = Sigma (Sigma A Q) G
+
+  rem : Id U T (P a)
+  rem = lem1Sub A P a
+
+  rem1 : Id U V (Q a)
+  rem1 = lem1Sub A Q a
+
+  F1 : Sigma A P -> U
+  F1 z = G (liftTot A P Q g z)
+
+  T1 : U
+  T1 = Sigma (Sigma A P) F1
+
+  rem2 : Id U T1 V
+  rem2 = equivSigId (Sigma A P) (Sigma A Q) (liftTot A P Q g) igl G
+
+  rem3 : Id U T T1
+  rem3 = cong (Sigma A P -> U) U (Sigma (Sigma A P)) F F1 eFF1
+      where fFF1 : (z : Sigma A P) -> Id U (F z) (F1 z)
+            fFF1 = split
+                    pair x u -> refl U (Id A x a)
+
+            eFF1 : Id (Sigma A P -> U) F F1
+            eFF1 = funExt (Sigma A P) (\ _ -> U) F F1 fFF1
+
+  rem4 : Id U T V
+  rem4 = comp U T T1 V rem3 rem2
+
+  rem5 : Id U (P a) (Q a)
+  rem5 = compUp U T (P a) V (Q a) rem rem1 rem4
+
+-- now we should be able to show that any map Id (Pi A B) f g -> (x:A) -> Id (B x) (f x) (g x)
+-- is an equivalence
+
+singlPi : (A:U) (B:A->U) -> Pi A B -> Pi A B -> U
+singlPi A B g f = (x:A) -> Id (B x) (f x) (g x)
+
+singlPiContr : (A:U) (B:A->U) (g:Pi A B) -> contr (Sigma (Pi A B) (singlPi A B g))
+singlPiContr A B g = subst U contr  ((x:A) -> Sigma (B x) (C x)) (Sigma (Pi A B) (\ z -> (x:A) -> C x (z x))) rem1 rem
+ where
+  C : (x:A) -> B x -> U
+  C x y = Id (B x) y (g x)
+
+  rem : contr ((x:A) -> Sigma (B x) (C x))
+  rem = isContrProd A (\ x -> Sigma (B x) (C x)) (\ x -> singContr (B x) (g x))
+
+  rem1 : Id U ((x:A) -> Sigma (B x) (C x)) (Sigma (Pi A B) (\ z -> (x:A) -> C x (z x)))
+  rem1 = idTelProp A B C
+
+-- we have enough to deduce that Id (Pi A B) f g and (x:A) -> Id (B x) (f x) (g x) are equal
+eqIdProd : (A:U) (B:A->U) -> (f g : Pi A B) -> Id U (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+eqIdProd A B f g = equivTot T P Q G rem f
+ where 
+  P : (Pi A B) -> U
+  P z = Id (Pi A B) z g
+
+  Q : (Pi A B) -> U
+  Q z = (x:A) -> Id (B x) (z x) (g x)
+
+  T : U
+  T = Pi A B
+
+  G : (z:Pi A B) -> P z -> Q z
+  G z ez x = cong (Pi A B) (B x) (\ u -> u x) z g ez
+
+  rem1 : contr (Sigma T P)
+  rem1 = singContr (Pi A B) g
+
+  rem2 : contr (Sigma T Q)
+  rem2 = singlPiContr A B g
+
+  rem : isEquiv (Sigma T P) (Sigma T Q) (liftTot T P Q G)
+  rem = equivContr (Sigma T P) rem1 (Sigma T Q) rem2 (liftTot T P Q G)
+
+-- it follows from this that a product of sets is a set
+
+isSetProd : (A:U) (B:A->U) (pB : (x:A) -> set (B x)) -> set (Pi A B)
+isSetProd A B pB f g = substInv U prop  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x)) rem2 rem1
+ where
+  rem : (x:A) -> prop (Id (B x) (f x) (g x))
+  rem x = pB x (f x) (g x)
+
+  rem1 : prop ((x:A) -> Id (B x) (f x) (g x))
+  rem1 = isPropProd A (\ x -> Id (B x) (f x) (g x)) rem
+
+  rem2 : Id U (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+  rem2 = eqIdProd A B f g
+
+

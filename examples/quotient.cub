@@ -1,0 +1,153 @@
+module quotient where
+
+import description
+import exists
+import hedberg
+
+Quot : (A : U) (R : rel A) -> U
+data Quot A R =
+  class (P : A -> U)
+        (un : (a b : A) -> P a -> P b -> R a b)
+        (cp : (a b : A) -> P a -> R a b -> P b)
+        (ex : exists A P)
+        (pr : propFam A P)
+
+propRel : (A : U) (R : rel A) -> U
+propRel A R = (a b : A) -> prop (R a b)
+
+canSurj : (A : U) (R : rel A) -> equivalence A R -> propRel A R ->
+            A -> Quot A R
+canSurj A R h h' c = class (R c) un cp ex pr
+  where un : (a b : A) -> R c a -> R c b -> R a b
+        un a b p q = eqToInvEucl A R h a b c p q
+
+        cp : (a b : A) -> R c a -> R a b -> R c b
+        cp a b p q = eqToEucl A R h c b a p (eqToSym A R h a b q)
+        ex : exists A (R c)
+        ex = inc (Sigma A (R c)) (pair c (eqToRefl A R h c))
+        pr : propFam A (R c)
+        pr a = h' c a
+
+resp : (A B : U) (R : rel A) (f : A -> B) -> U
+resp A B R f = (x y : A) -> R x y -> Id B (f x) (f y)
+
+image : (A B : U) (f : A -> B) (P : A -> U) -> B -> U
+image A B f P b = exists A (\a -> and (P a) (Id B (f a) b))
+
+propAnd : (A B : U) -> prop A -> prop B -> prop (and A B)
+propAnd A B p q = propSig A F rem (\a a' _ _ -> p a a')
+  where F : A -> U
+        F a = B
+        rem : propFam A F
+        rem a = q
+
+-- should also contain the proof that Quot A R is a set and that
+-- the equivalence class of two related elements are equal
+-- but what we have is enough to test that we can compute with the axiom 
+-- of description
+
+univQuot : (A B : U) (R : rel A) (f : A -> B) ->
+           set B -> resp A B R f -> (eqR : equivalence A R) (pR : propRel A R)
+                 (_ : Quot A R) -> B
+univQuot A B R f uip fresp eqR pR = g -- pair g rem
+  where
+    g : Quot A R -> B
+    g = split
+      class P un cp ex pr -> iota B imfP rem1 rem2
+        where
+          imfP : B -> U
+          imfP = image A B f P
+          rem1 : propFam B imfP
+          rem1 b = squash (Sigma A (\a -> and (P a) (Id B (f a) b)))
+          S : B -> A -> U
+          S b a = and (P a) (Id B (f a) b)
+
+          rem3 : Sigma A P -> exists B imfP
+          rem3 = split
+            pair a p -> inc (Sigma B imfP)
+                        (pair (f a) (inc (Sigma A (S (f a))) (pair a (pair p (refl B (f a))))))
+          rem4 : exists B imfP
+          rem4 = inhrec (Sigma A P) (exists B imfP) (squash (Sigma B imfP)) rem3 ex
+
+          rem6 : (b b' : B) (a a' : A) (_ : and (P a) (Id B (f a) b))
+             (_ : and (P a') (Id B (f a') b')) -> Id B b b'
+          rem6 b b' a a' = split
+            pair p ea -> split
+              pair p' ea' -> compUp B (f a) b (f a') b' ea ea' rem7
+                where rem8 : R a a'
+                      rem8 = un a a' p p'
+                      rem7 : Id B (f a) (f a')
+                      rem7 = fresp a a' rem8
+                     
+          rem7 : (b b' : B)  (_ : Sigma A (S b)) (_ : Sigma A (S b'))
+             -> Id B b b'
+          rem7 b b' = split
+            pair a p -> split
+              pair a' p' -> rem6 b b' a a' p p'
+
+          rem8 : (b b' : B) -> Sigma A (S b) -> exists A (S b') -> Id B b b'
+          rem8 b b' h = exElim A (S b') (Id B b b') (uip b b') (rem7 b b' h)
+
+          rem9 : (b b' : B) -> exists A (S b) -> exists A (S b') -> Id B b b'
+          rem9 b b' h h' = exElim A (S b) (Id B b b') (uip b b')
+                        (\h'' -> rem8 b b' h'' h') h
+
+          rem5 : atmostOne B imfP
+          rem5 = rem9
+
+          rem2 : exactOne B imfP
+          rem2 = pair rem4 rem5
+
+
+kernel : (A B : U) (f : A -> B) -> rel A
+kernel A B f a a' = Id B (f a) (f a')
+
+kerRef : (A B : U) (f : A -> B) -> reflexive A (kernel A B f)
+kerRef A B f a = refl B (f a)
+
+kerEucl : (A B : U) (f : A -> B) -> euclidean A (kernel A B f)
+kerEucl A B f a b c p q = compInv B (f c) (f a) (f b) rem rem1
+ where rem : Id B (f c) (f a)
+       rem = inv B (f a) (f c) p
+       rem1 : Id B (f c) (f b)
+       rem1 = inv B (f b) (f c) q
+
+kerEquiv : (A B : U) (f : A -> B) -> equivalence A (kernel A B f)
+kerEquiv A B f = pair (kerRef A B f) (kerEucl A B f)
+
+
+mod2 : rel N
+mod2 = kernel N Bool isEven
+
+propMod2 : propRel N mod2
+propMod2 n m = boolIsSet (isEven n) (isEven m)
+
+Z2 : U
+Z2 = Quot N mod2
+
+respIsEven : resp N Bool mod2 isEven
+respIsEven n m h = h
+
+barIsEven : Z2 -> Bool
+barIsEven = univQuot N Bool mod2 isEven boolIsSet respIsEven (kerEquiv N Bool isEven) propMod2
+
+
+five : N
+five = suc (suc (suc (suc  (suc (zero)))))
+
+eigth : N
+eigth = suc (suc (suc five))
+
+fiveBar : Z2
+fiveBar = canSurj N mod2 (kerEquiv N Bool isEven) propMod2 five
+
+eigthBar : Z2
+eigthBar = canSurj N mod2 (kerEquiv N Bool isEven) propMod2 eigth
+
+test5 : Bool
+test5 = barIsEven fiveBar
+
+test8 : Bool
+test8 = barIsEven eigthBar
+
+

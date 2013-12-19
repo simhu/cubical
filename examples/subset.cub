@@ -1,0 +1,61 @@
+module subset where
+
+import univalence
+
+-- a non trivial equivalence: two different ways to represent subsets
+-- this is not finished
+-- it should provide a non trivial equivalence
+
+subset1 : U -> U
+subset1 A = Sigma U (\ X -> X -> A)
+
+subset2 : U -> U
+subset2 A = A -> U
+
+-- map in both directions
+
+sub12 : (A:U) -> subset1 A -> subset2 A
+sub12 A = split
+           pair X f -> fiber X A f
+
+sub21 : (A:U) -> subset2 A -> subset1 A
+sub21 A P = pair (Sigma A P) (fst A P)
+
+lem2Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) 
+                                          (Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z)))
+lem2Sub A P a = isoId F T f g sfg rfg
+ where
+   T : U
+   T = Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z))
+
+   F : U
+   F = fiber (Sigma A P) A (fst A P) a
+
+   f : F -> T
+   f = split
+        pair z p -> rem z p 
+          where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> T
+                rem = split
+                      pair x u -> \ p -> pair (pair x p) u
+
+   g : T -> F
+   g = split
+        pair z u -> rem z u
+          where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> fiber (Sigma A P) A (fst A P) a
+                rem = split
+                        pair x p -> \ u -> pair (pair x u) p
+
+   rfg : (v :F) -> Id F (g (f v)) v
+   rfg = split
+          pair z p -> rem z p
+           where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> Id (fiber (Sigma A P) A (fst A P) a) (g (f (pair z p))) (pair z p)
+                 rem = split
+                        pair x u -> \ p -> refl F (pair (pair x u) p)
+
+   sfg : (v:T) -> Id T (f (g v)) v
+   sfg = split
+          pair z u -> rem z u
+            where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> Id T (f (g (pair z u))) (pair z u)
+                  rem = split
+                        pair x p -> \ u -> refl T (pair (pair x p) u)
+
