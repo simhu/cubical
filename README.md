@@ -89,8 +89,10 @@ The syntax allows Landin's offside rule similar to Haskell.
 
 The basic (untyped) language has a direct simple denotational
 semantics Type theory works with the total part of this language (it
-is possible to define totality at the denotational semantics level)
-Our evaluator works in a nominal version of this semantics
+is possible to define totality at the denotational semantics level).
+Our evaluator works in a nominal version of this semantics.  The
+type-checker assumes that we work in this total part, in particular,
+there is no termination check.
 
 
 DESCRIPTION OF THE SEMANTICS/EVALUATION
