@@ -13,11 +13,19 @@ required.  To build cubical go to the main directory and do
 
   `cabal install`
 
-To only build cubical do
+To only build (not install) cubical do
 
   `cabal configure`
 
   `cabal build`
+
+Alternatively one can also use the Makefile to build the system by typing:
+
+  `make bnfc && make`
+
+However this requires that the following Haskell packages are installed:
+
+  mtl, haskeline, directory, BNFC, alex, happy
 
 
 USAGE
@@ -92,10 +100,10 @@ We have
 The syntax allows Landin's offside rule similar to Haskell.
 
 The basic (untyped) language has a direct simple denotational
-semantics Type theory works with the total part of this language (it
+semantics. Type theory works with the total part of this language (it
 is possible to define totality at the denotational semantics level).
 Our evaluator works in a nominal version of this semantics.  The
-type-checker assumes that we work in this total part, in particular,
+type-checker assumes that we work in this total part, however,
 there is no termination check.
 
 
