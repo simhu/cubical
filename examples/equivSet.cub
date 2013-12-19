@@ -1,0 +1,38 @@
+module equivSet where
+
+import function
+import set
+
+-- a sufficient condition for two sets being equal
+-- this is implied by the gradlemma, which has however a more complex proof
+
+equivSet : (A B : U) (f : A -> B) (g : B -> A) -> (section A B f g) 
+           -> (injective A B f) -> (set B) -> Id U A B
+equivSet A B f g sfg injf setB = equivEq A B f sf tf
+  where
+  fFiber : B -> U
+  fFiber b = fiber A B f b
+
+  fstfFiber : (b : B) -> fFiber b -> A
+  fstfFiber b = fst A (\x -> Id B (f x) b)
+
+  eqfFiber : (b : B) -> (v v' : fFiber b) ->
+             Id A (fstfFiber b v) (fstfFiber b v') -> Id (fFiber b) v v'
+  eqfFiber b = eqPropFam A (\x -> Id B (f x) b) (\x -> setB (f x) b)
+
+  sf : (b : B) -> fFiber b
+  sf b = pair (g b) (sfg b)
+
+  tf : (b : B) (v : fFiber b) -> Id (fFiber b) (sf b) v
+  tf b v = eqfFiber b (sf b) v rem
+    where
+    a' : A
+    a' = fstfFiber b v
+
+    rem1 : Id B (f (g b)) (f a')
+    rem1 = comp B (f (g b)) b (f a') (sfg b)
+           (inv B (f a') b (snd A (\x -> Id B (f x) b) v))
+
+    rem : Id A (g b) a'
+    rem = injf (g b) a' rem1
+

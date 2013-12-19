@@ -1,0 +1,17 @@
+module equivProp where
+
+import equivSet
+
+-- The goal is to prove that equivalent propositions are equal
+
+propExt : (A B : U) -> (prop A) -> (prop B) -> (A -> B) -> (B -> A) -> Id U A B
+propExt A B pA pB f g = equivSet A B f g sfg injf setB
+  where
+  sfg : section A B f g
+  sfg b = pB (f (g b)) b
+
+  injf : injective A B f
+  injf a0 a1 _ = pA a0 a1
+
+  setB : set B
+  setB = propUIP B pB
