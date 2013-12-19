@@ -4,14 +4,14 @@
 name:                cubical
 version:             0.1.0
 synopsis:            Implementation of Univalence in Cubical Sets
-description:         Cubical implements an expirimental simple type checker
+description:         Cubical implements an experimental simple type checker
                      for type theory with univalence with an evaluator for closed terms.
 license:             MIT
 license-file:        LICENSE
 author:              Cyril Cohen, Thierry Coquand, Simon Huber, Anders Mörtberg
 maintainer:          mortberg@chalmers.se
 -- copyright:           
-category:            Dependent types
+category:            Dependent Types
 build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
