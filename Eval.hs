@@ -17,62 +17,12 @@ traceb s x = if debug then trace s x else x
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals e = map (second (eval e))
 
--- Swap for values
-swap :: Val -> Name -> Name -> Val
-swap u x y =
-  let sw u = swap u x y in case u of
-  VU          -> VU
-  Ter t e     -> Ter t (swapEnv e x y)
-  VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
-  Path z v | z /= x && z /= y    -> Path z (sw v)
-           | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
-                              v' = swap v z z'
-                          in Path z' (sw v')
-  VExt z b f g p  -> VExt (swapName z x y) (sw b) (sw f) (sw g) (sw p)
-  VPi a f         -> VPi (sw a) (sw f)
-  VInh v          -> VInh (sw v)
-  VInc v          -> VInc (sw v)
-  VSquash z v0 v1 -> VSquash (swapName z x y) (sw v0) (sw v1)
-  VCon c us       -> VCon c (map sw us)
-  VEquivEq z a b f s t ->
-    VEquivEq (swapName z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
-  VPair z a v  -> VPair (swapName z x y) (sw a) (sw v)
-  VEquivSquare z w a s t ->
-    VEquivSquare (swapName z x y) (swapName w x y) (sw a) (sw s) (sw t)
-  VSquare z w v -> VSquare (swapName z x y) (swapName w x y) (sw v)
-  Kan Fill a b  -> fill (sw a) (swapBox b x y)
-  Kan Com a b@(Box _ z _ _)
-    | z /= x && z /= y -> com (sw a) (swapBox b x y)
-    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
-                       a' = swap a z z'
-                   in sw (Kan Com a' (swapBox b z z'))
-  VComp b@(Box _ z _ _)
-    | z /= x && z /= y -> VComp (swapBox b x y)
-    | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
-                   in sw (VComp (swapBox b z z'))
-  VFill z b@(Box dir n _ _)
-    | z /= x && z /= x -> VFill z (swapBox b x y)
-    | otherwise        -> let
-      z' = gensym ([x] `union` [y] `union` supportBox b)
-      in sw (VFill z' (swapBox b z z'))
-
--- Swap for boxes
-swapBox :: Box Val -> Name -> Name -> Box Val
-swapBox (Box dir z v nvs) x y =
-  let sw u = swap u x y
-  in Box dir (swapName z x y) (sw v)
-         [ ((swapName n x y,nd),sw v) | ((n,nd),v) <- nvs ]
-
--- Swap for environments
-swapEnv :: Env -> Name -> Name -> Env
-swapEnv e x y = mapEnv (\u -> swap u x y) e
-
 unCompAs :: Val -> Name -> Box Val
-unCompAs (VComp box) y = swapBox box (pname box) y
+unCompAs (VComp box) y = swap box (pname box) y
 unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
 unFillAs :: Val -> Name -> Box Val
-unFillAs (VFill x box) y = swapBox box x y
+unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
@@ -159,26 +109,17 @@ eval :: Env -> Ter -> Val
 eval _ U             = VU
 eval e (Var i)       = look i e
 eval e (Id a a0 a1)  = VId (eval e a) (eval e a0) (eval e a1)
-eval e (Refl a)      = Path (freshEnv e) $ eval e a
-eval e (Trans c p t) = com (app (eval e c) pv) box
-  where x   = freshEnv e
-        pv  = appName (eval e p) x
-        box = Box Up x (eval e t) []
-eval e (TransInv c p t) = com (app (eval e c) pv) box
-  where x   = freshEnv e
-        pv  = appName (eval e p) x
-        box = Box Down x (eval e t) []
+eval e (Refl a)      = Path (fresh e) $ eval e a
 eval e (TransU p t) =
   com pv box
-  where x   = freshEnv e
+  where x   = fresh e
         pv  = appName (eval e p) x
         box = Box Up x (eval e t) []
-eval e (TransURef t) = Path (freshEnv e) (eval e t)
+eval e (TransURef t) = Path (fresh e) (eval e t)
 eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
-  where x   = freshEnv e
+  where x   = fresh e
         pv  = fill (eval e b) box
         box = Box Up x (app (eval e f) (eval e u)) []
--- TODO: Throw out _, not needed?
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
     x:y:_ = gensyms $ supportEnv e
@@ -200,14 +141,14 @@ eval e (JEq a u c w) = Path y $ fill (app (app cv omega) sigma) box
     box   = Box Up y (eval e w) []
 eval e (Ext b f g p) =
   Path x $ VExt x (eval e b) (eval e f) (eval e g) (eval e p)
-    where x = freshEnv e
+    where x = fresh e
 eval e (Pi a b)      = VPi (eval e a) (eval e b)
 eval e (Lam x t)     = Ter (Lam x t) e -- stop at lambdas
 eval e (App r s)     = app (eval e r) (eval e s)
 eval e (Inh a)       = VInh (eval e a)
 eval e (Inc t)       = VInc (eval e t)
 eval e (Squash r s)  = Path x $ VSquash x (eval e r) (eval e s)
-  where x = freshEnv e
+  where x = fresh e
 eval e (InhRec b p phi a)  =
   inhrec (eval e b) (eval e p) (eval e phi) (eval e a)
 eval e (Where t def)       = eval (PDef def e) t
@@ -216,7 +157,7 @@ eval e (Branch pr alts)    = Ter (Branch pr alts) e
 eval e (LSum pr ntss)      = Ter (LSum pr ntss) e
 eval e (EquivEq a b f s t) =
   Path x $ VEquivEq x (eval e a) (eval e b) (eval e f) (eval e s) (eval e t)
-    where x = freshEnv e
+    where x = fresh e
 eval e (EquivEqRef a s t)  =
   Path y $ Path x $ VEquivSquare x y (eval e a) (eval e s) (eval e t)
   where x:y:_ = gensyms (supportEnv e)
@@ -240,7 +181,7 @@ kan Com  = com
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
-  where x    = gensym (support vid `union` supportBox box)
+  where x    = gensym (support vid `union` support box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
 fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
@@ -281,7 +222,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     in traceb "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == Down =
-     let y  = gensym (support veq `union` supportBox box)
+     let y  = gensym (support veq `union` support box)
          VCon "pair" [gb,sb] = app s vz
          vy = appName sb x
 
@@ -346,9 +287,9 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
     in traceb "Kan Com 3" $ VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
-        z     = gensym $ supportBox tbox' ++ supportBox box
+        z     = gensym $ support tbox' ++ support box
         -- x is z
-        tbox@(Box tdir x tx nvs) = swapBox tbox' (pname tbox') z
+        tbox@(Box tdir x tx nvs) = swap tbox' (pname tbox') z
         toAdd = nK \\ (x' : nJ)
         nL    = nJ \\ nK
         boxL  = subBox nL box
@@ -463,7 +404,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       in       traceb "Kan Fill VU Case 6"
        VFill z (Box tdir x' principal (nplast:npint))
 
-  where z     = gensym $ support v ++ supportBox box
+  where z     = gensym $ support v ++ support box
         nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
         toAdd = nK \\ (x' : nJ)
