@@ -193,7 +193,10 @@ data Box a = Box { dir   :: Dir
                  , pname :: Name
                  , pface :: a
                  , sides :: [(Side,a)] }
-  deriving (Eq,Show)
+  deriving Eq
+
+instance Show a => Show (Box a) where
+  show (Box dir n f xs) = "Box" <+> show dir <+> show n <+> show f <+> show xs
 
 -- Showing boxes with parenthesis around
 showBox :: Show a => Box a -> String
