@@ -1,4 +1,4 @@
-module Core where
+module CTT where
 
 -- import Text.PrettyPrint
 import Data.List

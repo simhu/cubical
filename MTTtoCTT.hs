@@ -1,8 +1,8 @@
 {-# LANGUAGE TupleSections #-}
--- Tranlates the terms of MiniTT into the Core terms.
-module AbsToInternal where
+-- Tranlates the terms of MiniTT into the cubical syntax.
+module MTTtoCTT where
 
-import qualified Core as I
+import qualified CTT as I
 import Control.Monad.Error
 import Control.Applicative
 import Control.Arrow

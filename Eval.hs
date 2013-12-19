@@ -5,7 +5,7 @@ import Data.List
 import Data.Maybe (fromMaybe)
 import Debug.Trace
 
-import Core
+import CTT
 
 -- Switch to False to turn off debugging
 debug :: Bool

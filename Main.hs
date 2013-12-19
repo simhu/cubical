@@ -13,10 +13,10 @@ import Exp.Print
 import Exp.Abs
 import Exp.Layout
 import Exp.ErrM
-import AbsToInternal
+import MTTtoCTT
 import Concrete
 import qualified MTT  as A
-import qualified Core as C
+import qualified CTT as C
 import qualified Eval as E
 
 type Interpreter a = InputT IO a

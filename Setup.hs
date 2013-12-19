@@ -1,4 +1,8 @@
 import Distribution.Simple
 import System.Process
-main = do system "bnfc -d Exp.cf"
-          defaultMain
+import System.Exit
+main = do
+  ret <- system "bnfc -d Exp.cf"
+  case ret of
+    ExitSuccess   -> defaultMain
+    ExitFailure n -> error $ "bnfc command not found or error" ++ show n
