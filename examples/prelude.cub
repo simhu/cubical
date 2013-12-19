@@ -93,12 +93,13 @@ discrete : U -> U
 discrete A = (a b : A) -> dec (Id A a b)
 
 tnotf : neg (Id Bool (true) (false))
-tnotf h = subst Bool T (true) (false) h (zero)
-  where
+tnotf h =
+  let
     T : Bool -> U
     T = split
           true  -> N
           false -> N0
+  in subst Bool T (true) (false) h (zero)
 
 fnott : neg (Id Bool false true)
 fnott h = substInv Bool T false  true h zero
