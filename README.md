@@ -86,8 +86,8 @@ We have
 
  * a universe `U` and assume `U:U` for simplicity
 
- * let/where: let D in e where D is a list of definitions
-   an alternative syntax is e where D
+ * let/where: `let D in e` where D is a list of definitions an
+   alternative syntax is `e where D`
 
 The syntax allows Landin's offside rule similar to Haskell.
 
