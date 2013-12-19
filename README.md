@@ -16,6 +16,7 @@ required.  To build cubical go to the main directory and do
 To only build cubical do
 
   `cabal configure`
+
   `cabal build`
 
 
@@ -75,7 +76,7 @@ We have
  * dependent function types `(x:A) -> B`; non-dependent function types
    can be written as `A -> B`
 
- * abstraction \x -> e
+ * abstraction `\x -> e`
 
  * named/labelled sum `c1 (x1:A1)...(xn:An) | c2 ... | ...`
    a data type is a recursively defined named sum
