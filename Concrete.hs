@@ -169,17 +169,35 @@ resolveDefs :: [Def] -> Resolver [A.Def]
 resolveDefs [] = return []
 resolveDefs (DefTDecl n e:d:ds) = do
   e' <- resolveExp e
-  xd <- checkDef (unIdent n) d
+  xd <- checkDef (unIdent n,d)
   rest <- resolveDefs ds
   return $ ([(unIdent n, e')],[xd]) : rest
+-- resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
-checkDef :: String -> Def -> Resolver (String,A.Exp)
-checkDef n (Def (AIdent (_,m)) args body) | n == m = do
+checkDef :: (String,Def) -> Resolver (String,A.Exp)
+checkDef (n,Def (AIdent (_,m)) args body) | n == m = do
   updateName n
   (n,) <$> lams args (resolveWhere body)
-checkDef n (DefData (AIdent (_,m)) args sums) | n == m = do
+checkDef (n,DefData (AIdent (_,m)) args sums) | n == m = do
   updateName n
   (n,) <$> lams args (A.Sum <$> genPrim <*> mapM resolveLabel sums)
-checkDef n d =
+checkDef (n,d) =
   throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
+
+
+resolveMutual :: [Def] -> Resolver A.Def
+resolveMutual defs = do
+  tdecls' <- mapM resolveTDecl tdecls
+  let names = map fst tdecls'
+  when (length names /= length decls) $
+    throwError $ "Definitions missing in " ++ show defs
+  tdef' <- mapM checkDef (zip names decls)
+  return (tdecls',tdef')
+  where
+    (tdecls,decls) = span isTDecl defs
+    isTDecl d@(DefTDecl {}) = True
+    isTDecl _               = False
+    resolveTDecl (DefTDecl n e) = do e' <- resolveExp e
+                                     return (unIdent n, e')
+

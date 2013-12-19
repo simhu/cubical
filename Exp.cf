@@ -12,10 +12,14 @@ Module.   Module ::= "module" AIdent "where" "{" [Imp] [Def] "}" ;
 Import.   Imp ::= "import" AIdent ;
 separator Imp ";" ;
 
-Def.      Def ::= AIdent [Arg] "=" ExpWhere ;
-DefTDecl. Def ::= AIdent ":" Exp ;
-DefData.  Def ::= "data" AIdent [Arg] "=" [Sum] ;
-separator Def ";" ;
+Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
+DefTDecl.  Def ::= AIdent ":" Exp ;
+DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
+-- TODO: Mutual not working.
+-- NB: No iterated mutuals allowed!
+-- DefMutual. Def ::= "mutual" "{" [Def] "}" "end" ;
+
+separator  Def ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;
 NoWhere.  ExpWhere ::= Exp ;
