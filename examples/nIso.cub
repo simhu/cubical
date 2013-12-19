@@ -111,8 +111,7 @@ add x = split
 propAdd : (x:N) -> Id N (add zero x) x
 propAdd = split
            zero -> refl N zero
---           suc n -> cong N N (\ x -> suc x) (add zero n) n (propAdd n)
-           suc n -> cong N N suc (add zero n) n (propAdd n)
+           suc n -> cong N N (\ x -> suc x) (add zero n) n (propAdd n)
 -- propAdd' : (z:or N Unit) 
 
 
