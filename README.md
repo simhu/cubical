@@ -11,13 +11,12 @@ INSTALL
 To install cubical a working Haskell and cabal installation are
 required.  To build cubical go to the main directory and do
 
-  cabal install
+  `cabal install`
 
 To only build cubical do
 
-  cabal configure
-  cabal build
-
+  `cabal configure`
+  `cabal build`
 
 
 USAGE
@@ -25,7 +24,7 @@ USAGE
 
 To run cubical type
 
-  cubical <filename>
+  `cubical <filename>`
 
 In the interaction loop type :h to get a list of available commands.
 Note that the current directory will be taken as the search path for
@@ -73,19 +72,18 @@ DESCRIPTION OF THE LANGUAGE
 
 We have
 
- * dependent function types (x:A) -> B
-   non-dependent function types can be written A -> B
+ * dependent function types `(x:A) -> B`; non-dependent function types
+   can be written as `A -> B`
 
  * abstraction \x -> e
 
- * named/labelled sum    c1 (x1:A1)...(xn:An) | c2 ... | ...
+ * named/labelled sum `c1 (x1:A1)...(xn:An) | c2 ... | ...`
    a data type is a recursively defined named sum
 
  * function defined by case
-   f = split c1 x1 ... xn -> e1 | c2 ... -> ... | ...
+   `f = split c1 x1 ... xn -> e1 | c2 ... -> ... | ...`
 
- * universe U
-   U:U for simplicity
+ * a universe `U` and assume `U:U` for simplicity
 
  * let/where: let D in e where D is a list of definitions
    an alternative syntax is e where D
@@ -184,7 +182,9 @@ FURTHER WORK (non-exhaustive)
    has a semantics which satisfies the definitional equalities:
 
     `cong (id A)       = id A`
+
     `cong (g o f)      = (cong g) o (cong f)`
+
     `cong f (refl A a) = refl B (f a)`
 
    The evaluation should be used for conversion during type-checking,
@@ -230,7 +230,4 @@ REFERENCES
 AUTHORS
 -------
 
-Cyril Cohen
-Thierry Coquand
-Simon Huber
-Anders Mörtberg
+Cyril Cohen, Thierry Coquand, Simon Huber, Anders Mörtberg
