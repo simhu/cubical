@@ -12,6 +12,8 @@ import Control.Monad.Identity
 import Control.Monad.Error (throwError)
 import Control.Applicative
 
+import Pretty
+
 type Label  = String
 
 -- Branch of the form: c x1 .. xn -> e
@@ -62,7 +64,10 @@ data Env = Empty
          | Pair Env (String,Val)
          | PDef Def Env         -- for handling recursive definitions,
                                 -- see getE
-  deriving (Eq,Show)
+  deriving (Eq)
+
+instance Show Env where
+  show = showEnv
 
 lets :: [Def] -> Exp -> Exp
 lets []     e = e
@@ -111,7 +116,8 @@ getLblType :: String -> Exp -> Typing (Tele, Env)
 getLblType c (Comp (Sum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
-getLblType c u = throwError ("expected a data type for the constructor " ++ c ++ " but got " ++ show u)
+getLblType c u = throwError ("expected a data type for the constructor "
+                             ++ c ++ " but got " ++ show u)
 
 -- Environment for type checker
 data TEnv = TEnv { index :: Int   -- for de Bruijn levels
@@ -287,34 +293,42 @@ showExp :: Exp -> String
 showExp1 :: Exp -> String
 
 showExps :: [Exp] -> String
-showExps [] = ""
-showExps us = " " ++ intercalate " " (map showExp1 us)
+showExps = hcat . map showExp1
 
 showExp1 U = "U"
 showExp1 (Con c []) = c
 showExp1 (Var x) = x
-showExp1 u = "(" ++ showExp u ++ ")"
+showExp1 u@(Fun {}) = showExp u
+showExp1 u@(Sum {}) = showExp u
+showExp1 u@(Undef {}) = showExp u
+showExp1 u@(EPrim {}) = showExp u
+showExp1 u@(Comp {}) = showExp u
+showExp1 u = parens $ showExp u
 
 showEnv :: Env -> String
 showEnv Empty            = ""
-showEnv (Pair env (x,u)) = "(" ++ showEnv1 env ++ showExp u ++ ")"
+showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ show u
 showEnv (PDef xas env)   = showEnv env
 
 showEnv1 Empty            = ""
 showEnv1 (Pair env (x,u)) = showEnv1 env ++ showExp u ++ ", "
 showEnv1 (PDef xas env)   = showEnv env
 
+
 showExp e = case e of
- App e0 e1 -> showExp e0 ++ showExp1 e1
- Pi e0 e1 -> "Pi" ++ showExps [e0,e1]
- Lam x e -> "\\" ++ x ++ "." ++ showExp e
- Def e d -> showExp e ++ " where..."
+ App e0 e1 -> showExp e0 <+> showExp1 e1
+ Pi e0 e1 -> "Pi" <+> showExps [e0,e1]
+ Lam x e -> "\\" ++ x ++ "->" <+> showExp e
+ Def e d -> showExp e <+> "where" <+> showDef d
  Var x -> x
  U -> "U"
- Con c es -> c ++ showExps es
+ Con c es -> c <+> showExps es
  Fun (n,str) _ -> str ++ show n
  Sum (_,str) _ -> str
  Undef (n,str) -> str ++ show n
- EPrim (n,str) es -> str ++ show n ++ showExps es
- Comp e env -> showExp e ++ showEnv env
+ EPrim (n,str) es -> str ++ show n <+> showExps es
+ Comp e env -> showExp1 e <+> showEnv env
+
+showDef :: Def -> String
+showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showExp t) xts)
 

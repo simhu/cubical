@@ -95,8 +95,6 @@ idVPair x v = VPair x (v `face` (x,Down)) v
 faceEnv :: Env -> Side -> Env
 faceEnv e xd = mapEnv (`face` xd) e
 
--- TODO: Define the face of a box!
-
 look :: Binder -> Env -> Val
 look x (Pair s (y,u)) | x == y    = u
                       | otherwise = look x s
@@ -251,7 +249,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
-                                -- to consider the auxsides?
+                          -- to consider the auxsides?
       add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
     in traceb "Kan Com 1" $ fill v newBox

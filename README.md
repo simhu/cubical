@@ -45,7 +45,9 @@ The program is organized as follows:
 
  * if the expression is well-typed it is translated to the cubical
    syntax and evaluated by a "cubical abstract machine", which
-   computes its semantics in cubical sets;
+   computes its semantics in cubical sets; the result is shown after
+   "EVAL:" (to disable the trace of the evaluation set the boolean
+   "debug" to False in Eval.hs);
 
 During type-checking, we consider the primitives listed in
 examples/primitive.cub as non interpreted constants.  The type-checker
@@ -162,6 +164,7 @@ computations:
  * The file swap.cub contains examples of transport along the
    isomorphism between A x B and B x A; the examples are test14,
    test15.
+
 
 
 FURTHER WORK (non-exhaustive)
