@@ -120,7 +120,7 @@ eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
         box = Box Up x (app (eval e f) (eval e u)) []
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
-    x:y:_ = gensyms $ supportEnv e
+    x:y:_ = freshs e
     uv    = eval e u
     pv    = appName (eval e p) x
     theta = fill (eval e a) (Box Up x uv [((y,Down),uv),((y,Up),pv)])
@@ -130,7 +130,7 @@ eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
     box   = Box Up y (eval e w) []
 eval e (JEq a u c w) = Path y $ fill (app (app cv omega) sigma) box
   where
-    x:y:_ = gensyms $ supportEnv e
+    x:y:_ = freshs e
     uv    = eval e u
     theta = fill (eval e a) (Box Up x uv [((y,Down),uv),((y,Up),uv)])
     sigma = Path x theta
@@ -158,7 +158,7 @@ eval e (EquivEq a b f s t) =
     where x = fresh e
 eval e (EquivEqRef a s t)  =
   Path y $ Path x $ VEquivSquare x y (eval e a) (eval e s) (eval e t)
-  where x:y:_ = gensyms (supportEnv e)
+  where x:y:_ = freshs e
 eval e (Trans c p t) = com (app (eval e c) pv) box
   where x   = fresh e
         pv  = appName (eval e p) x
@@ -183,7 +183,7 @@ kan Com  = com
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
-  where x    = gensym (support vid `union` support box)
+  where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
 fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
@@ -224,7 +224,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     in traceb "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == Down =
-     let y  = gensym (support veq `union` support box)
+     let y  = fresh (veq, box)
          VCon "pair" [gb,sb] = app s vz
          vy = appName sb x
 
@@ -291,7 +291,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
     in traceb "Kan Com 3" $ VComp newBox
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
-        z     = gensym $ support tbox' ++ support box
+        z     = fresh (tbox', box)
         -- x is z
         tbox@(Box tdir x tx nvs) = swap tbox' (pname tbox') z
         toAdd = nK \\ (x' : nJ)
@@ -408,7 +408,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       in       traceb "Kan Fill VU Case 6"
        VFill z (Box tdir x' principal (nplast:npint))
 
-  where z     = gensym $ support v ++ support box
+  where z     = fresh (v, box)
         nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
         toAdd = nK \\ (x' : nJ)
@@ -452,7 +452,7 @@ app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
   traceb ("Pi fill ") $ answer
-  where x     = gensym (support kf `union` support v)
+  where x     = fresh (kf, v)
         u     = v `face` (i,dir)
         ufill = fill a (Box (mirror dir) i u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
@@ -464,7 +464,7 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
         answer = com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
 app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [((x,Down),left),((x,Up),right)])
   -- NB: there are various choices how to construct this
-  where y     = gensym (support vext `union` support w)
+  where y     = fresh (vext, w)
         w0    = w `face` (x,Down)
         left  = app fv w0
         right = app gv (swap w x y)

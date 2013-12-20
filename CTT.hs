@@ -111,6 +111,9 @@ class Nominal a where
 fresh :: Nominal a => a -> Name
 fresh = gensym . support
 
+freshs :: Nominal a => a -> [Name]
+freshs = gensyms . support
+
 instance (Nominal a, Nominal b) => Nominal (a, b) where
   support (a, b)  = support a `union` support b
   swap (a, b) x y = (swap a x y, swap b x y)
@@ -304,13 +307,12 @@ instance Nominal Val where
   support (VInc v)          = support v
   support (VPi v1 v2)       = support [v1,v2]
   support (VCon _ vs)       = support vs
-  support (VSquash x v0 v1) = [x] `union` support [v0,v1]
-  support (VExt x b f g p)  = [x] `union` support [b,f,g,p]
-  support (Kan Fill a box)  = support a `union` support box
-  support (Kan Com a box@(Box _ n _ _)) =
-    delete n (support a `union` support box)
-  support (VEquivEq x a b f s t)    = [x] `union` support [a,b,f,s,t]
-  support (VPair x a v)             = [x] `union` support [a,v]
+  support (VSquash x v0 v1) = support (x, [v0,v1])
+  support (VExt x b f g p)  = support (x, [b,f,g,p])
+  support (Kan Fill a box)  = support (a, box)
+  support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
+  support (VEquivEq x a b f s t)    = support (x, [a,b,f,s,t])
+  support (VPair x a v)             = support (x, [a,v])
   support (VComp box@(Box _ n _ _)) = delete n $ support box
   support (VFill x box)             = delete x $ support box
 
@@ -320,7 +322,7 @@ instance Nominal Val where
     Ter t e     -> Ter t (swap e x y)
     VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
     Path z v | z /= x && z /= y    -> Path z (sw v)
-             | otherwise -> let z' = gensym ([x] `union` [y] `union` support v)
+             | otherwise -> let z' = fresh ([x, y], v)
                                 v' = swap v z z'
                             in Path z' (sw v')
     VExt z b f g p  -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
@@ -338,17 +340,17 @@ instance Nominal Val where
     Kan Fill a b  -> Kan Fill (sw a) (swap b x y)
     Kan Com a b@(Box _ z _ _)
       | z /= x && z /= y -> Kan Com (sw a) (swap b x y)
-      | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+      | otherwise -> let z' = fresh ([x, y], u)
                          a' = swap a z z'
                      in sw (Kan Com a' (swap b z z'))
     VComp b@(Box _ z _ _)
       | z /= x && z /= y -> VComp (swap b x y)
-      | otherwise -> let z' = gensym ([x] `union` [y] `union` support u)
+      | otherwise -> let z' = fresh ([x, y], u)
                      in sw (VComp (swap b z z'))
     VFill z b@(Box dir n _ _)
       | z /= x && z /= x -> VFill z (swap b x y)
       | otherwise        -> let
-        z' = gensym ([x] `union` [y] `union` support b)
+        z' = fresh ([x, y], b)
         in sw (VFill z' (swap b z z'))
 
 --------------------------------------------------------------------------------
@@ -372,14 +374,12 @@ showEnv1 Empty            = ""
 showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
 showEnv1 (PDef xas env)   = show env
 
-supportEnv :: Env -> [Name]
-supportEnv Empty          = []
-supportEnv (Pair e (_,v)) = supportEnv e `union` support v
-supportEnv (PDef _ e)     = supportEnv e
-
 instance Nominal Env where
   swap e x y = mapEnv (\u -> swap u x y) e
-  support    = supportEnv
+
+  support Empty          = []
+  support (Pair e (_,v)) = support (e, v)
+  support (PDef _ e)     = support e
 
 upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
