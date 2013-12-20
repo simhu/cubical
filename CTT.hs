@@ -122,6 +122,8 @@ instance Nominal a => Nominal [a]  where
   support vs  = unions (map support vs)
   swap vs x y = [swap v x y | v <- vs]
 
+instance Nominal Dir where support _ = []; swap d x y = d
+
 swapName :: Name -> Name -> Name -> Name
 swapName z x y | z == x    = y
                | z == y    = x
@@ -212,21 +214,11 @@ transposeBox (Box dir x (v:vs) nvss) =
   Box dir x v [ (nnd,head vs) | (nnd,vs) <- nvss ] :
   transposeBox (Box dir x vs [ (nnd,tail vs) | (nnd,vs) <- nvss ])
 
-
-supportBox :: Nominal a => Box a -> [Name]
-supportBox (Box dir n v vns) = [n] `union` support v `union`
-  unions [ [y] `union` support v | ((y,dir'),v) <- vns ]
-
--- Swap for boxes
-swapBox :: Nominal a => Box a -> Name -> Name -> Box a
-swapBox (Box dir z v nvs) x y =
-  let sw u = swap u x y
-  in Box dir (swap z x y) (sw v)
-         [ ((swap n x y,nd),sw v) | ((n,nd),v) <- nvs ]
-
+-- Nominal for boxes
 instance Nominal a => Nominal (Box a) where
-  swap    = swapBox
-  support = supportBox
+  support (Box dir n v nvs) = support ((n, v), nvs)
+  swap (Box dir z v nvs) x y = Box dir z' v' nvs' where
+    ((z',v'), nvs') = swap ((z, v), nvs) x y
 
 --------------------------------------------------------------------------------
 -- | Values
