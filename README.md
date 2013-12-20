@@ -97,6 +97,8 @@ We have
  * let/where: `let D in e` where D is a list of definitions an
    alternative syntax is `e where D`
 
+* `undefined` like in Haskell
+
 The syntax allows Landin's offside rule similar to Haskell.
 
 The basic (untyped) language has a direct simple denotational
@@ -114,11 +116,11 @@ The values depend on a new class of names, also called directions,
 which can be thought of as varying over the unit interval [0,1].  A
 path connecting a0 and a1 in the direction x is a value p(x) such that
 p(0) = a0 and p(1) = a1.  An element in the identity type a0 = a1 is
-then of the form <x>p(x) where the name x is bound.  An identity proof
+then of the form \<x\>p(x) where the name x is bound.  An identity proof
 in an identity type will then be interpreted as a "square" of the form
-<x><y>p(x,y).  See examples/hedberg.cub and the example test3 (in the
+\<x\>\<y\>p(x,y).  See examples/hedberg.cub and the example test3 (in the
 current implementation directions/names are represented by numbers).
- 
+
 Operationally, a type is explained by giving what are its Kan filling
 operation.  For instance, we have to explain what are the Kan filling
 for the dependent product.
@@ -219,7 +221,7 @@ REFERENCES
 
  * Voevodsky's home page on univalent foundation
 
- * HoTT book 
+ * HoTT book
 
  * Type Theory in Color, J.P. Bernardy, G. Moulin
 
