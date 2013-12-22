@@ -3,14 +3,15 @@ module Main where
 import Control.Monad.Trans.Reader
 import Control.Monad.Error
 import Data.List
-import System.Environment
-import System.Console.Haskeline
 import System.Directory
+import System.Environment
+import System.Console.GetOpt
+import System.Console.Haskeline
 
 import Exp.Lex
 import Exp.Par
 import Exp.Print
-import Exp.Abs
+import Exp.Abs hiding (NoArg)
 import Exp.Layout
 import Exp.ErrM
 import MTTtoCTT
@@ -20,6 +21,19 @@ import qualified CTT as C
 import qualified Eval as E
 
 type Interpreter a = InputT IO a
+
+-- Flag handling
+data Flag = Debug
+  deriving (Eq,Show)
+
+options :: [OptDescr Flag]
+options = [ Option "d" ["debug"] (NoArg Debug) "Run in debugging mode" ]
+
+parseOpts :: [String] -> IO ([Flag],[String])
+parseOpts argv = case getOpt Permute options argv of
+  (o,n,[])   -> return (o,n)
+  (_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
+    where header = "Usage: cubical [OPTION...] [FILES...]"
 
 defaultPrompt :: String
 defaultPrompt = "> "
@@ -33,7 +47,10 @@ showTree tree = do
   putStrLn $ "\n[Linearized tree]\n\n" ++ printTree tree
 
 main :: IO ()
-main = getArgs >>= runInputT defaultSettings . runInterpreter
+main = do
+  args <- getArgs
+  (flags,files) <- parseOpts args
+  runInputT defaultSettings $ runInterpreter (Debug `elem` flags) files
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
 imports :: ([String],[String],[Def]) -> String -> Interpreter ([String],[String],[Def])
@@ -61,8 +78,9 @@ imports st@(notok,loaded,defs) f
             outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
             return (notok,f:loaded1,def1 ++ defs')
 
-runInterpreter :: [FilePath] -> Interpreter ()
-runInterpreter fs = case fs of
+-- The Bool is intended to be whether or not to run in debug mode
+runInterpreter :: Bool -> [FilePath] -> Interpreter ()
+runInterpreter b fs = case fs of
   [f] -> do
     -- parse and type-check files
     (_,_,defs) <- imports ([],[],[]) f
@@ -90,8 +108,8 @@ runInterpreter fs = case fs of
       case input of
         Nothing    -> outputStrLn help >> loop cs tenv
         Just ":q"  -> return ()
-        Just ":r"  -> runInterpreter fs
-        Just (':':'l':' ':str) -> runInterpreter (words str)
+        Just ":r"  -> runInterpreter b fs
+        Just (':':'l':' ':str) -> runInterpreter b (words str)
         Just (':':'c':'d':' ':str) -> lift (setCurrentDirectory str) >> loop cs tenv
         Just ":h"  -> outputStrLn help >> loop cs tenv
         Just str   -> let ts = lexer str in
