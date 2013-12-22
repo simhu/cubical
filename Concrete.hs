@@ -185,7 +185,6 @@ checkDef (n,DefData (AIdent (_,m)) args sums) | n == m = do
 checkDef (n,d) =
   throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
 
-
 resolveMutual :: [Def] -> Resolver A.Def
 resolveMutual defs = do
   tdecls' <- mapM resolveTDecl tdecls
@@ -200,4 +199,3 @@ resolveMutual defs = do
     isTDecl _               = False
     resolveTDecl (DefTDecl n e) = do e' <- resolveExp e
                                      return (unIdent n, e')
-

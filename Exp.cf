@@ -3,7 +3,7 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "of", "split" ;
+layout "where", "let", "of", "split" ; -- , "mutual" ;
 layout stop "in" ;
 -- Do not use layout toplevel as it makes pExp fail!
 
@@ -15,9 +15,12 @@ separator Imp ";" ;
 Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl.  Def ::= AIdent ":" Exp ;
 DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
--- TODO: Mutual not working.
--- NB: No iterated mutuals allowed!
--- DefMutual. Def ::= "mutual" "{" [Def] "}" "end" ;
+
+-- Anders: This is kind of an ugly way to get mutual to work, but at least it
+-- works, I guess there is a bug in bnfc when handling layout blocks and lists
+-- TODO: Bug report?
+-- DefMutual. Def ::= Def "mutual" "{" [Def] "}" ;
+-- Mutual.    Def ::= "mutual" "{" [Def] "}" ;
 
 separator  Def ";" ;
 
