@@ -52,3 +52,13 @@ lemunit = propUIP Unit propUnit
 test2 : Id (Id Unit tt tt) (refl Unit tt) (refl Unit tt)
 test2 = lemunit tt tt (refl Unit tt) (refl Unit tt)
 
+-- to be a set is a proposition
+
+setIsProp : (A:U) -> prop (set A)
+setIsProp A = propPi A (\ x0 -> (x1:A) -> prop (Id A x0 x1)) rem
+ where rem : (x0:A) -> prop (Pi A (\ x1 -> prop (Id A x0 x1)))
+       rem x0 = propPi A (\ x1 -> prop (Id A x0 x1)) rem1
+         where rem1 : (x1:A) -> prop (prop (Id A x0 x1))
+               rem1 x1 = propIsProp (Id A x0 x1)
+
+-- propIsProp : (A : U) -> prop (prop A)
