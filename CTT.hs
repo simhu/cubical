@@ -273,7 +273,6 @@ data Val = VU
 instance Show Val where
   show = showVal
 
-
 fstVal, sndVal, unSquare :: Val -> Val
 fstVal (VPair _ a _)     = a
 fstVal x                 = error $ "error fstVal: " ++ show x
@@ -392,10 +391,10 @@ mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
 showTer :: Ter -> String
 showTer U                  = "U"
-showTer (Var x)            = "x"
+showTer (Var x)            = x
 showTer (App e0 e1)        = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)         = "Pi" <+> showTers [e0,e1]
-showTer (Lam x e)          = "\\" ++ x ++ "->" <+> showTer e
+showTer (Lam x e)          = "\\" ++ x <+> "->" <+> showTer e
 showTer (LSum (_,str) _)   = str
 showTer (Branch (n,str) _) = str ++ show n
 showTer (Undef (n,str))    = str ++ show n
@@ -430,7 +429,6 @@ showTer1 U          = "U"
 showTer1 (Con c []) = c
 showTer1 (Var x)    = x
 showTer1 u          = parens $ showTer u
-
 
 showVal :: Val -> String
 showVal VU               = "U"
