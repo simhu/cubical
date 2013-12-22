@@ -6,6 +6,6 @@ bnfc:
 	alex -g Exp/Lex.x
 	ghc --make Exp/Test.hs -o Exp/Test
 clean:
-	rm -f *.log *.aux *.hi *.o cubigle
+	rm -f *.log *.aux *.hi *.o cubical
 	cd Exp && rm -f ParExp.y LexExp.x LexhExp.hs \
                         ParExp.hs PrintExp.hs AbsExp.hs *.o *.hi

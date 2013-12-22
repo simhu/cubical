@@ -35,21 +35,31 @@ showTree tree = do
 main :: IO ()
 main = getArgs >>= runInputT defaultSettings . runInterpreter
 
--- (not ok,loaded,already loaded defs) -> to load  -> (newnotok, newloaded, newdefs)
-imports :: ([String],[String],[Def])  -> String-> Interpreter ([String],[String],[Def])
+-- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
+imports :: ([String],[String],[Def]) -> String -> Interpreter ([String],[String],[Def])
 imports st@(notok,loaded,defs) f
-  | f `elem` notok  = fail ("Looping imports in " ++ f)
+  | f `elem` notok  = do
+    outputStrLn $ "Looping imports in " ++ f
+    return ([],[],[])
   | f `elem` loaded = return st
   | otherwise       = do
-    s <- lift $ readFile f
-    let ts = lexer s
-    case pModule ts of
-      Bad s  -> fail $ "Parse Failed in file " ++ show f ++ "\n" ++ show s
-      Ok mod@(Module _ imps defs') -> do
-        let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
-        (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
-        outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
-        return (notok,f:loaded1,def1 ++ defs')
+    b <- lift $ doesFileExist f
+    if not b
+      then do
+        outputStrLn ("The file " ++ f ++ " does not exist")
+        return ([],[],[])
+      else do
+        s <- lift $ readFile f
+        let ts = lexer s
+        case pModule ts of
+          Bad s  -> do
+            outputStrLn $ "Parse Failed in file " ++ show f ++ "\n" ++ show s
+            return ([],[],[])
+          Ok mod@(Module _ imps defs') -> do
+            let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
+            (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
+            outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
+            return (notok,f:loaded1,def1 ++ defs')
 
 runInterpreter :: [FilePath] -> Interpreter ()
 runInterpreter fs = case fs of
@@ -60,14 +70,19 @@ runInterpreter fs = case fs of
     let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
     let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
     case res of
-      Left err    -> outputStrLn $ "Resolver failed: " ++ err
+      Left err    -> do
+        outputStrLn $ "Resolver failed: " ++ err
+        loop [] A.tEmpty
       Right adefs -> case A.runDefs A.tEmpty adefs of
-        Left err   -> outputStrLn $ "Type checking failed: " ++ err
+        Left err   -> do
+          outputStrLn $ "Type checking failed: " ++ err
+          loop [] A.tEmpty
         Right tenv -> do
           outputStrLn "File loaded."
           loop cs tenv
-  _   -> do outputStrLn $ "Exactly one file expected: " ++ show fs
-            loop [] A.tEmpty
+  _   -> do
+    outputStrLn $ "Exactly one file expected: " ++ show fs
+    loop [] A.tEmpty
   where
     loop :: [String] -> A.TEnv -> Interpreter ()
     loop cs tenv@(A.TEnv _ rho _) = do
