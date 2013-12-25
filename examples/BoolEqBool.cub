@@ -86,20 +86,14 @@ transun = subst U (\X -> (X -> X))
 transid : Bool -> Bool
 transid = transun Bool Bool eqBoolBool (\x -> x)
 
-True : Bool
-True = true
-
-False : Bool
-False = false
-
 testT : Bool
-testT = transid True
+testT = transid true
 
 testT' : Bool
-testT' = transun Bool Bool (refl U Bool) (\x -> x) True
+testT' = transun Bool Bool (refl U Bool) (\x -> x) true
 
 testF : Bool
-testF = transid False
+testF = transid false
 
 monoidAndBool : monoid Bool
 monoidAndBool = pair (true) andBool
@@ -111,16 +105,16 @@ opBool2 : Bool -> Bool -> Bool
 opBool2 = opm Bool mBool2
 
 testTF : Bool
-testTF = opBool2 True False
+testTF = opBool2 true false
 
 testFT : Bool
-testFT = opBool2 False True
+testFT = opBool2 false true
 
 testFF : Bool
-testFF = opBool2 False False
+testFF = opBool2 false false
 
 testTT : Bool
-testTT = opBool2 True True
+testTT = opBool2 true true
 
 -- Bool tests:
 
@@ -134,14 +128,13 @@ opBool3 : Bool -> Bool -> Bool
 opBool3 = opm Bool mBool3
 
 testTF3 : Bool
-testTF3 = opBool3 True False
+testTF3 = opBool3 true false
 
 testFT3 : Bool
-testFT3 = opBool3 False True
+testFT3 = opBool3 false true
 
 testFF3 : Bool
-testFF3 = opBool3 False False
+testFF3 = opBool3 false false
 
 testTT3 : Bool
-testTT3 = opBool3 True True
-
+testTT3 = opBool3 true true
