@@ -1,5 +1,5 @@
 name:                cubical
-version:             0.1.0
+version:             0.1.2
 synopsis:            Implementation of Univalence in Cubical Sets
 description:         Cubical implements an experimental simple type checker
                      for type theory with univalence with an evaluator for closed terms.

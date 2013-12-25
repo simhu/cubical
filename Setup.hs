@@ -6,8 +6,8 @@ import System.Exit
 
 main :: IO ()
 main = do
-  b  <- doesDirectoryExist "Exp"
-  -- run bnfc if the Exp directory does not exist
+  b  <- doesFileExist "Exp/Abs.hs"
+  -- run bnfc if Exp/Abs.hs does not exist
   when (not b) bnfc
   t1 <- getModificationTime "Exp.cf"
   t2 <- getModificationTime "Exp"
