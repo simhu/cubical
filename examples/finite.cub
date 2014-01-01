@@ -5,7 +5,7 @@ module finite where
 import description
 import function 
 import gradLemma
-import Kraus
+import swapDisc
 
 step : U -> U
 step X = or Unit X
@@ -81,11 +81,8 @@ lemN0 X = isEquivEq (or X N0) X f ef
   ef : isEquiv (or X N0) X f 
   ef = gradLemma (or X N0) X f g rfg sfg
 
-
-
 N0Dec : discrete N0
 N0Dec = \ x y -> efq (dec (Id N0 x y)) x
-
 
 finDec : (n:N) -> discrete (stFin n)
 finDec = split
@@ -97,10 +94,6 @@ unitDec = split
            tt -> split
                   tt -> inl (refl Unit tt)
 
-
-isolated : (A:U) -> A -> U
-isolated A a = (x:A) -> dec (Id A a x)
-
 -- take away one element
 
 takeAway : (A:U) -> A -> U
@@ -110,49 +103,48 @@ tAway : ptU -> U
 tAway = split
          pair A a -> takeAway A a
 
-botEl : (n:N) -> stFin (suc n)
-botEl n = inl tt
+-- this has been generalized from a special case
 
-eqTkA : (n:N) -> Id U (takeAway (stFin (suc n)) (botEl n)) (stFin n)
-eqTkA n = isEquivEq tS (stFin n) f equivf
+eqTkA : (X:U) -> Id U (takeAway (step X) (inl tt)) X
+eqTkA X = isEquivEq tS X f equivf
  where
    stS : U
-   stS = stFin (suc n)
+   stS = step X
 
    bn : stS
-   bn = botEl n
+   bn = inl tt
 
    tS : U
    tS = takeAway stS bn
 
-   faux : (x:stS) -> neg (Id stS bn x) -> stFin n
+   faux : (x:stS) -> neg (Id stS bn x) -> X
    faux = split
-            inl u -> \ h -> efq (stFin n) (h rem)
+            inl u -> \ h -> efq X (h rem)
               where rem : Id stS bn (inl u)
-                    rem = cong Unit stS (incUnSt (stFin n)) tt u (propUnit tt u)
+                    rem = cong Unit stS (incUnSt X) tt u (propUnit tt u)
             inr z -> \ _ -> z
 
-   f : tS -> stFin n
+   f : tS -> X
    f = split
         pair x p -> faux x p
 
-   lem : (x:stFin n) -> neg (Id stS bn (inr x))
-   lem x = inlNotinr Unit (stFin n) tt x
+   lem : (x:X) -> neg (Id stS bn (inr x))
+   lem x = inlNotinr Unit X tt x
 
-   g : stFin n -> tS
+   g : X -> tS
    g x = pair (inr x) (lem x)
 
    T : stS -> U
    T x = neg (Id stS bn x)
 
    lem1 : (u:Unit) -> Id stS bn (inl u)
-   lem1 u = cong Unit stS (incUnSt (stFin n)) tt u (propUnit tt u)
+   lem1 u = cong Unit stS (incUnSt X) tt u (propUnit tt u)
 
    lem2 : propFam stS T
    lem2 = \ x -> propNeg (Id stS bn x)
 
-   sfg : (x:stFin n) -> Id (stFin n) (f (g x)) x
-   sfg x = refl (stFin n) x
+   sfg : (x:X) -> Id X (f (g x)) x
+   sfg x = refl X x
 
    rfg : (z:tS) -> Id tS (g (f z)) z
    rfg = split
@@ -163,52 +155,61 @@ eqTkA n = isEquivEq tS (stFin n) f equivf
                    inr z -> \ h -> eqPropFam stS T lem2
                                     (pair (inr z) (lem (faux (inr z) h))) (pair (inr z) h) (refl stS (inr z))
   
-   equivf : isEquiv tS (stFin n) f 
-   equivf = gradLemma tS (stFin n) f g sfg rfg
- 
--- Pointed set with one isolated element
+   equivf : isEquiv tS X f 
+   equivf = gradLemma tS X f g sfg rfg
 
-hasPointIso : U -> U
-hasPointIso A = Sigma A (isolated A)
+botEl : (n:N) -> stFin (suc n)
+botEl n = inl tt
+
 ptBot : N -> ptU
 ptBot n = pair (stFin (suc n)) (botEl n)
-
-corEqTkA : (n:N) -> Id U (tAway (ptBot n)) (stFin n)
-corEqTkA = eqTkA 
 
 mkPtU : (n:N) (x:stFin (suc n)) -> ptU 
 mkPtU n x = pair (stFin (suc n)) x
 
-homogSt : (n:N) (x:stFin (suc n)) -> Id ptU (mkPtU n x) (ptBot n)
-homogSt n x = undefined
+homogSt : (X:U) -> discrete X -> (x:step X) -> Id ptU (pair (step X) x) (pair (step X) (inl tt))
+homogSt X dX x = homogDec (step X) (decSt X dX) x (inl tt)
+
+corHomogSt : (X:U) -> discrete X -> (x:step X) -> Id U (takeAway (step X) x) X
+corHomogSt X dX x = 
+ substInv ptU (\ z -> Id U (tAway z) X) (pair (step X) x) (pair (step X) (inl tt)) 
+    (homogSt X dX x) (eqTkA X)
+
+-- eqTkA : (X:U) -> Id U (takeAway (step X) (inl tt)) X
+
+homogSt' : (n:N) (x:stFin (suc n)) -> Id ptU (mkPtU n x) (ptBot n)
+homogSt' n = homogSt (stFin n) (finDec n)
+
+corEqTkA : (n:N) -> Id U (tAway (ptBot n)) (stFin n)
+corEqTkA n = eqTkA (stFin n) 
 
 cor1EqTkA : (n:N) (x:stFin (suc n)) -> Id U (tAway (mkPtU n x)) (stFin n)
 cor1EqTkA n x = 
- substInv ptU (\ z -> Id U (tAway z) (stFin n)) (mkPtU n x) (ptBot n) (homogSt n x) (corEqTkA n)
+ substInv ptU (\ z -> Id U (tAway z) (stFin n)) (mkPtU n x) (ptBot n) (homogSt' n x) (corEqTkA n)
 
-lemInjSt : (n m:N) -> Id U (stFin (suc n)) (stFin (suc m)) -> Id U (stFin n) (stFin m)
-lemInjSt n m h = lem5
+lemInjSt : (X Y:U) -> discrete X -> Id U (step X) (step Y) -> Id U X Y
+lemInjSt X Y dX h = lem5
  where
   P : U -> U
-  P X = (x:X) -> Id U (takeAway X x) (stFin n)
+  P Z = (x:Z) -> Id U (takeAway Z x) X
 
-  lem1 : P (stFin (suc n))
-  lem1 = cor1EqTkA n
+  lem1 : P (step X)
+  lem1 = corHomogSt X dX
 
-  lem2 : P (stFin (suc m))
-  lem2 = subst U P (stFin (suc n)) (stFin (suc m)) h lem1
+  lem2 : P (step Y)
+  lem2 = subst U P (step X) (step Y) h lem1
 
   Am : U
-  Am = takeAway (stFin (suc m)) (botEl m)
+  Am = takeAway (step Y) (inl tt)
 
-  lem3 : Id U Am (stFin m)
-  lem3 = cor1EqTkA m (botEl m)
+  lem3 : Id U Am Y
+  lem3 = eqTkA Y
 
-  lem4 : Id U Am (stFin n)
-  lem4 = lem2 (botEl m)
+  lem4 : Id U Am X
+  lem4 = lem2 (inl tt)
 
-  lem5 : Id U (stFin n) (stFin m)
-  lem5 = comp U (stFin n) Am (stFin m) (inv U Am (stFin n) lem4) lem3
+  lem5 : Id U X Y
+  lem5 = comp U X Am Y (inv U Am X lem4) lem3
 
 lem1InjSt : (n:N) -> neg (Id U N0 (stFin (suc n)))
 lem1InjSt n h = transportInv N0 (stFin (suc n)) h (botEl n) 
@@ -223,7 +224,8 @@ lemInj = split
                     suc m -> \ h -> efq (Id N zero (suc m)) (lem1InjSt m h)
            suc n -> split
                      zero -> \ h -> efq (Id N (suc n) zero) (lem2InjSt n h)
-                     suc m -> \ h -> cong N N (\ x -> suc x) n m (lemInj n m (lemInjSt n m h))
+                     suc m -> \ h -> 
+                       cong N N (\ x -> suc x) n m (lemInj n m (lemInjSt (stFin n) (stFin m) (finDec n) h))
 
 eqsT : U -> N -> U
 eqsT X n = inh (Id U (stFin n) X)

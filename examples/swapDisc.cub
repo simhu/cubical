@@ -1,6 +1,9 @@
 module swapDisc where
 
 import lemId
+import idempotent
+import contr
+import elimEquiv
 
 -- defines the swap function over a discrete type and proves that this is an idempotent map
 -- needed for Nicolai Kraus example
@@ -118,6 +121,36 @@ idemSwapDisc X dX x0 x1 neqx0x1 x = orElim (Id X x0 x) (neg (Id X x0 x)) G rem9 
              rem18 : Id X (sD x) x
              rem18 = comp X (sD x) (aD x) x rem12 rem16
 
+-- pointed sets
         
+ptU : U
+ptU = Sigma U (id U)
+
+-- if f : A -> B is an equivalence and f a = b then (A,a) and (B,b) are equal in ptU
+
+lemPtEquiv : (A B : U) (f: A -> B) (ef: isEquiv A B f) -> (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
+lemPtEquiv A = elimIsEquiv A P rem
+  where
+   P : (B:U) -> (A->B) -> U
+   P B f = (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
+
+   rem : P A (id A)
+   rem = cong A ptU (\ x -> pair A x) 
 
 
+homogDec : (X:U) -> discrete X -> (x y:X) -> Id ptU (pair X x) (pair X y)
+homogDec X dX x y = orElim (Id X y x) (neg (Id X y x)) (G x) rem1 rem (dX y x)
+ where
+   G : X -> U
+   G z = Id ptU (pair X z) (pair X y)
+
+   rem0 : G y
+   rem0 = refl ptU (pair X y)
+
+   rem : neg (Id X y x) -> G x
+   rem neqzx = lemPtEquiv X X (swapDisc X dX y x) 
+                (idemIsEquiv X (swapDisc X dX y x) (idemSwapDisc X dX y x neqzx)) 
+                x y (idSwapDisc1 X dX y x neqzx)
+
+   rem1 : Id X y x -> G x
+   rem1 eqzx = subst X G y x eqzx rem0

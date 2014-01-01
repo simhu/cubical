@@ -2,28 +2,9 @@ module Kraus where
 
 import swapDisc
 import testInh
-import idempotent
-import contr
-import elimEquiv
 
 -- we encode the example of Nicolai Kraus
 -- for this we need the impredicative encoding of propositional truncation
-
--- the type of pointed types
-
-ptU : U
-ptU = Sigma U (id U)
-
--- if f : A -> B is an equivalence and f a = b then (A,a) and (B,b) are equal in ptU
-
-lemPtEquiv : (A B : U) (f: A -> B) (ef: isEquiv A B f) -> (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
-lemPtEquiv A = elimIsEquiv A P rem
-  where
-   P : (B:U) -> (A->B) -> U
-   P B f = (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
-
-   rem : P A (id A)
-   rem = cong A ptU (\ x -> pair A x) 
 
 -- swap with zero
 
@@ -38,20 +19,25 @@ lem1SwZero x neqzx = idemIsEquiv N (swZero x) (idemSwapDisc N natDec zero x neqz
 
 -- we deduce that (N,x) is equal to (N,0) for any x in N
 
-homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
-homogeneous x = orElim (Id N zero x) (neg (Id N zero x)) (G x) rem1 rem (natDec zero x)
+homogDec : (X:U) -> discrete X -> (x y:X) -> Id ptU (pair X x) (pair X y)
+homogDec X dX x y = orElim (Id X y x) (neg (Id X y x)) (G x) rem1 rem (dX y x)
  where
-   G : N -> U
-   G y = Id ptU (pair N y) (pair N zero)
+   G : X -> U
+   G z = Id ptU (pair X z) (pair X y)
 
-   rem0 : G zero
-   rem0 = refl ptU (pair N zero)
+   rem0 : G y
+   rem0 = refl ptU (pair X y)
 
-   rem : neg (Id N zero x) -> G x
-   rem neqzx = lemPtEquiv N N (swZero x) (lem1SwZero x neqzx) x zero (lemSwZero x neqzx)
+   rem : neg (Id X y x) -> G x
+   rem neqzx = lemPtEquiv X X (swapDisc X dX y x) 
+                (idemIsEquiv X (swapDisc X dX y x) (idemSwapDisc X dX y x neqzx)) 
+                x y (idSwapDisc1 X dX y x neqzx)
 
-   rem1 : Id N zero x -> G x
-   rem1 eqzx = subst N G zero x eqzx rem0
+   rem1 : Id X y x -> G x
+   rem1 eqzx = subst X G y x eqzx rem0
+
+homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
+homogeneous x = homogDec N natDec x zero
 
 -- the following type is a contractible, hence a proposition
 
