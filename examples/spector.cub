@@ -1,0 +1,65 @@
+-- An example similar to Martin Escardo on Cantor's search
+-- implement Spector double negation shift, following the presentation in
+-- a proof of strong normalization using domain theory
+
+-- needs mutual recursion
+
+module spector where
+
+import prelude
+
+leqN : N -> N -> U
+leqN = split
+        zero -> \ m -> Unit
+        suc n -> split
+                  zero -> N0
+                  suc m -> leqN n m
+
+lessN : (n:N) (m:N) -> or (leqN (suc n) m) (leqN m n)
+lessN = split
+        zero ->  split
+                  zero -> inr tt
+                  suc m -> inl tt
+        suc n -> split
+                  zero -> inr tt
+                  suc m -> lessN n m
+
+vect : (N->U) -> N -> U
+vect B = split
+          zero -> Unit
+          suc n -> and (vect B n) (B n)
+
+head : (B:N->U) (n:N) -> vect B (suc n) -> B n
+head B n = split
+            pair v u ->  u
+
+tail : (B:N->U) (n:N) -> vect B (suc n) -> vect B n
+tail B n = split
+            pair v u ->  v
+
+-- we follow the notation of the paper
+
+get : (B:N-> U) (n m:N) -> (leqN (suc m) n) -> vect B n -> B m
+get B n m p v = head B m (trim (suc m) n p (vect B) (tail B) v)
+ where
+   T : (N -> U) -> U
+   T P = (k:N) -> P (suc k) -> P k
+
+   trim : (n m:N) -> (leqN n m) -> (P:N->U) -> T P -> P m -> P n
+   trim = split
+           zero -> split
+                    zero -> \ p P h v -> v
+                    suc m -> \ p P h v -> trim zero m p P h (h m v)
+           suc n -> split
+                    zero -> \ p P h v -> efq (P (suc n)) p
+                    suc m -> \ p P h v -> trim n m p (\ x -> P (suc x)) (\ x -> h (suc x)) v
+
+-- not working yet
+-- mutual
+-- Phi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
+--       neg (neg (Pi n B)) -> (n:N) -> neg (vect B n)
+-- Psi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
+--       neg (neg (Pi n B)) -> (n m:N) -> (or (leqN (suc m) n) (leqN n m)) -> B m
+
+-- spector : (B:N->U) -> ((n:N) -> neg (neg (B n))) -> neg (neg (Pi B N))
+-- spector B H K = Phi B H K zero tt
