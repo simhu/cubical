@@ -79,6 +79,9 @@ primHandle =
   , ("transportRef",  (2, primTransportRef))
   , ("equivEqRef",    (3, primEquivEqRef))
   , ("transpEquivEq", (6, primTransUEquivEq))
+
+    -- TODO: Remove, this is just a temporary fix to solve a bug
+  , ("subst",         (6, primSubst))
   ]
 
 reservedNames :: [String]
@@ -134,3 +137,8 @@ primTransUEquivEq :: [Exp] -> Either String I.Ter
 primTransUEquivEq [a,b,f,s,t,x] =
   I.TransUEquivEq <$> translate a <*> translate b <*> translate f
                   <*> translate s <*> translate t <*> translate x
+
+-- TODO: remove
+primSubst :: [Exp] -> Either String I.Ter
+primSubst [a,c,x,y,eq,p] =
+  I.Trans <$> translate c <*> translate eq <*> translate p

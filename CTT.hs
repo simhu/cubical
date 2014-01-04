@@ -82,7 +82,11 @@ data Ter = Var Binder
            -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
            -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
          | TransUEquivEq Ter Ter Ter Ter Ter Ter
-  deriving (Eq)
+
+           -- TODO: Remove, but first fix the bug that get introduced (it can
+           -- be found by running testNO1 in nIso.cub)
+         | Trans Ter Ter Ter
+  deriving Eq
 
 instance Show Ter where
   show = showTer

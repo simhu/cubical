@@ -159,6 +159,10 @@ eval e (EquivEq a b f s t) =
 eval e (EquivEqRef a s t)  =
   Path y $ Path x $ VEquivSquare x y (eval e a) (eval e s) (eval e t)
   where x:y:_ = gensyms (supportEnv e)
+eval e (Trans c p t) = com (app (eval e c) pv) box
+  where x   = fresh e
+        pv  = appName (eval e p) x
+        box = Box Up x (eval e t) []
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
