@@ -81,7 +81,7 @@ primHandle =
   , ("transpEquivEq", (6, primTransUEquivEq))
 
     -- TODO: Remove, this is just a temporary fix to solve a bug
-  , ("subst",         (6, primSubst))
+    --  , ("subst",         (6, primSubst))
   ]
 
 reservedNames :: [String]
