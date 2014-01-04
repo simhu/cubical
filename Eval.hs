@@ -207,7 +207,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         bx   = mapBox sndVal box
         bx1  = fill b $ mapBox (`face` (x,Up)) bx
         v    = fill b $ (x,(bx0,bx1)) `consBox` bx
-    in traceb "VEquivEq case 1" $ VPair x ax0 v
+    in traceb ("VEquivEq case 1" ++ " a = " ++ show a ++ " box = " ++ show box ++ " veq = " ++ show veq)  $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,Down) box
         bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
@@ -250,9 +250,14 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
                           -- to consider the auxsides?
-      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
+--      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
+      add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
-    in traceb "Kan Com 1" $ fill v newBox
+--    in traceb ("Kan Com 1 " ++ "newBox = " ++ show newBox ++ "\n") $ fill v newBox
+    in traceb ("Kan Com 1 " ++ "box = " ++ show box ++ "\n" ++ 
+               " toAdd " ++ show toAdd ++ "\n" ++
+               " tbox = " ++ show tbox ++ "\n" ++
+               " tbox' = " ++ show tbox' ++ "\n") $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
@@ -445,7 +450,7 @@ app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
-  traceb "Pi fill" $ com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
+  traceb ("Pi fill " ++ " answer = " ++ show answer ++ "\n") $ answer
   where x     = gensym (support kf `union` support v)
         u     = v `face` (i,dir)
         ufill = fill a (Box (mirror dir) i u [])
@@ -455,6 +460,7 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
         vi0   = app w (vfill `face` (i,Down))
         vi1   = com (app b ufill) (appBox box bcu)
         nvs   = [ ((n,d),app ws (vfill `face` (n,d))) | ((n,d),ws) <- nws ]
+        answer = com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
 app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [((x,Down),left),((x,Up),right)])
   -- NB: there are various choices how to construct this
   where y     = gensym (support vext `union` support w)
