@@ -211,7 +211,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         bx   = mapBox sndVal box
         bx1  = fill b $ mapBox (`face` (x,Up)) bx
         v    = fill b $ (x,(bx0,bx1)) `consBox` bx
-    in traceb ("VEquivEq case 1" ++ " a = " ++ show a ++ " box = " ++ show box ++ " veq = " ++ show veq)  $ VPair x ax0 v
+    in traceb ("VEquivEq case 1" ) $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,Down) box
         bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
@@ -258,10 +258,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
       add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
       newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
 --    in traceb ("Kan Com 1 " ++ "newBox = " ++ show newBox ++ "\n") $ fill v newBox
-    in traceb ("Kan Com 1 " ++ "box = " ++ show box ++ "\n" ++ 
-               " toAdd " ++ show toAdd ++ "\n" ++
-               " tbox = " ++ show tbox ++ "\n" ++
-               " tbox' = " ++ show tbox' ++ "\n") $ fill v newBox
+    in traceb ("Kan Com 1 ") $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
@@ -271,7 +268,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
                     (side `appendSides` mapBox (pickout yc) boxL))
           | yc <- allDirs nK ]
         newBox = Box tdir x principal nonprincipal
-    in traceb ("Kan Com 2\nnewBox " ++ show newBox) VComp newBox
+    in traceb ("Kan Com 2 ") VComp newBox
   | x' `elem` nK =
     let -- assumes zc in defBox tbox
       auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
@@ -331,7 +328,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        ,((x,tdir),principzc)] -- "degenerate" along z!
            in fill (lookBox zc tbox) (Box Up z principzc (sides ++ auxsides zc)))
         | zc <- allDirs nK ]
-    in     traceb ("Kan Fill VU Case 2 v= " ++ show v ++ "\nbox= " ++ show box)
+    in     traceb ("Kan Fill VU Case 2 v= ") --  ++ show v ++ "\nbox= " ++ show box)
      VFill z (Box tdir x' principal nonprincipal)
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
@@ -449,12 +446,12 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
-  traceb ("Pi Com:\nufill = " ++ show ufill ++ "\nbcu = " ++ show bcu)
+  traceb ("Pi Com\n ")
   com (app b ufill) (appBox box bcu)
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
-  traceb ("Pi fill " ++ " answer = " ++ show answer ++ "\n") $ answer
+  traceb ("Pi fill ") $ answer
   where x     = gensym (support kf `union` support v)
         u     = v `face` (i,dir)
         ufill = fill a (Box (mirror dir) i u [])
