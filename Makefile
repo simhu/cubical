@@ -1,5 +1,5 @@
 all: 
-	ghc --make -O2 -o cubical Main.hs
+	ghc --make -o cubical Main.hs
 bnfc:
 	bnfc -d Exp.cf
 	happy -gca Exp/Par.y
