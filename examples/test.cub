@@ -1,0 +1,10 @@
+module UnotSet where
+
+import BoolEqBool
+
+-- proves that U is not a set
+
+eqreflnot : set U -> Id (Id U Bool Bool) (refl U Bool) eqBoolBool
+eqreflnot uipU = uipU Bool Bool (refl U Bool) eqBoolBool
+-- uipU Bool Bool (refl U Bool) eqBoolBool
+

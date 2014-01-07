@@ -1,6 +1,6 @@
 module swap where
 
-import gradLemma
+import gradLemma1
 
 -- the swap function defines an equality
 

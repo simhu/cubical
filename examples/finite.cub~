@@ -44,14 +44,14 @@ decSt : (X:U) -> discrete X -> discrete (step X)
 decSt X dX =  
  split
   inl a -> split
-            inl a1 -> inl (cong Unit (step X) (incUnSt X) a a1 (propUnit a a1))
+            inl a1 -> inl (mapOnPath Unit (step X) (incUnSt X) a a1 (propUnit a a1))
             inr b -> inr (inlNotinr Unit X a b)
   inr b -> split
             inl a -> inr (inrNotinl Unit X a b)
             inr b1 -> rem (dX b b1)
                where rem : dec (Id X b b1) -> dec (Id (step X) (inr b) (inr b1))
                      rem = split
-                            inl p -> inl (cong X (step X) (incSt X) b b1 p)
+                            inl p -> inl (mapOnPath X (step X) (incSt X) b b1 p)
                             inr h -> inr (\ p -> h (injSt X b b1 p))
 
 stFin : N -> U
@@ -121,7 +121,7 @@ eqTkA X = isEquivEq tS X f equivf
    faux = split
             inl u -> \ h -> efq X (h rem)
               where rem : Id stS bn (inl u)
-                    rem = cong Unit stS (incUnSt X) tt u (propUnit tt u)
+                    rem = mapOnPath Unit stS (incUnSt X) tt u (propUnit tt u)
             inr z -> \ _ -> z
 
    f : tS -> X
@@ -138,7 +138,7 @@ eqTkA X = isEquivEq tS X f equivf
    T x = neg (Id stS bn x)
 
    lem1 : (u:Unit) -> Id stS bn (inl u)
-   lem1 u = cong Unit stS (incUnSt X) tt u (propUnit tt u)
+   lem1 u = mapOnPath Unit stS (incUnSt X) tt u (propUnit tt u)
 
    lem2 : propFam stS T
    lem2 = \ x -> propNeg (Id stS bn x)
@@ -225,7 +225,7 @@ lemInj = split
            suc n -> split
                      zero -> \ h -> efq (Id N (suc n) zero) (lem2InjSt n h)
                      suc m -> \ h -> 
-                       cong N N (\ x -> suc x) n m (lemInj n m (lemInjSt (stFin n) (stFin m) (finDec n) h))
+                       mapOnPath N N (\ x -> suc x) n m (lemInj n m (lemInjSt (stFin n) (stFin m) (finDec n) h))
 
 eqsT : U -> N -> U
 eqsT X n = inh (Id U (stFin n) X)

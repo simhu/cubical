@@ -1,0 +1,84 @@
+module gradLemma where
+
+import equivProp
+import BoolEqBool
+
+corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
+corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1) 
+
+corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) -> 
+            prop (fiber A A h a)
+corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
+  where 
+  rem : Id (A -> A) h (id A)
+  rem = funExt A (\_ -> A) h (id A) ph 
+
+
+
+gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+            isEquiv A B f
+gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
+  where
+  injf : injective A B f
+  injf = retractInj A B f g rfg
+
+  rem : (b : B) -> prop (Sigma A (\a -> Id B (f a) b))
+  rem b = split
+    pair a0 e0 -> 
+      split
+       pair a1 e1 -> rem5
+        where
+         E : A -> U
+         E a = Id B (f a) b
+         F : A -> U
+         F a = Id A (g (f a)) (g b)
+         G : A -> U
+         G a = Id B (f (g (f a))) (f (g b))
+
+         z0 : Sigma A E
+         z0 = pair a0 e0
+         z1 : Sigma A E
+         z1 = pair a1 e1
+        
+         cg : (a:A) -> E a -> F a
+         cg a = mapOnPath B A g (f a) b
+
+         cf : (a:A) -> F a -> G a
+         cf a = mapOnPath A B f (g (f a)) (g b)
+
+         cfg : (a:A) -> E a -> G a
+         cfg a = mapOnPath B B (\ x -> f (g x)) (f a) b
+
+         pcg : Sigma A E -> Sigma A F
+         pcg = split
+                pair a e -> pair a (cg a e)
+
+         pcf : Sigma A F -> Sigma A G
+         pcf = split
+                pair a e -> pair a (cf a e)
+
+         fg : B -> B
+         fg y = f (g y)
+
+         pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
+         pc u = split
+                pair a e -> pair a (mapOnPath B B u (f a) b e)
+
+         rem1 : prop (Sigma A F)
+         rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)         
+
+         rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
+         rem2 = rem1 (pcg z0) (pcg z1)
+
+         rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
+         rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
+
+         rem4 : Id (B -> B) fg (id B)
+         rem4 = funExt B (\ _ -> B)  fg (id B) sfg
+
+         rem5 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
+         rem5 = subst (B->B) 
+                  (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem4 rem3
+
+
+

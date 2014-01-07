@@ -7,6 +7,24 @@ import function
 import gradLemma
 import swapDisc
 
+-- a lemma about injective function
+
+lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
+              -> ((x:A) -> Id (Id A x x) (refl A x) (injf x x (refl B (f x))))
+              -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))
+lemInj A B f injf h x = 
+ J A x (\ y p -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))) rem
+ where
+  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
+  rem1 = h x
+
+  rem2 : Id (Id A x x) (injf x x (refl B (f x))) (injf x x (mapOnPath A B f x x (refl A x)))
+  rem2 = mapOnPath (Id B (f x) (f x)) (Id A x x) (injf x x) (refl B (f x)) (mapOnPath A B f x x (refl A x)) (congRefl A B f x)
+
+  rem : Id (Id A x x) (refl A x) (injf x x (mapOnPath A B f x x (refl A x)))
+  rem = comp (Id A x x) (refl A x) (injf x x (refl B (f x))) (injf x x (mapOnPath A B f x x (refl A x)))
+             rem1 rem2
+
 step : U -> U
 step X = or Unit X
 

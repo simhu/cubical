@@ -22,6 +22,14 @@ unCompAs :: Val -> Name -> Box Val
 unCompAs (VComp box) y = swap box (pname box) y
 unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
+isVFill :: Val -> Bool
+isVFill (VFill _ _) = True
+isVFill _           = False
+
+isVComp :: Val -> Bool
+isVComp (VComp _) = True
+isVComp _         = False
+
 unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
@@ -266,6 +274,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | otherwise = error "fill EqEquiv"
 
 fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
+  | not (and [isVComp (lookBox yc box) | yc <- allDirs nL]) = Kan Fill v box
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
@@ -326,6 +335,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 4) x `notElem` J (maybe combine with 1?)
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
+  | not (and [isVFill (lookBox yc box) | yc <- allDirs nL]) = Kan Fill v box
 
   | toAdd /= [] =
     let
@@ -446,14 +456,6 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
 fill v b = Kan Fill v b
 
-isVFill :: Val -> Bool
-isVFill (VFill _ _) = True
-isVFill _           = False
-
-isVComp :: Val -> Bool
-isVComp (VComp _) = True
-isVComp _         = False
-
 fills :: [(Binder,Ter)] -> Env -> [Box Val] -> [Val]
 fills []         _ []          = []
 fills ((x,a):as) e (box:boxes) = v : fills as (Pair e (x,v)) boxes
@@ -539,6 +541,10 @@ conv k (VPi u v) (VPi u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
 conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
 conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
   where z = fresh (u,u')
+conv k (Path x u) p'              = conv k (swap u x z) (appName p' z)
+  where z = fresh u
+conv k p (Path x' u')             = conv k (appName p z) (swap u' x' z)
+  where z = fresh u'
 conv k (VExt x b f g p) (VExt x' b' f' g' p') =
   and [x == x', conv k b b', conv k f f', conv k g g', conv k p p']
 conv k (VInh u) (VInh u')                     = conv k u u'
