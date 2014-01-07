@@ -14,9 +14,8 @@ import Exp.Print
 import Exp.Abs hiding (NoArg)
 import Exp.Layout
 import Exp.ErrM
-import MTTtoCTT
 import Concrete
-import qualified MTT  as A
+import qualified MTT as M
 import qualified CTT as C
 import qualified Eval as E
 
@@ -78,6 +77,12 @@ imports st@(notok,loaded,defs) f
             outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
             return (notok,f:loaded1,def1 ++ defs')
 
+defs :: C.Env -> C.Ter -> C.Ter
+defs C.Empty        t = t
+defs (C.PDef d env) t = defs env (C.Where t d)
+defs env          _ =
+  error $ "defs: environment should a list of definitions " ++ show env
+
 -- The Bool is intended to be whether or not to run in debug mode
 runInterpreter :: Bool -> [FilePath] -> Interpreter ()
 runInterpreter b fs = case fs of
@@ -90,20 +95,20 @@ runInterpreter b fs = case fs of
     case res of
       Left err    -> do
         outputStrLn $ "Resolver failed: " ++ err
-        loop [] A.tEmpty
-      Right adefs -> case A.runDefs A.tEmpty adefs of
+        loop [] M.tEmpty
+      Right adefs -> case M.runDefs M.tEmpty adefs of
         Left err   -> do
           outputStrLn $ "Type checking failed: " ++ err
-          loop [] A.tEmpty
+          loop [] M.tEmpty
         Right tenv -> do
           outputStrLn "File loaded."
           loop cs tenv
   _   -> do
     outputStrLn $ "Exactly one file expected: " ++ show fs
-    loop [] A.tEmpty
+    loop [] M.tEmpty
   where
-    loop :: [String] -> A.TEnv -> Interpreter ()
-    loop cs tenv@(A.TEnv _ rho _) = do
+    loop :: [String] -> M.TEnv -> Interpreter ()
+    loop cs tenv@(M.TEnv _ rho _) = do
       input <- getInputLine defaultPrompt
       case input of
         Nothing    -> outputStrLn help >> loop cs tenv
@@ -119,14 +124,12 @@ runInterpreter b fs = case fs of
               case runResolver (local (const (Env cs)) (resolveExp exp)) of
                 Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs tenv
                 Right body ->
-                  case A.runInfer tenv body of
+                  case M.runInfer tenv body of
                     Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs tenv
                     Right _  ->
-                      case translate (A.defs rho body) of
-                        Left err -> outputStrLn ("Could not translate to internal syntax: " ++ err) >>
-                                    loop cs tenv
-                        Right t  -> let value = E.eval C.Empty t in
-                          outputStrLn ("EVAL: " ++ show value) >> loop cs tenv
+                      let t = defs rho (M.translate body)
+                          value = E.eval C.Empty t
+                      in outputStrLn ("EVAL: " ++ show value) >> loop cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++

@@ -2,8 +2,6 @@ module CTT where
 
 
 import Data.List
-
-import qualified MTT as A
 import Pretty
 
 --------------------------------------------------------------------------------
@@ -12,6 +10,7 @@ import Pretty
 type Binder = String
 type Def    = (Binder,Ter)  -- without type annotations for now
 type Ident  = String
+type Prim = (Integer,String)
 
 data Ter = Var Binder
          | Id Ter Ter Ter | Refl Ter
@@ -19,16 +18,16 @@ data Ter = Var Binder
          | Where Ter [Def]
          | U
 
-         | Undef A.Prim
+         | Undef Prim
 
            -- constructor c Ms
          | Con Ident [Ter]
 
            -- branches c1 xs1  -> M1,..., cn xsn -> Mn
-         | Branch A.Prim [(Ident, ([Binder],Ter))]
+         | Branch Prim [(Ident, ([Binder],Ter))]
 
            -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | LSum A.Prim [(Ident, [(Binder,Ter)])]
+         | LSum Prim [(Ident, [(Binder,Ter)])]
 
            -- (A B:U) -> Id U A B -> A -> B
            -- For TransU we only need the eqproof and the element in A is needed
@@ -468,6 +467,10 @@ showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
 showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
+showVal (VApp u v)        = showVal u <+> showVal1 v
+showVal (VAppName u n)    = showVal u <+> "@" <+> show n
+showVal (VBranch u v)     = showVal u <+> showVal1 v
+showVal (VVar x d)        = show x    <+> show d
 
 showVals :: [Val] -> String
 showVals = hcat . map showVal1

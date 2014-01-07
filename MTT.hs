@@ -11,8 +11,12 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Identity
 import Control.Monad.Error (throwError)
 import Control.Applicative
-
 import Pretty
+
+import qualified CTT as C
+import Eval 
+
+type Val = C.Val
 
 type Label  = String
 
@@ -25,95 +29,243 @@ type Tele   = [(String,Exp)]
 -- Labelled sum: c (x1 : A1) .. (xn : An)
 type LblSum = [(Label,Tele)]
 
--- Mix values and expressions
-type Val = Exp
-
 -- Context gives type values to identifiers
 type Ctxt = [(String,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
 type Def = (Tele,[(String,Exp)])
 
--- De Bruijn levels
-mkVar :: Int -> Exp
-mkVar k = Var (genName k)
+-- -- De Bruijn levels
+-- mkVar :: Int -> Exp
+-- mkVar k = Var (genName k)
 
 genName :: Int -> String
 genName n = 'X' : show n
 
-type Prim = (Integer,String)
-
-data Exp = Comp Exp Env         -- for closures
-         | App Exp Exp
+data Exp = App Exp Exp
          | Pi Exp Exp
          | Lam String Exp
          | Def Exp Def
          | Var String
          | U
          | Con String [Exp]
-         | Fun Prim [Brc]
-         | Sum Prim LblSum
-         | Undef Prim
-         | EPrim Prim [Exp]     -- used for reification
+         | Fun C.Prim [Brc]
+         | Sum C.Prim LblSum
+         | Undef C.Prim
   deriving (Eq)
 
 instance Show Exp where
  show = showExp
 
-data Env = Empty
-         | Pair Env (String,Val)
-         | PDef Def Env         -- for handling recursive definitions,
-                                -- see getE
-  deriving (Eq)
+-- data Env = Empty
+--          | Pair Env (String,Val)
+--          | PDef Def Env         -- for handling recursive definitions,
+--                                 -- see getE
+--   deriving (Eq)
 
-instance Show Env where
-  show = showEnv
+-- instance Show Env where
+--   show = showEnv
+
+-- For an expression t, returns (u,ts) where u is no application
+-- and t = u ts
+unApps :: Exp -> (Exp,[Exp])
+unApps (App r s) = let (t,ts) = unApps r in (t, ts ++ [s])
+unApps t         = (t,[])
+
+apps :: C.Ter -> [C.Ter] -> C.Ter
+apps = foldl C.App
+
+lams :: [String] -> C.Ter -> C.Ter
+lams bs t = foldr C.Lam t bs
+
+translate :: Exp -> C.Ter
+translate U              = C.U
+translate (Undef prim)   = C.Undef prim
+translate (Lam x t)      = C.Lam x $ translate t
+translate (Pi a f)       = C.Pi (translate a) (translate f)
+translate t@(App _ _)    =
+  let (hd,rest) = unApps t
+  in case hd of
+    Var n | n `elem` reservedNames -> translatePrimitive n rest
+    _ -> apps (translate hd) (map translate rest)
+translate (Def e (_,ts)) = -- ignores types for now
+  C.Where (translate e) [(n, translate e') | (n,e') <- ts]
+translate (Var n) | n `elem` reservedNames = translatePrimitive n []
+                  | otherwise              = C.Var n
+translate (Con n ts)     = C.Con n $ map translate ts
+translate (Fun pr bs)    =
+  C.Branch pr [(n,(ns,translate b)) | (n,(ns,b)) <- bs]
+translate (Sum pr lbs)   =
+  C.LSum   pr [(n, [(n',translate e') | (n',e') <- tl]) | (n,tl) <- lbs]
+-- translate t              = error $ "translate: can not handle " ++ show t
+
+-- Gets a name for a primitive notion, a list of arguments which might be too
+-- long and returns the corresponding concept in the internal syntax. Applies
+-- the rest of the terms if the list of terms is longer than the arity.
+translatePrimitive :: String -> [Exp] -> C.Ter
+translatePrimitive n ts = case lookup n primHandle of
+  Just (arity,_) | length ts < arity ->
+    let r       = arity - length ts
+        binders = map (\n -> '_' : show n) [1..r]
+        vars    = map Var binders
+    in lams binders $ translatePrimitive n (ts ++ vars)
+  Just (arity,handler)               ->
+    let (args,rest) = splitAt arity ts
+    in apps (handler args) (map translate rest)
+  Nothing                            ->
+    error ("unknown primitive: " ++ show n)
+
+-- | Primitive notions
+
+-- name, (arity for Exp, handler)
+type PrimHandle = [(String, (Int, [Exp] -> C.Ter))]
+
+primHandle :: PrimHandle
+primHandle =
+  [ ("Id",            (3, primId))
+  , ("refl",          (2, primRefl))
+  , ("funExt",        (5, primExt))
+  , ("J",             (6, primJ))
+  , ("Jeq",           (4, primJeq))
+  , ("inh",           (1, primInh))
+  , ("inc",           (2, primInc))
+  , ("squash",        (3, primSquash))
+  , ("inhrec",        (5, primInhRec))
+  , ("equivEq",       (5, primEquivEq))
+  , ("transport",     (4, primTransport))
+  , ("transportRef",  (2, primTransportRef))
+  , ("equivEqRef",    (3, primEquivEqRef))
+  , ("transpEquivEq", (6, primTransUEquivEq))
+--  , ("mapOnPath",     (6, primMapOnPath))
+    -- TODO: Remove, this is just a temporary fix to solve a bug
+    --  , ("subst",         (6, primSubst))
+  ]
+
+reservedNames :: [String]
+reservedNames = map fst primHandle
+
+primId :: [Exp] -> C.Ter
+primId [a,x,y] = C.Id (translate a) (translate x) (translate y)
+
+primRefl :: [Exp] -> C.Ter
+primRefl [a,x] = C.Refl (translate x)
+
+primExt :: [Exp] -> C.Ter
+primExt [a,b,f,g,ptwise] =
+  C.Ext (translate b) (translate f) (translate g) (translate ptwise)
+
+primJ :: [Exp] -> C.Ter
+primJ [a,u,c,w,v,p] =
+  C.J (translate a) (translate u) (translate c)
+        (translate w) (translate v) (translate p)
+
+primJeq :: [Exp] -> C.Ter
+primJeq [a,u,c,w] =
+  C.JEq (translate a) (translate u) (translate c) (translate w)
+
+primInh :: [Exp] -> C.Ter
+primInh [a] = C.Inh (translate a)
+
+primInc :: [Exp] -> C.Ter
+primInc [a,x] = C.Inc (translate x)
+
+primSquash :: [Exp] -> C.Ter
+primSquash [a,x,y] = C.Squash (translate x) (translate y)
+
+primInhRec :: [Exp] -> C.Ter
+primInhRec [a,b,p,f,x] =
+  C.InhRec (translate b) (translate p) (translate f) (translate x)
+
+primEquivEq :: [Exp] -> C.Ter
+primEquivEq [a,b,f,s,t] =
+  C.EquivEq (translate a) (translate b) (translate f)
+              (translate s) (translate t)
+
+primTransport :: [Exp] -> C.Ter
+primTransport [a,b,p,x] = C.TransU (translate p) (translate x)
+
+primTransportRef :: [Exp] -> C.Ter
+primTransportRef [a,x] = C.TransURef (translate x)
+
+primEquivEqRef :: [Exp] -> C.Ter
+primEquivEqRef [a,s,t] = C.EquivEqRef (translate a) (translate s) (translate t)
+
+primTransUEquivEq :: [Exp] -> C.Ter
+primTransUEquivEq [a,b,f,s,t,x] =
+  C.TransUEquivEq (translate a) (translate b) (translate f)
+                    (translate s) (translate t) (translate x)
+
+primMapOnPath :: [Exp] -> C.Ter
+primMapOnPath [ta,tb,f,a,b,p] =
+  C.MapOnPath (translate f) (translate p)
+
+
+-- TODO: remove
+primSubst :: [Exp] -> C.Ter
+primSubst [a,c,x,y,eq,p] =
+  C.Trans (translate c) (translate eq) (translate p)
+
+showExp :: Exp -> String
+showExp1 :: Exp -> String
+
+showExps :: [Exp] -> String
+showExps = hcat . map showExp1
+
+showExp1 U = "U"
+showExp1 (Con c []) = c
+showExp1 (Var x) = x
+showExp1 u@(Fun {}) = showExp u
+showExp1 u@(Sum {}) = showExp u
+showExp1 u@(Undef {}) = showExp u
+showExp1 u = parens $ showExp u
+
+-- showEnv :: Env -> String
+-- showEnv Empty            = ""
+-- showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ show u
+-- showEnv (PDef xas env)   = showEnv env
+
+-- showEnv1 Empty            = ""
+-- showEnv1 (Pair env (x,u)) = showEnv1 env ++ C.showVal u ++ ", "
+-- showEnv1 (PDef xas env)   = showEnv env
+
+
+showExp e = case e of
+ App e0 e1 -> showExp e0 <+> showExp1 e1
+ Pi e0 e1 -> "Pi" <+> showExps [e0,e1]
+ Lam x e -> "\\" ++ x ++ "->" <+> showExp e
+ Def e d -> showExp e <+> "where" <+> showDef d
+ Var x -> x
+ U -> "U"
+ Con c es -> c <+> showExps es
+ Fun (n,str) _ -> str ++ show n
+ Sum (_,str) _ -> str
+ Undef (n,str) -> str ++ show n
+
+showDef :: Def -> String
+showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showExp t) xts)
 
 lets :: [Def] -> Exp -> Exp
 lets []     e = e
 lets (d:ds) e = Def (lets ds e) d
 
-defs :: Env -> Exp -> Exp
-defs Empty        e = e
-defs (PDef d env) e = defs env (Def e d)
-defs env          _ =
-  error $ "defs: environment should a list of definitions " ++ show env
+upds :: C.Env -> [(String,Val)] -> C.Env
+upds = foldl C.Pair
 
-upds :: Env -> [(String,Val)] -> Env
-upds = foldl Pair
+-- getE :: String -> C.Env -> Val
+-- getE x (C.Pair _ (y,u)) | x == y = u
+-- getE x (C.Pair s _)              = getE x s
+-- getE x r@(C.PDef d r1)           = getE x (upds r1 (evals (snd d) r))
 
-eval :: Exp -> Env -> Val
-eval (Def e d)   s = eval e (PDef d s)
-eval (App t1 t2) s = app (eval t1 s) (eval t2 s)
-eval (Pi a b)    s = Pi (eval a s) (eval b s)
-eval (Con c ts)  s = Con c (map (`eval` s) ts)
-eval (Var k)     s = getE k s
-eval U           _ = U
-eval t           s = Comp t s
+type TeleTer   = [(C.Binder,C.Ter)]
 
-evals :: [(String,Exp)] -> Env -> [(String,Val)]
-evals es r = map (\(x,e) -> (x,eval e r)) es
-
-app :: Val -> Val -> Val
-app (Comp (Lam x b) s)     u            = eval b (Pair s (x,u))
-app a@(Comp (Fun _ ces) r) b@(Con c us) = case lookup c ces of
-  Just (xs,e) -> eval e (upds r (zip xs us))
-  Nothing     -> error $ "app: " ++ show a ++ " " ++ show b
-app f                      u            = App f u
-
-getE :: String -> Env -> Exp
-getE x (Pair _ (y,u)) | x == y = u
-getE x (Pair s _)              = getE x s
-getE x r@(PDef d r1)           = getE x (upds r1 (evals (snd d) r))
-
-addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Ctxt
+addC :: Ctxt -> (TeleTer,C.Env) -> [(String,Val)] -> Ctxt
 addC gam _             []          = gam
 addC gam ((y,a):as,nu) ((x,u):xus) =
-  addC ((x,eval a nu):gam) (as,Pair nu (y,u)) xus
+  addC ((x,eval nu a):gam) (as,C.Pair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
-getLblType :: String -> Exp -> Typing (Tele, Env)
-getLblType c (Comp (Sum _ cas) r) = case lookup c cas of
+getLblType :: String -> Val -> Typing (TeleTer, C.Env)
+getLblType c (C.Ter (C.LSum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("expected a data type for the constructor "
@@ -121,12 +273,12 @@ getLblType c u = throwError ("expected a data type for the constructor "
 
 -- Environment for type checker
 data TEnv = TEnv { index :: Int   -- for de Bruijn levels
-                 , env   :: Env
+                 , env   :: C.Env
                  , ctxt  :: Ctxt }
           deriving Eq
 
 tEmpty :: TEnv
-tEmpty = TEnv 0 Empty []
+tEmpty = TEnv 0 C.Empty []
 
 -- Type checking monad
 type Typing a = ReaderT TEnv (ErrorT String Identity) a
@@ -143,23 +295,28 @@ runDef lenv d = do
 runDefs :: TEnv -> [Def] -> Either String TEnv
 runDefs = foldM runDef
 
-runInfer :: TEnv -> Exp -> Either String Exp
+runInfer :: TEnv -> Exp -> Either String Val
 runInfer lenv e = runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
 
 addTypeVal :: (String,Val) -> TEnv -> TEnv
-addTypeVal p@(x,_) (TEnv k rho gam) = TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam)
+addTypeVal p@(x,_) (TEnv k rho gam) =
+  TEnv (k+1) (C.Pair rho (x,mkVar k (C.support rho))) (p:gam)
 
 addType :: (String,Exp) -> TEnv -> TEnv
-addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,eval a rho) tenv
+addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,eval rho (translate a)) tenv
 
-addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> TEnv
+addBranch :: [(String,Val)] -> (TeleTer,C.Env) -> TEnv -> TEnv
 addBranch nvs (tele,env) (TEnv k rho gam) =
   TEnv (k + length nvs) (upds rho nvs) (addC gam (tele,env) nvs)
 
+translateTele :: Tele -> TeleTer
+translateTele ts = [(x,translate t) | (x,t) <- ts]
+
 addDef :: Def -> TEnv -> TEnv
 addDef d@(ts,es) (TEnv k rho gam) =
-  let rho1 = PDef d rho
-  in TEnv k rho1 (addC gam (ts,rho) (evals es rho1))
+  let rho1 = C.PDef (translateTele es) rho
+  in TEnv k rho1 (addC gam (translateTele ts,rho)
+                 (evals rho1 (translateTele es)))
 
 addTele :: Tele -> TEnv -> TEnv
 addTele xas lenv = foldl (flip addType) lenv xas
@@ -167,10 +324,13 @@ addTele xas lenv = foldl (flip addType) lenv xas
 getIndex :: Typing Int
 getIndex = index <$> ask
 
-getFresh :: Typing Exp
-getFresh = mkVar <$> getIndex
+getFresh :: Typing C.Val
+getFresh = do
+    e <- getEnv
+    k <- getIndex
+    return $ mkVar k (C.support e)
 
-getEnv :: Typing Env
+getEnv :: Typing C.Env
 getEnv = env <$> ask
 
 getCtxt :: Typing Ctxt
@@ -185,12 +345,12 @@ checkDef :: Def -> Typing ()
 checkDef (xas,xes) = trace ("checking definition " ++ show (map fst xes)) $ do
   checkTele xas
   rho <- getEnv
-  local (addTele xas) $ checks (xas,rho) (map snd xes)
+  local (addTele xas) $ checks (translateTele xas,rho) (map snd xes)
 
 checkTele :: Tele -> Typing ()
 checkTele []          = return ()
 checkTele ((x,a):xas) = do
-  check U a
+  check C.VU a
   local (addType (x,a)) $ checkTele xas
 
 check :: Val -> Exp -> Typing ()
@@ -198,16 +358,16 @@ check a t = case (a,t) of
   (_,Con c es) -> do
     (bs,nu) <- getLblType c a
     checks (bs,nu) es
-  (U,Pi a (Lam x b)) -> do
-    check U a
-    local (addType (x,a)) $ check U b
-  (U,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
-  (Pi (Comp (Sum _ cas) nu) f,Fun _ ces) ->
+  (C.VU,Pi a (Lam x b)) -> do
+    check C.VU a
+    local (addType (x,a)) $ check C.VU b
+  (C.VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
+  (C.VPi (C.Ter (C.LSum _ cas) nu) f,Fun _ ces) ->
     if map fst ces == map fst cas
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces cas ]
        else throwError "case branches does not match the data type"
-  (Pi a f,Lam x t)  -> do
+  (C.VPi a f,Lam x t)  -> do
     var <- getFresh
     local (addTypeVal (x,a)) $ check (app f var) t
   (_,Def e d) -> do
@@ -215,19 +375,24 @@ check a t = case (a,t) of
     local (addDef d) $ check a e
   (_,Undef _) -> return ()
   _ -> do
+    v <- checkInfer t
     k <- getIndex
-    (reifyExp k <$> checkInfer t) =?= reifyExp k a
+    e <- getEnv
+    if conv k v a then return ()
+    else throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
-checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
+checkBranch :: (TeleTer,C.Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
-  k <- getIndex
+  k     <- getIndex
+  env   <- getEnv
+  let d  = C.support env
   let l  = length xas
-  let us = map mkVar [k..k+l-1]
-  local (addBranch (zip xs us) (xas,nu)) $ check (app f (Con c us)) e
+  let us = map (flip mkVar d) [k..k+l-1]
+  local (addBranch (zip xs us) (xas,nu)) $ check (app f (C.VCon c us)) e
 
-checkInfer :: Exp -> Typing Exp
+checkInfer :: Exp -> Typing Val
 checkInfer e = case e of
-  U -> return U                 -- U : U
+  U -> return C.VU                 -- U : U
   Var n -> do
     gam <- getCtxt
     case lookup n gam of
@@ -236,41 +401,23 @@ checkInfer e = case e of
   App t u -> do
     c <- checkInfer t
     case c of
-      Pi a f -> do
+      C.VPi a f -> do
         check a u
         rho <- getEnv
-        return (app f (eval u rho))
+        return (app f (eval rho (translate u)))
       _      ->  throwError $ show c ++ " is not a product"
   Def t d -> do
     checkDef d
     local (addDef d) $ checkInfer t
   _ -> throwError ("checkInfer " ++ show e)
 
-checks :: (Tele,Env) -> [Exp] -> Typing ()
+checks :: (TeleTer,C.Env) -> [Exp] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  check (eval a nu) e
+  check (eval nu a) e
   rho <- getEnv
-  checks (xas,Pair nu (x,eval e rho)) es
+  checks (xas,C.Pair nu (x,eval rho (translate e))) es
 checks _              _      = throwError "checks"
-
--- Reification of a value to an expression
-reifyExp :: Int -> Val -> Exp
-reifyExp _ U                     = U
-reifyExp k (Comp (Lam x t) r)    =
-  Lam (genName k) $ reifyExp (k+1) (eval t (Pair r (x,mkVar k)))
-reifyExp k v@(Var l)             = v
-reifyExp k (App u v)             = App (reifyExp k u) (reifyExp k v)
-reifyExp k (Pi a f)              = Pi (reifyExp k a) (reifyExp k f)
-reifyExp k (Con n ts)            = Con n (map (reifyExp k) ts)
-reifyExp k (Comp (Fun prim _) r) = EPrim prim (reifyEnv k r)
-reifyExp k (Comp (Sum prim _) r) = EPrim prim (reifyEnv k r)
-reifyExp k (Comp (Undef prim) r) = EPrim prim (reifyEnv k r)
-
-reifyEnv :: Int -> Env -> [Exp]
-reifyEnv _ Empty          = []
-reifyEnv k (Pair r (_,u)) = reifyEnv k r ++ [reifyExp k u]
-reifyEnv k (PDef ts r)    = reifyEnv k r
 
 -- Not used since we have U : U
 -- checkTs :: [(String,Exp)] -> Typing ()
@@ -288,47 +435,4 @@ reifyEnv k (PDef ts r)    = reifyEnv k r
 --   _ -> checkInfer t =?= U
 
 -- a show function
-
-showExp :: Exp -> String
-showExp1 :: Exp -> String
-
-showExps :: [Exp] -> String
-showExps = hcat . map showExp1
-
-showExp1 U = "U"
-showExp1 (Con c []) = c
-showExp1 (Var x) = x
-showExp1 u@(Fun {}) = showExp u
-showExp1 u@(Sum {}) = showExp u
-showExp1 u@(Undef {}) = showExp u
-showExp1 u@(EPrim {}) = showExp u
-showExp1 u@(Comp {}) = showExp u
-showExp1 u = parens $ showExp u
-
-showEnv :: Env -> String
-showEnv Empty            = ""
-showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ show u
-showEnv (PDef xas env)   = showEnv env
-
-showEnv1 Empty            = ""
-showEnv1 (Pair env (x,u)) = showEnv1 env ++ showExp u ++ ", "
-showEnv1 (PDef xas env)   = showEnv env
-
-
-showExp e = case e of
- App e0 e1 -> showExp e0 <+> showExp1 e1
- Pi e0 e1 -> "Pi" <+> showExps [e0,e1]
- Lam x e -> "\\" ++ x ++ "->" <+> showExp e
- Def e d -> showExp e <+> "where" <+> showDef d
- Var x -> x
- U -> "U"
- Con c es -> c <+> showExps es
- Fun (n,str) _ -> str ++ show n
- Sum (_,str) _ -> str
- Undef (n,str) -> str ++ show n
- EPrim (n,str) es -> str ++ show n <+> showExps es
- Comp e env -> showExp1 e <+> showEnv env
-
-showDef :: Def -> String
-showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showExp t) xts)
 

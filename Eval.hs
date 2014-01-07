@@ -29,7 +29,7 @@ unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 appName :: Val -> Name -> Val
 appName (Path x u) y = swap u x y -- valid only when y is not a free name of u
                                   -- (see Pitts' concretisation)
-appName v _          = error $ "appName: " ++ show v ++ " should be a path"
+appName v y          = VAppName v y
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -348,25 +348,28 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
      VFill z (Box tdir x' principal nonprincipal)
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
-    let      -- the principal side of box must be a VComp
-      upperbox = unCompAs (lookBox (x,dir') box) x
-      nonprincipal =
-        [ (zc,
-           let top    = lookBox zc upperbox
-               bottom = lookBox zc box
-               princ  = top `face` (x',tdir) -- same as: bottom `face` (x',tdir)
-               sides  = [((z,down),bottom),((z,up),top)]
-           in fill (lookBox zc tbox)
-                (Box tdir' x princ -- "degenerate" along z!
-                 (sides ++ auxsides zc)))
-        | zc <- allDirs nK ]
-      nonprincipalfaces =
-        map (\(zc,u) -> (zc,u `face` (x,dir))) nonprincipal
-      principal =
-        fill (lookBox (x,tdir') tbox) (Box up z (lookBox (x,tdir') upperbox)
-                                       (nonprincipalfaces ++ auxsides (x,tdir')))
-    in    traceb "Kan Fill VU Case 3"
-     VFill z (Box tdir x' principal nonprincipal)
+    case lookBox (x,dir') box of
+      VComp _ -> 
+        let      -- the principal side of box must be a VComp
+          upperbox = unCompAs (lookBox (x,dir') box) x
+          nonprincipal =
+            [ (zc,
+               let top    = lookBox zc upperbox
+                   bottom = lookBox zc box
+                   princ  = top `face` (x',tdir) -- same as: bottom `face` (x',tdir)
+                   sides  = [((z,down),bottom),((z,up),top)]
+               in fill (lookBox zc tbox)
+                    (Box tdir' x princ -- "degenerate" along z!
+                     (sides ++ auxsides zc)))
+            | zc <- allDirs nK ]
+          nonprincipalfaces =
+            map (\(zc,u) -> (zc,u `face` (x,dir))) nonprincipal
+          principal =
+            fill (lookBox (x,tdir') tbox) (Box up z (lookBox (x,tdir') upperbox)
+                                         (nonprincipalfaces ++ auxsides (x,tdir')))
+        in traceb "Kan Fill VU Case 3"
+           VFill z (Box tdir x' principal nonprincipal)
+      _ -> Kan Fill v box
   | x `notElem` nJ =  -- assume x /= x' and K subset x', J
     let
       comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
@@ -376,68 +379,80 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     in       traceb "Kan Fill VU Case 4"
      fill v (xsides `appendSides` box)
   | x' `notElem` nK =  -- assumes x,K subset x',J
-      let
-        xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
-        boxprinc  = unFillAs (lookBox (x',dir') box) z
-        princnp   = [((z,up),lookBox (x,tdir') xaux)
-                    ,((z,down),lookBox (x,tdir') box)]
-                    ++ auxsides (x,tdir')
-        principal = fill (lookBox (x,tdir') tbox) -- tx
-                      (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
-        nonprincipal =
-          [ let yup = lookBox yc xaux
-                np  = [((z,up),yup),((z,down),lookBox yc box)
-                      ,((y,c), yup `face` (x,tdir)) -- deg along z!
-                      ,((y,mirror c), principal `face` yc)]
-                      ++ auxsides yc
-            in (yc, fill (lookBox yc tbox)
-                      (Box dir x' (lookBox yc boxprinc) np))
-          | yc@(y,c) <- allDirs nK]
-      in     traceb "Kan Fill VU Case 5"
-             VFill z (Box tdir x' principal nonprincipal)
-
+    case lookBox (x,tdir) box of
+      VComp _ ->
+        let
+          xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
+          boxprinc  = unFillAs (lookBox (x',dir') box) z
+          princnp   = [((z,up),lookBox (x,tdir') xaux)
+                      ,((z,down),lookBox (x,tdir') box)]
+                      ++ auxsides (x,tdir')
+          principal = fill (lookBox (x,tdir') tbox) -- tx
+                        (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
+          nonprincipal =
+            [ let yup = lookBox yc xaux
+                  np  = [((z,up),yup),((z,down),lookBox yc box)
+                        ,((y,c), yup `face` (x,tdir)) -- deg along z!
+                        ,((y,mirror c), principal `face` yc)]
+                        ++ auxsides yc
+              in (yc, fill (lookBox yc tbox)
+                        (Box dir x' (lookBox yc boxprinc) np))
+            | yc@(y,c) <- allDirs nK]
+        in     traceb "Kan Fill VU Case 5"
+               VFill z (Box tdir x' principal nonprincipal)
+      _ -> Kan Fill v box
   | x' `elem` nK =              -- assumes x,K subset x',J
-      let -- surprisingly close to the last case of the Kan-Com-VU filling
-        upperbox = unCompAs (lookBox (x,dir') box) x
-        npintbox =
-          modBox (\zc downside ->
-                   let bottom = lookBox zc box
-                       top    = lookBox zc upperbox
-                       princ  = downside -- same as bottom `face` (x',tdir) and
-                                         -- top `face` (x',tdir)
-                       sides  = [((z,down),bottom),((z,up),top)]
-                   in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
-                                              (sides ++ auxsides zc)))
-                 (subBox (nK `intersect` nJ) box)
-        npint = fromBox npintbox
-        npintfacebox = mapBox (`face` (x,tdir)) npintbox
-        principalbox = ([((z,down),lookBox (x,tdir') box)
-                       ,((z,up)  ,lookBox (x,tdir')upperbox)] ++
-                       auxsides (x,tdir')) `appendSides` npintfacebox
-        principal = fill tx principalbox
-        nplp   = lookBox (x',dir) upperbox
-        nplnp  = [((x',dir), nplp `face` (x',dir)) -- deg along z!
-                 ,((x', dir'),principal `face` (x',dir))]
-                 ++ auxsides (x',dir)
-                 ++ map (\(zc,u) -> (zc,u `face` (x',dir))) (sides npintbox)
-        nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box down z nplp nplnp))
-      in       traceb "Kan Fill VU Case 6"
-       VFill z (Box tdir x' principal (nplast:npint))
-
-  where z     = fresh (v, box)
-        nK    = nonPrincipal tbox
-        nJ    = nonPrincipal box
-        toAdd = nK \\ (x' : nJ)
-        nL    = nJ \\ nK
-        boxL  = subBox nL box
-        dir'  = mirror dir
-        tdir' = mirror tdir
-        -- asumes zc is in the sides of tbox
-        pickout zc vfill = lookBox zc (unFillAs vfill z)
-        -- asumes zc is in the sides of tbox
-        auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
+    case lookBox (x,dir') box of
+      VComp _ ->
+        let -- surprisingly close to the last case of the Kan-Com-VU filling
+          upperbox = unCompAs (lookBox (x,dir') box) x
+          npintbox =
+            modBox (\zc downside ->
+                     let bottom = lookBox zc box
+                         top    = lookBox zc upperbox
+                         princ  = downside -- same as bottom `face` (x',tdir) and
+                                           -- top `face` (x',tdir)
+                         sides  = [((z,down),bottom),((z,up),top)]
+                     in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
+                                                (sides ++ auxsides zc)))
+                   (subBox (nK `intersect` nJ) box)
+          npint = fromBox npintbox
+          npintfacebox = mapBox (`face` (x,tdir)) npintbox
+          principalbox = ([((z,down),lookBox (x,tdir') box)
+                         ,((z,up)  ,lookBox (x,tdir')upperbox)] ++
+                         auxsides (x,tdir')) `appendSides` npintfacebox
+          principal = fill tx principalbox
+          nplp   = lookBox (x',dir) upperbox
+          nplnp  = [((x',dir), nplp `face` (x',dir)) -- deg along z!
+                   ,((x', dir'),principal `face` (x',dir))]
+                   ++ auxsides (x',dir)
+                   ++ map (\(zc,u) -> (zc,u `face` (x',dir))) (sides npintbox)
+          nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box down z nplp nplnp))
+        in       traceb "Kan Fill VU Case 6"
+         VFill z (Box tdir x' principal (nplast:npint))
+      _ -> Kan Fill v box
+    where z     = fresh (v, box)
+          nK    = nonPrincipal tbox
+          nJ    = nonPrincipal box
+          toAdd = nK \\ (x' : nJ)
+          nL    = nJ \\ nK
+          boxL  = subBox nL box
+          dir'  = mirror dir
+          tdir' = mirror tdir
+          -- asumes zc is in the sides of tbox
+          pickout zc vfill = lookBox zc (unFillAs vfill z)
+          -- asumes zc is in the sides of tbox
+          auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
 
 fill v b = Kan Fill v b
+
+isVFill :: Val -> Bool
+isVFill (VFill _ _) = True
+isVFill _           = False
+
+isVComp :: Val -> Bool
+isVComp (VComp _) = True
+isVComp _         = False
 
 fills :: [(Binder,Ter)] -> Env -> [Box Val] -> [Val]
 fills []         _ []          = []
@@ -492,24 +507,27 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
 app u@(Ter (Branch _ _) _) v = VBranch u v
 app r s = VApp r s -- r should be neutral
 
-convBox :: Integer -> Box Val -> Box Val -> Bool
+convBox :: Int -> Box Val -> Box Val -> Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') = 
   if   and [d == d', pn == pn', sort np == sort np']
   then and [conv k (lookBox s box) (lookBox s box') | s <- defBox box]
   else False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
-conv :: Integer -> Val -> Val -> Bool
+mkVar :: Int -> Dim -> Val
+mkVar k d = VVar ("X" ++ show k) d
+
+conv :: Int -> Val -> Val -> Bool
 conv k VU VU                 = True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = 
     conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
-    where v = VVar ("X" ++ show k) (support (e, e'))
+    where v = mkVar k $ support (e, e')
 conv k (Ter (Lam x u) e) u' =
     conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
-    where v = VVar ("X" ++ show k) (support e)
+    where v = mkVar k $ support e
 conv k u' (Ter (Lam x u) e) =
     conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
-    where v = VVar ("X" ++ show k) (support e)
+    where v = mkVar k $ support e
 conv k (Ter (Branch p _) e) (Ter (Branch p' _) e') 
   | p /= p'   = False
   | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
@@ -517,7 +535,7 @@ conv k (Ter (LSum p _) e) (Ter (LSum p' _) e')
   | p /= p'   = False
   | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
 conv k (VPi u v) (VPi u' v') = conv k u u' && conv (k+1) (app v w) (app v' w) 
-    where w = VVar ("X" ++ show k) $ support [u,u',v,v']
+    where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
 conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
   where z = fresh (u,u')

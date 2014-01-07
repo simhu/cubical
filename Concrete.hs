@@ -4,7 +4,8 @@
 module Concrete where
 
 import Exp.Abs
-import qualified MTT as A
+import qualified MTT as M
+import qualified CTT as C
 
 import Control.Arrow (first)
 import Control.Applicative
@@ -86,7 +87,7 @@ namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 data Env = Env { constrs :: [String] }
          deriving (Eq, Show)
 
-type Resolver a = ReaderT Env (StateT A.Prim (ErrorT String Identity)) a
+type Resolver a = ReaderT Env (StateT C.Prim (ErrorT String Identity)) a
 
 emptyEnv :: Env
 emptyEnv = Env []
@@ -103,7 +104,7 @@ getEnv = ask
 getConstrs :: Resolver [String]
 getConstrs = constrs <$> getEnv
 
-genPrim :: Resolver A.Prim
+genPrim :: Resolver C.Prim
 genPrim = do
   prim <- lift get
   lift (modify (first succ))
@@ -112,42 +113,42 @@ genPrim = do
 updateName :: String -> Resolver ()
 updateName str = lift $ modify (\(g,_) -> (g,str))
 
-lam :: Arg -> Resolver A.Exp -> Resolver A.Exp
-lam a e = A.Lam (unArg a) <$> e
+lam :: Arg -> Resolver M.Exp -> Resolver M.Exp
+lam a e = M.Lam (unArg a) <$> e
 
-lams :: [Arg] -> Resolver A.Exp -> Resolver A.Exp
+lams :: [Arg] -> Resolver M.Exp -> Resolver M.Exp
 lams as e = foldr lam e as
 
-resolveExp :: Exp -> Resolver A.Exp
-resolveExp U            = return A.U
-resolveExp Undef        = A.Undef <$> genPrim
-resolveExp PN           = A.Undef <$> genPrim
+resolveExp :: Exp -> Resolver M.Exp
+resolveExp U            = return M.U
+resolveExp Undef        = M.Undef <$> genPrim
+resolveExp PN           = M.Undef <$> genPrim
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs
   if unVarBinder x `elem` cs
-    then A.Con (unVarBinder x) <$> mapM resolveExp xs
-    else A.App <$> resolveExp t <*> resolveExp s
+    then M.Con (unVarBinder x) <$> mapM resolveExp xs
+    else M.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
-resolveExp (Fun a b)    = A.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
+resolveExp (Fun a b)    = M.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Split brs)  = A.Fun <$> genPrim <*> mapM resolveBranch brs
-resolveExp (Let defs e) = A.lets <$> resolveDefs defs <*> resolveExp e
+resolveExp (Split brs)  = M.Fun <$> genPrim <*> mapM resolveBranch brs
+resolveExp (Let defs e) = M.lets <$> resolveDefs defs <*> resolveExp e
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
   Env cs <- getEnv
-  return (if x `elem` cs then A.Con x [] else A.Var x)
+  return (if x `elem` cs then M.Con x [] else M.Var x)
 
-resolveWhere :: ExpWhere -> Resolver A.Exp
+resolveWhere :: ExpWhere -> Resolver M.Exp
 resolveWhere = resolveExp . unWhere
 
-resolveBranch :: Branch -> Resolver (String,([String],A.Exp))
+resolveBranch :: Branch -> Resolver (String,([String],M.Exp))
 resolveBranch (Branch name args e) =
   ((unIdent name,) . (unArgs args,)) <$> resolveWhere e
 
 -- Assumes a flattened telescope.
-resolveTele :: [VDecl] -> Resolver [(String,A.Exp)]
+resolveTele :: [VDecl] -> Resolver [(String,M.Exp)]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
   ((unArg a,) <$> resolveExp t) <:> resolveTele ds
@@ -155,17 +156,17 @@ resolveTele ds                      =
   throwError $ "resolveTele: non flattened telescope " ++ show ds
 
 -- Assumes a flattened telescope.
-resolveTelePi :: [VDecl] -> Resolver A.Exp -> Resolver A.Exp
+resolveTelePi :: [VDecl] -> Resolver M.Exp -> Resolver M.Exp
 resolveTelePi [] b                      = b
 resolveTelePi (VDecl [Binder x] a:as) b =
-  A.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
+  M.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
 resolveTelePi (t@(VDecl{}):as) _        =
   throwError ("resolveTelePi: non flattened telescope " ++ show t)
 
-resolveLabel :: Sum -> Resolver (String,[(String,A.Exp)])
+resolveLabel :: Sum -> Resolver (String,[(String,M.Exp)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-resolveDefs :: [Def] -> Resolver [A.Def]
+resolveDefs :: [Def] -> Resolver [M.Def]
 resolveDefs [] = return []
 resolveDefs (DefTDecl n e:d:ds) = do
   e' <- resolveExp e
@@ -175,17 +176,17 @@ resolveDefs (DefTDecl n e:d:ds) = do
 -- resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
-checkDef :: (String,Def) -> Resolver (String,A.Exp)
+checkDef :: (String,Def) -> Resolver (String,M.Exp)
 checkDef (n,Def (AIdent (_,m)) args body) | n == m = do
   updateName n
   (n,) <$> lams args (resolveWhere body)
 checkDef (n,DefData (AIdent (_,m)) args sums) | n == m = do
   updateName n
-  (n,) <$> lams args (A.Sum <$> genPrim <*> mapM resolveLabel sums)
+  (n,) <$> lams args (M.Sum <$> genPrim <*> mapM resolveLabel sums)
 checkDef (n,d) =
   throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
 
-resolveMutual :: [Def] -> Resolver A.Def
+resolveMutual :: [Def] -> Resolver M.Def
 resolveMutual defs = do
   tdecls' <- mapM resolveTDecl tdecls
   let names = map fst tdecls'
