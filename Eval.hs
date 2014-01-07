@@ -39,31 +39,31 @@ face u xdir@(x,dir) =
   VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
   Path y v | x == y    -> u
            | otherwise -> Path y (fc v)
-  VExt y b f g p | x == y && dir == Down -> f
-                 | x == y && dir == Up   -> g
+  VExt y b f g p | x == y && dir == down -> f
+                 | x == y && dir == up   -> g
                  | otherwise             -> VExt y (fc b) (fc f) (fc g) (fc p)
   VPi a f    -> VPi (fc a) (fc f)
   VInh v     -> VInh (fc v)
   VInc v     -> VInc (fc v)
-  VSquash y v0 v1 | x == y && dir == Down -> v0
-                  | x == y && dir == Up   -> v1
+  VSquash y v0 v1 | x == y && dir == down -> v0
+                  | x == y && dir == up   -> v1
                   | otherwise             -> VSquash y (fc v0) (fc v1)
   VCon c us -> VCon c (map fc us)
-  VEquivEq y a b f s t | x == y && dir == Down -> a
-                       | x == y && dir == Up   -> b
+  VEquivEq y a b f s t | x == y && dir == down -> a
+                       | x == y && dir == up   -> b
                        | otherwise             ->
                          VEquivEq y (fc a) (fc b) (fc f) (fc s) (fc t)
-  VPair y a v | x == y && dir == Down -> a
-              | x == y && dir == Up   -> fc v
+  VPair y a v | x == y && dir == down -> a
+              | x == y && dir == up   -> fc v
               | otherwise             -> VPair y (fc a) (fc v)
   VEquivSquare y z a s t | x == y                -> a
-                         | x == z && dir == Down -> a
-                         | x == z && dir == Up   -> VEquivEq y a a idV s t
+                         | x == z && dir == down -> a
+                         | x == z && dir == up   -> VEquivEq y a a idV s t
                          | otherwise             ->
                           VEquivSquare y z (fc a) (fc s) (fc t)
   VSquare y z v | x == y                -> fc v
-                | x == z && dir == Down -> fc v
-                | x == z && dir == Up   -> idVPair y (fc v)
+                | x == z && dir == down -> fc v
+                | x == z && dir == up   -> idVPair y (fc v)
                 | otherwise             -> VSquare y z (fc v)
   Kan Fill a b@(Box dir' y v nvs)
     | x /= y && x `notElem` nonPrincipal b -> fill (fc a) (mapBox fc b)
@@ -82,15 +82,15 @@ face u xdir@(x,dir) =
     | x == z                               -> u
     | x /= y && x `notElem` nonPrincipal b -> VFill z (mapBox fc b)
     | (x,dir) `elem` defBox b              ->
-      lookBox (x,dir) (mapBox (`face` (z,Down)) b)
+      lookBox (x,dir) (mapBox (`face` (z,down)) b)
     | x == y && dir == dir'                ->
-        VComp $ mapBox (`face` (z,Up)) b
+        VComp $ mapBox (`face` (z,up)) b
 
 idV :: Val
 idV = Ter (Lam "x" (Var "x")) Empty
 
 idVPair :: Name -> Val -> Val
-idVPair x v = VPair x (v `face` (x,Down)) v
+idVPair x v = VPair x (v `face` (x,down)) v
 
 -- Compute the face of an environment
 faceEnv :: Env -> Side -> Env
@@ -113,31 +113,31 @@ eval e (TransU p t) =
   com pv box
   where x   = fresh e
         pv  = appName (eval e p) x
-        box = Box Up x (eval e t) []
+        box = Box up x (eval e t) []
 eval e (TransURef t) = Path (fresh e) (eval e t)
 eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
   where x   = fresh e
         pv  = fill (eval e b) box
-        box = Box Up x (app (eval e f) (eval e u)) []
+        box = Box up x (app (eval e f) (eval e u)) []
 eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
   where
     x:y:_ = freshs e
     uv    = eval e u
     pv    = appName (eval e p) x
-    theta = fill (eval e a) (Box Up x uv [((y,Down),uv),((y,Up),pv)])
+    theta = fill (eval e a) (Box up x uv [((y,down),uv),((y,up),pv)])
     sigma = Path x theta
-    omega = theta `face` (x,Up)
+    omega = theta `face` (x,up)
     cv    = eval e c
-    box   = Box Up y (eval e w) []
+    box   = Box up y (eval e w) []
 eval e (JEq a u c w) = Path y $ fill (app (app cv omega) sigma) box
   where
     x:y:_ = freshs e
     uv    = eval e u
-    theta = fill (eval e a) (Box Up x uv [((y,Down),uv),((y,Up),uv)])
+    theta = fill (eval e a) (Box up x uv [((y,down),uv),((y,up),uv)])
     sigma = Path x theta
-    omega = theta `face` (x,Up)
+    omega = theta `face` (x,up)
     cv    = eval e c
-    box   = Box Up y (eval e w) []
+    box   = Box up y (eval e w) []
 eval e (Ext b f g p) =
   Path x $ VExt x (eval e b) (eval e f) (eval e g) (eval e p)
     where x = fresh e
@@ -163,7 +163,7 @@ eval e (EquivEqRef a s t)  =
 eval e (Trans c p t) = com (app (eval e c) pv) box
   where x   = fresh e
         pv  = appName (eval e p) x
-        box = Box Up x (eval e t) []
+        box = Box up x (eval e t) []
 eval e (MapOnPath f p) = Path x $ app (eval e f) (appName (eval e p) x)
   where x   = fresh e
 
@@ -171,8 +171,8 @@ inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
 inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
   where fc w d = w `face` (x,d)
-        b0     = inhrec (fc b Down) (fc p Down) (fc phi Down) a0
-        b1     = inhrec (fc b Up)   (fc p Up)   (fc phi Up)   a1
+        b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
+        b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
 inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
@@ -203,7 +203,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
 
         unPack :: (Name,Dir) -> Val -> Val
         unPack (z,c) v | z /= x && z /= y  = unSquare v
-                       | z == y && c == Up = sndVal v
+                       | z == y && c == up = sndVal v
                        | otherwise         = v
 
 -- a and b should be independent of x
@@ -212,21 +212,21 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     let ax0  = fill a (mapBox fstVal box)
         bx0  = app f ax0
         bx   = mapBox sndVal box
-        bx1  = fill b $ mapBox (`face` (x,Up)) bx
+        bx1  = fill b $ mapBox (`face` (x,up)) bx
         v    = fill b $ (x,(bx0,bx1)) `consBox` bx
     in traceb ("VEquivEq case 1" ) $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
-    let ax0 = lookBox (x,Down) box
+    let ax0 = lookBox (x,down) box
         bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
-                                       if dy == Down then app f ax0 else vy) box
+                                       if dy == down then app f ax0 else vy) box
         v   = fill b bx
     in traceb "VEquivEq case 2" $ VPair x ax0 v
-  | x == z && dir == Up =
+  | x == z && dir == up =
     let ax0  = vz
         bx0  = app f ax0
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     in traceb "VEquivEq case 3" $ VPair x ax0 v
-  | x == z && dir == Down =
+  | x == z && dir == down =
      let y  = fresh (veq, box)
          VCon "pair" [gb,sb] = app s vz
          vy = appName sb x
@@ -241,12 +241,12 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
 
          -- TODO: Use modBox!
          vsqs   = [ ((n,d),vpTSq n d v) | ((n,d),v) <- nvs]
-         box1   = Box Up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
+         box1   = Box up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
          afill  = fill a box1
 
-         acom   = afill `face` (y,Up)
+         acom   = afill `face` (y,up)
          fafill = app f afill
-         box2   = Box Up y vy (((x,Down),fafill) : ((x,Up),vz) :
+         box2   = Box up y vy (((x,down),fafill) : ((x,up),vz) :
                                       [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
          bcom   = com b box2
      in traceb "VEquivEq case 4" $ VPair x acom bcom
@@ -259,7 +259,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
                           -- to consider the auxsides?
 --      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
-      newBox = [ (n,(add (n,Down),add (n,Up)))| n <- toAdd ] `appendBox` box
+      newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
 --    in traceb ("Kan Com 1 " ++ "newBox = " ++ show newBox ++ "\n") $ fill v newBox
     in traceb ("Kan Com 1 ") $ fill v newBox
   | x' `notElem` nK =
@@ -323,13 +323,13 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | x == x' && dir == tdir = -- assumes K subset x',J
     let
       boxp = lookBox (x,dir') box  -- is vx'
-      principal = fill (lookBox (x',tdir') tbox) (Box Up z boxp (auxsides (x',tdir')))
+      principal = fill (lookBox (x',tdir') tbox) (Box up z boxp (auxsides (x',tdir')))
       nonprincipal =
         [ (zc,
            let principzc = lookBox zc box
                sides = [((x,tdir'),principal `face` zc)
                        ,((x,tdir),principzc)] -- "degenerate" along z!
-           in fill (lookBox zc tbox) (Box Up z principzc (sides ++ auxsides zc)))
+           in fill (lookBox zc tbox) (Box up z principzc (sides ++ auxsides zc)))
         | zc <- allDirs nK ]
     in     traceb ("Kan Fill VU Case 2 v= ") --  ++ show v ++ "\nbox= " ++ show box)
      VFill z (Box tdir x' principal nonprincipal)
@@ -342,7 +342,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
            let top    = lookBox zc upperbox
                bottom = lookBox zc box
                princ  = top `face` (x',tdir) -- same as: bottom `face` (x',tdir)
-               sides  = [((z,Down),bottom),((z,Up),top)]
+               sides  = [((z,down),bottom),((z,up),top)]
            in fill (lookBox zc tbox)
                 (Box tdir' x princ -- "degenerate" along z!
                  (sides ++ auxsides zc)))
@@ -350,13 +350,13 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       nonprincipalfaces =
         map (\(zc,u) -> (zc,u `face` (x,dir))) nonprincipal
       principal =
-        fill (lookBox (x,tdir') tbox) (Box Up z (lookBox (x,tdir') upperbox)
+        fill (lookBox (x,tdir') tbox) (Box up z (lookBox (x,tdir') upperbox)
                                        (nonprincipalfaces ++ auxsides (x,tdir')))
     in    traceb "Kan Fill VU Case 3"
      VFill z (Box tdir x' principal nonprincipal)
   | x `notElem` nJ =  -- assume x /= x' and K subset x', J
     let
-      comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=Up))
+      comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
       xsides = [((x,tdir), fill comU (mapBox (`face` (x,tdir)) box))
                ,((x,tdir'),fill (lookBox (x,tdir') tbox)
                             (mapBox (`face` (x,tdir)) box))]
@@ -366,17 +366,17 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       let
         xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
         boxprinc  = unFillAs (lookBox (x',dir') box) z
-        princnp   = [((z,Up),lookBox (x,tdir') xaux)
-                    ,((z,Down),lookBox (x,tdir') box)]
+        princnp   = [((z,up),lookBox (x,tdir') xaux)
+                    ,((z,down),lookBox (x,tdir') box)]
                     ++ auxsides (x,tdir')
         principal = fill (lookBox (x,tdir') tbox) -- tx
                       (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
         nonprincipal =
-          [ let up = lookBox yc xaux
-                np = [((z,Up),up),((z,Down),lookBox yc box)
-                     ,((y,c), up `face` (x,tdir)) -- deg along z!
-                     ,((y,mirror c), principal `face` yc)]
-                     ++ auxsides yc
+          [ let yup = lookBox yc xaux
+                np  = [((z,up),yup),((z,down),lookBox yc box)
+                      ,((y,c), yup `face` (x,tdir)) -- deg along z!
+                      ,((y,mirror c), principal `face` yc)]
+                      ++ auxsides yc
             in (yc, fill (lookBox yc tbox)
                       (Box dir x' (lookBox yc boxprinc) np))
           | yc@(y,c) <- allDirs nK]
@@ -392,14 +392,14 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        top    = lookBox zc upperbox
                        princ  = downside -- same as bottom `face` (x',tdir) and
                                          -- top `face` (x',tdir)
-                       sides  = [((z,Down),bottom),((z,Up),top)]
+                       sides  = [((z,down),bottom),((z,up),top)]
                    in fill (lookBox zc tbox) (Box tdir' x princ -- deg along z!
                                               (sides ++ auxsides zc)))
                  (subBox (nK `intersect` nJ) box)
         npint = fromBox npintbox
         npintfacebox = mapBox (`face` (x,tdir)) npintbox
-        principalbox = ([((z,Down),lookBox (x,tdir') box)
-                       ,((z,Up)  ,lookBox (x,tdir')upperbox)] ++
+        principalbox = ([((z,down),lookBox (x,tdir') box)
+                       ,((z,up)  ,lookBox (x,tdir')upperbox)] ++
                        auxsides (x,tdir')) `appendSides` npintfacebox
         principal = fill tx principalbox
         nplp   = lookBox (x',dir) upperbox
@@ -407,7 +407,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                  ,((x', dir'),principal `face` (x',dir))]
                  ++ auxsides (x',dir)
                  ++ map (\(zc,u) -> (zc,u `face` (x',dir))) (sides npintbox)
-        nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box Down z nplp nplnp))
+        nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box down z nplp nplnp))
       in       traceb "Kan Fill VU Case 6"
        VFill z (Box tdir x' principal (nplast:npint))
 
@@ -459,16 +459,16 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
         u     = v `face` (i,dir)
         ufill = fill a (Box (mirror dir) i u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
-        vfill = fill a (Box (mirror dir) i u [((x,Down),ufill),((x,Up),v)])
+        vfill = fill a (Box (mirror dir) i u [((x,down),ufill),((x,up),v)])
         vx    = fill (app b ufill) (appBox box bcu)
-        vi0   = app w (vfill `face` (i,Down))
+        vi0   = app w (vfill `face` (i,down))
         vi1   = com (app b ufill) (appBox box bcu)
         nvs   = [ ((n,d),app ws (vfill `face` (n,d))) | ((n,d),ws) <- nws ]
-        answer = com (app b vfill) (Box Up x vx (((i,Down),vi0) : ((i,Up),vi1):nvs))
-app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box Up y pvxw [((x,Down),left),((x,Up),right)])
+        answer = com (app b vfill) (Box up x vx (((i,down),vi0) : ((i,up),vi1):nvs))
+app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box up y pvxw [((x,down),left),((x,up),right)])
   -- NB: there are various choices how to construct this
   where y     = fresh (vext, w)
-        w0    = w `face` (x,Down)
+        w0    = w `face` (x,down)
         left  = app fv w0
         right = app gv (swap w x y)
         pvxw  = appName (app pv w0) x

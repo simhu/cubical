@@ -101,7 +101,7 @@ type Name = Integer
 type Dim  = [Name]
 
 gensym :: Dim -> Name
-gensym [] = 0
+gensym [] = 2
 gensym xs = maximum xs + 1
 
 gensyms :: Dim -> [Name]
@@ -125,33 +125,35 @@ instance Nominal a => Nominal [a]  where
   support vs  = unions (map support vs)
   swap vs x y = [swap v x y | v <- vs]
 
-instance Nominal Dir where support _ = []; swap d x y = d
-
-swapName :: Name -> Name -> Name -> Name
-swapName z x y | z == x    = y
-               | z == y    = x
-               | otherwise = z
-
 -- Make Name an instance of Nominal
 instance Nominal Integer where
+  support 0 = []
+  support 1 = []
   support n = [n]
-  swap      = swapName
+
+  swap z x y | z == x    = y
+             | z == y    = x
+             | otherwise = z
 
 --------------------------------------------------------------------------------
 -- | Boxes
 
-data Dir = Up | Down
-  deriving (Eq, Show)
+type Dir = Integer
 
 mirror :: Dir -> Dir
-mirror Up   = Down
-mirror Down = Up
+mirror 0 = 1
+mirror 1 = 0
+mirror n = error $ "mirror: 0 or 1 expected but " ++ show n ++ " given"
+
+up, down :: Dir
+up = 1
+down = 0
 
 type Side = (Name,Dir)
 
 allDirs :: [Name] -> [Side]
 allDirs []     = []
-allDirs (n:ns) = (n,Down) : (n,Up) : allDirs ns
+allDirs (n:ns) = (n,down) : (n,up) : allDirs ns
 
 data Box a = Box { dir   :: Dir
                  , pname :: Name
@@ -203,7 +205,7 @@ shapeOfBox = mapBox (const ())
 -- fst is down, snd is up
 consBox :: (Name,(a,a)) -> Box a -> Box a
 consBox (n,(v0,v1)) (Box dir x v nvs) =
-  Box dir x v $ ((n,Down),v0) : ((n,Up),v1) : nvs
+  Box dir x v $ ((n,down),v0) : ((n,up),v1) : nvs
 
 appendBox :: [(Name,(a,a))] -> Box a -> Box a
 appendBox xs b = foldr consBox b xs
