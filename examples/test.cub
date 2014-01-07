@@ -4,7 +4,19 @@ import BoolEqBool
 
 -- proves that U is not a set
 
-eqreflnot : set U -> Id (Id U Bool Bool) (refl U Bool) eqBoolBool
-eqreflnot uipU = uipU Bool Bool (refl U Bool) eqBoolBool
+idBool : Id U Bool Bool
+idBool = isEquivEq Bool Bool (id Bool) (idIsEquiv Bool)
+
+-- eqreflnot : Id (Id U Bool Bool) idBool idBool
+-- eqreflnot = refl (Id U Bool Bool) idBool
+
+
+eqreflnot : Id (Id U Bool Bool) eqBoolBool eqBoolBool
+eqreflnot = refl (Id U Bool Bool) eqBoolBool
+
+-- eqreflnot : set U -> Id (Id U Bool Bool) eqBoolBool eqBoolBool
+-- eqreflnot uipU = uipU Bool Bool eqBoolBool eqBoolBool
+-- eqreflnot : set U -> Id (Id U Bool Bool) (refl U Bool) eqBoolBool
+-- eqreflnot uipU = uipU Bool Bool (refl U Bool) eqBoolBool
 -- uipU Bool Bool (refl U Bool) eqBoolBool
 
