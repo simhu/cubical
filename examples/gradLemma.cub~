@@ -40,13 +40,13 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          z1 = pair a1 e1
         
          cg : (a:A) -> E a -> F a
-         cg a = mapOnPath B A g (f a) b
+         cg a = cong B A g (f a) b
 
          cf : (a:A) -> F a -> G a
-         cf a = mapOnPath A B f (g (f a)) (g b)
+         cf a = cong A B f (g (f a)) (g b)
 
          cfg : (a:A) -> E a -> G a
-         cfg a = mapOnPath B B (\ x -> f (g x)) (f a) b
+         cfg a = cong B B (\ x -> f (g x)) (f a) b
 
          pcg : Sigma A E -> Sigma A F
          pcg = split
@@ -61,7 +61,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
 
          pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
          pc u = split
-                pair a e -> pair a (mapOnPath B B u (f a) b e)
+                pair a e -> pair a (cong B B u (f a) b e)
 
          rem1 : prop (Sigma A F)
          rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)         
@@ -70,7 +70,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem2 = rem1 (pcg z0) (pcg z1)
 
          rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
-         rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
+         rem3 = cong (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
 
          rem4 : Id (E a0 -> G a0) (cfg a0) (\ e -> cf a0 (cg a0 e))
          rem4 = congComp B A B g f (f a0) b 
@@ -79,7 +79,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem5 = appId (E a0) (G a0) e0 (cfg a0) (\ e -> cf a0 (cg a0 e)) rem4
 
          rem6 : Id (Sigma A G) (pc fg z0) (pcf (pcg z0))
-         rem6 = mapOnPath (G a0) (Sigma A G) (\ e -> pair a0 e)  (cfg a0 e0) (cf a0 (cg a0 e0)) rem5
+         rem6 = cong (G a0) (Sigma A G) (\ e -> pair a0 e)  (cfg a0 e0) (cf a0 (cg a0 e0)) rem5
 
          rem7 : Id (E a1 -> G a1) (cfg a1) (\ e -> cf a1 (cg a1 e))
          rem7 = congComp B A B g f (f a1) b 
@@ -88,7 +88,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem8 = appId (E a1) (G a1) e1 (cfg a1) (\ e -> cf a1 (cg a1 e)) rem7
 
          rem9 : Id (Sigma A G) (pc fg z1) (pcf (pcg z1))
-         rem9 = mapOnPath (G a1) (Sigma A G) (\ e -> pair a1 e)  (cfg a1 e1) (cf a1 (cg a1 e1)) rem8
+         rem9 = cong (G a1) (Sigma A G) (\ e -> pair a1 e)  (cfg a1 e1) (cf a1 (cg a1 e1)) rem8
 
          rem10 : Id (Sigma A G) (pc fg z0) (pc fg z1)
          rem10 = compDown (Sigma A G) (pc fg z0) (pcf (pcg z0)) (pc fg z1) (pcf (pcg z1)) rem6 rem9 rem3
@@ -100,7 +100,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem12 = subst (B->B) (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem11 rem10
 
          c1 : (a:A) -> E a -> E a
-         c1 a = mapOnPath B B (id B) (f a) b
+         c1 a = cong B B (id B) (f a) b
 
          rem13 : Id (E a0 -> E a0) (id (E a0)) (c1 a0) 
          rem13 = congId B (f a0) b
@@ -109,7 +109,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem14 = appId (E a0) (E a0) e0  (id (E a0)) (c1 a0) rem13
 
          rem15 : Id (Sigma A E) z0 (pc (id B) z0)
-         rem15 = mapOnPath (E a0) (Sigma A E) (\ e -> pair a0 e) e0 (c1 a0 e0) rem14
+         rem15 = cong (E a0) (Sigma A E) (\ e -> pair a0 e) e0 (c1 a0 e0) rem14
 
          rem16 : Id (E a1 -> E a1) (id (E a1)) (c1 a1) 
          rem16 = congId B (f a1) b
@@ -118,7 +118,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
          rem17 = appId (E a1) (E a1) e1  (id (E a1)) (c1 a1) rem16
 
          rem18 : Id (Sigma A E) z1 (pc (id B) z1)
-         rem18 = mapOnPath (E a1) (Sigma A E) (\ e -> pair a1 e) e1 (c1 a1 e1) rem17
+         rem18 = cong (E a1) (Sigma A E) (\ e -> pair a1 e) e1 (c1 a1 e1) rem17
 
          rem19 : Id (Sigma A E) z0 z1
          rem19 = compDown (Sigma A E) z0 (pc (id B) z0) z1 (pc (id B) z1) rem15 rem18 rem12

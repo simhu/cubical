@@ -17,7 +17,7 @@ negUIP uipU = tnotf lem5
   fnot = transport Bool Bool eqBoolBool
 
   lem1 : Id (Bool -> Bool) frefl fnot
-  lem1 = mapOnPath (Id U Bool Bool) (Bool -> Bool) (transport Bool Bool) 
+  lem1 = cong (Id U Bool Bool) (Bool -> Bool) (transport Bool Bool) 
               (refl U Bool) eqBoolBool eqreflnot
 
   lem2 : Id Bool true (frefl true)
@@ -27,7 +27,7 @@ negUIP uipU = tnotf lem5
   lem3 = transpEquivEq Bool Bool not sNot tNot true
 
   lem4 : Id Bool (frefl true) (fnot true)
-  lem4 = mapOnPath (Bool -> Bool) Bool (\f -> f true) frefl fnot lem1
+  lem4 = cong (Bool -> Bool) Bool (\f -> f true) frefl fnot lem1
 
   lem5 : Id Bool true false
   lem5 = compDown Bool true (frefl true) false (fnot true) lem2 lem3 lem4

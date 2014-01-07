@@ -1,0 +1,129 @@
+lem5
+ where
+  P : U -> U
+  P X = (x:X) -> Id U (takeAway X x) (stFin n)
+
+  lem1 : P (stFin (suc n))
+  lem1 = cor1EqTkA n
+
+  lem2 : P (stFin (suc m))
+  lem2 = subst U P (stFin (suc n)) (stFin (suc m)) h lem1
+
+  Am : U
+  Am = takeAway (stFin (suc m)) (botEl m)
+
+  lem3 : Id U Am (stFin m)
+  lem3 = cor1EqTkA m (botEl m)
+
+  lem4 : Id U Am (stFin n)
+  lem4 = lem2 (botEl m)
+
+  lem5 : Id U (stFin n) (stFin m)
+  lem5 = comp U (stFin n) Am (stFin m) (inv U Am (stFin n) lem4) lem3
+
+
+
+
+
+
+lemInjSt' : (n m:N) -> Id U (stFin (suc n)) (stFin (suc m)) -> Id U (stFin n) (stFin m)
+lemInjSt' n m h = lem5
+ where
+  P : U -> U
+  P X = (x:X) -> Id U (takeAway X x) (stFin n)
+
+  lem1 : P (stFin (suc n))
+  lem1 = cor1EqTkA n
+
+  lem2 : P (stFin (suc m))
+  lem2 = subst U P (stFin (suc n)) (stFin (suc m)) h lem1
+
+  Am : U
+  Am = takeAway (stFin (suc m)) (botEl m)
+
+  lem3 : Id U Am (stFin m)
+  lem3 = cor1EqTkA m (botEl m)
+
+  lem4 : Id U Am (stFin n)
+  lem4 = lem2 (botEl m)
+
+  lem5 : Id U (stFin n) (stFin m)
+  lem5 = comp U (stFin n) Am (stFin m) (inv U Am (stFin n) lem4) lem3
+
+
+
+
+eqTkA' : (n:N) -> Id U (takeAway (stFin (suc n)) (botEl n)) (stFin n)
+eqTkA' n = eqTkA (stFin n) 
+
+
+
+
+isEquivEq tS (stFin n) f equivf
+ where
+   stS : U
+   stS = stFin (suc n)
+
+   bn : stS
+   bn = botEl n
+
+   tS : U
+   tS = takeAway stS bn
+
+   faux : (x:stS) -> neg (Id stS bn x) -> stFin n
+   faux = split
+            inl u -> \ h -> efq (stFin n) (h rem)
+              where rem : Id stS bn (inl u)
+                    rem = cong Unit stS (incUnSt (stFin n)) tt u (propUnit tt u)
+            inr z -> \ _ -> z
+
+   f : tS -> stFin n
+   f = split
+        pair x p -> faux x p
+
+   lem : (x:stFin n) -> neg (Id stS bn (inr x))
+   lem x = inlNotinr Unit (stFin n) tt x
+
+   g : stFin n -> tS
+   g x = pair (inr x) (lem x)
+
+   T : stS -> U
+   T x = neg (Id stS bn x)
+
+   lem1 : (u:Unit) -> Id stS bn (inl u)
+   lem1 u = cong Unit stS (incUnSt (stFin n)) tt u (propUnit tt u)
+
+   lem2 : propFam stS T
+   lem2 = \ x -> propNeg (Id stS bn x)
+
+   sfg : (x:stFin n) -> Id (stFin n) (f (g x)) x
+   sfg x = refl (stFin n) x
+
+   rfg : (z:tS) -> Id tS (g (f z)) z
+   rfg = split
+          pair x p -> rem x p
+            where rem : (x:stS) -> (p : T x) -> Id tS (g (f (pair x p))) (pair x p)
+                  rem = split
+                   inl u -> \ h -> efq (Id tS (g (f (pair (inl u) h))) (pair (inl u) h)) (h (lem1 u))
+                   inr z -> \ h -> eqPropFam stS T lem2
+                                    (pair (inr z) (lem (faux (inr z) h))) (pair (inr z) h) (refl stS (inr z))
+  
+   equivf : isEquiv tS (stFin n) f 
+   equivf = gradLemma tS (stFin n) f g sfg rfg
+ 
+
+
+
+orElim (Id N zero x) (neg (Id N zero x)) (G x) rem1 rem (natDec zero x)
+ where
+   G : N -> U
+   G y = Id ptU (pair N y) (pair N zero)
+
+   rem0 : G zero
+   rem0 = refl ptU (pair N zero)
+
+   rem : neg (Id N zero x) -> G x
+   rem neqzx = lemPtEquiv N N (swZero x) (lem1SwZero x neqzx) x zero (lemSwZero x neqzx)
+
+   rem1 : Id N zero x -> G x
+   rem1 eqzx = subst N G zero x eqzx rem0

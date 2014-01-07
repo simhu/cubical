@@ -55,18 +55,11 @@ get B n m p v = head B m (trim (suc m) n p (vect B) (tail B) v)
                     suc m -> \ p P h v -> trim n m p (\ x -> P (suc x)) (\ x -> h (suc x)) v
 
 -- not working yet
-mutual
- Phi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
-        neg (neg (Pi N B)) -> (n:N) -> neg (vect B n)
- Psi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
-        neg (neg (Pi N B)) -> (n m:N) -> (or (leqN (suc m) n) (leqN n m)) -> B m
+-- mutual
+-- Phi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
+--       neg (neg (Pi n B)) -> (n:N) -> neg (vect B n)
+-- Psi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
+--       neg (neg (Pi n B)) -> (n m:N) -> (or (leqN (suc m) n) (leqN n m)) -> B m
 
- Phi B H K n v = K (\x -> Psi B H K n v x (less x n))
- Psi B H K n x = split
-  inl p -> get B n x p v
-  inr p -> efq (B x) (H n (\ y -> Phi B H K (suc n) (pair v y))
-
-
-
-spector : (B:N->U) -> ((n:N) -> neg (neg (B n))) -> neg (neg (Pi B N))
-spector B H K = Phi B H K zero tt
+-- spector : (B:N->U) -> ((n:N) -> neg (neg (B n))) -> neg (neg (Pi B N))
+-- spector B H K = Phi B H K zero tt

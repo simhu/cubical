@@ -36,7 +36,7 @@ eqSigmaEquiv A = elimIsEquiv A C rem
   C B f = (Q:B->U) -> Id U (Sigma A (\ y -> Q (f y))) (Sigma B Q)
 
   rem : (Q:A->U) -> Id U (Sigma A (\ y -> Q y)) (Sigma A Q)
-  rem Q =  mapOnPath (A -> U) U (Sigma A) (\ y -> Q y) Q (funExt A (\ _ -> U) (\ y -> Q y) Q(\ y -> refl U (Q y)))
+  rem Q =  cong (A -> U) U (Sigma A) (\ y -> Q y) Q (funExt A (\ _ -> U) (\ y -> Q y) Q(\ y -> refl U (Q y)))
 
 -- but actually this is not this consequence that we need
 
@@ -48,7 +48,7 @@ lemSecSub A X = elimIsEquiv X P rem
   P Y g = (f:Y -> A) -> Id (subset1 A) (pair Y f) (pair X (\ y -> f (g y))) 
 
   rem : (f:X -> A) -> Id (subset1 A) (pair X f) (pair X (\ y -> f y)) 
-  rem f = mapOnPath (X->A) (subset1 A) (\ h -> pair X h) f (\ y -> f y) 
+  rem f = cong (X->A) (subset1 A) (\ h -> pair X h) f (\ y -> f y) 
                  (funExt X (\ _ -> A) f (\ y -> f y) (\ y -> refl A (f y)))
 
 lem2SecSub : (A X:U) (f:X -> A) -> isEquiv X (Sigma A (fiber X A f)) (\ x -> pair (f x) (pair x (refl A (f x))))
@@ -118,13 +118,13 @@ lem2SecSub A X f = rem2
                               lem3 = lem4 (f x) a p 
 
                               lem2 : Id Z (pair x (pair (f x) (refl A (f x)))) (pair x (pair a p))
-                              lem2 = mapOnPath (Sigma A (\ a -> Id A (f x) a))
+                              lem2 = cong (Sigma A (\ a -> Id A (f x) a))
                                           (Sigma X (\ x -> Sigma A (\ a -> Id A (f x) a)))
                                           (\ z -> pair x z) 
                                           (pair (f x) (refl A (f x))) (pair a p) lem3
 
                               lem1 : Id Y (pair (f x) (pair x (refl A (f x)))) (pair a (pair x p))
-                              lem1 = mapOnPath Z Y sw2 (pair x (pair (f x) (refl A (f x)))) (pair x (pair a p)) lem2
+                              lem1 = cong Z Y sw2 (pair x (pair (f x) (refl A (f x)))) (pair x (pair a p)) lem2
 
     rem2 : isEquiv X Y g
     rem2 = gradLemma X Y g h rgh sgh
@@ -154,7 +154,7 @@ secsub A =
     rem1 = lemSecSub A X Y g rem2 h
 
     rem3 : Id (subset1 A) (pair X (\ x -> f x)) (pair X f)
-    rem3 = mapOnPath (X->A) (subset1 A) (\ h -> pair X h) 
+    rem3 = cong (X->A) (subset1 A) (\ h -> pair X h) 
                 (\ x -> f x) f (funExt X (\ _ -> A) (\ x-> f x) f (\x -> refl A (f x)))
 
     rem : Id (subset1 A) (pair Y h) (pair X f)

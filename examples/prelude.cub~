@@ -65,8 +65,8 @@ substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
           Id (P a) d (subst A P a a (refl A a) d)
 substeq A P a d = Jeq A a (\ x q -> P x) d
 
-mapOnPath : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)
-mapOnPath A B f a b p = subst A (\x -> Id B (f a) (f x)) a b p (refl B (f a))
+cong : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)
+cong A B f a b p = subst A (\x -> Id B (f a) (f x)) a b p (refl B (f a))
 
 N0 : U
 data N0 =
@@ -124,10 +124,10 @@ notK = split
   false -> refl Bool (false)
 
 appId : (A B : U) (a : A) (f0 f1 : A -> B) -> Id (A -> B) f0 f1 -> Id B (f0 a) (f1 a)
-appId A B a = mapOnPath (A->B) B (\ f -> f a) 
+appId A B a = cong (A->B) B (\ f -> f a) 
 
 appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
-appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a) 
+appEq A B a = cong (Pi A B) (B a) (\ f -> f a) 
 
 sId : (A : U) (a : A) -> pathTo A a
 sId A a = pair a (refl A a)
@@ -181,11 +181,11 @@ propNeg A = isPropProd A (\ _ -> N0) (\ _ -> propN0)
 lemProp2 : (A : U) -> prop A -> prop (dec A)
 lemProp2 A pA  = split
  inl a -> split 
-           inl b -> mapOnPath A (dec A) (\ x -> inl x) a b (pA a b)
+           inl b -> cong A (dec A) (\ x -> inl x) a b (pA a b)
            inr nb -> efq (Id (dec A) (inl a) (inr nb)) (nb a)
  inr na -> split 
            inl b -> efq (Id (dec A) (inr na) (inl b)) (na b)
-           inr nb -> mapOnPath (neg A) (dec A) (\ x -> inr x) na nb (propNeg A na nb)
+           inr nb -> cong (neg A) (dec A) (\ x -> inr x) na nb (propNeg A na nb)
 
 singl : (A:U) -> A -> U
 singl = pathTo
@@ -200,7 +200,7 @@ propUnit = split
      tt -> refl Unit (tt)
 
 sucInj : (n m : N) -> Id N (suc n) (suc m) -> Id N n m
-sucInj n m h = mapOnPath N N pred (suc n) (suc m) h
+sucInj n m h = cong N N pred (suc n) (suc m) h
 
 decEqCong : (A B : U) (f : A -> B) (g : B -> A) -> dec A -> dec B
 decEqCong A B f g = split
@@ -231,7 +231,7 @@ natDec = split
   suc n -> split
     zero -> inr (snotz n)
     suc m -> decEqCong (Id N n m) (Id N (suc n) (suc m))
-                       (mapOnPath N N (\ x -> suc x) n m) (sucInj n m) (natDec n m)
+                       (cong N N (\ x -> suc x) n m) (sucInj n m) (natDec n m)
 
 propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
 propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x)) 

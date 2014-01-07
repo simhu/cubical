@@ -91,7 +91,7 @@ lemSimpl A a b c p q q' h =
 
    rem2 : Id (Id A b c) (compInv A a b c p (comp A a b c p q))
                         (compInv A a b c p (comp A a b c p q'))
-   rem2 = mapOnPath (Id A a c) (Id A b c) (compInv A a b c p)
+   rem2 = cong (Id A a c) (Id A b c) (compInv A a b c p)
                (comp A a b c p q) (comp A a b c p q') h
 
 eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
@@ -103,7 +103,7 @@ eqSigma A B a =
   where
     rem1 : (u v : B a) -> Id (B a) u v ->
            Id (Sigma A B) (pair a u) (pair a v)
-    rem1 = mapOnPath (B a) (Sigma A B) (\x -> pair a x)
+    rem1 = cong (B a) (Sigma A B) (\x -> pair a x)
 
     rem2 : (u v : B a) -> Id (B a) (subst A B a a (refl A a) u) v ->
            Id (Sigma A B) (pair a u) (pair a v)

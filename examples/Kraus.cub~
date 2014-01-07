@@ -1,0 +1,82 @@
+module Kraus where
+
+import swapDisc
+import testInh
+import idempotent
+import contr
+import elimEquiv
+
+-- we encode the example of Nicolai Kraus
+-- for this we need the impredicative encoding of propositional truncation
+
+-- the type of pointed types
+
+ptU : U
+ptU = Sigma U (id U)
+
+-- if f : A -> B is an equivalence and f a = b then (A,a) and (B,b) are equal in ptU
+
+lemPtEquiv : (A B : U) (f: A -> B) (ef: isEquiv A B f) -> (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
+lemPtEquiv A = elimIsEquiv A P rem
+  where
+   P : (B:U) -> (A->B) -> U
+   P B f = (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
+
+   rem : P A (id A)
+   rem = cong A ptU (\ x -> pair A x) 
+
+-- swap with zero
+
+swZero : N -> N -> N
+swZero = swapDisc N natDec zero
+
+lemSwZero : (x:N) -> neg (Id N zero x) -> Id N (swZero x x) zero
+lemSwZero x neqzx = idSwapDisc1 N natDec zero x neqzx
+
+lem1SwZero : (x:N) -> neg (Id N zero x) -> isEquiv N N (swZero x)
+lem1SwZero x neqzx = idemIsEquiv N (swZero x) (idemSwapDisc N natDec zero x neqzx)
+
+-- we deduce that (N,x) is equal to (N,0) for any x in N
+
+homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
+homogeneous x = orElim (Id N zero x) (neg (Id N zero x)) (G x) rem1 rem (natDec zero x)
+ where
+   G : N -> U
+   G y = Id ptU (pair N y) (pair N zero)
+
+   rem0 : G zero
+   rem0 = refl ptU (pair N zero)
+
+   rem : neg (Id N zero x) -> G x
+   rem neqzx = lemPtEquiv N N (swZero x) (lem1SwZero x neqzx) x zero (lemSwZero x neqzx)
+
+   rem1 : Id N zero x -> G x
+   rem1 eqzx = subst N G zero x eqzx rem0
+
+-- the following type is a contractible, hence a proposition
+
+sNzero : U
+sNzero = singl ptU (pair N zero)  -- Sigma (Sigma U (id U)) (\ v -> Id ptU u (pair N zero))
+
+propSNzero : prop sNzero
+propSNzero = singlIsProp ptU (pair N zero)
+
+-- we have a map inhI N -> sNzero, with the notation of Nicolai Kraus
+
+flifted : inhI N -> sNzero
+flifted = inhrecI N sNzero propSNzero (\ x -> pair (pair N x) (homogeneous x))
+
+Tmyst : inhI N -> U
+Tmyst x = fst U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
+
+myst : (x: inhI N) -> Tmyst x
+myst x = snd U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
+
+mystN : (n: N) -> Tmyst (incI N n)
+mystN n = myst (incI N n)
+
+propMyst : (n:N) -> Id N (myst (incI N n)) n
+propMyst n = refl N n
+
+testMyst : N -> N
+testMyst n = myst (incI N n)

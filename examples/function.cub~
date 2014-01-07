@@ -25,7 +25,7 @@ retractInj A B f g h a0 a1 h' = compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 r
   rem2 = h a1
 
   rem3 : Id A (g (f a0)) (g (f a1))
-  rem3 = mapOnPath B A g (f a0) (f a1) h'
+  rem3 = cong B A g (f a0) (f a1) h'
 
 
 

@@ -38,10 +38,8 @@ invALoop A = split
               pair a l -> pair a (inv A a a l)
 
 idemInvALoop : (A:U) -> idempotent (aLoop A) (invALoop A)
-idemInvALoop A = 
- split
-  pair a l -> mapOnPath (Id A a a) (aLoop A) 
-                 (\ x -> pair a x) (inv A a a (inv A a a l)) l (idemInv A a l)
+idemInvALoop A = split
+                  pair a l -> cong (Id A a a) (aLoop A) (\ x -> pair a x) (inv A a a (inv A a a l)) l (idemInv A a l)
 
 -- equality associated to this idempotent map
 

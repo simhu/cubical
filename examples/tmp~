@@ -1,0 +1,11 @@
+ split
+   inl a -> split
+             inl a1 -> inl (cong Unit (step X) (incUnSt X) a a1 (propUnit a a1))
+             inr b -> inr (inlNotinr Unit X a b)
+   inr b -> split
+             inl a -> inr (inrNotinl Unit X a b)
+             inr b1 -> rem (dX b b1)
+               where rem : dec (Id X b b1) -> dec (Id (step X) (inr b) (inr b1))
+                     rem = split
+                             inl p -> inl (cong X (step X) (incSt X) b b1 p)
+                             inr h -> inr (\ p -> h (injSt X (inr b) (inr b1) p))

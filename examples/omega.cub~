@@ -18,7 +18,7 @@ lemPInj1 A B pB a0 =  J A a0 C rem
   C a1 p = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
 
   rem : C a0 (refl A a0)
-  rem b0 b1 = mapOnPath (B a0) (Sigma A B) (\ b -> pair a0 b) b0 b1 (pB a0 b0 b1)
+  rem b0 b1 = cong (B a0) (Sigma A B) (\ b -> pair a0 b) b0 b1 (pB a0 b0 b1)
 
 lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (fst A B)
 lemPropInj A B pB =
@@ -42,7 +42,7 @@ lemPInj2 A B pB =
     C a1 p = (b0 : B a) ->  (b1:B a1) -> Id T (pair a b0) (pair a1 b1)
 
     rem2 : C a (refl A a)
-    rem2 b0 b1 = mapOnPath (B a) T (\ b -> pair a b) b0 b1 (pB a b0 b1)
+    rem2 b0 b1 = cong (B a) T (\ b -> pair a b) b0 b1 (pB a b0 b1)
 
     rem1 : Id (C a (refl A a)) rem2 (lemPInj1 A B pB a a (refl A a))
     rem1 = Jeq A a C rem2
@@ -53,8 +53,8 @@ lemPInj2 A B pB =
     rem4 : Id Lb  (refl (B a) b) (pB a b b)
     rem4 = propUIP (B a) (pB a) b b (refl (B a) b) (pB a b b)
 
-    rem3 : Id L (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b)
-    rem3 = mapOnPath Lb L (mapOnPath (B a) T (\ b -> pair a b) b b) (refl (B a) b) (pB a b b) rem4
+    rem3 : Id L (cong (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b)
+    rem3 = cong Lb L (cong (B a) T (\ b -> pair a b) b b) (refl (B a) b) (pB a b b) rem4
         
     rem5 : Id ((b1 : B a) -> Id T (pair a b) (pair a b1)) (rem2 b) (lemPInj1 A B pB a a (refl A a) b)
     rem5 = appEq (B a) (\ b0 -> (b1 : B a) -> Id T (pair a b0) (pair a b1)) b rem2 (lemPInj1 A B pB a a (refl A a)) rem1
@@ -62,11 +62,11 @@ lemPInj2 A B pB =
     rem6 : Id L (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b)
     rem6 = appEq (B a) (\ b1 -> Id T (pair a b) (pair a b1)) b (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
 
-    rem7 : Id L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b))
+    rem7 : Id L (refl T (pair a b)) (cong (B a) T (\ b -> pair a b) b b (refl (B a) b))
     rem7 = congRefl (B a) T (\ b -> pair a b) b
 
     rem8 : Id L (refl T (pair a b)) (rem2 b b)
-    rem8 = comp L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
+    rem8 = comp L (refl T (pair a b)) (cong (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
 
     rem : Id L (refl T (pair a b)) (lemPInj1 A B pB a a (refl A a) b b)
     rem = comp L (refl T (pair a b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem8 rem6
@@ -104,7 +104,7 @@ omegaIsSet = rem4
    rem1 : (z:Omega) -> Id (Id Omega z z) (refl Omega z) (injf z z (refl U (isTrue z)))
    rem1 = lemPInj2 U prop rem
    
-   rem2 : (x y : Omega) -> (p : Id Omega x y) -> Id (Id Omega x y) p (injf x y (mapOnPath Omega U isTrue x y p))
+   rem2 : (x y : Omega) -> (p : Id Omega x y) -> Id (Id Omega x y) p (injf x y (cong Omega U isTrue x y p))
    rem2 = lemInj Omega U isTrue injf rem1
 
    rem3 : (x y : Omega) -> prop (Id U (isTrue x) (isTrue y))
@@ -114,7 +114,7 @@ omegaIsSet = rem4
    rem4 x y p q = compDown (Id Omega x y) p (injf x y (h p)) q (injf x y (h q)) rem6 rem7 rem8
      where
         h : Id Omega x y -> Id U (isTrue x) (isTrue y)
-        h = mapOnPath Omega U isTrue x y
+        h = cong Omega U isTrue x y
 
         rem5 : Id (Id U (isTrue x) (isTrue y)) (h p) (h q)
         rem5 = rem3 x y (h p) (h q)
@@ -126,5 +126,5 @@ omegaIsSet = rem4
         rem7 = rem2 x y q
 
         rem8 : Id (Id Omega x y) (injf x y (h p)) (injf x y (h q))
-        rem8 = mapOnPath (Id U (isTrue x) (isTrue y)) (Id Omega x y) (injf x y) (h p) (h q) rem5
+        rem8 = cong (Id U (isTrue x) (isTrue y)) (Id Omega x y) (injf x y) (h p) (h q) rem5
 

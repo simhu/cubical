@@ -45,7 +45,7 @@ equivSigId A = elimIsEquiv A P d
    d Q = rem
       where
          rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
-         rem = mapOnPath (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
+         rem = cong (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
 
 -- application to equivalences between total spaces
 
@@ -144,7 +144,7 @@ equivTot A P Q g igl a = rem5
   rem2 = equivSigId (Sigma A P) (Sigma A Q) (liftTot A P Q g) igl G
 
   rem3 : Id U T T1
-  rem3 = mapOnPath (Sigma A P -> U) U (Sigma (Sigma A P)) F F1 eFF1
+  rem3 = cong (Sigma A P -> U) U (Sigma (Sigma A P)) F F1 eFF1
       where fFF1 : (z : Sigma A P) -> Id U (F z) (F1 z)
             fFF1 = split
                     pair x u -> refl U (Id A x a)
@@ -190,7 +190,7 @@ eqIdProd A B f g = equivTot T P Q G rem f
   T = Pi A B
 
   G : (z:Pi A B) -> P z -> Q z
-  G z ez x = mapOnPath (Pi A B) (B x) (\ u -> u x) z g ez
+  G z ez x = cong (Pi A B) (B x) (\ u -> u x) z g ez
 
   rem1 : contr (Sigma T P)
   rem1 = singContr (Pi A B) g

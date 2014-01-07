@@ -3,27 +3,27 @@ module cong where
 import set
 import function
 
--- All of these lemmas on mapOnPath will be trivial with definitional equalities
+-- All of these lemmas on cong will be trivial with definitional equalities
 
 congRefl : (A B : U) (f : A -> B) (a : A) -> 
-           Id (Id B (f a) (f a)) (refl B (f a)) (mapOnPath A B f a a (refl A a))
+           Id (Id B (f a) (f a)) (refl B (f a)) (cong A B f a a (refl A a))
 congRefl A B f a = Jeq A a (\v p -> Id B (f a) (f v)) (refl B (f a))
 
 congId : (A : U) (a0 a1 : A) -> 
-         Id (Id A a0 a1 -> Id A a0 a1) (id (Id A a0 a1)) (mapOnPath A A (id A) a0 a1)
+         Id (Id A a0 a1 -> Id A a0 a1) (id (Id A a0 a1)) (cong A A (id A) a0 a1)
 congId A a0 a1 = funExt (Id A a0 a1) (\_ -> Id A a0 a1) (id (Id A a0 a1)) 
-                        (mapOnPath A A (id A) a0 a1) (rem a0 a1)
+                        (cong A A (id A) a0 a1) (rem a0 a1)
   where
-  rem1 : (u : A) -> Id (Id A u u) (refl A u) (mapOnPath A A (id A) u u (refl A u))
+  rem1 : (u : A) -> Id (Id A u u) (refl A u) (cong A A (id A) u u (refl A u))
   rem1 = congRefl A A (id A)
 
-  rem : (u0 u1 : A) -> (p : Id A u0 u1) -> Id (Id A u0 u1) p (mapOnPath A A (id A) u0 u1 p) 
-  rem u0 = J A u0 (\u1 p -> Id (Id A u0 u1) p (mapOnPath A A (id A) u0 u1 p)) (rem1 u0)
+  rem : (u0 u1 : A) -> (p : Id A u0 u1) -> Id (Id A u0 u1) p (cong A A (id A) u0 u1 p) 
+  rem u0 = J A u0 (\u1 p -> Id (Id A u0 u1) p (cong A A (id A) u0 u1 p)) (rem1 u0)
 
 congComp : (A B C : U) (f : A -> B) (g : B -> C) (a0 a1 : A) -> 
            Id (Id A a0 a1 -> Id C (g (f a0)) (g (f a1))) 
-              (mapOnPath A C (\x -> g (f x)) a0 a1)
-              (\p -> mapOnPath B C g (f a0) (f a1) (mapOnPath A B f a0 a1 p))
+              (cong A C (\x -> g (f x)) a0 a1)
+              (\p -> cong B C g (f a0) (f a1) (cong A B f a0 a1 p))
 congComp A B C f g a0 a1 = funExt (Id A a0 a1) (\_ -> Tgf a0 a1)
                                   (conggf a0 a1) (\p -> congg a0 a1 (congf a0 a1 p)) (rem a0 a1)
   where
@@ -31,13 +31,13 @@ congComp A B C f g a0 a1 = funExt (Id A a0 a1) (\_ -> Tgf a0 a1)
   Tgf a0 a1 = Id C (g (f a0)) (g (f a1))
 
   congf : (a0 a1 : A) -> Id A a0 a1 -> Id B (f a0) (f a1)
-  congf = mapOnPath A B f
+  congf = cong A B f
   
   congg : (a0 a1 : A) -> Id B (f a0) (f a1) -> Tgf a0 a1
-  congg a0 a1 = mapOnPath B C g (f a0) (f a1)
+  congg a0 a1 = cong B C g (f a0) (f a1)
 
   conggf : (a0 a1 : A) -> Id A a0 a1 -> Tgf a0 a1
-  conggf = mapOnPath A C (\x -> g (f x))
+  conggf = cong A C (\x -> g (f x))
 
   rem : (a0 a1 : A) (p : Id A a0 a1) -> 
         Id (Tgf a0 a1) (conggf a0 a1 p) (congg a0 a1 (congf a0 a1 p))
@@ -51,7 +51,7 @@ congComp A B C f g a0 a1 = funExt (Id A a0 a1) (\_ -> Tgf a0 a1)
     rem4 = congRefl A B f a
 
     rem3 : Id (Tgf a a) (congg a a (refl B (f a))) (congg a a (congf a a (refl A a)))
-    rem3 = mapOnPath (Id B (f a) (f a)) (Tgf a a) (congg a a) (refl B (f a)) 
+    rem3 = cong (Id B (f a) (f a)) (Tgf a a) (congg a a) (refl B (f a)) 
                 (congf a a (refl A a)) rem4
 
     rem5 : Id (Tgf a a) (refl C (g (f a))) (congg a a (refl B (f a)))
@@ -66,17 +66,17 @@ congComp A B C f g a0 a1 = funExt (Id A a0 a1) (\_ -> Tgf a0 a1)
 
 lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
               -> ((x:A) -> Id (Id A x x) (refl A x) (injf x x (refl B (f x))))
-              -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))
+              -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (cong A B f x y p))
 lemInj A B f injf h x = 
- J A x (\ y p -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))) rem
+ J A x (\ y p -> Id (Id A x y) p (injf x y (cong A B f x y p))) rem
  where
   rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
   rem1 = h x
 
-  rem2 : Id (Id A x x) (injf x x (refl B (f x))) (injf x x (mapOnPath A B f x x (refl A x)))
-  rem2 = mapOnPath (Id B (f x) (f x)) (Id A x x) (injf x x) (refl B (f x)) (mapOnPath A B f x x (refl A x)) (congRefl A B f x)
+  rem2 : Id (Id A x x) (injf x x (refl B (f x))) (injf x x (cong A B f x x (refl A x)))
+  rem2 = cong (Id B (f x) (f x)) (Id A x x) (injf x x) (refl B (f x)) (cong A B f x x (refl A x)) (congRefl A B f x)
 
-  rem : Id (Id A x x) (refl A x) (injf x x (mapOnPath A B f x x (refl A x)))
-  rem = comp (Id A x x) (refl A x) (injf x x (refl B (f x))) (injf x x (mapOnPath A B f x x (refl A x)))
+  rem : Id (Id A x x) (refl A x) (injf x x (cong A B f x x (refl A x)))
+  rem = comp (Id A x x) (refl A x) (injf x x (refl B (f x))) (injf x x (cong A B f x x (refl A x)))
              rem1 rem2
 

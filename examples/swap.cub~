@@ -65,12 +65,12 @@ test11 = incr3 (pair true (suc zero))
 -- simple example with swap and product
 
 eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
-eqPi A B0 B1 eB = mapOnPath (A->U) U (Pi A) B0 B1 rem
+eqPi A B0 B1 eB = cong (A->U) U (Pi A) B0 B1 rem
  where rem : Id (A -> U) B0 B1
        rem = funExt A (\ _ -> U) B0 B1 eB
 
 eqSig : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Sigma A B0) (Sigma A B1)
-eqSig A B0 B1 eB = mapOnPath (A->U) U (Sigma A) B0 B1 rem
+eqSig A B0 B1 eB = cong (A->U) U (Sigma A) B0 B1 rem
  where rem : Id (A -> U) B0 B1
        rem = funExt A (\ _ -> U) B0 B1 eB
 

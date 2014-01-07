@@ -40,7 +40,7 @@ isContrProd A B pB = subst U contr (A->Unit) (Pi A B) rem1 rem2
    rem = funExt A (\ _ -> U) (\ _ -> Unit) B pB
 
    rem1 : Id U (A -> Unit) (Pi A B)
-   rem1 = mapOnPath (A -> U) U (Pi A)  (\ _ -> Unit) B rem
+   rem1 = cong (A -> U) U (Pi A)  (\ _ -> Unit) B rem
 
    f : Unit -> A -> Unit
    f z a = tt

@@ -47,7 +47,7 @@ lem1SecIdEquiv A f if eid =
     rem = eqEquiv A A (pair (id A) (idIsEquiv A)) (pair f eid) if
 
     rem1 : Id (Id U A A) (EquivToId A A (pair (id A) (idIsEquiv A))) (EquivToId A A (pair f eid))
-    rem1 = mapOnPath (Equiv A A) (Id U A A) (EquivToId A A) (pair (id A) (idIsEquiv A)) (pair f eid) rem
+    rem1 = cong (Equiv A A) (Id U A A) (EquivToId A A) (pair (id A) (idIsEquiv A)) (pair f eid) rem
 
     rem2 : Id (Id U A A) (refl U A)  (EquivToId A A (pair (id A) (idIsEquiv A)))
     rem2 = lemSecIdEquiv A (idIsEquiv A)

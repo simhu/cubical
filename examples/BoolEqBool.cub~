@@ -7,7 +7,7 @@ notInj : (x y : Bool) -> Id Bool (not x) (not y) -> Id Bool x y
 notInj x y p = compUp Bool (not (not x)) x (not (not y)) y (notK x) (notK y) rem
   where
   rem : Id Bool (not (not x)) (not (not y))
-  rem = mapOnPath Bool Bool not (not x) (not y) p
+  rem = cong Bool Bool not (not x) (not y) p
 
 notFiber : Bool -> U
 notFiber b = fiber Bool Bool not b
