@@ -1,3 +1,4 @@
+{-# LANGUAGE ParallelListComp #-}
 module Eval where
 
 import Control.Arrow (second)
@@ -33,7 +34,7 @@ appName v _          = error $ "appName: " ++ show v ++ " should be a path"
 -- Compute the face of a value
 face :: Val -> Side -> Val
 face u xdir@(x,dir) =
-  let fc v = v `face` (x,dir) in case u of
+  let fc v = v `face` xdir in case u of
   VU          -> VU
   Ter t e     -> eval (e `faceEnv` xdir) t
   VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
@@ -85,6 +86,16 @@ face u xdir@(x,dir) =
       lookBox (x,dir) (mapBox (`face` (z,down)) b)
     | x == y && dir == dir'                ->
         VComp $ mapBox (`face` (z,up)) b
+  VApp u v        -> VApp (fc u) (fc v)
+  VAppName u n    -> VAppName (fc u) (faceName n xdir) 
+  VBranch u v     -> VBranch (fc u) (fc v)
+  VVar s d        -> VVar s [faceName n xdir | n <- d]
+
+faceName :: Name -> Side -> Name
+faceName 0 _                 = 0
+faceName 1 _                 = 1
+faceName x (y,d) | x == y    = d
+                 | otherwise = x
 
 idV :: Val
 idV = Ter (Lam "x" (Var "x")) Empty
@@ -167,6 +178,7 @@ eval e (Trans c p t) = com (app (eval e c) pv) box
 eval e (MapOnPath f p) = Path x $ app (eval e f) (appName (eval e p) x)
   where x   = fresh e
 
+
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
 inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
@@ -197,6 +209,7 @@ fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
         ws    = fills as env boxes
+fill v@(Ter (LSum _ nass) env) box = Kan Fill v box
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
@@ -476,4 +489,70 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
-app r s = error $ "app"  ++ show r ++ show s
+app u@(Ter (Branch _ _) _) v = VBranch u v
+app r s = VApp r s -- r should be neutral
+
+convBox :: Integer -> Box Val -> Box Val -> Bool
+convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') = 
+  if   and [d == d', pn == pn', sort np == sort np']
+  then and [conv k (lookBox s box) (lookBox s box') | s <- defBox box]
+  else False
+  where (np, np') = (nonPrincipal box, nonPrincipal box')
+
+conv :: Integer -> Val -> Val -> Bool
+conv k VU VU                 = True
+conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = 
+    conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+    where v = VVar ("X" ++ show k) (support (e, e'))
+conv k (Ter (Lam x u) e) u' =
+    conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
+    where v = VVar ("X" ++ show k) (support e)
+conv k u' (Ter (Lam x u) e) =
+    conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
+    where v = VVar ("X" ++ show k) (support e)
+conv k (Ter (Branch p _) e) (Ter (Branch p' _) e') 
+  | p /= p'   = False
+  | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+conv k (Ter (LSum p _) e) (Ter (LSum p' _) e') 
+  | p /= p'   = False
+  | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+conv k (VPi u v) (VPi u' v') = conv k u u' && conv (k+1) (app v w) (app v' w) 
+    where w = VVar ("X" ++ show k) $ support [u,u',v,v']
+conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
+conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
+  where z = fresh (u,u')
+conv k (VExt x b f g p) (VExt x' b' f' g' p') =
+  and [x == x', conv k b b', conv k f f', conv k g g', conv k p p']
+conv k (VInh u) (VInh u')                     = conv k u u'
+conv k (VInc u) (VInc u')                     = conv k u u'
+conv k (VSquash x u v) (VSquash x' u' v')     =
+  and [x == x', conv k u u', conv k v v']
+conv k (VCon c us) (VCon c' us')              =
+  and $ (c == c'):[conv k u u' | u <- us | u' <- us']
+conv k (Kan Fill v box) (Kan Fill v' box')    = 
+  and $ [conv k v v', convBox k box box']
+conv k (Kan Com v box) (Kan Com v' box')      = 
+  and $ [conv k v v', convBox k (swap box x y) (swap box' x' y)]
+  where y      = fresh ((v,v'),(box,box'))
+        (x,x') = (pname box, pname box')
+conv k (VEquivEq x a b f s t) (VEquivEq x' a' b' f' s' t') =
+  and [x == x', conv k a a', conv k b b',
+       conv k f f', conv k s s', conv k t t']
+conv k (VEquivSquare x y a s t) (VEquivSquare x' y' a' s' t') =
+  and [x == x', y == y', conv k a a', conv k s s', conv k t t']
+conv k (VPair x u v) (VPair x' u' v')     =
+  and [x == x', conv k u u', conv k v v']
+conv k (VSquare x y u) (VSquare x' y' u') =
+  and [x == x', y == y', conv k u u']
+conv k (VComp box) (VComp box')           =
+  convBox k (swap box x y) (swap box' x' y)
+  where y      = fresh (box,box')
+        (x,x') = (pname box, pname box')
+conv k (VFill x box) (VFill x' box')      =
+  convBox k (swap box x y) (swap box' x' y)
+  where y      = fresh (box,box')
+conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
+conv k (VAppName u x) (VAppName u' x') = conv k u u' && (x == x')
+conv k (VBranch u v)  (VBranch u' v')  = conv k u u' && conv k v v'
+conv k (VVar x d)     (VVar x' d')     = (x == x')   && (d == d')
+conv k _              _                = False

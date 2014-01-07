@@ -272,6 +272,12 @@ data Val = VU
            -- a value of type Kan Fill VU (Box (type of values minus name))
            -- the name is bound
          | VFill Name (Box Val)
+
+           -- neutral values
+         | VApp Val Val -- the first Val must be neutral
+         | VAppName Val Name
+         | VBranch Val Val -- the second Val must be neutral
+         | VVar String Dim
   deriving Eq
 
 instance Show Val where
@@ -312,6 +318,10 @@ instance Nominal Val where
   support (VPair x a v)             = support (x, [a,v])
   support (VComp box@(Box _ n _ _)) = delete n $ support box
   support (VFill x box)             = delete x $ support box
+  support (VApp u v)        = support (u, v)
+  support (VAppName u n)    = support (u, n)
+  support (VBranch u v)     = support (u, v)
+  support (VVar x d)        = support d
 
   swap u x y =
     let sw u = swap u x y in case u of
@@ -349,6 +359,10 @@ instance Nominal Val where
       | otherwise        -> let
         z' = fresh ([x, y], b)
         in sw (VFill z' (swap b z z'))
+    VApp u v        -> VApp (sw u) (sw v)
+    VAppName u n    -> VAppName (sw u) (swap n x y) 
+    VBranch u v     -> VBranch (sw u) (sw v)
+    VVar s d        -> VVar s (swap d x y)
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -386,6 +400,10 @@ mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
+valOfEnv :: Env -> [Val]
+valOfEnv Empty            = []
+valOfEnv (Pair env (_,v)) = v:(valOfEnv env)
+valOfEnv (PDef _ env)     = valOfEnv env
 
 --------------------------------------------------------------------------------
 -- | Pretty printing
