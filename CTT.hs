@@ -86,6 +86,9 @@ data Ter = Var Binder
            -- TODO: Remove, but first fix the bug that get introduced (it can
            -- be found by running testNO1 in nIso.cub)
          | Trans Ter Ter Ter
+         | MapOnPath Ter Ter
+           -- {A B : U} (f : A -> B) {a b : A} ->
+           --  (p : Id A a b) -> Id B (f a) (f b)
   deriving Eq
 
 instance Show Ter where

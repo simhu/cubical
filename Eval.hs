@@ -26,7 +26,8 @@ unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
-appName (Path x u) y = swap u x y
+appName (Path x u) y = swap u x y -- valid only when y is not a free name of u
+                                  -- (see Pitts' concretisation)
 appName v _          = error $ "appName: " ++ show v ++ " should be a path"
 
 -- Compute the face of a value
@@ -163,6 +164,8 @@ eval e (Trans c p t) = com (app (eval e c) pv) box
   where x   = fresh e
         pv  = appName (eval e p) x
         box = Box Up x (eval e t) []
+eval e (MapOnPath f p) = Path x $ app (eval e f) (appName (eval e p) x)
+  where x   = fresh e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
