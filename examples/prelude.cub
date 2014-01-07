@@ -65,6 +65,9 @@ substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
           Id (P a) d (subst A P a a (refl A a) d)
 substeq A P a d = Jeq A a (\ x q -> P x) d
 
+mapOnPath : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)
+mapOnPath A B f a b p = subst A (\x -> Id B (f a) (f x)) a b p (refl B (f a))
+
 N0 : U
 data N0 =
 
