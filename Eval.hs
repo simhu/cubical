@@ -8,6 +8,7 @@ import Debug.Trace
 
 import CTT
 
+
 -- Switch to False to turn off debugging
 debug :: Bool
 debug = True
@@ -143,6 +144,7 @@ eval e (Var i)       = look i e
 eval e (Id a a0 a1)  = VId (eval e a) (eval e a0) (eval e a1)
 eval e (Refl a)      = Path (fresh e) $ eval e a
 eval e (TransU p t) =
+--  traceb ("evalTrans U" ++ "\nbox = " ++ showBox box ++ "\npv = " ++ show pv) (com pv box)
   com pv box
   where x   = fresh e
         pv  = appName (eval e p) x
@@ -218,6 +220,10 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
+isNeutralFill v box | isNeutral v = True
+isNeutralFill v@(Ter (Undef _) _) box = True
+isNeutralFill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
+  | x == z && dir == down && not (isCon (app s vz)) = True
 isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) =
   not (and [isVComp (lookBox yc box) | yc <- aDs])
    where
@@ -365,7 +371,9 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
       -- the missing non-principal face on side (x',dir)
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
-    in traceb "Kan Com 3" $ VComp newBox
+    in traceb ("Kan Com 3 ") $ VComp newBox
+ -- ++ "\nnpintbox = " ++ showBox npintbox 
+ --               ++ "\nxtdir' = " ++ show (x,tdir'))
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
         z     = fresh (tbox', box)
@@ -522,8 +530,8 @@ com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
 com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
-com v box                                 = 
- traceb ("com ") (Kan Com v box)
+com v box                                 =  Kan Com v box
+-- traceb ("com " ++ "\nv = " ++ show v ++ "\n box = " ++ showBox box) (Kan Com v box)
 
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
@@ -575,7 +583,7 @@ mkVar k d = VVar ("X" ++ show k) d
 
 conv1 :: Int -> Val -> Val -> Bool
 conv1 k u v = -- traceb (show ("\n" ++ " =? "))
-              -- traceb (show u ++ " =? " ++ show v ++ "\n")
+--              traceb (show u ++ " =? " ++ show v ++ "\n")
               (conv k u v)
 
 conv :: Int -> Val -> Val -> Bool

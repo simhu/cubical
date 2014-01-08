@@ -1,8 +1,8 @@
 module CTT where
 
-
 import Data.List
 import Pretty
+
 
 --------------------------------------------------------------------------------
 -- | Terms
@@ -282,6 +282,13 @@ data Val = VU
          | VVar String Dim
   deriving Eq
 
+isNeutral :: Val -> Bool
+isNeutral (VApp u _) = isNeutral u
+isNeutral (VAppName u _) = isNeutral u
+isNeutral (VBranch _ v) = isNeutral v
+isNeutral (VVar _ _) = True
+isNeutral _ = False
+
 instance Show Val where
   show = showVal
 
@@ -477,7 +484,14 @@ showVal (VEquivSquare x y a s t) =
 showVal (VApp u v)        = showVal u <+> showVal1 v
 showVal (VAppName u n)    = showVal u <+> "@" <+> show n
 showVal (VBranch u v)     = showVal u <+> showVal1 v
-showVal (VVar x d)        = show x    <+> show d
+showVal (VVar x d)        = show x    <+> showDim d
+
+showDim [] = ""
+showDim xs = "(" ++ showDim1 xs ++ ")"
+
+showDim1 [] = ""
+showDim1 [x] = show x
+showDim1 (x:xs) = show x ++ "," ++ showDim1 xs
 
 showVals :: [Val] -> String
 showVals = hcat . map showVal1
