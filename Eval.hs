@@ -523,7 +523,7 @@ com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
 com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 com v box                                 = 
- traceb ("\ncom ") (Kan Com v box)
+ traceb ("com ") (Kan Com v box)
 
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
@@ -533,7 +533,7 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
-  traceb ("Pi Com\n ")
+  traceb ("Pi Com ")
   com (app b ufill) (appBox box bcu)
   where ufill = fill a (Box (mirror dir) x u [])
         bcu   = cubeToBox ufill (shapeOfBox box)
@@ -574,8 +574,9 @@ mkVar :: Int -> Dim -> Val
 mkVar k d = VVar ("X" ++ show k) d
 
 conv1 :: Int -> Val -> Val -> Bool
-conv1 k u v = traceb (show ("\n" ++ " =? ")) (conv k u v)
--- traceb (show u ++ " =? " ++ show v ++ "\n") (conv k u v)
+conv1 k u v = -- traceb (show ("\n" ++ " =? "))
+              -- traceb (show u ++ " =? " ++ show v ++ "\n")
+              (conv k u v)
 
 conv :: Int -> Val -> Val -> Bool
 conv k VU VU                 = True
