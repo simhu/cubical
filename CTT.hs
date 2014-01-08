@@ -183,8 +183,8 @@ lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
-principal :: Box a -> Name
-principal (Box _ x _ _) = x
+-- principal :: Box a -> Name
+-- principal (Box _ x _ _) = x
 
 defBox :: Box a -> [(Name, Dir)]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]

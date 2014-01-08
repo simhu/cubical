@@ -218,43 +218,35 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
-testFill v@(Kan Com VU tbox') box@(Box d x _ _) = 
+isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) =
   not (and [isVComp (lookBox yc box) | yc <- aDs])
-   where 
+   where
         nK    = nonPrincipal tbox'
         nJ    = nonPrincipal box
         nL    = nJ \\ nK
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
-testFill v@(Kan Fill VU tbox') box@(Box d x _ _) = 
+isNeutralFill v@(Kan Fill VU tbox') box@(Box d x _ _) =
   not (and [isVFill (lookBox yc box) | yc <- aDs])
    where
-        nK    = (principal tbox'):(nonPrincipal tbox')
+        nK    = (pname tbox'):(nonPrincipal tbox')
         nJ    = nonPrincipal box
         nL    = nJ \\ nK
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
-testFill v@(VEquivEq z a b f s t) box@(Box d x _ _) = 
+isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x _ _) =
   not (and [isVPair (lookBox yc box) | yc <- aDs])
    where
         nJ    = nonPrincipal box
         nL    = nJ \\ [z]
         aDs   = if x == z then allDirs nL else (x,mirror d):(allDirs nL)
-testFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) = 
+isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) =
   not (and [isVSquare (lookBox yc box) | yc <- aDs])
    where
         nJ    = nonPrincipal box
         nL    = nJ \\ [y,z]
         aDs   = if x `elem` [y,z] then allDirs nL else (x,mirror d):(allDirs nL)
-testFill (Ter (LSum _ _) _) (Box _ _ v nvs) = 
+isNeutralFill (Ter (LSum _ _) _) (Box _ _ v nvs) =
  not (and ((isCon v):[isCon u | (_,u) <- nvs]))
-testFill v box = False
-
--- test if the boxes is formed only with constructors
-
--- testCon :: Box Val -> Bool
--- testCon (Box _ _ v nvs) = 
-
-
-
+isNeutralFill v box = False
 
 -- Kan filling
 fill :: Val -> Box Val -> Val
@@ -262,7 +254,7 @@ fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | testFill v box = Kan Fill v box
+fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | isNeutralFill v box = Kan Fill v box
 fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise = 
  VCon n ws
   where as = case lookup n nass of
@@ -272,7 +264,7 @@ fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
         ws    = fills as env boxes
-fill v@(VEquivSquare x y a s t) box@(Box dir x' vx' nvs) | testFill v box = Kan Fill v box
+fill v@(VEquivSquare x y a s t) box@(Box dir x' vx' nvs) | isNeutralFill v box = Kan Fill v box
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
@@ -284,7 +276,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
 
 -- a and b should be independent of x
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
-  | testFill veq box = Kan Fill veq box
+  | isNeutralFill veq box = Kan Fill veq box
   | x /= z && x `notElem` nonPrincipal box =
     let ax0  = fill a (mapBox fstVal box)
         bx0  = app f ax0
@@ -334,7 +326,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
 
 
 fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
-  | testFill v box = Kan Fill v box
+  | isNeutralFill v box = Kan Fill v box
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
@@ -395,7 +387,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 4) x `notElem` J (maybe combine with 1?)
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
-  | testFill v box = Kan Fill v box
+  | isNeutralFill v box = Kan Fill v box
 
   | toAdd /= [] =
     let
@@ -524,7 +516,7 @@ fills _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Val
-com u box | testFill u box = Kan Com u box
+com u box | isNeutralFill u box = Kan Com u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
