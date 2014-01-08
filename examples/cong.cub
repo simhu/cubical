@@ -7,7 +7,7 @@ import function
 
 congRefl : (A B : U) (f : A -> B) (a : A) -> 
            Id (Id B (f a) (f a)) (refl B (f a)) (mapOnPath A B f a a (refl A a))
-congRefl A B f a = Jeq A a (\v p -> Id B (f a) (f v)) (refl B (f a))
+congRefl A B f a = refl (Id B (f a) (f a)) (refl B (f a))
 
 congId : (A : U) (a0 a1 : A) -> 
          Id (Id A a0 a1 -> Id A a0 a1) (id (Id A a0 a1)) (mapOnPath A A (id A) a0 a1)
