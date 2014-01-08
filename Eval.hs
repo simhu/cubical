@@ -594,6 +594,9 @@ conv k (Ter (Branch p _) e) (Ter (Branch p' _) e')
 conv k (Ter (LSum p _) e) (Ter (LSum p' _) e') 
   | p /= p'   = False
   | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+conv k (Ter (Undef p) e) (Ter (Undef p') e')
+  | p /= p'   = False
+  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
 conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w) 
     where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
