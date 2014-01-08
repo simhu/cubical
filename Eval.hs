@@ -22,6 +22,10 @@ unCompAs :: Val -> Name -> Box Val
 unCompAs (VComp box) y = swap box (pname box) y
 unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
+isCon :: Val -> Bool
+isCon (VCon _ _) = True
+isCon _ = False
+
 isVFill :: Val -> Bool
 isVFill (VFill _ _) = True
 isVFill _           = False
@@ -29,6 +33,15 @@ isVFill _           = False
 isVComp :: Val -> Bool
 isVComp (VComp _) = True
 isVComp _         = False
+
+isVPair :: Val -> Bool
+isVPair (VPair _ _ _) = True
+isVPair _ = False
+
+isVSquare :: Val -> Bool
+isVSquare (VSquare _ _ _) = True
+isVSquare  _           = False
+
 
 unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swap box x y
@@ -94,9 +107,9 @@ face u xdir@(x,dir) =
       lookBox (x,dir) (mapBox (`face` (z,down)) b)
     | x == y && dir == dir'                ->
         VComp $ mapBox (`face` (z,up)) b
-  VApp u v        -> VApp (fc u) (fc v)
-  VAppName u n    -> VAppName (fc u) (faceName n xdir) 
-  VBranch u v     -> VBranch (fc u) (fc v)
+  VApp u v        -> app (fc u) (fc v)
+  VAppName u n    -> appName (fc u) (faceName n xdir) 
+  VBranch u v     -> app (fc u) (fc v)
   VVar s d        -> VVar s [faceName n xdir | n <- d]
 
 faceName :: Name -> Side -> Name
@@ -125,6 +138,7 @@ cubeToBox v = modBox (\nd _ -> v `face` nd)
 
 eval :: Env -> Ter -> Val
 eval _ U             = VU
+eval e t@(Undef _)   = Ter t e
 eval e (Var i)       = look i e
 eval e (Id a a0 a1)  = VId (eval e a) (eval e a0) (eval e a1)
 eval e (Refl a)      = Path (fresh e) $ eval e a
@@ -138,7 +152,8 @@ eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
   where x   = fresh e
         pv  = fill (eval e b) box
         box = Box up x (app (eval e f) (eval e u)) []
-eval e (J a u c w _ p) = com (app (app cv omega) sigma) box
+eval e (J a u c w _ p) = 
+ com (app (app cv omega) sigma) box
   where
     x:y:_ = freshs e
     uv    = eval e u
@@ -203,13 +218,53 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
+testFill v@(Kan Com VU tbox') box@(Box d x _ _) = 
+  not (and [isVComp (lookBox yc box) | yc <- aDs])
+   where 
+        nK    = nonPrincipal tbox'
+        nJ    = nonPrincipal box
+        nL    = nJ \\ nK
+        aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
+testFill v@(Kan Fill VU tbox') box@(Box d x _ _) = 
+  not (and [isVFill (lookBox yc box) | yc <- aDs])
+   where
+        nK    = (principal tbox'):(nonPrincipal tbox')
+        nJ    = nonPrincipal box
+        nL    = nJ \\ nK
+        aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
+testFill v@(VEquivEq z a b f s t) box@(Box d x _ _) = 
+  not (and [isVPair (lookBox yc box) | yc <- aDs])
+   where
+        nJ    = nonPrincipal box
+        nL    = nJ \\ [z]
+        aDs   = if x == z then allDirs nL else (x,mirror d):(allDirs nL)
+testFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) = 
+  not (and [isVSquare (lookBox yc box) | yc <- aDs])
+   where
+        nJ    = nonPrincipal box
+        nL    = nJ \\ [y,z]
+        aDs   = if x `elem` [y,z] then allDirs nL else (x,mirror d):(allDirs nL)
+testFill (Ter (LSum _ _) _) (Box _ _ v nvs) = 
+ not (and ((isCon v):[isCon u | (_,u) <- nvs]))
+testFill v box = False
+
+-- test if the boxes is formed only with constructors
+
+-- testCon :: Box Val -> Bool
+-- testCon (Box _ _ v nvs) = 
+
+
+
+
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
+fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | testFill v box = Kan Fill v box
+fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise = 
+ VCon n ws
   where as = case lookup n nass of
                Just as -> as
                Nothing -> error $ "fill: missing constructor "
@@ -217,7 +272,7 @@ fill (Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _) = VCon n ws
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
         ws    = fills as env boxes
-fill v@(Ter (LSum _ nass) env) box = Kan Fill v box
+fill v@(VEquivSquare x y a s t) box@(Box dir x' vx' nvs) | testFill v box = Kan Fill v box
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
@@ -229,6 +284,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
 
 -- a and b should be independent of x
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
+  | testFill veq box = Kan Fill veq box
   | x /= z && x `notElem` nonPrincipal box =
     let ax0  = fill a (mapBox fstVal box)
         bx0  = app f ax0
@@ -248,12 +304,14 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     in traceb "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == down =
-     let y  = fresh (veq, box)
-         VCon "pair" [gb,sb] = app s vz
-         vy = appName sb x
+--     let y  = fresh (veq, box)
+      case app s vz of
+       VCon "pair" [gb,sb] ->
+        let y  = fresh (veq, box)
+            vy = appName sb x
 
-         vpTSq :: Name -> Dir -> Val -> (Val,Val)
-         vpTSq nz dz (VPair z a0 v0) =
+            vpTSq :: Name -> Dir -> Val -> (Val,Val)
+            vpTSq nz dz (VPair z a0 v0) =
              let vp = VCon "pair" [a0, Path z v0]
                  t0 = t `face` (nz,dz)
                  b0 = vz `face` (nz,dz)
@@ -261,20 +319,22 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
              in (l0,appName sq0 x)  -- TODO: check the correctness of the square s0
 
          -- TODO: Use modBox!
-         vsqs   = [ ((n,d),vpTSq n d v) | ((n,d),v) <- nvs]
-         box1   = Box up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
-         afill  = fill a box1
+            vsqs   = [ ((n,d),vpTSq n d v) | ((n,d),v) <- nvs]
+            box1   = Box up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
+            afill  = fill a box1
 
-         acom   = afill `face` (y,up)
-         fafill = app f afill
-         box2   = Box up y vy (((x,down),fafill) : ((x,up),vz) :
+            acom   = afill `face` (y,up)
+            fafill = app f afill
+            box2   = Box up y vy (((x,down),fafill) : ((x,up),vz) :
                                       [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
-         bcom   = com b box2
-     in traceb "VEquivEq case 4" $ VPair x acom bcom
+            bcom   = com b box2
+        in traceb "VEquivEq case 4" $ VPair x acom bcom
+       _ -> Kan Fill veq box
   | otherwise = error "fill EqEquiv"
 
+
 fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
-  | not (and [isVComp (lookBox yc box) | yc <- allDirs nL]) = Kan Fill v box
+  | testFill v box = Kan Fill v box
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
@@ -282,7 +342,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
 --      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
       add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
       newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
---    in traceb ("Kan Com 1 " ++ "newBox = " ++ show newBox ++ "\n") $ fill v newBox
+--    in traceb ("Kan Com 1 ") $ fill v newBox
     in traceb ("Kan Com 1 ") $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
@@ -335,7 +395,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 4) x `notElem` J (maybe combine with 1?)
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
-  | not (and [isVFill (lookBox yc box) | yc <- allDirs nL]) = Kan Fill v box
+  | testFill v box = Kan Fill v box
 
   | toAdd /= [] =
     let
@@ -354,7 +414,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        ,((x,tdir),principzc)] -- "degenerate" along z!
            in fill (lookBox zc tbox) (Box up z principzc (sides ++ auxsides zc)))
         | zc <- allDirs nK ]
-    in     traceb ("Kan Fill VU Case 2 v= ") --  ++ show v ++ "\nbox= " ++ show box)
+    in     traceb ("Kan Fill VU Case 2") --  ++ show v ++ "\nbox= " ++ show box
      VFill z (Box tdir x' principal nonprincipal)
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
@@ -464,12 +524,14 @@ fills _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Val
+com u box | testFill u box = Kan Com u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
-com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
-com v box                                 = Kan Com v box
+com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
+com v box                                 = 
+ traceb ("\ncom ") (Kan Com v box)
 
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
@@ -512,62 +574,67 @@ app r s = VApp r s -- r should be neutral
 convBox :: Int -> Box Val -> Box Val -> Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') = 
   if   and [d == d', pn == pn', sort np == sort np']
-  then and [conv k (lookBox s box) (lookBox s box') | s <- defBox box]
+  then and [conv1 k (lookBox s box) (lookBox s box') | s <- defBox box]
   else False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
 mkVar :: Int -> Dim -> Val
 mkVar k d = VVar ("X" ++ show k) d
 
+conv1 :: Int -> Val -> Val -> Bool
+conv1 k u v = traceb (show ("\n" ++ " =? ")) (conv k u v)
+-- traceb (show u ++ " =? " ++ show v ++ "\n") (conv k u v)
+
 conv :: Int -> Val -> Val -> Bool
 conv k VU VU                 = True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = 
-    conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+    conv1 (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
     where v = mkVar k $ support (e, e')
 conv k (Ter (Lam x u) e) u' =
-    conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
+    conv1 (k+1) (eval (Pair e (x,v)) u) (app u' v)
     where v = mkVar k $ support e
 conv k u' (Ter (Lam x u) e) =
-    conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
+    conv1 (k+1) (app u' v) (eval (Pair e (x,v)) u)
     where v = mkVar k $ support e
 conv k (Ter (Branch p _) e) (Ter (Branch p' _) e') 
   | p /= p'   = False
-  | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
 conv k (Ter (LSum p _) e) (Ter (LSum p' _) e') 
   | p /= p'   = False
-  | otherwise = and [conv k v v' | v <- valOfEnv e | v' <- valOfEnv e']
-conv k (VPi u v) (VPi u' v') = conv k u u' && conv (k+1) (app v w) (app v' w) 
+  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w) 
     where w = mkVar k $ support [u,u',v,v']
-conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
-conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
+conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
+conv k (Path x u) (Path x' u')    = conv1 k (swap u x z) (swap u' x' z)
   where z = fresh (u,u')
-conv k (Path x u) p'              = conv k (swap u x z) (appName p' z)
+conv k (Path x u) p'              = conv1 k (swap u x z) (appName p' z)
   where z = fresh u
-conv k p (Path x' u')             = conv k (appName p z) (swap u' x' z)
+conv k p (Path x' u')             = conv1 k (appName p z) (swap u' x' z)
   where z = fresh u'
 conv k (VExt x b f g p) (VExt x' b' f' g' p') =
-  and [x == x', conv k b b', conv k f f', conv k g g', conv k p p']
-conv k (VInh u) (VInh u')                     = conv k u u'
-conv k (VInc u) (VInc u')                     = conv k u u'
+  and [x == x', conv1 k b b', conv1 k f f', conv1 k g g', conv1 k p p']
+conv k (VInh u) (VInh u')                     = conv1 k u u'
+conv k (VInc u) (VInc u')                     = conv1 k u u'
 conv k (VSquash x u v) (VSquash x' u' v')     =
-  and [x == x', conv k u u', conv k v v']
-conv k (VCon c us) (VCon c' us')              =
-  and $ (c == c'):[conv k u u' | u <- us | u' <- us']
+  and [x == x', conv1 k u u', conv1 k v v']
+conv k (VCon c us) (VCon c' us')          
+  | c /= c'    = False
+  | otherwise  = and [conv1 k u u' | u <- us | u' <- us']
 conv k (Kan Fill v box) (Kan Fill v' box')    = 
-  and $ [conv k v v', convBox k box box']
+  and $ [conv1 k v v', convBox k box box']
 conv k (Kan Com v box) (Kan Com v' box')      = 
-  and $ [conv k v v', convBox k (swap box x y) (swap box' x' y)]
+  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VEquivEq x a b f s t) (VEquivEq x' a' b' f' s' t') =
-  and [x == x', conv k a a', conv k b b',
-       conv k f f', conv k s s', conv k t t']
+  and [x == x', conv1 k a a', conv1 k b b',
+       conv1 k f f', conv1 k s s', conv1 k t t']
 conv k (VEquivSquare x y a s t) (VEquivSquare x' y' a' s' t') =
-  and [x == x', y == y', conv k a a', conv k s s', conv k t t']
+  and [x == x', y == y', conv1 k a a', conv1 k s s', conv1 k t t']
 conv k (VPair x u v) (VPair x' u' v')     =
-  and [x == x', conv k u u', conv k v v']
+  and [x == x', conv1 k u u', conv1 k v v']
 conv k (VSquare x y u) (VSquare x' y' u') =
-  and [x == x', y == y', conv k u u']
+  and [x == x', y == y', conv1 k u u']
 conv k (VComp box) (VComp box')           =
   convBox k (swap box x y) (swap box' x' y)
   where y      = fresh (box,box')
@@ -575,8 +642,8 @@ conv k (VComp box) (VComp box')           =
 conv k (VFill x box) (VFill x' box')      =
   convBox k (swap box x y) (swap box' x' y)
   where y      = fresh (box,box')
-conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
-conv k (VAppName u x) (VAppName u' x') = conv k u u' && (x == x')
-conv k (VBranch u v)  (VBranch u' v')  = conv k u u' && conv k v v'
+conv k (VApp u v)     (VApp u' v')     = conv1 k u u' && conv1 k v v'
+conv k (VAppName u x) (VAppName u' x') = conv1 k u u' && (x == x')
+conv k (VBranch u v)  (VBranch u' v')  = conv1 k u u' && conv1 k v v'
 conv k (VVar x d)     (VVar x' d')     = (x == x')   && (d == d')
 conv k _              _                = False

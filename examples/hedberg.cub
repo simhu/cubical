@@ -59,3 +59,9 @@ test3 = NIsSet zero zero (refl N zero) (refl N zero)
 boolIsSet : set Bool
 boolIsSet = hedberg Bool boolDec
 
+unitIsSet : set Unit
+unitIsSet = hedberg Unit unitDec
+
+N0IsSet : set N0
+N0IsSet = hedberg N0 N0Dec
+

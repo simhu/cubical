@@ -1,84 +1,67 @@
-module gradLemma where
+module univalence where
 
-import equivProp
-import BoolEqBool
+import axChoice
 
-corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
-corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1) 
+-- now we try to prove univalence
+-- the identity is an equivalence
 
-corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) -> 
-            prop (fiber A A h a)
-corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
-  where 
-  rem : Id (A -> A) h (id A)
-  rem = funExt A (\_ -> A) h (id A) ph 
+-- the transport of the reflexity is equal to the identity function
 
+transpReflId : (A:U) -> Id (A->A) (id A) (transport A A (refl U A))
+transpReflId A = funExt A (\ _ -> A)  (id A) (transport A A (refl U A)) (transportRef A)
 
+-- the transport of any equality proof is an equivalence
 
-gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
-            isEquiv A B f
-gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
-  where
-  injf : injective A B f
-  injf = retractInj A B f g rfg
+transpIsEquiv : (A B:U) -> (p:Id U A B) -> isEquiv A B (transport A B p)
+transpIsEquiv A = J U A (\ B p -> isEquiv A B (transport A B p)) rem
+ where rem : isEquiv A A (transport A A (refl U A))
+       rem = subst (A -> A) (isEquiv A A)  (id A) (transport A A (refl U A)) (transpReflId A) (idIsEquiv A)
 
-  rem : (b : B) -> prop (Sigma A (\a -> Id B (f a) b))
-  rem b = split
-    pair a0 e0 -> 
-      split
-       pair a1 e1 -> rem5
-        where
-         E : A -> U
-         E a = Id B (f a) b
-         F : A -> U
-         F a = Id A (g (f a)) (g b)
-         G : A -> U
-         G a = Id B (f (g (f a))) (f (g b))
+Equiv : U -> U -> U
+Equiv A B = Sigma (A->B) (isEquiv A B)
 
-         z0 : Sigma A E
-         z0 = pair a0 e0
-         z1 : Sigma A E
-         z1 = pair a1 e1
-        
-         cg : (a:A) -> E a -> F a
-         cg a = mapOnPath B A g (f a) b
+funEquiv : (A B : U) -> Equiv A B -> A -> B
+funEquiv A B = fst (A->B) (isEquiv A B)
 
-         cf : (a:A) -> F a -> G a
-         cf a = mapOnPath A B f (g (f a)) (g b)
+eqEquiv : (A B : U) (e0 e1:Equiv A B) -> Id (A -> B) (funEquiv A B e0) (funEquiv A B e1) -> Id (Equiv A B) e0 e1
+eqEquiv A B = undefined --  eqPropFam (A->B) (isEquiv A B) (propIsEquiv A B)
 
-         cfg : (a:A) -> E a -> G a
-         cfg a = mapOnPath B B (\ x -> f (g x)) (f a) b
+IdToEquiv : (A B:U) -> Id U A B -> Equiv A B
+IdToEquiv A B p = pair (transport A B p) (transpIsEquiv A B p)
 
-         pcg : Sigma A E -> Sigma A F
-         pcg = split
-                pair a e -> pair a (cg a e)
-
-         pcf : Sigma A F -> Sigma A G
-         pcf = split
-                pair a e -> pair a (cf a e)
-
-         fg : B -> B
-         fg y = f (g y)
-
-         pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
-         pc u = split
-                pair a e -> pair a (mapOnPath B B u (f a) b e)
-
-         rem1 : prop (Sigma A F)
-         rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)         
-
-         rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
-         rem2 = rem1 (pcg z0) (pcg z1)
-
-         rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
-         rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
-
-         rem4 : Id (B -> B) fg (id B)
-         rem4 = funExt B (\ _ -> B)  fg (id B) sfg
-
-         rem5 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
-         rem5 = subst (B->B) 
-                  (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem4 rem3
+EquivToId : (A B:U) -> Equiv A B -> Id U A B
+EquivToId A B = split
+                  pair f ef -> isEquivEq A B f ef
 
 
+test : (A B : U) (f : A -> B) 
+        (s : (y : B) -> fiber A B f y) -> 
+        (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+         Id (Equiv A B) (pair f (pair s t))
+                        (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+test A B f s t = eqEquiv A B (pair f (pair s t))
+                             (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+                             undefined -- rem3
+
+
+retIdEquiv : (A B :U) (s : Equiv A B) -> Id (Equiv A B) (IdToEquiv A B (EquivToId A B s)) s
+retIdEquiv A B s = inv (Equiv A B) s (IdToEquiv A B (EquivToId A B s)) undefined -- (rem s)
+ where
+   rem : (s : Equiv A B) -> Id (Equiv A B) s (IdToEquiv A B (EquivToId A B s))
+   rem = 
+     split
+       pair f ef -> 
+          rem1 ef
+            where
+              rem1 : (ef : isEquiv A B f) -> 
+                      Id (Equiv A B) (pair f ef) (pair (transport A B (isEquivEq A B f ef)) (transpIsEquiv A B (isEquivEq A B f ef)))
+              rem1 = 
+                split
+                 pair s t -> undefined -- rem2
+                  where
+                    rem2 : Id (Equiv A B) (pair f (pair s t))
+                                          (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+                    rem2 = undefined -- eqEquiv A B (pair f (pair s t))
+--                                        (pair (transport A B (equivEq A B f s t)) (transpIsEquiv A B (equivEq A B f s t)))
+--                                        undefined -- rem3
 

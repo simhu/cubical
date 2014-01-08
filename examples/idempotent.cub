@@ -1,6 +1,6 @@
 module idempotent where
 
-import gradLemma
+import gradLemma1
 
 -- any idempotent function defines an equality 
 

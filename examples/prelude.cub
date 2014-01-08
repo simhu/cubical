@@ -115,6 +115,16 @@ boolDec = split
     true -> inr fnott
     false -> inl (refl Bool (false))
 
+N0Dec : discrete N0
+N0Dec x y = inl rem
+ where rem : Id N0 x y
+       rem = efq (Id N0 x y) x
+
+unitDec : discrete Unit
+unitDec = split
+  tt -> split
+          tt -> inl (refl Unit tt)
+
 notK : (x : Bool) -> Id Bool (not (not x)) x
 notK = split
   true  -> refl Bool (true)

@@ -183,6 +183,9 @@ lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
+principal :: Box a -> Name
+principal (Box _ x _ _) = x
+
 defBox :: Box a -> [(Name, Dir)]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
@@ -314,6 +317,8 @@ instance Nominal Val where
   support (Kan Fill a box)  = support (a, box)
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
   support (VEquivEq x a b f s t)    = support (x, [a,b,f,s,t])
+           -- names x, y and values a, s, t
+  support (VEquivSquare x y a s t)    = support ((x,y), [a,s,t])
   support (VPair x a v)             = support (x, [a,v])
   support (VComp box@(Box _ n _ _)) = delete n $ support box
   support (VFill x box)             = delete x $ support box
@@ -321,6 +326,7 @@ instance Nominal Val where
   support (VAppName u n)    = support (u, n)
   support (VBranch u v)     = support (u, v)
   support (VVar x d)        = support d
+  support v = error ("support " ++ show v)
 
   swap u x y =
     let sw u = swap u x y in case u of
@@ -432,6 +438,7 @@ showTer (EquivEq a b c d e) = "equivEq" <+> showTers [a,b,c,d,e]
 showTer (EquivEqRef a b c) = "equivEqRef" <+> showTers [a,b,c]
 showTer (TransUEquivEq a b c d e f) = "transpEquivEq" <+> showTers [a,b,c,d,e,f]
 showTer (Where t defs)     = showTer t <+> "where" <+> showDefs defs
+showTer (MapOnPath a b)    =  "mapOnPath" <+> showTers [a,b]
 
 showDef :: Def -> String
 showDef (x,t) = x <+> "=" <+> showTer t

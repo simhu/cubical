@@ -23,16 +23,7 @@ idTelProp A B C = isoId T0 T1 f g sfg rfg
 
   sfg : (y:T1) -> Id T1 (f (g y)) y
   sfg = split
-         pair u v -> rem u v 
-           where
-             rem2 : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) (\ x -> v x))
-             rem2 u v = refl T1 (pair (\ x -> u x) (\ x -> v x))
-
-             rem1 : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) v)
-             rem1 u = funSplit A (\ x -> C x (u x)) (\ v -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair (\ x -> u x) v)) (rem2 u)
-
-             rem : (u:Pi A B) (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair u v)
-             rem = funSplit A B (\ u -> (v:(x:A) -> C x (u x)) -> Id T1 (pair (\ x -> u x) (\ x -> v x)) (pair u v)) rem1
+         pair u v -> refl T1 (pair u v) -- rem2 u v 
 
   rfg : (s:T0) -> Id T0 (g (f s)) s
   rfg s = funExt A (\ x ->  Sigma (B x) (C x)) (g (f s)) s rem
