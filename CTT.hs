@@ -183,7 +183,7 @@ lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
-defBox :: Box a -> [(Name, Dir)]
+defBox :: Box a -> [Side]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
 fromBox :: Box a -> [(Side,a)]
@@ -211,6 +211,15 @@ appendBox xs b = foldr consBox b xs
 
 appendSides :: [(Side, a)] -> Box a -> Box a
 appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
+
+addFunBox :: Dim -> (Side -> a) -> Box a -> Box a
+addFunBox d f = appendBox [(n, (f (n,down), f (n,up))) | n <- d]
+
+boxM :: Monad m => Box (m a) -> m (Box a)
+boxM (Box dir x v nvs) = do
+  v   <- v
+  nvs <- mapM (\(n,v) -> do {v <- v; return (n,v)}) nvs
+  return $ Box dir x v nvs
 
 transposeBox :: Box [a] -> [Box a]
 transposeBox b@(Box dir _ [] _)      = []
