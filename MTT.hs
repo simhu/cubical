@@ -377,7 +377,6 @@ check a t = case (a,t) of
   _ -> do
     v <- checkInfer t
     k <- getIndex
-    e <- getEnv
     if conv k v a then return ()
     else throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 

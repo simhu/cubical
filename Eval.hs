@@ -220,7 +220,8 @@ kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
 kan Com  = com
 
-isNeutralFill v box | isNeutral v = True
+isNeutralFill :: Val -> Box Val -> Bool
+-- isNeutralFill v box | isNeutral v = True
 isNeutralFill v@(Ter (Undef _) _) box = True
 isNeutralFill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x == z && dir == down && not (isCon (app s vz)) = True
@@ -569,8 +570,12 @@ app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Branch with insufficient "
                ++ "arguments; missing case for " ++ name
-app u@(Ter (Branch _ _) _) v = VBranch u v
+app u@(Ter (Branch _ _) _) v = VBranch u v -- v should be neutral
+        -- | isNeutral v = VBranch u v
+        -- | otherwise   = error $ "app: (VBranch) " ++ show v ++ " is not neutral"
 app r s = VApp r s -- r should be neutral
+        -- | isNeutral r = VApp r s -- r should be neutral
+        -- | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
 
 convBox :: Int -> Box Val -> Box Val -> Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') = 
@@ -584,7 +589,7 @@ mkVar k d = VVar ("X" ++ show k) d
 
 conv1 :: Int -> Val -> Val -> Bool
 conv1 k u v = -- traceb (show ("\n" ++ " =? "))
---              traceb (show u ++ " =? " ++ show v ++ "\n")
+              -- traceb (show u ++ " =? " ++ show v ++ "\n")
               (conv k u v)
 
 conv :: Int -> Val -> Val -> Bool

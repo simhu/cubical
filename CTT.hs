@@ -137,6 +137,7 @@ instance Nominal Integer where
 --------------------------------------------------------------------------------
 -- | Boxes
 
+-- TODO: abstract the type of Intervals instead of exposing the encoding
 type Dir = Integer
 
 mirror :: Dir -> Dir
@@ -145,7 +146,7 @@ mirror 1 = 0
 mirror n = error $ "mirror: 0 or 1 expected but " ++ show n ++ " given"
 
 up, down :: Dir
-up = 1
+up   = 1
 down = 0
 
 type Side = (Name,Dir)
