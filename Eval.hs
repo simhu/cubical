@@ -337,8 +337,8 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
                           -- to consider the auxsides?
---      add yc = fill (lookBox yc tbox) (mapBox (`face` yc) box)
-      add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
+      add yc = fill (lookBox yc tbox `face` (x,tdir)) (mapBox (`face` yc) box)
+--      add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
       newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
 --    in traceb ("Kan Com 1 ") $ fill v newBox
     in traceb ("Kan Com 1 ") $ fill v newBox
@@ -400,6 +400,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | toAdd /= [] =
     let
       add :: Side -> Val
+     -- TODO: fix fill in the same way as Kan Com 1 ???
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
     in traceb "Kan Fill VU Case 1" fill v newBox            -- W.l.o.g. nK subset x:nJ
