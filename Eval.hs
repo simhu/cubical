@@ -214,7 +214,7 @@ inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
-inhrec b p phi v = error $ "inhrec : " ++ show v
+inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
@@ -656,4 +656,6 @@ conv k (VApp u v)     (VApp u' v')     = conv1 k u u' && conv1 k v v'
 conv k (VAppName u x) (VAppName u' x') = conv1 k u u' && (x == x')
 conv k (VBranch u v)  (VBranch u' v')  = conv1 k u u' && conv1 k v v'
 conv k (VVar x d)     (VVar x' d')     = (x == x')   && (d == d')
+conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
+  and [conv1 k b b', conv1 k p p', conv1 k phi phi', conv1 k v v']
 conv k _              _                = False

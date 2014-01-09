@@ -277,18 +277,20 @@ data Val = VU
          | VFill Name (Box Val)
 
            -- neutral values
-         | VApp Val Val -- the first Val must be neutral
+         | VApp Val Val            -- the first Val must be neutral
          | VAppName Val Name
-         | VBranch Val Val -- the second Val must be neutral
+         | VBranch Val Val         -- the second Val must be neutral
          | VVar String Dim
+         | VInhRec Val Val Val Val -- the last Val must be neutral
   deriving Eq
 
 isNeutral :: Val -> Bool
-isNeutral (VApp u _) = isNeutral u
-isNeutral (VAppName u _) = isNeutral u
-isNeutral (VBranch _ v) = isNeutral v
-isNeutral (VVar _ _) = True
-isNeutral _ = False
+isNeutral (VApp u _)        = isNeutral u
+isNeutral (VAppName u _)    = isNeutral u
+isNeutral (VBranch _ v)     = isNeutral v
+isNeutral (VVar _ _)        = True
+isNeutral (VInhRec _ _ _ v) = isNeutral v
+isNeutral _                 = False
 
 instance Show Val where
   show = showVal
