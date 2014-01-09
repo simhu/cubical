@@ -138,3 +138,10 @@ testFF3 = opBool3 false false
 
 testTT3 : Bool
 testTT3 = opBool3 true true
+
+orBool : Bool -> Bool -> Bool
+orBool = split true  -> \x -> true
+               false -> \x -> x
+
+testTT4 : Id Bool (orBool false true) (opBool3 false true) 
+testTT4 = refl Bool true
