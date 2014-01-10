@@ -375,7 +375,7 @@ instance Nominal Val where
         z' = fresh ([x, y], b)
         in sw (VFill z' (swap b z z'))
     VApp u v        -> VApp (sw u) (sw v)
-    VAppName u n    -> VAppName (sw u) (swap n x y) 
+    VAppName u n    -> VAppName (sw u) (swap n x y)
     VBranch u v     -> VBranch (sw u) (sw v)
     VVar s d        -> VVar s (swap d x y)
 

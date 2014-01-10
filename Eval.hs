@@ -109,7 +109,7 @@ face u xdir@(x,dir) =
     | x == y && dir == dir'                ->
         VComp $ mapBox (`face` (z,up)) b
   VApp u v        -> app (fc u) (fc v)
-  VAppName u n    -> appName (fc u) (faceName n xdir) 
+  VAppName u n    -> appName (fc u) (faceName n xdir)
   VBranch u v     -> app (fc u) (fc v)
   VVar s d        -> VVar s [faceName n xdir | n <- d]
 
@@ -154,7 +154,7 @@ eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
   where x   = fresh e
         pv  = fill (eval e b) box
         box = Box up x (app (eval e f) (eval e u)) []
-eval e (J a u c w _ p) = 
+eval e (J a u c w _ p) =
  com (app (app cv omega) sigma) box
   where
     x:y:_ = freshs e
@@ -262,7 +262,7 @@ fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
 fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | isNeutralFill v box = Kan Fill v box
-fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise = 
+fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
  VCon n ws
   where as = case lookup n nass of
                Just as -> as
@@ -339,9 +339,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
       add :: Side -> Val  -- TODO: Is this correct? Do we have
                           -- to consider the auxsides?
       add yc = fill (lookBox yc tbox `face` (x,tdir)) (mapBox (`face` yc) box)
---      add yc = fill (lookBox yc tbox) (mapBox (pickout yc) box)
       newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
---    in traceb ("Kan Com 1 ") $ fill v newBox
     in traceb ("Kan Com 1 ") $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
@@ -373,7 +371,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
       nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp))
       newBox = Box tdir x principal (nplast:npint)
     in traceb ("Kan Com 3 ") $ VComp newBox
- -- ++ "\nnpintbox = " ++ showBox npintbox 
+ -- ++ "\nnpintbox = " ++ showBox npintbox
  --               ++ "\nxtdir' = " ++ show (x,tdir'))
   where nK    = nonPrincipal tbox
         nJ    = nonPrincipal box
@@ -401,7 +399,6 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | toAdd /= [] =
     let
       add :: Side -> Val
-     -- TODO: fix fill in the same way as Kan Com 1 ???
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
     in traceb "Kan Fill VU Case 1" fill v newBox            -- W.l.o.g. nK subset x:nJ
@@ -421,7 +418,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
     case lookBox (x,dir') box of
-      VComp _ -> 
+      VComp _ ->
         let      -- the principal side of box must be a VComp
           upperbox = unCompAs (lookBox (x,dir') box) x
           nonprincipal =
@@ -532,7 +529,7 @@ com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
 com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
-com v box                                 =  Kan Com v box
+com v box                                 = Kan Com v box
 -- traceb ("com " ++ "\nv = " ++ show v ++ "\n box = " ++ showBox box) (Kan Com v box)
 
 appBox :: Box Val -> Box Val -> Box Val
@@ -578,7 +575,7 @@ app r s = VApp r s -- r should be neutral
         -- | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
 
 convBox :: Int -> Box Val -> Box Val -> Bool
-convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') = 
+convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
   if   and [d == d', pn == pn', sort np == sort np']
   then and [conv1 k (lookBox s box) (lookBox s box') | s <- defBox box]
   else False
@@ -594,7 +591,7 @@ conv1 k u v = -- traceb (show ("\n" ++ " =? "))
 
 conv :: Int -> Val -> Val -> Bool
 conv k VU VU                 = True
-conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = 
+conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
     conv1 (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
     where v = mkVar k $ support (e, e')
 conv k (Ter (Lam x u) e) u' =
@@ -603,16 +600,16 @@ conv k (Ter (Lam x u) e) u' =
 conv k u' (Ter (Lam x u) e) =
     conv1 (k+1) (app u' v) (eval (Pair e (x,v)) u)
     where v = mkVar k $ support e
-conv k (Ter (Branch p _) e) (Ter (Branch p' _) e') 
+conv k (Ter (Branch p _) e) (Ter (Branch p' _) e')
   | p /= p'   = False
   | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
-conv k (Ter (LSum p _) e) (Ter (LSum p' _) e') 
+conv k (Ter (LSum p _) e) (Ter (LSum p' _) e')
   | p /= p'   = False
   | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
 conv k (Ter (Undef p) e) (Ter (Undef p') e')
   | p /= p'   = False
   | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
-conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w) 
+conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
     where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
 conv k (Path x u) (Path x' u')    = conv1 k (swap u x z) (swap u' x' z)
@@ -627,12 +624,12 @@ conv k (VInh u) (VInh u')                     = conv1 k u u'
 conv k (VInc u) (VInc u')                     = conv1 k u u'
 conv k (VSquash x u v) (VSquash x' u' v')     =
   and [x == x', conv1 k u u', conv1 k v v']
-conv k (VCon c us) (VCon c' us')          
+conv k (VCon c us) (VCon c' us')
   | c /= c'    = False
   | otherwise  = and [conv1 k u u' | u <- us | u' <- us']
-conv k (Kan Fill v box) (Kan Fill v' box')    = 
+conv k (Kan Fill v box) (Kan Fill v' box')    =
   and $ [conv1 k v v', convBox k box box']
-conv k (Kan Com v box) (Kan Com v' box')      = 
+conv k (Kan Com v box) (Kan Com v' box')      =
   and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')

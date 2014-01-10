@@ -14,7 +14,7 @@ import Control.Applicative
 import Pretty
 
 import qualified CTT as C
-import Eval 
+import Eval
 
 type Val = C.Val
 
