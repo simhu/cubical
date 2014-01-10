@@ -77,11 +77,11 @@ imports st@(notok,loaded,defs) f
             outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
             return (notok,f:loaded1,def1 ++ defs')
 
-defs :: C.Env -> C.Ter -> C.Ter
-defs C.Empty        t = t
-defs (C.PDef d env) t = defs env (C.Where t d)
-defs env          _ =
-  error $ "defs: environment should a list of definitions " ++ show env
+-- defs :: C.Env -> C.Ter -> C.Ter
+-- defs C.Empty        t = t
+-- defs (C.PDef d env) t = defs env (C.Where t d)
+-- defs env          _ =
+--   error $ "defs: environment should a list of definitions " ++ show env
 
 -- The Bool is intended to be whether or not to run in debug mode
 runInterpreter :: Bool -> [FilePath] -> Interpreter ()
@@ -127,8 +127,9 @@ runInterpreter b fs = case fs of
                   case M.runInfer tenv body of
                     Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs tenv
                     Right _  ->
-                      let t = defs rho (M.translate body)
-                          value = E.eval C.Empty t
+                      let value = E.eval rho body
+                          -- t = defs rho body
+                          -- value = E.eval C.Empty t
                       in outputStrLn ("EVAL: " ++ show value) >> loop cs tenv
 
 help :: String

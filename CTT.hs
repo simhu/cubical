@@ -1,97 +1,179 @@
 module CTT where
 
 import Data.List
+import Data.Maybe
 import Pretty
-
 
 --------------------------------------------------------------------------------
 -- | Terms
 
 type Binder = String
-type Def    = (Binder,Ter)  -- without type annotations for now
 type Ident  = String
 type Prim = (Integer,String)
+type Label  = String
 
-data Ter = Var Binder
-         | Id Ter Ter Ter | Refl Ter
-         | Pi Ter Ter     | Lam Binder Ter | App Ter Ter
-         | Where Ter [Def]
+-- Branch of the form: c x1 .. xn -> e
+type Brc    = (Label,([String],Ter))
+
+-- Telescope (x1 : A1) .. (xn : An)
+type Tele   = [(Binder,Ter)]
+
+-- Labelled sum: c (x1 : A1) .. (xn : An)
+type LblSum = [(Label,Tele)]
+
+-- Context gives type values to identifiers
+type Ctxt = [(String,Val)]
+
+-- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
+type Def = (Tele,[(Ident,Ter)])
+
+data Ter = App Ter Ter
+         | Pi Ter Ter
+         | Lam Binder Ter
+         | Where Ter Def
+         | Var Binder
          | U
-
-         | Undef Prim
-
-           -- constructor c Ms
          | Con Ident [Ter]
+         | Split Prim [Brc]
+         | Sum Prim LblSum
+         | PN PN
+  deriving (Eq)
 
-           -- branches c1 xs1  -> M1,..., cn xsn -> Mn
-         | Branch Prim [(Ident, ([Binder],Ter))]
+data PN = Id | Refl | J | JEq
+        | Inh | Inc | Squash | InhRec
+        | TransU  | TransURef
+        | MapOnPath
+        | Ext
+        | EquivEq | EquivEqRef
+        | TransUEquivEq
+        | Trans
+        | Undef Prim
+  deriving (Eq, Show)
 
-           -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | LSum Prim [(Ident, [(Binder,Ter)])]
+-- data Ter = Var Binder
+--          | Id Ter Ter Ter | Refl Ter
+--          | Pi Ter Ter     | Lam Binder Ter | App Ter Ter
+--          | Where Ter [Def]
+--          | U
 
-           -- (A B:U) -> Id U A B -> A -> B
-           -- For TransU we only need the eqproof and the element in A is needed
-         | TransU Ter Ter
+--          | Undef Prim
 
-           -- (A:U) -> (a : A) -> Id A a (transport A (refl U A) a)
-           -- Argument is a
-         | TransURef Ter
+--            -- constructor c Ms
+--          | Con Ident [Ter]
 
-           -- The primitive J will have type:
-           -- J : (A : U) (u : A) (C : (v : A) -> Id A u v -> U)
-           --  (w : C u (refl A u)) (v : A) (p : Id A u v) -> C v p
-         | J Ter Ter Ter Ter Ter Ter
+--            -- branches c1 xs1  -> M1,..., cn xsn -> Mn
+--          | Branch Prim [(Ident, ([Binder],Ter))]
 
-           -- (A : U) (u : A) (C : (v:A) -> Id A u v -> U)
-           -- (w : C u (refl A u)) ->
-           -- Id (C u (refl A u)) w (J A u C w u (refl A u))
-         | JEq Ter Ter Ter Ter
+--            -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
+--          | LSum Prim [(Ident, [(Binder,Ter)])]
 
-           -- Ext B f g p : Id (Pi A B) f g,
-           -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
-         | Ext Ter Ter Ter Ter
+--            -- (A B:U) -> Id U A B -> A -> B
+--            -- For TransU we only need the eqproof and the element in A is needed
+--          | TransU Ter Ter
 
-           -- Inh A is an h-prop stating that A is inhabited.
-           -- Here we take h-prop A as (Pi x y : A) Id A x y.
-         | Inh Ter
+--            -- (A:U) -> (a : A) -> Id A a (transport A (refl U A) a)
+--            -- Argument is a
+--          | TransURef Ter
 
-           -- Inc a : Inh A for a:A (A not needed ??)
-         | Inc Ter
+--            -- The primitive J will have type:
+--            -- J : (A : U) (u : A) (C : (v : A) -> Id A u v -> U)
+--            --  (w : C u (refl A u)) (v : A) (p : Id A u v) -> C v p
+--          | J Ter Ter Ter Ter Ter Ter
 
-           -- Squash a b : Id (Inh A) a b
-         | Squash Ter Ter
+--            -- (A : U) (u : A) (C : (v:A) -> Id A u v -> U)
+--            -- (w : C u (refl A u)) ->
+--            -- Id (C u (refl A u)) w (J A u C w u (refl A u))
+--          | JEq Ter Ter Ter Ter
 
-           -- InhRec B p phi a : B,
-           -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
-         | InhRec Ter Ter Ter Ter
+--            -- Ext B f g p : Id (Pi A B) f g,
+--            -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
+--          | Ext Ter Ter Ter Ter
 
-           -- EquivEq A B f s t where
-           -- A, B are types, f : A -> B,
-           -- s : (y : B) -> fiber f y, and
-           -- t : (y : B) (z : fiber f y) -> Id (fiber f y) (s y) z
-           -- where fiber f y is Sigma x : A. Id B (f x) z.
-         | EquivEq Ter Ter Ter Ter Ter
+--            -- Inh A is an h-prop stating that A is inhabited.
+--            -- Here we take h-prop A as (Pi x y : A) Id A x y.
+--          | Inh Ter
 
-           -- (A : U) -> (s : (y : A) -> pathTo A a) ->
-           -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
-           -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
-         | EquivEqRef Ter Ter Ter
+--            -- Inc a : Inh A for a:A (A not needed ??)
+--          | Inc Ter
 
-           -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
-           -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
-           -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
-         | TransUEquivEq Ter Ter Ter Ter Ter Ter
+--            -- Squash a b : Id (Inh A) a b
+--          | Squash Ter Ter
 
-           -- TODO: Remove, but first fix the bug that get introduced (it can
-           -- be found by running testNO1 in nIso.cub)
-         | Trans Ter Ter Ter
-         | MapOnPath Ter Ter
-           -- {A B : U} (f : A -> B) {a b : A} ->
-           --  (p : Id A a b) -> Id B (f a) (f b)
-  deriving Eq
+--            -- InhRec B p phi a : B,
+--            -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
+--          | InhRec Ter Ter Ter Ter
 
-instance Show Ter where
-  show = showTer
+--            -- EquivEq A B f s t where
+--            -- A, B are types, f : A -> B,
+--            -- s : (y : B) -> fiber f y, and
+--            -- t : (y : B) (z : fiber f y) -> Id (fiber f y) (s y) z
+--            -- where fiber f y is Sigma x : A. Id B (f x) z.
+--          | EquivEq Ter Ter Ter Ter Ter
+
+--            -- (A : U) -> (s : (y : A) -> pathTo A a) ->
+--            -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
+--            -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
+--          | EquivEqRef Ter Ter Ter
+
+--            -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
+--            -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+--            -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
+--          | TransUEquivEq Ter Ter Ter Ter Ter Ter
+
+--            -- TODO: Remove, but first fix the bug that get introduced (it can
+--            -- be found by running testNO1 in nIso.cub)
+--          | Trans Ter Ter Ter
+--          | MapOnPath Ter Ter
+--            -- {A B : U} (f : A -> B) {a b : A} ->
+--            --  (p : Id A a b) -> Id B (f a) (f b)
+--   deriving Eq
+
+-- For an expression t, returns (u,ts) where u is no application
+-- and t = u ts
+unApps :: Ter -> (Ter,[Ter])
+unApps = aux []
+  where aux :: [Ter] -> Ter -> (Ter,[Ter])
+        aux acc (App r s) = aux (s:acc) r
+        aux acc t         = (t,acc)
+-- Non tail reccursive version:
+-- unApps (App r s) = let (t,ts) = unApps r in (t, ts ++ [s])
+-- unApps t         = (t,[])
+
+mkApps :: Ter -> [Ter] -> Ter
+mkApps = foldl App
+
+mkLams :: [String] -> Ter -> Ter
+mkLams bs t = foldr Lam t bs
+
+mkWheres :: [Def] -> Ter -> Ter
+mkWheres []     e = e
+mkWheres (d:ds) e = Where (mkWheres ds e) d
+
+primHandle =
+  [("Id"            , 3, Id           ),
+   ("refl"          , 2, Refl         ),
+   ("funExt"        , 5, Ext          ),
+   ("J"             , 6, J            ),
+   ("Jeq"           , 4, JEq          ),
+   ("inh"           , 1, Inh          ),
+   ("inc"           , 2, Inc          ),
+   ("squash"        , 3, Squash       ),
+   ("inhrec"        , 5, InhRec       ),
+   ("equivEq"       , 5, EquivEq      ),
+   ("transport"     , 4, TransU       ),
+   ("transportRef"  , 2, TransURef    ),
+   ("equivEqRef"    , 3, EquivEqRef   ),
+   ("transpEquivEq" , 6, TransUEquivEq),
+   ("mapOnPath"     , 6, MapOnPath    )]
+
+reservedNames :: [String]
+reservedNames = [s | (s,_,_) <- primHandle]
+
+arity :: PN -> Int
+arity pn = fromMaybe 0 $ listToMaybe [n | (_,n,pn') <- primHandle, pn == pn']
+
+mkPN :: String -> Maybe PN
+mkPN s = listToMaybe [pn | (s',_,pn) <- primHandle, s == s']
 
 --------------------------------------------------------------------------------
 -- | Names, dimension, and nominal type class
@@ -279,15 +361,18 @@ data Val = VU
            -- neutral values
          | VApp Val Val            -- the first Val must be neutral
          | VAppName Val Name
-         | VBranch Val Val         -- the second Val must be neutral
+         | VSplit Val Val         -- the second Val must be neutral
          | VVar String Dim
          | VInhRec Val Val Val Val -- the last Val must be neutral
   deriving Eq
 
+mkVar :: Int -> Dim -> Val
+mkVar k d = VVar ("X" ++ show k) d
+
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)        = isNeutral u
 isNeutral (VAppName u _)    = isNeutral u
-isNeutral (VBranch _ v)     = isNeutral v
+isNeutral (VSplit _ v)     = isNeutral v
 isNeutral (VVar _ _)        = True
 isNeutral (VInhRec _ _ _ v) = isNeutral v
 isNeutral _                 = False
@@ -334,7 +419,7 @@ instance Nominal Val where
   support (VFill x box)             = delete x $ support box
   support (VApp u v)        = support (u, v)
   support (VAppName u n)    = support (u, n)
-  support (VBranch u v)     = support (u, v)
+  support (VSplit u v)     = support (u, v)
   support (VVar x d)        = support d
   support v = error ("support " ++ show v)
 
@@ -376,7 +461,7 @@ instance Nominal Val where
         in sw (VFill z' (swap b z z'))
     VApp u v        -> VApp (sw u) (sw v)
     VAppName u n    -> VAppName (sw u) (swap n x y)
-    VBranch u v     -> VBranch (sw u) (sw v)
+    VSplit u v     -> VSplit (sw u) (sw v)
     VVar s d        -> VVar s (swap d x y)
 
 --------------------------------------------------------------------------------
@@ -423,47 +508,86 @@ valOfEnv (PDef _ env)     = valOfEnv env
 --------------------------------------------------------------------------------
 -- | Pretty printing
 
-showTer :: Ter -> String
-showTer U                  = "U"
-showTer (Var x)            = x
-showTer (App e0 e1)        = showTer e0 <+> showTer1 e1
-showTer (Pi e0 e1)         = "Pi" <+> showTers [e0,e1]
-showTer (Lam x e)          = "\\" ++ x <+> "->" <+> showTer e
-showTer (LSum (_,str) _)   = str
-showTer (Branch (n,str) _) = str ++ show n
-showTer (Undef (n,str))    = str ++ show n
-showTer (Con ident ts)     = ident <+> showTers ts
-showTer (Id a t s)         = "Id" <+> showTers [a,t,s]
-showTer (TransU t s)       = "transport" <+> showTers [t,s]
-showTer (TransURef t)      = "transportRef" <+> showTer t
-showTer (Refl t)           = "refl" <+> showTer t
-showTer (J a b c d e f)    = "J" <+> showTers [a,b,c,d,e,f]
-showTer (JEq a b c d)      = "Jeq" <+> showTers [a,b,c,d]
-showTer (Ext b f g p)      = "funExt" <+> showTers [b,f,g,p]
-showTer (Inh t)            = "inh" <+> showTer t
-showTer (Inc t)            = "inc" <+> showTer t
-showTer (Squash a b)       = "squash" <+> showTers [a,b]
-showTer (InhRec a b c d)   = "inhrec" <+> showTers [a,b,c,d]
-showTer (EquivEq a b c d e) = "equivEq" <+> showTers [a,b,c,d,e]
-showTer (EquivEqRef a b c) = "equivEqRef" <+> showTers [a,b,c]
-showTer (TransUEquivEq a b c d e f) = "transpEquivEq" <+> showTers [a,b,c,d,e,f]
-showTer (Where t defs)     = showTer t <+> "where" <+> showDefs defs
-showTer (MapOnPath a b)    =  "mapOnPath" <+> showTers [a,b]
-
-showDef :: Def -> String
-showDef (x,t) = x <+> "=" <+> showTer t
-
-showDefs :: [Def] -> String
-showDefs = ccat . map showDef
+instance Show Ter where
+ show = showTer
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
 
 showTer1 :: Ter -> String
-showTer1 U          = "U"
+showTer1 U = "U"
 showTer1 (Con c []) = c
-showTer1 (Var x)    = x
-showTer1 u          = parens $ showTer u
+showTer1 (Var x) = x
+showTer1 u@(Split {}) = showTer u
+showTer1 u@(Sum {}) = showTer u
+showTer1 u@(PN {}) = showTer u
+showTer1 u = parens $ showTer u
+
+showTer :: Ter -> String
+showTer e = case e of
+ App e0 e1 -> showTer e0 <+> showTer1 e1
+ Pi e0 e1 -> "Pi" <+> showTers [e0,e1]
+ Lam x e -> "\\" ++ x ++ "->" <+> showTer e
+ Where e d -> showTer e <+> "where" <+> showDef d
+ Var x -> x
+ U -> "U"
+ Con c es -> c <+> showTers es
+ Split (n,str) _ -> str ++ show n
+ Sum (_,str) _ -> str
+ PN pn -> showPN pn
+
+-- warning : do not use showPN as a Show instance
+showPN :: PN -> String
+showPN (Undef (n,str)) = str ++ show n
+showPN pn = case [s | (s,_,pn') <- primHandle, pn == pn'] of
+  [s] -> s
+  _   -> error $ "showPN: unknown primitive " ++ show pn
+
+showDef :: Def -> String
+showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showTer t) xts)
+
+-- showTer :: Ter -> String
+-- showTer U                  = "U"
+-- showTer (Var x)            = x
+-- showTer (App e0 e1)        = showTer e0 <+> showTer1 e1
+-- showTer (Pi e0 e1)         = "Pi" <+> showTers [e0,e1]
+-- showTer (Lam x e)          = "\\" ++ x <+> "->" <+> showTer e
+-- showTer (Sum (_,str) _)    = str
+-- showTer (Split (n,str) _)  = str ++ show n
+-- showTer (Undef (n,str))    = str ++ show n
+-- showTer (Con ident ts)     = ident <+> showTers ts
+-- showTer (PN pn)            = show
+-- showTer (Id a t s)         = "Id" <+> showTers [a,t,s]
+-- showTer (TransU t s)       = "transport" <+> showTers [t,s]
+-- showTer (TransURef t)      = "transportRef" <+> showTer t
+-- showTer (Refl t)           = "refl" <+> showTer t
+-- showTer (J a b c d e f)    = "J" <+> showTers [a,b,c,d,e,f]
+-- showTer (JEq a b c d)      = "Jeq" <+> showTers [a,b,c,d]
+-- showTer (Ext b f g p)      = "funExt" <+> showTers [b,f,g,p]
+-- showTer (Inh t)            = "inh" <+> showTer t
+-- showTer (Inc t)            = "inc" <+> showTer t
+-- showTer (Squash a b)       = "squash" <+> showTers [a,b]
+-- showTer (InhRec a b c d)   = "inhrec" <+> showTers [a,b,c,d]
+-- showTer (EquivEq a b c d e) = "equivEq" <+> showTers [a,b,c,d,e]
+-- showTer (EquivEqRef a b c) = "equivEqRef" <+> showTers [a,b,c]
+-- showTer (TransUEquivEq a b c d e f) = "transpEquivEq" <+> showTers [a,b,c,d,e,f]
+-- showTer (Where t defs)     = showTer t <+> "where" <+> showDef defs
+-- showTer (MapOnPath a b)    =  "mapOnPath" <+> showTers [a,b]
+
+-- show1Def :: (Ident,Ter) -> String
+-- show1Def (x,t) = x <+> "=" <+> showTer t
+
+-- showDef :: Def -> String
+-- showDef (_,ts) = ccat (map show1Def ts)
+
+-- showTers :: [Ter] -> String
+-- showTers = hcat . map showTer1
+
+-- showTer1 :: Ter -> String
+-- showTer1 U          = "U"
+-- showTer1 (Con c []) = c
+-- showTer1 (Var x)    = x
+-- showTer1 u          = parens $ showTer u
 
 showVal :: Val -> String
 showVal VU               = "U"
@@ -486,7 +610,7 @@ showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 showVal (VApp u v)        = showVal u <+> showVal1 v
 showVal (VAppName u n)    = showVal u <+> "@" <+> show n
-showVal (VBranch u v)     = showVal u <+> showVal1 v
+showVal (VSplit u v)      = showVal u <+> showVal1 v
 showVal (VVar x d)        = show x    <+> showDim d
 
 showDim [] = ""

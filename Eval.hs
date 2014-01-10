@@ -110,7 +110,7 @@ face u xdir@(x,dir) =
         VComp $ mapBox (`face` (z,up)) b
   VApp u v        -> app (fc u) (fc v)
   VAppName u n    -> appName (fc u) (faceName n xdir)
-  VBranch u v     -> app (fc u) (fc v)
+  VSplit u v      -> app (fc u) (fc v)
   VVar s d        -> VVar s [faceName n xdir | n <- d]
 
 faceName :: Name -> Side -> Name
@@ -137,72 +137,64 @@ look x r@(PDef es r1)             = look x (upds r1 (evals r es))
 cubeToBox :: Val -> Box () -> Box Val
 cubeToBox v = modBox (\nd _ -> v `face` nd)
 
+evalAppPN :: Env -> PN -> [Ter] -> Val
+evalAppPN e pn ts
+  | length ts < arity pn =
+      let r       = arity pn - length ts
+          binders = map (\n -> '_' : show n) [1..r]
+          vars    = map Var binders
+      in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) e
+      -- in mkLams binders $ evalPN e pn (ts ++ vars)
+  | otherwise            =
+      let (args,rest) = splitAt (arity pn) ts
+      in apps (evalPN (freshs e) pn (map (eval e) args)) (map (eval e) rest)
+
+-- the support of all the values should be included in d
+evalPN :: [Name] -> PN -> [Val] -> Val
+evalPN _     Id            [a,a0,a1]     = VId a a0 a1
+evalPN (x:_) Refl          [_,a]         = Path x a
+evalPN (x:_) TransU        [_,_,p,t]     = com (appName p x) $ Box up x t []
+evalPN (x:_) TransURef     [_,t]         = Path x t
+evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] = Path x (fill b box)
+  where box = Box up x (app f u) []   -- TODO: Check this!
+evalPN (x:y:_) J [a,u,c,w,_,p] = com (apps c [omega,sigma]) box
+  where pv    = appName p x
+        theta = fill a (Box up x u [((y,down),u),((y,up),pv)])
+        sigma = Path x theta
+        omega = theta `face` (x,up)
+        box   = Box up y w []
+evalPN (x:y:_) JEq [a,u,c,w] = Path y $ fill (apps c [omega,sigma]) box
+  where theta = fill a (Box up x u [((y,down),u),((y,up),u)])
+        sigma = Path x theta
+        omega = theta `face` (x,up)
+        box   = Box up y w []
+evalPN (x:_)   Ext        [_,b,f,g,p]   = Path x $ VExt x b f g p
+evalPN _       Inh        [a]           = VInh a
+evalPN _       Inc        [_,t]         = VInc t
+evalPN (x:_)   Squash     [_,r,s]       = Path x $ VSquash x r s
+evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
+evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
+evalPN (x:y:_) EquivEqRef [a,s,t]       =
+  Path y $ Path x $ VEquivSquare x y a s t
+evalPN (x:_)   Trans      [_,c,_,_,p,t] =
+  com (app c (appName p x)) $ Box up x t []
+evalPN (x:_)   MapOnPath  [_,_,f,_,_,p] = Path x $ app f (appName p x)
+
 eval :: Env -> Ter -> Val
 eval _ U             = VU
-eval e t@(Undef _)   = Ter t e
+eval e (PN pn)       = evalAppPN e pn []
+eval e t@(App r s) =
+  let (u,us) = unApps t
+  in case u of
+       PN pn -> evalAppPN e pn us
+       _     -> app (eval e r) (eval e s)
 eval e (Var i)       = look i e
-eval e (Id a a0 a1)  = VId (eval e a) (eval e a0) (eval e a1)
-eval e (Refl a)      = Path (fresh e) $ eval e a
-eval e (TransU p t) =
---  traceb ("evalTrans U" ++ "\nbox = " ++ showBox box ++ "\npv = " ++ show pv) (com pv box)
-  com pv box
-  where x   = fresh e
-        pv  = appName (eval e p) x
-        box = Box up x (eval e t) []
-eval e (TransURef t) = Path (fresh e) (eval e t)
-eval e (TransUEquivEq a b f s t u) = Path x pv -- TODO: Check this!
-  where x   = fresh e
-        pv  = fill (eval e b) box
-        box = Box up x (app (eval e f) (eval e u)) []
-eval e (J a u c w _ p) =
- com (app (app cv omega) sigma) box
-  where
-    x:y:_ = freshs e
-    uv    = eval e u
-    pv    = appName (eval e p) x
-    theta = fill (eval e a) (Box up x uv [((y,down),uv),((y,up),pv)])
-    sigma = Path x theta
-    omega = theta `face` (x,up)
-    cv    = eval e c
-    box   = Box up y (eval e w) []
-eval e (JEq a u c w) = Path y $ fill (app (app cv omega) sigma) box
-  where
-    x:y:_ = freshs e
-    uv    = eval e u
-    theta = fill (eval e a) (Box up x uv [((y,down),uv),((y,up),uv)])
-    sigma = Path x theta
-    omega = theta `face` (x,up)
-    cv    = eval e c
-    box   = Box up y (eval e w) []
-eval e (Ext b f g p) =
-  Path x $ VExt x (eval e b) (eval e f) (eval e g) (eval e p)
-    where x = fresh e
 eval e (Pi a b)      = VPi (eval e a) (eval e b)
 eval e (Lam x t)     = Ter (Lam x t) e -- stop at lambdas
-eval e (App r s)     = app (eval e r) (eval e s)
-eval e (Inh a)       = VInh (eval e a)
-eval e (Inc t)       = VInc (eval e t)
-eval e (Squash r s)  = Path x $ VSquash x (eval e r) (eval e s)
-  where x = fresh e
-eval e (InhRec b p phi a)  =
-  inhrec (eval e b) (eval e p) (eval e phi) (eval e a)
-eval e (Where t def)       = eval (PDef def e) t
+eval e (Where t (_,def))       = eval (PDef def e) t
 eval e (Con name ts)       = VCon name (map (eval e) ts)
-eval e (Branch pr alts)    = Ter (Branch pr alts) e
-eval e (LSum pr ntss)      = Ter (LSum pr ntss) e
-eval e (EquivEq a b f s t) =
-  Path x $ VEquivEq x (eval e a) (eval e b) (eval e f) (eval e s) (eval e t)
-    where x = fresh e
-eval e (EquivEqRef a s t)  =
-  Path y $ Path x $ VEquivSquare x y (eval e a) (eval e s) (eval e t)
-  where x:y:_ = freshs e
-eval e (Trans c p t) = com (app (eval e c) pv) box
-  where x   = fresh e
-        pv  = appName (eval e p) x
-        box = Box up x (eval e t) []
-eval e (MapOnPath f p) = Path x $ app (eval e f) (appName (eval e p) x)
-  where x   = fresh e
-
+eval e (Split pr alts)     = Ter (Split pr alts) e
+eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
@@ -222,7 +214,7 @@ kan Com  = com
 
 isNeutralFill :: Val -> Box Val -> Bool
 -- isNeutralFill v box | isNeutral v = True
-isNeutralFill v@(Ter (Undef _) _) box = True
+isNeutralFill v@(Ter (PN (Undef _)) _) box = True
 isNeutralFill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x == z && dir == down && not (isCon (app s vz)) = True
 isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) =
@@ -251,7 +243,7 @@ isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) =
         nJ    = nonPrincipal box
         nL    = nJ \\ [y,z]
         aDs   = if x `elem` [y,z] then allDirs nL else (x,mirror d):(allDirs nL)
-isNeutralFill (Ter (LSum _ _) _) (Box _ _ v nvs) =
+isNeutralFill (Ter (Sum _ _) _) (Box _ _ v nvs) =
  not (and ((isCon v):[isCon u | (_,u) <- nvs]))
 isNeutralFill v box = False
 
@@ -261,8 +253,8 @@ fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | isNeutralFill v box = Kan Fill v box
-fill v@(Ter (LSum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
+fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  | isNeutralFill v box = Kan Fill v box
+fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
  VCon n ws
   where as = case lookup n nass of
                Just as -> as
@@ -563,16 +555,19 @@ app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box up y pvxw [((x,down),left)
         left  = app fv w0
         right = app gv (swap w x y)
         pvxw  = appName (app pv w0) x
-app (Ter (Branch _ nvs) e) (VCon name us) = case lookup name nvs of
+app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
-    Nothing -> error $ "app: Branch with insufficient "
+    Nothing -> error $ "app: Split with insufficient "
                ++ "arguments; missing case for " ++ name
-app u@(Ter (Branch _ _) _) v = VBranch u v -- v should be neutral
-        -- | isNeutral v = VBranch u v
-        -- | otherwise   = error $ "app: (VBranch) " ++ show v ++ " is not neutral"
+app u@(Ter (Split _ _) _) v = VSplit u v -- v should be neutral
+        -- | isNeutral v = VSplit u v
+        -- | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
 app r s = VApp r s -- r should be neutral
         -- | isNeutral r = VApp r s -- r should be neutral
         -- | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
+
+apps :: Val -> [Val] -> Val
+apps = foldl app
 
 convBox :: Int -> Box Val -> Box Val -> Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
@@ -580,9 +575,6 @@ convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
   then and [conv1 k (lookBox s box) (lookBox s box') | s <- defBox box]
   else False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
-
-mkVar :: Int -> Dim -> Val
-mkVar k d = VVar ("X" ++ show k) d
 
 conv1 :: Int -> Val -> Val -> Bool
 conv1 k u v = -- traceb (show ("\n" ++ " =? "))
@@ -594,21 +586,13 @@ conv k VU VU                 = True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
     conv1 (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
     where v = mkVar k $ support (e, e')
-conv k (Ter (Lam x u) e) u' =
-    conv1 (k+1) (eval (Pair e (x,v)) u) (app u' v)
+conv k (Ter (Lam x u) e) u' = conv1 (k+1) (eval (Pair e (x,v)) u) (app u' v)
     where v = mkVar k $ support e
-conv k u' (Ter (Lam x u) e) =
-    conv1 (k+1) (app u' v) (eval (Pair e (x,v)) u)
+conv k u' (Ter (Lam x u) e) = conv1 (k+1) (app u' v) (eval (Pair e (x,v)) u)
     where v = mkVar k $ support e
-conv k (Ter (Branch p _) e) (Ter (Branch p' _) e')
-  | p /= p'   = False
-  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
-conv k (Ter (LSum p _) e) (Ter (LSum p' _) e')
-  | p /= p'   = False
-  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
-conv k (Ter (Undef p) e) (Ter (Undef p') e')
-  | p /= p'   = False
-  | otherwise = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+conv k (Ter (Split p _) e) (Ter (Split p' _) e') = (p == p') && convEnv k e e'
+conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e')   = (p == p') && convEnv k e e'
+conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') = (p == p') && convEnv k e e'
 conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
     where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
@@ -624,9 +608,8 @@ conv k (VInh u) (VInh u')                     = conv1 k u u'
 conv k (VInc u) (VInc u')                     = conv1 k u u'
 conv k (VSquash x u v) (VSquash x' u' v')     =
   and [x == x', conv1 k u u', conv1 k v v']
-conv k (VCon c us) (VCon c' us')
-  | c /= c'    = False
-  | otherwise  = and [conv1 k u u' | u <- us | u' <- us']
+conv k (VCon c us) (VCon c' us') =
+  (c == c') && and [conv1 k u u' | u <- us | u' <- us']
 conv k (Kan Fill v box) (Kan Fill v' box')    =
   and $ [conv1 k v v', convBox k box box']
 conv k (Kan Com v box) (Kan Com v' box')      =
@@ -651,8 +634,11 @@ conv k (VFill x box) (VFill x' box')      =
   where y      = fresh (box,box')
 conv k (VApp u v)     (VApp u' v')     = conv1 k u u' && conv1 k v v'
 conv k (VAppName u x) (VAppName u' x') = conv1 k u u' && (x == x')
-conv k (VBranch u v)  (VBranch u' v')  = conv1 k u u' && conv1 k v v'
+conv k (VSplit u v)   (VSplit u' v')   = conv1 k u u' && conv1 k v v'
 conv k (VVar x d)     (VVar x' d')     = (x == x')   && (d == d')
 conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
   and [conv1 k b b', conv1 k p p', conv1 k phi phi', conv1 k v v']
 conv k _              _                = False
+
+convEnv :: Int -> Env -> Env -> Bool
+convEnv k e e' = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']

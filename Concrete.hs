@@ -4,7 +4,7 @@
 module Concrete where
 
 import Exp.Abs
-import qualified MTT as M
+-- import qualified MTT as M
 import qualified CTT as C
 
 import Control.Arrow (first)
@@ -110,45 +110,52 @@ genPrim = do
   lift (modify (first succ))
   return prim
 
+genPN :: Resolver C.PN
+genPN = do
+  (_,str) <- lift get
+  case C.mkPN str of
+    Just pn -> return pn
+    Nothing -> C.Undef <$> genPrim
+
 updateName :: String -> Resolver ()
 updateName str = lift $ modify (\(g,_) -> (g,str))
 
-lam :: Arg -> Resolver M.Exp -> Resolver M.Exp
-lam a e = M.Lam (unArg a) <$> e
+lam :: Arg -> Resolver C.Ter -> Resolver C.Ter
+lam a e = C.Lam (unArg a) <$> e
 
-lams :: [Arg] -> Resolver M.Exp -> Resolver M.Exp
+lams :: [Arg] -> Resolver C.Ter -> Resolver C.Ter
 lams as e = foldr lam e as
 
-resolveExp :: Exp -> Resolver M.Exp
-resolveExp U            = return M.U
-resolveExp Undef        = M.Undef <$> genPrim
-resolveExp PN           = M.Undef <$> genPrim
+resolveExp :: Exp -> Resolver C.Ter
+resolveExp U            = return C.U
+resolveExp Undef        = C.PN <$> genPN
+resolveExp PN           = C.PN <$> genPN
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs
   if unVarBinder x `elem` cs
-    then M.Con (unVarBinder x) <$> mapM resolveExp xs
-    else M.App <$> resolveExp t <*> resolveExp s
+    then C.Con (unVarBinder x) <$> mapM resolveExp xs
+    else C.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
-resolveExp (Fun a b)    = M.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
+resolveExp (Fun a b)    = C.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
-resolveExp (Split brs)  = M.Fun <$> genPrim <*> mapM resolveBranch brs
-resolveExp (Let defs e) = M.lets <$> resolveDefs defs <*> resolveExp e
+resolveExp (Split brs)  = C.Split <$> genPrim <*> mapM resolveBranch brs
+resolveExp (Let defs e) = C.mkWheres <$> resolveDefs defs <*> resolveExp e
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
   Env cs <- getEnv
-  return (if x `elem` cs then M.Con x [] else M.Var x)
+  return (if x `elem` cs then C.Con x [] else C.Var x)
 
-resolveWhere :: ExpWhere -> Resolver M.Exp
+resolveWhere :: ExpWhere -> Resolver C.Ter
 resolveWhere = resolveExp . unWhere
 
-resolveBranch :: Branch -> Resolver (String,([String],M.Exp))
+resolveBranch :: Branch -> Resolver (String,([String],C.Ter))
 resolveBranch (Branch name args e) =
   ((unIdent name,) . (unArgs args,)) <$> resolveWhere e
 
 -- Assumes a flattened telescope.
-resolveTele :: [VDecl] -> Resolver [(String,M.Exp)]
+resolveTele :: [VDecl] -> Resolver [(String,C.Ter)]
 resolveTele []                      = return []
 resolveTele (VDecl [Binder a] t:ds) =
   ((unArg a,) <$> resolveExp t) <:> resolveTele ds
@@ -156,17 +163,17 @@ resolveTele ds                      =
   throwError $ "resolveTele: non flattened telescope " ++ show ds
 
 -- Assumes a flattened telescope.
-resolveTelePi :: [VDecl] -> Resolver M.Exp -> Resolver M.Exp
+resolveTelePi :: [VDecl] -> Resolver C.Ter -> Resolver C.Ter
 resolveTelePi [] b                      = b
 resolveTelePi (VDecl [Binder x] a:as) b =
-  M.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
+  C.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
 resolveTelePi (t@(VDecl{}):as) _        =
   throwError ("resolveTelePi: non flattened telescope " ++ show t)
 
-resolveLabel :: Sum -> Resolver (String,[(String,M.Exp)])
+resolveLabel :: Sum -> Resolver (String,[(String,C.Ter)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-resolveDefs :: [Def] -> Resolver [M.Def]
+resolveDefs :: [Def] -> Resolver [C.Def]
 resolveDefs [] = return []
 resolveDefs (DefTDecl n e:d:ds) = do
   e' <- resolveExp e
@@ -176,17 +183,17 @@ resolveDefs (DefTDecl n e:d:ds) = do
 -- resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
-checkDef :: (String,Def) -> Resolver (String,M.Exp)
+checkDef :: (String,Def) -> Resolver (String,C.Ter)
 checkDef (n,Def (AIdent (_,m)) args body) | n == m = do
   updateName n
   (n,) <$> lams args (resolveWhere body)
 checkDef (n,DefData (AIdent (_,m)) args sums) | n == m = do
   updateName n
-  (n,) <$> lams args (M.Sum <$> genPrim <*> mapM resolveLabel sums)
+  (n,) <$> lams args (C.Sum <$> genPrim <*> mapM resolveLabel sums)
 checkDef (n,d) =
   throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
 
-resolveMutual :: [Def] -> Resolver M.Def
+resolveMutual :: [Def] -> Resolver C.Def
 resolveMutual defs = do
   tdecls' <- mapM resolveTDecl tdecls
   let names = map fst tdecls'
