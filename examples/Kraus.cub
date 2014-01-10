@@ -9,35 +9,14 @@ import testInh
 -- swap with zero
 
 swZero : N -> N -> N
-swZero = swapDisc N natDec zero
+swZero = swapF N eqN zero
 
-lemSwZero : (x:N) -> neg (Id N zero x) -> Id N (swZero x x) zero
-lemSwZero x neqzx = idSwapDisc1 N natDec zero x neqzx
-
-lem1SwZero : (x:N) -> neg (Id N zero x) -> isEquiv N N (swZero x)
-lem1SwZero x neqzx = idemIsEquiv N (swZero x) (idemSwapDisc N natDec zero x neqzx)
-
--- we deduce that (N,x) is equal to (N,0) for any x in N
-
-homogDec : (X:U) -> discrete X -> (x y:X) -> Id ptU (pair X x) (pair X y)
-homogDec X dX x y = orElim (Id X y x) (neg (Id X y x)) (G x) rem1 rem (dX y x)
- where
-   G : X -> U
-   G z = Id ptU (pair X z) (pair X y)
-
-   rem0 : G y
-   rem0 = refl ptU (pair X y)
-
-   rem : neg (Id X y x) -> G x
-   rem neqzx = lemPtEquiv X X (swapDisc X dX y x) 
-                (idemIsEquiv X (swapDisc X dX y x) (idemSwapDisc X dX y x neqzx)) 
-                x y (idSwapDisc1 X dX y x neqzx)
-
-   rem1 : Id X y x -> G x
-   rem1 eqzx = subst X G y x eqzx rem0
 
 homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
-homogeneous x = homogDec N natDec x zero
+homogeneous x = homogDec N eqN f0N f1N x zero
+
+-- test : (x:N) -> Id (Id ptU (pair N x) (pair N zero)) (homogeneous x) (homogeneous x)
+-- test x = refl (Id ptU (pair N x) (pair N zero)) (homogeneous x)
 
 -- the following type is a contractible, hence a proposition
 
