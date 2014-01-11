@@ -224,35 +224,41 @@ isNeutralFill :: Val -> Box Val -> Bool
 isNeutralFill v box | isNeutral v = True
 isNeutralFill v@(Ter (PN (Undef _)) _) box = True
 isNeutralFill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
-  | x == z && dir == down && not (isCon (app s vz)) = True
+--  | x == z && dir == down && not (isCon (app s vz)) = True
+  | x == z && dir == down && isNeutral (app s vz) = True
 isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) =
-  not (and [isVComp (lookBox yc box) | yc <- aDs])
+--  not (and [isVComp (lookBox yc box) | yc <- aDs])
+  or [isNeutral (lookBox yc box) | yc <- aDs]
    where
         nK    = nonPrincipal tbox'
         nJ    = nonPrincipal box
         nL    = nJ \\ nK
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill v@(Kan Fill VU tbox') box@(Box d x _ _) =
-  not (and [isVFill (lookBox yc box) | yc <- aDs])
+--  not (and [isVFill (lookBox yc box) | yc <- aDs])
+  or [isNeutral (lookBox yc box) | yc <- aDs]
    where
         nK    = (pname tbox'):(nonPrincipal tbox')
         nJ    = nonPrincipal box
         nL    = nJ \\ nK
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x _ _) =
-  not (and [isVPair (lookBox yc box) | yc <- aDs])
+--  not (and [isVPair (lookBox yc box) | yc <- aDs])
+  or [isNeutral (lookBox yc box) | yc <- aDs]
    where
         nJ    = nonPrincipal box
         nL    = nJ \\ [z]
         aDs   = if x == z then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) =
-  not (and [isVSquare (lookBox yc box) | yc <- aDs])
+--  not (and [isVSquare (lookBox yc box) | yc <- aDs])
+  or [isVSquare (lookBox yc box) | yc <- aDs]
    where
         nJ    = nonPrincipal box
         nL    = nJ \\ [y,z]
         aDs   = if x `elem` [y,z] then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill (Ter (Sum _ _) _) (Box _ _ v nvs) =
- not (and ((isCon v):[isCon u | (_,u) <- nvs]))
+-- not (and ((isCon v):[isCon u | (_,u) <- nvs]))
+ or ((isNeutral v):[isNeutral u | (_,u) <- nvs])
 isNeutralFill v box = False
 
 -- Kan filling

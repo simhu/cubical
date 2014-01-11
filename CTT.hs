@@ -374,7 +374,7 @@ mkVar k d = VVar ("X" ++ show k) d
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)        = isNeutral u
 isNeutral (VAppName u _)    = isNeutral u
-isNeutral (VSplit _ v)     = isNeutral v
+isNeutral (VSplit _ v)      = isNeutral v
 isNeutral (VVar _ _)        = True
 isNeutral (VInhRec _ _ _ v) = isNeutral v
 isNeutral (VFillN _ _)      = True
@@ -620,7 +620,7 @@ showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
 showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
 showVal (VComp box)      = "vcomp" <+> showBox box
 showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
-showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
+showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f] -- [a,b,f,s,t]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 showVal (VApp u v)        = showVal u <+> showVal1 v
