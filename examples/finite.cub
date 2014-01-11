@@ -5,7 +5,7 @@ module finite where
 import description
 import function 
 import gradLemma
-import swapDisc
+import oldswapDisc
 
 -- a lemma about injective function
 
