@@ -556,7 +556,7 @@ showVal (VApp u v)       = showVal u <+> showVal1 v
 showVal (VAppName u n)   = showVal u <+> "@" <+> show n
 showVal (VSplit u v)     = showVal u <+> showVal1 v
 showVal (VVar x d)       = show x    <+> showDim d
-showVal (VEquivEq n a b f s t)   = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
+showVal (VEquivEq n a b f s t)   = "equivEq" <+> show n <+> showVals [a,b,f] -- [a,b,f,s,t]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 
