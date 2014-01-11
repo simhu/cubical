@@ -356,9 +356,6 @@ isNeutral (VFillN _ _)      = True
 isNeutral (VComN _ _)       = True
 isNeutral _                 = False
 
-instance Show Val where
-  show = showVal
-
 fstVal, sndVal, unSquare :: Val -> Val
 fstVal (VPair _ a _)     = a
 fstVal x                 = error $ "error fstVal: " ++ show x
@@ -392,17 +389,17 @@ instance Nominal Val where
   support (VFillN a box)    = support (a, box)
   support (VComN a box)     = support (a, box)
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
-  support (VEquivEq x a b f s t)    = support (x, [a,b,f,s,t])
+  support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
            -- names x, y and values a, s, t
-  support (VEquivSquare x y a s t)    = support ((x,y), [a,s,t])
-  support (VPair x a v)             = support (x, [a,v])
-  support (VComp box@(Box _ n _ _)) = delete n $ support box
-  support (VFill x box)             = delete x $ support box
+  support (VEquivSquare x y a s t)      = support ((x,y), [a,s,t])
+  support (VPair x a v)                 = support (x, [a,v])
+  support (VComp box@(Box _ n _ _))     = delete n $ support box
+  support (VFill x box)                 = delete x $ support box
   support (VApp u v)        = support (u, v)
   support (VAppName u n)    = support (u, n)
-  support (VSplit u v)     = support (u, v)
+  support (VSplit u v)      = support (u, v)
   support (VVar x d)        = support d
-  support v = error ("support " ++ show v)
+  support v                 = error ("support " ++ show v)
 
   swap u x y =
     let sw u = swap u x y in case u of
@@ -532,6 +529,9 @@ showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
 
 showDef :: Def -> String
 showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showTer t) xts)
+
+instance Show Val where
+  show = showVal
 
 showVal :: Val -> String
 showVal VU               = "U"
