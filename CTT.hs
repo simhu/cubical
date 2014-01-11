@@ -364,6 +364,8 @@ data Val = VU
          | VSplit Val Val         -- the second Val must be neutral
          | VVar String Dim
          | VInhRec Val Val Val Val -- the last Val must be neutral
+         | VFillN Val (Box Val)
+         | VComN Val (Box Val)
   deriving Eq
 
 mkVar :: Int -> Dim -> Val
@@ -375,6 +377,8 @@ isNeutral (VAppName u _)    = isNeutral u
 isNeutral (VSplit _ v)     = isNeutral v
 isNeutral (VVar _ _)        = True
 isNeutral (VInhRec _ _ _ v) = isNeutral v
+isNeutral (VFillN _ _)      = True
+isNeutral (VComN _ _)       = True
 isNeutral _                 = False
 
 instance Show Val where
@@ -410,6 +414,8 @@ instance Nominal Val where
   support (VSquash x v0 v1) = support (x, [v0,v1])
   support (VExt x b f g p)  = support (x, [b,f,g,p])
   support (Kan Fill a box)  = support (a, box)
+  support (VFillN a box)    = support (a, box)
+  support (VComN a box)     = support (a, box)
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
   support (VEquivEq x a b f s t)    = support (x, [a,b,f,s,t])
            -- names x, y and values a, s, t
@@ -445,8 +451,14 @@ instance Nominal Val where
       VEquivSquare (swap z x y) (swap w x y) (sw a) (sw s) (sw t)
     VSquare z w v -> VSquare (swap z x y) (swap w x y) (sw v)
     Kan Fill a b  -> Kan Fill (sw a) (swap b x y)
+    VFillN a b    -> VFillN (sw a) (swap b x y)
     Kan Com a b@(Box _ z _ _)
       | z /= x && z /= y -> Kan Com (sw a) (swap b x y)
+      | otherwise -> let z' = fresh ([x, y], u)
+                         a' = swap a z z'
+                     in sw (Kan Com a' (swap b z z'))
+    VComN a b@(Box _ z _ _)
+      | z /= x && z /= y -> VComN (sw a) (swap b x y)
       | otherwise -> let z' = fresh ([x, y], u)
                          a' = swap a z z'
                      in sw (Kan Com a' (swap b z z'))
@@ -600,7 +612,10 @@ showVal (VPi a f)        = "Pi" <+> showVals [a,f]
 showVal (VInh u)         = "inh" <+> showVal1 u
 showVal (VInc u)         = "inc" <+> showVal1 u
 showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
-showVal (Kan typ v box)  = "Kan" <+> show typ <+> showVal1 v <+> showBox box
+showVal (Kan Fill v box) = "Fill" <+> showVal1 v <+> showBox box
+showVal (Kan Com v box)  = "Com" <+> showVal1 v <+> showBox box
+showVal (VFillN v box)   = "FillN" <+> showVal1 v <+> showBox box
+showVal (VComN v box)    = "ComN" <+> showVal1 v <+> showBox box
 showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
 showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
 showVal (VComp box)      = "vcomp" <+> showBox box

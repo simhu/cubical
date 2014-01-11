@@ -8,7 +8,6 @@ import Debug.Trace
 
 import CTT
 
-
 -- Switch to False to turn off debugging
 debug :: Bool
 debug = True
@@ -93,7 +92,16 @@ face u xdir@(x,dir) =
     | x `elem` nonPrincipal b              -> lookBox (x,dir) b
     | x == y && dir == mirror dir'         -> v
     | otherwise                            -> com a b
+  VFillN a b@(Box dir' y v nvs)
+    | x /= y && x `notElem` nonPrincipal b -> fill (fc a) (mapBox fc b)
+    | x `elem` nonPrincipal b              -> lookBox (x,dir) b
+    | x == y && dir == mirror dir'         -> v
+    | otherwise                            -> com a b
   Kan Com a b@(Box dir' y v nvs)
+    | x == y                     -> u
+    | x `notElem` nonPrincipal b -> com (fc a) (mapBox fc b)
+    | x `elem` nonPrincipal b    -> lookBox (x,dir) b `face` (y,dir')
+  VComN a b@(Box dir' y v nvs)
     | x == y                     -> u
     | x `notElem` nonPrincipal b -> com (fc a) (mapBox fc b)
     | x `elem` nonPrincipal b    -> lookBox (x,dir) b `face` (y,dir')
@@ -213,7 +221,7 @@ kan Fill = fill
 kan Com  = com
 
 isNeutralFill :: Val -> Box Val -> Bool
--- isNeutralFill v box | isNeutral v = True
+isNeutralFill v box | isNeutral v = True
 isNeutralFill v@(Ter (PN (Undef _)) _) box = True
 isNeutralFill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x == z && dir == down && not (isCon (app s vz)) = True
@@ -249,12 +257,12 @@ isNeutralFill v box = False
 
 -- Kan filling
 fill :: Val -> Box Val -> Val
+fill v box | isNeutralFill v box = VFillN v box
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
-fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  | isNeutralFill v box = Kan Fill v box
-fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
+fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  =
  VCon n ws
   where as = case lookup n nass of
                Just as -> as
@@ -263,7 +271,6 @@ fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  | otherwise =
         boxes = transposeBox $ mapBox unCon box
         -- fill boxes for each argument position of the constructor
         ws    = fills as env boxes
-fill v@(VEquivSquare x y a s t) box@(Box dir x' vx' nvs) | isNeutralFill v box = Kan Fill v box
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
@@ -275,7 +282,6 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
 
 -- a and b should be independent of x
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
-  | isNeutralFill veq box = Kan Fill veq box
   | x /= z && x `notElem` nonPrincipal box =
     let ax0  = fill a (mapBox fstVal box)
         bx0  = app f ax0
@@ -320,12 +326,11 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
                                       [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
             bcom   = com b box2
         in traceb "VEquivEq case 4" $ VPair x acom bcom
-       _ -> Kan Fill veq box
+       _ -> VFillN veq box
   | otherwise = error "fill EqEquiv"
 
 
 fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
-  | isNeutralFill v box = Kan Fill v box
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
     let           -- the non-principal sides of tbox.
       add :: Side -> Val  -- TODO: Is this correct? Do we have
@@ -386,8 +391,6 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 4) x `notElem` J (maybe combine with 1?)
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
-  | isNeutralFill v box = Kan Fill v box
-
   | toAdd /= [] =
     let
       add :: Side -> Val
@@ -430,7 +433,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                                          (nonprincipalfaces ++ auxsides (x,tdir')))
         in traceb "Kan Fill VU Case 3"
            VFill z (Box tdir x' principal nonprincipal)
-      _ -> Kan Fill v box
+      _ ->  error ("fill case 3")
   | x `notElem` nJ =  -- assume x /= x' and K subset x', J
     let
       comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
@@ -461,7 +464,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
             | yc@(y,c) <- allDirs nK]
         in     traceb "Kan Fill VU Case 5"
                VFill z (Box tdir x' principal nonprincipal)
-      _ -> Kan Fill v box
+      _ -> error("fill case 5")
   | x' `elem` nK =              -- assumes x,K subset x',J
     case lookBox (x,dir') box of
       VComp _ ->
@@ -491,7 +494,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
           nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box down z nplp nplnp))
         in       traceb "Kan Fill VU Case 6"
          VFill z (Box tdir x' principal (nplast:npint))
-      _ -> Kan Fill v box
+      _ -> error ("fill case 6")
     where z     = fresh (v, box)
           nK    = nonPrincipal tbox
           nJ    = nonPrincipal box
@@ -515,7 +518,7 @@ fills _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Val
-com u box | isNeutralFill u box = Kan Com u box
+com u box | isNeutralFill u box = VComN u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
@@ -559,12 +562,12 @@ app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient "
                ++ "arguments; missing case for " ++ name
-app u@(Ter (Split _ _) _) v = VSplit u v -- v should be neutral
-        -- | isNeutral v = VSplit u v
-        -- | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
-app r s = VApp r s -- r should be neutral
-        -- | isNeutral r = VApp r s -- r should be neutral
-        -- | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
+app u@(Ter (Split _ _) _) v  -- = VSplit u v -- v should be neutral
+           | isNeutral v = VSplit u v
+           | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
+app r s                      --  = VApp r s -- r should be neutral
+           | isNeutral r = VApp r s -- r should be neutral
+           | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
 
 apps :: Val -> [Val] -> Val
 apps = foldl app
@@ -613,6 +616,14 @@ conv k (VCon c us) (VCon c' us') =
 conv k (Kan Fill v box) (Kan Fill v' box')    =
   and $ [conv1 k v v', convBox k box box']
 conv k (Kan Com v box) (Kan Com v' box')      =
+  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
+  where y      = fresh ((v,v'),(box,box'))
+        (x,x') = (pname box, pname box')
+conv k (VComN v box) (VComN v' box')      =
+  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
+  where y      = fresh ((v,v'),(box,box'))
+        (x,x') = (pname box, pname box')
+conv k (VFillN v box) (VFillN v' box')      =
   and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
