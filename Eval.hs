@@ -251,7 +251,7 @@ isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x _ _) =
         aDs   = if x == z then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) =
 --  not (and [isVSquare (lookBox yc box) | yc <- aDs])
-  or [isVSquare (lookBox yc box) | yc <- aDs]
+  or [isNeutral (lookBox yc box) | yc <- aDs]
    where
         nJ    = nonPrincipal box
         nL    = nJ \\ [y,z]
