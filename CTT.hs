@@ -9,8 +9,8 @@ import Pretty
 
 type Binder = String
 type Ident  = String
-type Prim = (Integer,String)
 type Label  = String
+type Prim   = (Integer,String)
 
 -- Branch of the form: c x1 .. xn -> e
 type Brc    = (Label,([String],Ter))
@@ -22,111 +22,86 @@ type Tele   = [(Binder,Ter)]
 type LblSum = [(Label,Tele)]
 
 -- Context gives type values to identifiers
-type Ctxt = [(String,Val)]
+type Ctxt   = [(String,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
-type Def = (Tele,[(Ident,Ter)])
+type Def    = (Tele,[(Ident,Ter)])
 
+-- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
          | Lam Binder Ter
          | Where Ter Def
          | Var Binder
          | U
+         -- constructor c Ms
          | Con Ident [Ter]
+         -- branches c1 xs1  -> M1,..., cn xsn -> Mn
          | Split Prim [Brc]
+         -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Prim LblSum
          | PN PN
-  deriving (Eq)
+  deriving Eq
 
-data PN = Id | Refl | J | JEq
-        | Inh | Inc | Squash | InhRec
-        | TransU  | TransURef
+-- Primitive notions
+data PN = Id | Refl
+        -- The primitive J will have type:
+        -- J : (A : U) (u : A) (C : (v : A) -> Id A u v -> U)
+        --  (w : C u (refl A u)) (v : A) (p : Id A u v) -> C v p
+        | J
+        -- (A : U) (u : A) (C : (v:A) -> Id A u v -> U)
+        -- (w : C u (refl A u)) ->
+        -- Id (C u (refl A u)) w (J A u C w u (refl A u))
+        | JEq
+
+        -- Inh A is an h-prop stating that A is inhabited.
+        -- Here we take h-prop A as (Pi x y : A) Id A x y.
+        | Inh
+        -- Inc a : Inh A for a:A (A not needed ??)
+        | Inc
+        -- Squash a b : Id (Inh A) a b
+        | Squash
+        -- InhRec B p phi a : B,
+        -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
+        | InhRec
+
+        -- (A B : U) -> Id U A B -> A -> B
+        -- For TransU we only need the eqproof and the element in A is needed
+        | TransU
+        -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
+        | TransURef
+
+        -- (A B : U) (f : A -> B) (a b : A) ->
+        -- (p : Id A a b) -> Id B (f a) (f b)
         | MapOnPath
+
+        -- Ext B f g p : Id (Pi A B) f g,
+        -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
         | Ext
-        | EquivEq | EquivEqRef
+
+        -- EquivEq A B f s t where
+        -- A, B are types, f : A -> B,
+        -- s : (y : B) -> fiber f y, and
+        -- t : (y : B) (z : fiber f y) -> Id (fiber f y) (s y) z
+        -- where fiber f y is Sigma x : A. Id B (f x) z.
+        | EquivEq
+        -- (A : U) -> (s : (y : A) -> pathTo A a) ->
+        -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
+        -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
+        | EquivEqRef
+
+        -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
+        -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+        -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
         | TransUEquivEq
+
+        -- TODO: Remove, but first fix the bug that get introduced (it can
+        -- be found by running testNO1 in nIso.cub)
         | Trans
+
+        -- undefined constant
         | Undef Prim
   deriving (Eq, Show)
-
--- data Ter = Var Binder
---          | Id Ter Ter Ter | Refl Ter
---          | Pi Ter Ter     | Lam Binder Ter | App Ter Ter
---          | Where Ter [Def]
---          | U
-
---          | Undef Prim
-
---            -- constructor c Ms
---          | Con Ident [Ter]
-
---            -- branches c1 xs1  -> M1,..., cn xsn -> Mn
---          | Branch Prim [(Ident, ([Binder],Ter))]
-
---            -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
---          | LSum Prim [(Ident, [(Binder,Ter)])]
-
---            -- (A B:U) -> Id U A B -> A -> B
---            -- For TransU we only need the eqproof and the element in A is needed
---          | TransU Ter Ter
-
---            -- (A:U) -> (a : A) -> Id A a (transport A (refl U A) a)
---            -- Argument is a
---          | TransURef Ter
-
---            -- The primitive J will have type:
---            -- J : (A : U) (u : A) (C : (v : A) -> Id A u v -> U)
---            --  (w : C u (refl A u)) (v : A) (p : Id A u v) -> C v p
---          | J Ter Ter Ter Ter Ter Ter
-
---            -- (A : U) (u : A) (C : (v:A) -> Id A u v -> U)
---            -- (w : C u (refl A u)) ->
---            -- Id (C u (refl A u)) w (J A u C w u (refl A u))
---          | JEq Ter Ter Ter Ter
-
---            -- Ext B f g p : Id (Pi A B) f g,
---            -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
---          | Ext Ter Ter Ter Ter
-
---            -- Inh A is an h-prop stating that A is inhabited.
---            -- Here we take h-prop A as (Pi x y : A) Id A x y.
---          | Inh Ter
-
---            -- Inc a : Inh A for a:A (A not needed ??)
---          | Inc Ter
-
---            -- Squash a b : Id (Inh A) a b
---          | Squash Ter Ter
-
---            -- InhRec B p phi a : B,
---            -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
---          | InhRec Ter Ter Ter Ter
-
---            -- EquivEq A B f s t where
---            -- A, B are types, f : A -> B,
---            -- s : (y : B) -> fiber f y, and
---            -- t : (y : B) (z : fiber f y) -> Id (fiber f y) (s y) z
---            -- where fiber f y is Sigma x : A. Id B (f x) z.
---          | EquivEq Ter Ter Ter Ter Ter
-
---            -- (A : U) -> (s : (y : A) -> pathTo A a) ->
---            -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
---            -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
---          | EquivEqRef Ter Ter Ter
-
---            -- (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
---            -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
---            -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
---          | TransUEquivEq Ter Ter Ter Ter Ter Ter
-
---            -- TODO: Remove, but first fix the bug that get introduced (it can
---            -- be found by running testNO1 in nIso.cub)
---          | Trans Ter Ter Ter
---          | MapOnPath Ter Ter
---            -- {A B : U} (f : A -> B) {a b : A} ->
---            --  (p : Id A a b) -> Id B (f a) (f b)
---   deriving Eq
 
 -- For an expression t, returns (u,ts) where u is no application
 -- and t = u ts
@@ -149,6 +124,8 @@ mkWheres :: [Def] -> Ter -> Ter
 mkWheres []     e = e
 mkWheres (d:ds) e = Where (mkWheres ds e) d
 
+-- Primitive notions
+primHandle :: [(Ident,Int,PN)]
 primHandle =
   [("Id"            , 3, Id           ),
    ("refl"          , 2, Refl         ),
@@ -266,9 +243,6 @@ lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
 nonPrincipal :: Box a -> [Name]
 nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
 
--- principal :: Box a -> Name
--- principal (Box _ x _ _) = x
-
 defBox :: Box a -> [(Name, Dir)]
 defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
 
@@ -306,7 +280,7 @@ transposeBox (Box dir x (v:vs) nvss) =
 
 -- Nominal for boxes
 instance Nominal a => Nominal (Box a) where
-  support (Box dir n v nvs) = support ((n, v), nvs)
+  support (Box dir n v nvs)  = support ((n, v), nvs)
   swap (Box dir z v nvs) x y = Box dir z' v' nvs' where
     ((z',v'), nvs') = swap ((z, v), nvs) x y
 
@@ -321,47 +295,48 @@ data Val = VU
          | VPi Val Val
          | VId Val Val Val
 
-           -- tag values which are paths
+         -- tag values which are paths
          | Path Name Val
+
          | VExt Name Val Val Val Val
 
-           -- inhabited
+         -- inhabited
          | VInh Val
 
-           -- inclusion into inhabited
+         -- inclusion into inhabited
          | VInc Val
 
-           -- squash type - connects the two values along the name
+         -- squash type - connects the two values along the name
          | VSquash Name Val Val
 
          | VCon Ident [Val]
 
          | Kan KanType Val (Box Val)
 
-           -- of type U connecting a and b along x
-           -- VEquivEq x a b f s t
+         -- of type U connecting a and b along x
+         -- VEquivEq x a b f s t
          | VEquivEq Name Val Val Val Val Val
 
-           -- names x, y and values a, s, t
+         -- names x, y and values a, s, t
          | VEquivSquare Name Name Val Val Val
 
-           -- of type VEquivEq
+         -- of type VEquivEq
          | VPair Name Val Val
 
-           -- of type VEquivSquare
+         -- of type VEquivSquare
          | VSquare Name Name Val
 
-           -- a value of type Kan Com VU (Box (type of values))
+         -- a value of type Kan Com VU (Box (type of values))
          | VComp (Box Val)
 
-           -- a value of type Kan Fill VU (Box (type of values minus name))
-           -- the name is bound
+         -- a value of type Kan Fill VU (Box (type of values minus name))
+         -- the name is bound
          | VFill Name (Box Val)
 
-           -- neutral values
+         -- neutral values
          | VApp Val Val            -- the first Val must be neutral
          | VAppName Val Name
-         | VSplit Val Val         -- the second Val must be neutral
+         | VSplit Val Val          -- the second Val must be neutral
          | VVar String Dim
          | VInhRec Val Val Val Val -- the last Val must be neutral
          | VFillN Val (Box Val)
@@ -369,20 +344,17 @@ data Val = VU
   deriving Eq
 
 mkVar :: Int -> Dim -> Val
-mkVar k d = VVar ("X" ++ show k) d
+mkVar k = VVar ('X' : show k)
 
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)        = isNeutral u
 isNeutral (VAppName u _)    = isNeutral u
-isNeutral (VSplit _ v)      = isNeutral v
+isNeutral (VSplit _ v)     = isNeutral v
 isNeutral (VVar _ _)        = True
 isNeutral (VInhRec _ _ _ v) = isNeutral v
 isNeutral (VFillN _ _)      = True
 isNeutral (VComN _ _)       = True
 isNeutral _                 = False
-
-instance Show Val where
-  show = showVal
 
 fstVal, sndVal, unSquare :: Val -> Val
 fstVal (VPair _ a _)     = a
@@ -417,17 +389,17 @@ instance Nominal Val where
   support (VFillN a box)    = support (a, box)
   support (VComN a box)     = support (a, box)
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
-  support (VEquivEq x a b f s t)    = support (x, [a,b,f,s,t])
+  support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
            -- names x, y and values a, s, t
-  support (VEquivSquare x y a s t)    = support ((x,y), [a,s,t])
-  support (VPair x a v)             = support (x, [a,v])
-  support (VComp box@(Box _ n _ _)) = delete n $ support box
-  support (VFill x box)             = delete x $ support box
+  support (VEquivSquare x y a s t)      = support ((x,y), [a,s,t])
+  support (VPair x a v)                 = support (x, [a,v])
+  support (VComp box@(Box _ n _ _))     = delete n $ support box
+  support (VFill x box)                 = delete x $ support box
   support (VApp u v)        = support (u, v)
   support (VAppName u n)    = support (u, n)
-  support (VSplit u v)     = support (u, v)
+  support (VSplit u v)      = support (u, v)
   support (VVar x d)        = support d
-  support v = error ("support " ++ show v)
+  support v                 = error ("support " ++ show v)
 
   swap u x y =
     let sw u = swap u x y in case u of
@@ -514,92 +486,52 @@ mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
-valOfEnv (Pair env (_,v)) = v:(valOfEnv env)
+valOfEnv (Pair env (_,v)) = v : valOfEnv env
 valOfEnv (PDef _ env)     = valOfEnv env
 
 --------------------------------------------------------------------------------
 -- | Pretty printing
 
 instance Show Ter where
- show = showTer
+  show = showTer
+
+showTer :: Ter -> String
+showTer e = case e of
+  App e0 e1       -> showTer e0 <+> showTer1 e1
+  Pi e0 e1        -> "Pi" <+> showTers [e0,e1]
+  Lam x e         -> '\\' : x <+> "->" <+> showTer e
+  Where e d       -> showTer e <+> "where" <+> showDef d
+  Var x           -> x
+  U               -> "U"
+  Con c es        -> c <+> showTers es
+  Split (n,str) _ -> str ++ show n
+  Sum (_,str) _   -> str
+  PN pn           -> showPN pn
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
 
 showTer1 :: Ter -> String
-showTer1 U = "U"
-showTer1 (Con c []) = c
-showTer1 (Var x) = x
+showTer1 U            = "U"
+showTer1 (Con c [])   = c
+showTer1 (Var x)      = x
 showTer1 u@(Split {}) = showTer u
-showTer1 u@(Sum {}) = showTer u
-showTer1 u@(PN {}) = showTer u
-showTer1 u = parens $ showTer u
+showTer1 u@(Sum {})   = showTer u
+showTer1 u@(PN {})    = showTer u
+showTer1 u            = parens $ showTer u
 
-showTer :: Ter -> String
-showTer e = case e of
- App e0 e1 -> showTer e0 <+> showTer1 e1
- Pi e0 e1 -> "Pi" <+> showTers [e0,e1]
- Lam x e -> "\\" ++ x ++ "->" <+> showTer e
- Where e d -> showTer e <+> "where" <+> showDef d
- Var x -> x
- U -> "U"
- Con c es -> c <+> showTers es
- Split (n,str) _ -> str ++ show n
- Sum (_,str) _ -> str
- PN pn -> showPN pn
-
--- warning : do not use showPN as a Show instance
+-- Warning: do not use showPN as a Show instance as it will loop
 showPN :: PN -> String
 showPN (Undef (n,str)) = str ++ show n
-showPN pn = case [s | (s,_,pn') <- primHandle, pn == pn'] of
+showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
   [s] -> s
   _   -> error $ "showPN: unknown primitive " ++ show pn
 
 showDef :: Def -> String
 showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showTer t) xts)
 
--- showTer :: Ter -> String
--- showTer U                  = "U"
--- showTer (Var x)            = x
--- showTer (App e0 e1)        = showTer e0 <+> showTer1 e1
--- showTer (Pi e0 e1)         = "Pi" <+> showTers [e0,e1]
--- showTer (Lam x e)          = "\\" ++ x <+> "->" <+> showTer e
--- showTer (Sum (_,str) _)    = str
--- showTer (Split (n,str) _)  = str ++ show n
--- showTer (Undef (n,str))    = str ++ show n
--- showTer (Con ident ts)     = ident <+> showTers ts
--- showTer (PN pn)            = show
--- showTer (Id a t s)         = "Id" <+> showTers [a,t,s]
--- showTer (TransU t s)       = "transport" <+> showTers [t,s]
--- showTer (TransURef t)      = "transportRef" <+> showTer t
--- showTer (Refl t)           = "refl" <+> showTer t
--- showTer (J a b c d e f)    = "J" <+> showTers [a,b,c,d,e,f]
--- showTer (JEq a b c d)      = "Jeq" <+> showTers [a,b,c,d]
--- showTer (Ext b f g p)      = "funExt" <+> showTers [b,f,g,p]
--- showTer (Inh t)            = "inh" <+> showTer t
--- showTer (Inc t)            = "inc" <+> showTer t
--- showTer (Squash a b)       = "squash" <+> showTers [a,b]
--- showTer (InhRec a b c d)   = "inhrec" <+> showTers [a,b,c,d]
--- showTer (EquivEq a b c d e) = "equivEq" <+> showTers [a,b,c,d,e]
--- showTer (EquivEqRef a b c) = "equivEqRef" <+> showTers [a,b,c]
--- showTer (TransUEquivEq a b c d e f) = "transpEquivEq" <+> showTers [a,b,c,d,e,f]
--- showTer (Where t defs)     = showTer t <+> "where" <+> showDef defs
--- showTer (MapOnPath a b)    =  "mapOnPath" <+> showTers [a,b]
-
--- show1Def :: (Ident,Ter) -> String
--- show1Def (x,t) = x <+> "=" <+> showTer t
-
--- showDef :: Def -> String
--- showDef (_,ts) = ccat (map show1Def ts)
-
--- showTers :: [Ter] -> String
--- showTers = hcat . map showTer1
-
--- showTer1 :: Ter -> String
--- showTer1 U          = "U"
--- showTer1 (Con c []) = c
--- showTer1 (Var x)    = x
--- showTer1 u          = parens $ showTer u
+instance Show Val where
+  show = showVal
 
 showVal :: Val -> String
 showVal VU               = "U"
@@ -620,19 +552,22 @@ showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
 showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
 showVal (VComp box)      = "vcomp" <+> showBox box
 showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
-showVal (VEquivEq n a b f s t) = "equivEq" <+> show n <+> showVals [a,b,f] -- [a,b,f,s,t]
+showVal (VApp u v)       = showVal u <+> showVal1 v
+showVal (VAppName u n)   = showVal u <+> "@" <+> show n
+showVal (VSplit u v)     = showVal u <+> showVal1 v
+showVal (VVar x d)       = show x    <+> showDim d
+showVal (VEquivEq n a b f s t)   = "equivEq" <+> show n <+> showVals [a,b,f,s,t]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
-showVal (VApp u v)        = showVal u <+> showVal1 v
-showVal (VAppName u n)    = showVal u <+> "@" <+> show n
-showVal (VSplit u v)      = showVal u <+> showVal1 v
-showVal (VVar x d)        = show x    <+> showDim d
 
+showDim :: Show a => [a] -> String
 showDim [] = ""
-showDim xs = "(" ++ showDim1 xs ++ ")"
+showDim xs = parens $ showDim1 xs
 
-showDim1 [] = ""
-showDim1 [x] = show x
+-- TODO: Why not use ccat?
+showDim1 :: Show a => [a] -> String
+showDim1 []     = ""
+showDim1 [x]    = show x
 showDim1 (x:xs) = show x ++ "," ++ showDim1 xs
 
 showVals :: [Val] -> String
