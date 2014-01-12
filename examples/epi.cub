@@ -3,6 +3,7 @@
 module epi where
 
 import omega
+import exists
 
 -- surjective and epi maps
 
@@ -10,7 +11,7 @@ isEpi : (A B: U) -> (A -> B) -> U
 isEpi A B f = (X:U) -> set X -> (g h:B->X) -> Id (A->X) (\ a -> g (f a)) (\ a -> h (f a)) -> Id (B->X) g h
 
 isSurj : (A B:U) -> (A->B) -> U
-isSurj A B f = (y:B) -> exist A (\ x -> Id B (f x) y)
+isSurj A B f = (y:B) -> exists A (\ x -> Id B (f x) y)
 
 -- these properties should be equivalent
 
@@ -26,7 +27,7 @@ surjIsEpi A B f sf X sX g h egh = funExt B (\ _ -> X) g h rem
      rem1 : prop G
      rem1 = sX (g y) (h y)
 
-     rem2 : exist A (\ x -> Id B (f x) y)
+     rem2 : exists A (\ x -> Id B (f x) y)
      rem2 = sf y
 
      rem4 : (x:A) -> Id X (g (f x)) (h (f x))
@@ -54,7 +55,7 @@ epiIsSurj A B f ef = rem6
    g y = pair Unit propUnit
 
    h : B -> Omega
-   h y = pair (exist A (\ x -> Id B (f x) y)) (squash (Sigma A (\ x -> Id B (f x) y)))
+   h y = pair (exists A (\ x -> Id B (f x) y)) (squash (Sigma A (\ x -> Id B (f x) y)))
 
    rem1 : (x:A) -> isTrue (h (f x))
    rem1 x = inc (Sigma A (\ z -> Id B (f z) (f x))) (pair x (refl B (f x)))
