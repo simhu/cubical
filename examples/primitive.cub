@@ -9,13 +9,15 @@ funExt : (A : U) (B : (a : A) -> U) (f g : (a : A) -> B a)
          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
 funExt = PN
 
-J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
-      (x : A) -> (p : Id A a x) -> C x p
-J = PN
 
-Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
-       Id (C a (refl A a)) d (J A a C d a (refl A a))
-Jeq = PN
+
+-- J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
+--      (x : A) -> (p : Id A a x) -> C x p
+-- J = PN
+
+-- Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
+--        Id (C a (refl A a)) d (J A a C d a (refl A a))
+-- Jeq = PN
 
 inh : U -> U
 inh = PN
@@ -46,6 +48,12 @@ pathTo A = fiber A A (id A)
 
 sId : (A : U) (a : A) -> pathTo A a
 sId A a = pair a (refl A a)
+
+singl : (A:U) -> A -> U
+singl A a = Sigma A (Id A a)
+
+contrSingl :  (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
+contrSingl = PN
 
 equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
             (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->

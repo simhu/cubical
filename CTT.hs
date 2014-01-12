@@ -45,15 +45,6 @@ data Ter = App Ter Ter
 
 -- Primitive notions
 data PN = Id | Refl
-        -- The primitive J will have type:
-        -- J : (A : U) (u : A) (C : (v : A) -> Id A u v -> U)
-        --  (w : C u (refl A u)) (v : A) (p : Id A u v) -> C v p
-        | J
-        -- (A : U) (u : A) (C : (v:A) -> Id A u v -> U)
-        -- (w : C u (refl A u)) ->
-        -- Id (C u (refl A u)) w (J A u C w u (refl A u))
-        | JEq
-
         -- Inh A is an h-prop stating that A is inhabited.
         -- Here we take h-prop A as (Pi x y : A) Id A x y.
         | Inh
@@ -68,8 +59,13 @@ data PN = Id | Refl
         -- (A B : U) -> Id U A B -> A -> B
         -- For TransU we only need the eqproof and the element in A is needed
         | TransU
+
         -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
         | TransURef
+
+        -- (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
+        | CSingl
+
 
         -- (A B : U) (f : A -> B) (a b : A) ->
         -- (p : Id A a b) -> Id B (f a) (f b)
@@ -130,14 +126,13 @@ primHandle =
   [("Id"            , 3, Id           ),
    ("refl"          , 2, Refl         ),
    ("funExt"        , 5, Ext          ),
-   ("J"             , 6, J            ),
-   ("Jeq"           , 4, JEq          ),
    ("inh"           , 1, Inh          ),
    ("inc"           , 2, Inc          ),
    ("squash"        , 3, Squash       ),
    ("inhrec"        , 5, InhRec       ),
    ("equivEq"       , 5, EquivEq      ),
    ("transport"     , 4, TransU       ),
+   ("contrSingl"    , 4, CSingl       ),
    ("transportRef"  , 2, TransURef    ),
    ("equivEqRef"    , 3, EquivEqRef   ),
    ("transpEquivEq" , 6, TransUEquivEq),

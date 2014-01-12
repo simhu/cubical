@@ -143,6 +143,14 @@ appId A B a = mapOnPath (A->B) B (\ f -> f a)
 appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
 appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a) 
 
+-- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+
+J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U) (d: C a (refl A a)) (x : A) (p : Id A a x)
+      -> C x p
+J A a C d x p = subst (singl A a) T (pair a (refl A a)) (pair x p) (contrSingl A a x p) d
+ where T : singl A a -> U
+       T = split pair x p -> C x p
+
 tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
 tId A a = split 
   pair x p -> rem x a p 
