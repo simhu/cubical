@@ -12,12 +12,12 @@ Omega = Sigma U prop
 
 lemPInj1 :  (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> (a0 a1:A) -> (p:Id A a0 a1) ->
             (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
-lemPInj1 A B pB a0 =  J A a0 C rem
+lemPInj1 A B pB a0 a1 p =  subst A C a0 a1 p rem
  where
-  C : (a1:A) -> Id A a0 a1 -> U
-  C a1 p = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
+  C : A -> U                                      -- (a1:A) -> Id A a0 a1 -> U
+  C a1 = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
 
-  rem : C a0 (refl A a0)
+  rem : C a0
   rem b0 b1 = mapOnPath (B a0) (Sigma A B) (\ b -> pair a0 b) b0 b1 (pB a0 b0 b1)
 
 lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (fst A B)
@@ -38,14 +38,15 @@ lemPInj2 A B pB =
     L : U
     L = Id T (pair a b) (pair a b)
 
-    C : (a1:A) -> Id A a a1 -> U
-    C a1 p = (b0 : B a) ->  (b1:B a1) -> Id T (pair a b0) (pair a1 b1)
+    C : A -> U
+    C a1 = (b0 : B a) ->  (b1:B a1) -> Id T (pair a b0) (pair a1 b1) 
 
-    rem2 : C a (refl A a)
+    rem2 : C a
     rem2 b0 b1 = mapOnPath (B a) T (\ b -> pair a b) b0 b1 (pB a b0 b1)
 
-    rem1 : Id (C a (refl A a)) rem2 (lemPInj1 A B pB a a (refl A a))
-    rem1 = Jeq A a C rem2
+--  only use of Jeq so far!
+    rem1 : Id (C a) rem2 (lemPInj1 A B pB a a (refl A a))
+    rem1 = substeq A C a rem2
              
     Lb : U
     Lb = Id (B a) b b
@@ -62,14 +63,14 @@ lemPInj2 A B pB =
     rem6 : Id L (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b)
     rem6 = appEq (B a) (\ b1 -> Id T (pair a b) (pair a b1)) b (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
 
-    rem7 : Id L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b))
-    rem7 = congRefl (B a) T (\ b -> pair a b) b
+--    rem7 : Id L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b))
+--    rem7 = congRefl (B a) T (\ b -> pair a b) b
 
-    rem8 : Id L (refl T (pair a b)) (rem2 b b)
-    rem8 = comp L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
+--    rem8 : Id L (refl T (pair a b)) (rem2 b b)
+--    rem8 = comp L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
 
     rem : Id L (refl T (pair a b)) (lemPInj1 A B pB a a (refl A a) b b)
-    rem = comp L (refl T (pair a b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem8 rem6
+    rem = comp L (refl T (pair a b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem3 rem6
 
 -- we should be able to deduce from all this that Omega is a set
 
@@ -88,6 +89,14 @@ lemIsTrue x y f g = injf x y rem
    rem : Id U (isTrue x) (isTrue y)
    rem = propId (isTrue x) (isTrue y) (G x) (G y) f g 
 
+lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
+              -> ((x:A) -> Id (Id A x x) (refl A x) (injf x x (refl B (f x))))
+              -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))
+lemInj A B f injf h x = 
+ J A x (\ y p -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))) (h x)
+ where
+  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
+  rem1 = h x
 
 omegaIsSet : set Omega
 omegaIsSet = rem4
