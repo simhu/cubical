@@ -22,27 +22,6 @@ unCompAs :: Val -> Name -> Box Val
 unCompAs (VComp box) y = swap box (pname box) y
 unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
-isCon :: Val -> Bool
-isCon (VCon _ _) = True
-isCon _ = False
-
-isVFill :: Val -> Bool
-isVFill (VFill _ _) = True
-isVFill _           = False
-
-isVComp :: Val -> Bool
-isVComp (VComp _) = True
-isVComp _         = False
-
-isVPair :: Val -> Bool
-isVPair (VPair _ _ _) = True
-isVPair _ = False
-
-isVSquare :: Val -> Bool
-isVSquare (VSquare _ _ _) = True
-isVSquare  _           = False
-
-
 unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
@@ -157,7 +136,6 @@ evalAppPN e pn ts
       let (args,rest) = splitAt (arity pn) ts
       in apps (evalPN (freshs e) pn (map (eval e) args)) (map (eval e) rest)
 
--- the support of all the values should be included in d
 evalPN :: [Name] -> PN -> [Val] -> Val
 evalPN _     Id            [a,a0,a1]     = VId a a0 a1
 evalPN (x:_) Refl          [_,a]         = Path x a
@@ -286,7 +264,6 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
                        | z == y && c == up = sndVal v
                        | otherwise         = v
 
--- a and b should be independent of x
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x /= z && x `notElem` nonPrincipal box =
     let ax0  = fill a (mapBox fstVal box)
