@@ -14,7 +14,7 @@ J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
 J = PN
 
 Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
-        Id (C a (refl A a)) d (J A a C d a (refl A a))
+       Id (C a (refl A a)) d (J A a C d a (refl A a))
 Jeq = PN
 
 inh : U -> U
@@ -43,6 +43,9 @@ id A a = a
 
 pathTo : (A:U) -> A -> U
 pathTo A = fiber A A (id A)
+
+sId : (A : U) (a : A) -> pathTo A a
+sId A a = pair a (refl A a)
 
 equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
             (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->

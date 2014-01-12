@@ -143,15 +143,12 @@ appId A B a = mapOnPath (A->B) B (\ f -> f a)
 appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
 appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a) 
 
-sId : (A : U) (a : A) -> pathTo A a
-sId A a = pair a (refl A a)
-
 tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
 tId A a = split 
   pair x p -> rem x a p 
-  where 
-  rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (pair x p)
-  rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (pair x p)) (refl (pathTo A x) (sId A x))
+   where 
+    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (pair x p)
+    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (pair x p)) (refl (pathTo A x) (sId A x))
 
 typEquivS : (A B : U) -> (f : A -> B) -> U
 typEquivS A B f = (y : B) -> fiber A B f y

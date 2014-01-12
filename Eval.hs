@@ -165,6 +165,8 @@ evalPN (x:y:_) EquivEqRef [a,s,t]       =
 evalPN (x:_)   Trans      [_,c,_,_,p,t] =
   com (app c (appName p x)) $ Box up x t []
 evalPN (x:_)   MapOnPath  [_,_,f,_,_,p] = Path x $ app f (appName p x)
+evalPN _       u _ = error ("evalPN " ++ show u)
+
 
 eval :: Env -> Ter -> Val
 eval _ U             = VU
