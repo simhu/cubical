@@ -55,15 +55,22 @@ pred = split
         zero -> zero
         suc n -> n
 
+-- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+-- subst A P a x p d = J A a (\ x q -> P x) d x p
+
 subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
-subst A P a x p d = J A a (\ x q -> P x) d x p
+subst A P a x p = transport (P a) (P x) (mapOnPath A U P a x p)
 
 substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
 substInv A P a x p = subst A (\ y -> P y -> P a) a x p (\ h -> h)
 
+-- substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
+--           Id (P a) d (subst A P a a (refl A a) d)
+-- substeq A P a d = Jeq A a (\ x q -> P x) d
+
 substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
-          Id (P a) d (subst A P a a (refl A a) d)
-substeq A P a d = Jeq A a (\ x q -> P x) d
+           Id (P a) d (subst A P a a (refl A a) d)
+substeq A P a d = transportRef (P a) d
 
 N0 : U
 data N0 =
