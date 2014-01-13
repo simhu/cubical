@@ -34,8 +34,12 @@ flifted = inhrecI N sNzero propSNzero (\ x -> pair (pair N x) (homogeneous x))
 Tmyst : inhI N -> U
 Tmyst x = fst U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
 
+opaque homogeneous
+
 myst : (x: inhI N) -> Tmyst x
 myst x = snd U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
+
+transparent homogeneous
 
 mystN : (n: N) -> Tmyst (incI N n)
 mystN n = myst (incI N n)

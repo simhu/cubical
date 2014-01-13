@@ -19,13 +19,13 @@ import Eval
 genName :: Int -> String
 genName n = 'X' : show n
 
-addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Ctxt
+addC :: Ctxt -> (Tele,OEnv) -> [(String,Val)] -> Ctxt
 addC gam _             []          = gam
 addC gam ((y,a):as,nu) ((x,u):xus) =
-  addC ((x,eval nu a):gam) (as,Pair nu (y,u)) xus
+  addC ((x,eval nu a):gam) (as,oPair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
-getLblType :: String -> Val -> Typing (Tele, Env)
+getLblType :: String -> Val -> Typing (Tele, OEnv)
 getLblType c (Ter (Sum _ cas) r) = case lookup c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
@@ -33,13 +33,13 @@ getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
 -- Environment for type checker
-data TEnv = TEnv { index :: Int   -- for de Bruijn levels
-                 , env   :: Env
-                 , ctxt  :: Ctxt }
+data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
+                 , oenv    :: OEnv
+                 , ctxt    :: Ctxt} -- opaque definitions
           deriving Eq
 
 tEmpty :: TEnv
-tEmpty = TEnv 0 Empty []
+tEmpty = TEnv 0 (OEnv Empty []) []
 
 -- Type checking monad
 type Typing a = ReaderT TEnv (ErrorT String Identity) a
@@ -48,12 +48,17 @@ runTyping :: Typing a -> TEnv -> ErrorT String Identity a
 runTyping = runReaderT
 
 -- Used in the interaction loop
-runDef :: TEnv -> Def -> Either String TEnv
-runDef lenv d = do
-  runIdentity $ runErrorT $ runTyping (checkDef d) lenv
-  return $ addDef d lenv
+runDef :: TEnv -> ODef -> Either String TEnv
+runDef tenv (ODef d)    = do
+  runIdentity $ runErrorT $ runTyping (checkDef d) tenv
+  return $ addDef d tenv
+runDef tenv op         = return $ tenv {oenv = oenv'}
+  where OEnv env opaques = oenv tenv
+        oenv' = OEnv env $ case op of
+          Opaque n      -> n : opaques
+          Transparent n -> n `delete` opaques
 
-runDefs :: TEnv -> [Def] -> Either String TEnv
+runDefs :: TEnv -> [ODef] -> Either String TEnv
 runDefs = foldM runDef
 
 runInfer :: TEnv -> Ter -> Either String Val
@@ -61,19 +66,20 @@ runInfer lenv e = runIdentity $ runErrorT $ runTyping (checkInfer e) lenv
 
 addTypeVal :: (String,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam) =
-  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam)
+  TEnv (k+1) (oPair rho (x,mkVar k (support rho))) (p:gam)
 
 addType :: (String,Ter) -> TEnv -> TEnv
-addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,eval rho a) tenv
+addType (x,a) tenv@(TEnv _ rho _) =
+  addTypeVal (x,eval rho a) tenv
 
-addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> TEnv
+addBranch :: [(String,Val)] -> (Tele,OEnv) -> TEnv -> TEnv
 addBranch nvs (tele,env) (TEnv k rho gam) =
   TEnv (k + length nvs) (upds rho nvs) (addC gam (tele,env) nvs)
 
 addDef :: Def -> TEnv -> TEnv
 addDef d@(ts,es) (TEnv k rho gam) =
-  let rho1 = PDef es rho
-  in TEnv k rho1 (addC gam (ts,rho) (evals rho1 es))
+  let rho1 = oPDef es rho
+  in TEnv k rho1 (addC gam (ts, rho) (evals rho1 es))
 
 addTele :: Tele -> TEnv -> TEnv
 addTele xas lenv = foldl (flip addType) lenv xas
@@ -83,12 +89,12 @@ getIndex = index <$> ask
 
 getFresh :: Typing Val
 getFresh = do
-    e <- getEnv
     k <- getIndex
+    e <- getOEnv
     return $ mkVar k (support e)
 
-getEnv :: Typing Env
-getEnv = env <$> ask
+getOEnv :: Typing OEnv
+getOEnv = oenv <$> ask
 
 getCtxt :: Typing Ctxt
 getCtxt = ctxt <$> ask
@@ -101,7 +107,7 @@ m =?= s2 = do
 checkDef :: Def -> Typing ()
 checkDef (xas,xes) = trace ("checking definition " ++ show (map fst xes)) $ do
   checkTele xas
-  rho <- getEnv
+  rho <- getOEnv
   local (addTele xas) $ checks (xas,rho) (map snd xes)
 
 checkTele :: Tele -> Typing ()
@@ -137,10 +143,10 @@ check a t = case (a,t) of
     if conv k v a then return ()
     else throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
-checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
+checkBranch :: (Tele,OEnv) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
   k     <- getIndex
-  env   <- getEnv
+  env   <- getOEnv
   let d  = support env
   let l  = length xas
   let us = map (`mkVar` d) [k..k+l-1]
@@ -159,7 +165,7 @@ checkInfer e = case e of
     case c of
       VPi a f -> do
         check a u
-        rho <- getEnv
+        rho <- getOEnv
         return (app f (eval rho u))
       _      ->  throwError $ show c ++ " is not a product"
   Where t d -> do
@@ -167,12 +173,12 @@ checkInfer e = case e of
     local (addDef d) $ checkInfer t
   _ -> throwError ("checkInfer " ++ show e)
 
-checks :: (Tele,Env) -> [Ter] -> Typing ()
+checks :: (Tele,OEnv) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
   check (eval nu a) e
-  rho <- getEnv
-  checks (xas,Pair nu (x,eval rho e)) es
+  rho <- getOEnv
+  checks (xas,oPair nu (x,eval rho e)) es
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U

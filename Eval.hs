@@ -15,7 +15,7 @@ debug = True
 traceb :: String -> a -> a
 traceb s x = if debug then trace s x else x
 
-evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
+evals :: OEnv -> [(Binder,Ter)] -> [(Binder,Val)]
 evals e = map (second (eval e))
 
 unCompAs :: Val -> Name -> Box Val
@@ -107,24 +107,24 @@ faceName x (y,d) | x == y    = d
                  | otherwise = x
 
 idV :: Val
-idV = Ter (Lam "x" (Var "x")) Empty
+idV = Ter (Lam "x" (Var "x")) (OEnv Empty [])
 
 idVPair :: Name -> Val -> Val
 idVPair x v = VPair x (v `face` (x,down)) v
 
 -- Compute the face of an environment
-faceEnv :: Env -> Side -> Env
-faceEnv e xd = mapEnv (`face` xd) e
+faceEnv :: OEnv -> Side -> OEnv
+faceEnv (OEnv e s) xd = OEnv (mapEnv (`face` xd) e) s
 
-look :: Binder -> Env -> Val
-look x (Pair s (y,u)) | x == y    = u
-                      | otherwise = look x s
-look x r@(PDef es r1)             = look x (upds r1 (evals r es))
+look :: Binder -> OEnv -> Val
+look x (OEnv (Pair s (y,u)) o) | x == y    = u
+                               | otherwise = look x (OEnv s o)
+look x r@(OEnv (PDef es r1) o) = look x (upds (OEnv r1 o) (evals r es))
 
 cubeToBox :: Val -> Box () -> Box Val
 cubeToBox v = modBox (\nd _ -> v `face` nd)
 
-evalAppPN :: Env -> PN -> [Ter] -> Val
+evalAppPN :: OEnv -> PN -> [Ter] -> Val
 evalAppPN e pn ts
   | length ts < arity pn =
       let r       = arity pn - length ts
@@ -161,7 +161,7 @@ evalPN (x:_)   MapOnPath  [_,_,f,_,_,p] = Path x $ app f (appName p x)
 evalPN _       u _ = error ("evalPN " ++ show u)
 
 
-eval :: Env -> Ter -> Val
+eval :: OEnv -> Ter -> Val
 eval _ U             = VU
 eval e (PN pn)       = evalAppPN e pn []
 eval e t@(App r s) =
@@ -169,13 +169,15 @@ eval e t@(App r s) =
   in case u of
        PN pn -> evalAppPN e pn us
        _     -> app (eval e r) (eval e s)
-eval e (Var i)       = look i e
-eval e (Pi a b)      = VPi (eval e a) (eval e b)
-eval e (Lam x t)     = Ter (Lam x t) e -- stop at lambdas
-eval e (Where t (_,def))       = eval (PDef def e) t
-eval e (Con name ts)       = VCon name (map (eval e) ts)
-eval e (Split pr alts)     = Ter (Split pr alts) e
-eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
+eval e (Pi a b)          = VPi (eval e a) (eval e b)
+eval e (Lam x t)         = Ter (Lam x t) e -- stop at lambdas
+eval e (Con name ts)     = VCon name (map (eval e) ts)
+eval e (Split pr alts)   = Ter (Split pr alts) e
+eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
+eval e (Where t (_,def)) = eval (oPDef def e) t
+eval e@(OEnv _ opaques) (Var i)
+ | i `elem` opaques      = VVar ("opaque_" ++ i) $ support (look i e)
+ | otherwise             = look i e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
@@ -476,10 +478,11 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
 fill v b = Kan Fill v b
 
-fills :: [(Binder,Ter)] -> Env -> [Box Val] -> [Val]
+fills :: [(Binder,Ter)] -> OEnv -> [Box Val] -> [Val]
 fills []         _ []          = []
-fills ((x,a):as) e (box:boxes) = v : fills as (Pair e (x,v)) boxes
-  where v = fill (eval e a) box
+fills ((x,a):as) e (box:boxes) =
+  v : fills as (oPair e (x,v)) boxes
+    where v = fill (eval e a) box
 fills _ _ _ = error "fills: different lengths of types and values"
 
 -- Composition (ie., the face of fill which is created)
@@ -499,7 +502,7 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus
         lookup' x = fromMaybe (error "appBox") . lookup x
 
 app :: Val -> Val -> Val
-app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
+app (Ter (Lam x t) e) u = eval (oPair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
   traceb ("Pi Com ")
   com (app b ufill) (appBox box bcu)
@@ -553,11 +556,11 @@ conv1 k u v = -- traceb (show ("\n" ++ " =? "))
 conv :: Int -> Val -> Val -> Bool
 conv k VU VU                 = True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
-    conv1 (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+  conv1 (k+1) (eval (oPair e (x,v)) u) (eval (oPair e' (x',v)) u')
     where v = mkVar k $ support (e, e')
-conv k (Ter (Lam x u) e) u' = conv1 (k+1) (eval (Pair e (x,v)) u) (app u' v)
+conv k (Ter (Lam x u) e) u' = conv1 (k+1) (eval (oPair e (x,v)) u) (app u' v)
     where v = mkVar k $ support e
-conv k u' (Ter (Lam x u) e) = conv1 (k+1) (app u' v) (eval (Pair e (x,v)) u)
+conv k u' (Ter (Lam x u) e) = conv1 (k+1) (app u' v) (eval (oPair e (x,v)) u)
     where v = mkVar k $ support e
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') = (p == p') && convEnv k e e'
 conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e')   = (p == p') && convEnv k e e'
@@ -617,5 +620,6 @@ conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
   and [conv1 k b b', conv1 k p p', conv1 k phi phi', conv1 k v v']
 conv k _              _                = False
 
-convEnv :: Int -> Env -> Env -> Bool
-convEnv k e e' = and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']
+convEnv :: Int -> OEnv -> OEnv -> Bool
+convEnv k (OEnv e _) (OEnv e' _) =
+  and [conv1 k v v' | v <- valOfEnv e | v' <- valOfEnv e']

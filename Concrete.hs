@@ -16,7 +16,7 @@ import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Control.Monad (when)
 import Data.Functor.Identity
-import Data.List (union)
+import Data.List (union,delete)
 
 type Tele = [VDecl]
 
@@ -140,7 +140,10 @@ resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = C.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
 resolveExp (Split brs)  = C.Split <$> genPrim <*> mapM resolveBranch brs
-resolveExp (Let defs e) = C.mkWheres <$> resolveDefs defs <*> resolveExp e
+resolveExp (Let defs e) = do
+  defs <- resolveDefs defs
+  e' <- resolveExp e
+  return $ C.mkWheres [d | C.ODef d <- defs] e'
 resolveExp (Var n)      = do
   let x = unArg n
   when (x == "_") (throwError "_ not a valid variable name")
@@ -173,13 +176,19 @@ resolveTelePi (t@(VDecl{}):as) _        =
 resolveLabel :: Sum -> Resolver (String,[(String,C.Ter)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
-resolveDefs :: [Def] -> Resolver [C.Def]
+resolveDefs :: [Def] -> Resolver [C.ODef]
 resolveDefs [] = return []
+resolveDefs (DefOpaque n:ds) = do
+  rest <- resolveDefs ds
+  return $ C.Opaque (unIdent n) : rest
+resolveDefs (DefTransp n:ds) = do
+  rest <- resolveDefs ds
+  return $ C.Transparent (unIdent n) : rest
 resolveDefs (DefTDecl n e:d:ds) = do
   e' <- resolveExp e
   xd <- checkDef (unIdent n,d)
   rest <- resolveDefs ds
-  return $ ([(unIdent n, e')],[xd]) : rest
+  return $ C.ODef ([(unIdent n, e')],[xd]) : rest
 -- resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 

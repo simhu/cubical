@@ -51,8 +51,10 @@ main = do
   (flags,files) <- parseOpts args
   runInputT defaultSettings $ runInterpreter (Debug `elem` flags) files
 
+
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
-imports :: ([String],[String],[Def]) -> String -> Interpreter ([String],[String],[Def])
+imports :: ([String],[String],[Def]) -> String ->
+             Interpreter ([String],[String],[Def])
 imports st@(notok,loaded,defs) f
   | f `elem` notok  = do
     outputStrLn $ "Looping imports in " ++ f

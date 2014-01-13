@@ -15,6 +15,8 @@ separator Imp ";" ;
 Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl.  Def ::= AIdent ":" Exp ;
 DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
+DefOpaque. Def ::= "opaque" AIdent ;
+DefTransp. Def ::= "transparent" AIdent ;
 
 -- Anders: This is kind of an ugly way to get mutual to work, but at least it
 -- works, I guess there is a bug in bnfc when handling layout blocks and lists

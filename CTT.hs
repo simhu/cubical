@@ -26,6 +26,9 @@ type Ctxt   = [(String,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
 type Def    = (Tele,[(Ident,Ter)])
+data ODef   = ODef        Def
+            | Opaque      Ident
+            | Transparent Ident
 
 -- Terms
 data Ter = App Ter Ter
@@ -286,7 +289,7 @@ data KanType = Fill | Com
   deriving (Show, Eq)
 
 data Val = VU
-         | Ter Ter Env
+         | Ter Ter OEnv
          | VPi Val Val
          | VId Val Val Val
 
@@ -451,9 +454,6 @@ data Env = Empty
          | PDef [(Binder,Ter)] Env
   deriving Eq
 
-instance Show Env where
-  show = showEnv
-
 showEnv :: Env -> String
 showEnv Empty            = ""
 showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ show u
@@ -464,6 +464,9 @@ showEnv1 Empty            = ""
 showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
 showEnv1 (PDef xas env)   = show env
 
+instance Show Env where
+  show = showEnv
+
 instance Nominal Env where
   swap e x y = mapEnv (\u -> swap u x y) e
 
@@ -471,8 +474,24 @@ instance Nominal Env where
   support (Pair e (_,v)) = support (e, v)
   support (PDef _ e)     = support e
 
-upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
+data OEnv = OEnv Env [Ident]
+  deriving Eq
+
+oPair :: OEnv -> (Binder,Val) -> OEnv
+oPair (OEnv e o) u = OEnv (Pair e u) o
+
+oPDef :: [(Binder,Ter)] -> OEnv -> OEnv
+oPDef d (OEnv e o) = OEnv (PDef d e) o
+
+instance Show OEnv where
+  show (OEnv e s) = show e -- <+> parens ("with opaque:" <+> ccat s)
+
+instance Nominal OEnv where
+  swap (OEnv e s) x y = OEnv (swap e x y) s
+  support (OEnv e s)  = support e
+
+upds :: OEnv -> [(Binder,Val)] -> OEnv
+upds = foldl oPair
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
