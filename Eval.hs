@@ -264,8 +264,8 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     let ax0  = fill a (mapBox fstVal box)
         bx0  = app f ax0
         bx   = mapBox sndVal box
-        bx1  = fill b $ mapBox (`face` (x,up)) bx
-        v    = fill b $ (x,(bx0,bx1)) `consBox` bx
+        bx1  = fill b $ mapBox (`face` (x,up)) bx       --- independent of x
+        v    = fill b $ (x,(bx0,bx1)) `consBox` bx      
     in traceb ("VEquivEq case 1" ) $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,down) box

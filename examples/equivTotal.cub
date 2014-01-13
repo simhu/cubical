@@ -33,19 +33,19 @@ elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
   rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
   rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B (funEquiv A B p)) (rem B)
 
--- a simple application; with yet another problem with eta conversion
+-- a simple application; with the problem with eta conversion resolved
 
 equivSigId : (A B :U) -> (f:A -> B) -> isEquiv A B f -> (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
-equivSigId A = elimIsEquiv A P d
+equivSigId A = elimIsEquiv A P (\ Q -> refl U (Sigma A Q))
  where 
    P : (B:U) -> (A-> B) -> U
    P B f =  (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
 
-   d : P A (id A)
-   d Q = rem
-      where
-         rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
-         rem = mapOnPath (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
+--   d : P A (id A)
+--   d Q = rem
+--      where
+--         rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
+--         rem = mapOnPath (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
 
 -- application to equivalences between total spaces
 
@@ -102,14 +102,6 @@ lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) (P a
 lem1Sub A P a =
  comp U (fiber (Sigma A P) A (fst A P) a) (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
      (lem2Sub A P a) (lem3Sub A P a)
-
--- retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
--- retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
-
-
-
-
-
 
 
 equivTot : (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) ->

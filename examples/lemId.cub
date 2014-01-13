@@ -19,6 +19,9 @@ invRefl A a = substeq A  (\ x -> Id A x a) a (refl A a)
 compIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) (comp A a b b p (refl A b)) p
 compIdr A a b p = inv (Id A a b) p (comp A a b b p (refl A b)) (compInvIdr A a b p)
 
+unCurry : (A B : U) (P :A -> U) (f : (x:A) -> P x -> B) -> (Sigma A P) -> B
+unCurry A B P f = split pair x p -> f x p
+
 compInvIdl : (A : U) -> (b c : A) -> (q : Id A b c) ->
           Id (Id A b c) q (comp A b b c (refl A b) q)
 compInvIdl A b c q = J A b (\c q -> Id (Id A b c) q (comp A b b c (refl A b) q)) rem c q

@@ -70,7 +70,7 @@ hSN : hasSec N
 hSN = pair pBool (\ n -> pair (sBool n) (stBool n))
 
 hSN' : hasSec (or N Unit)
-hSN' = subst U hasSec N (or N Unit) isoNO4 hSN
+hSN' = subst U hasSec N (or N Unit) isoNO hSN
 
 pB' : (or N Unit) -> U
 pB' = fst ((or N Unit) -> U)  (\ P -> (x:or N Unit) -> and (P x) (P x -> Bool)) hSN'
@@ -83,7 +83,7 @@ appBool A = split
              pair a f -> f a
 
 pred' : or N Unit -> or N Unit
-pred' = subst U (\ X -> X -> X) N (or N Unit) isoNO4 pred
+pred' = subst U (\ X -> X -> X) N (or N Unit) isoNO pred
 
 testPred : or N Unit
 testPred = pred' (inr tt)
@@ -109,7 +109,7 @@ add x = split
          suc y -> suc (add x y)
 
 -- add' : (or N Unit) -> (or N Unit) -> or N Unit
--- add' = subst U (\ X -> X -> X -> X) N (or N Unit) isoNO4 add
+-- add' = subst U (\ X -> X -> X -> X) N (or N Unit) isoNO add
 
 
 -- a property that we can transport
@@ -132,7 +132,7 @@ aZN : aZero N
 aZN = pair zero (pair add propAdd)
 
 aZN' : aZero (or N Unit)
-aZN' = subst U aZero N (or N Unit) isoNO4 aZN
+aZN' = subst U aZero N (or N Unit) isoNO aZN
 
 zero' : or N Unit
 zero' = fst (or N Unit) (\ z -> Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 

@@ -5,19 +5,10 @@ Id = PN
 
 refl : (A : U) (a : A) -> Id A a a
 refl = PN
+
 funExt : (A : U) (B : (a : A) -> U) (f g : (a : A) -> B a)
          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
 funExt = PN
-
-
-
--- J : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> C a (refl A a) ->
---      (x : A) -> (p : Id A a x) -> C x p
--- J = PN
-
--- Jeq : (A : U) (a : A) -> (C : (x : A) -> Id A a x -> U) -> (d : C a (refl A a)) ->
---        Id (C a (refl A a)) d (J A a C d a (refl A a))
--- Jeq = PN
 
 inh : U -> U
 inh = PN
