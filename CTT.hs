@@ -439,7 +439,7 @@ instance Nominal Val where
       | z /= x && z /= y -> VComN (sw a) (swap b x y)
       | otherwise -> let z' = fresh ([x, y], u)
                          a' = swap a z z'
-                     in sw (Kan Com a' (swap b z z'))
+                     in sw (VComN a' (swap b z z'))
     VComp b@(Box _ z _ _)
       | z /= x && z /= y -> VComp (swap b x y)
       | otherwise -> let z' = fresh ([x, y], u)
