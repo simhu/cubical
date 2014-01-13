@@ -140,6 +140,7 @@ evalPN :: [Name] -> PN -> [Val] -> Val
 evalPN _     Id            [a,a0,a1]     = VId a a0 a1
 evalPN (x:_) Refl          [_,a]         = Path x a
 evalPN (x:_) TransU        [_,_,p,t]     = com (appName p x) $ Box up x t []
+evalPN (x:_) TransInvU     [_,_,p,t]     = com (appName p x) $ Box down x t []
 evalPN (x:_) TransURef     [_,t]         = Path x t
 evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] = Path x (fill b box)
   where box = Box up x (app f u) []   -- TODO: Check this!
@@ -157,7 +158,8 @@ evalPN (x:y:_) EquivEqRef [a,s,t]       =
   Path y $ Path x $ VEquivSquare x y a s t
 evalPN (x:_)   Trans      [_,c,_,_,p,t] =
   com (app c (appName p x)) $ Box up x t []
-evalPN (x:_)   MapOnPath  [_,_,f,_,_,p] = Path x $ app f (appName p x)
+evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appName p x)
+evalPN (x:_)   AppOnPath [_,_,f,g,_,_,q,p] = Path x $ app (appName q x) (appName p x)
 evalPN _       u _ = error ("evalPN " ++ show u)
 
 

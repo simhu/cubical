@@ -43,19 +43,24 @@ compInvIdl' A a b p = substeq A (\x -> Id A x b) a p
 idEuclid : (A : U) -> euclidean A (Id A)
 idEuclid A a b c p r = comp A a c b p (inv A b c r)
 
+-- similarity with ssreflect?? start to use equality on U
+
+lemUpDown : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id U (Id A a b) (Id A a' b')
+lemUpDown A a a' b b' p q = appOnPath A U (Id A a) (Id A a') b b' (mapOnPath A (A->U) (Id A) a a' p)  q
+
 compUp : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a b -> Id A a' b'
-compUp A a a' b b' p q r =
- subst A (\ x -> Id A x b') a a' p rem
- where
-  rem : Id A a b'
-  rem = comp A a b b' r q
+compUp A a a' b b' p q = transport (Id A a b) (Id A a' b') (lemUpDown A a a' b b' p q)
+-- subst A (\ x -> Id A x b') a a' p rem
+-- where
+--  rem : Id A a b'
+--  rem = comp A a b b' r q
 
 compDown : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a' b' -> Id A a b
-compDown A a a' b b' p q r =
- subst A (\ x -> Id A a x) b' b (inv A b b' q) rem
- where
-  rem : Id A a b'
-  rem = comp A a a' b' p r
+compDown A a a' b b' p q = transpInv (Id A a b) (Id A a' b') (lemUpDown A a a' b b' p q)
+-- subst A (\ x -> Id A a x) b' b (inv A b b' q) rem
+-- where
+--  rem : Id A a b'
+--  rem = comp A a a' b' p r
 
 lemInv : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))

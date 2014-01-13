@@ -54,6 +54,9 @@ equivEq = PN
 transport : (A B : U) -> Id U A B -> A -> B
 transport = PN
 
+transpInv : (A B : U) -> Id U A B -> B -> A
+transpInv = PN
+
 transportRef : (A : U) -> (a : A) -> Id A a (transport A A (refl U A) a)
 transportRef = PN
 
@@ -69,3 +72,6 @@ transpEquivEq = PN
 
 mapOnPath : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)
 mapOnPath = PN
+
+appOnPath : (A B : U) (f g : A -> B) (a b : A) (q:Id (A->B) f g) -> (p : Id A a b) -> Id B (f a) (g b)
+appOnPath = PN

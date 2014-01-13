@@ -60,6 +60,10 @@ data PN = Id | Refl
         -- For TransU we only need the eqproof and the element in A is needed
         | TransU
 
+        -- (A B : U) -> Id U A B -> B -> A
+        -- For TransU we only need the eqproof and the element in A is needed
+        | TransInvU
+
         -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
         | TransURef
 
@@ -70,6 +74,11 @@ data PN = Id | Refl
         -- (A B : U) (f : A -> B) (a b : A) ->
         -- (p : Id A a b) -> Id B (f a) (f b)
         | MapOnPath
+
+        -- (A B : U) (f g : A -> B) (a b : A) ->
+        -- Id (A->B) f g -> Id A a b -> Id B (f a) (f b)
+        | AppOnPath
+
 
         -- Ext B f g p : Id (Pi A B) f g,
         -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
@@ -132,10 +141,12 @@ primHandle =
    ("inhrec"        , 5, InhRec       ),
    ("equivEq"       , 5, EquivEq      ),
    ("transport"     , 4, TransU       ),
+   ("transpInv"     , 4, TransInvU    ),
    ("contrSingl"    , 4, CSingl       ),
    ("transportRef"  , 2, TransURef    ),
    ("equivEqRef"    , 3, EquivEqRef   ),
    ("transpEquivEq" , 6, TransUEquivEq),
+   ("appOnPath"     , 8, AppOnPath    ),
    ("mapOnPath"     , 6, MapOnPath    )]
 
 reservedNames :: [String]
