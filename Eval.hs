@@ -27,9 +27,10 @@ unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
-appName (Path x u) y = swap u x y -- valid only when y is not a free name of u
-                                  -- (see Pitts' concretisation)
-appName v y          = VAppName v y
+appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
+appName (Path x u) y         = swap u x y -- valid only when y is not a free name of u
+                                          -- (see Pitts' concretisation)
+appName v y                  = VAppName v y
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -137,7 +138,7 @@ evalAppPN e pn ts
       in apps (evalPN (freshs e) pn (map (eval e) args)) (map (eval e) rest)
 
 evalPN :: [Name] -> PN -> [Val] -> Val
-evalPN _     Id            [a,a0,a1]     = VId a a0 a1
+evalPN (x:_) Id            [a,a0,a1]     = VId (Path x a) a0 a1
 evalPN (x:_) Refl          [_,a]         = Path x a
 evalPN (x:_) TransU        [_,_,p,t]     = com (appName p x) $ Box up x t []
 evalPN (x:_) TransInvU     [_,_,p,t]     = com (appName p x) $ Box down x t []
@@ -237,7 +238,7 @@ isNeutralFill v box = False
 -- Kan filling
 fill :: Val -> Box Val -> Val
 fill v box | isNeutralFill v box = VFillN v box
-fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill a box'
+fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill (a `appName` x) box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
 -- assumes cvs are constructor vals
