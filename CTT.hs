@@ -390,7 +390,7 @@ instance Nominal Val where
   support (VExt x b f g p)  = support (x, [b,f,g,p])
   support (Kan Fill a box)  = support (a, box)
   support (VFillN a box)    = support (a, box)
-  support (VComN a box)     = support (a, box)
+  support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
   support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
            -- names x, y and values a, s, t
