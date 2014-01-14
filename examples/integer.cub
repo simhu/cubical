@@ -1,0 +1,61 @@
+module integer where
+
+import gradLemma1
+
+Z : U 
+Z = or N N
+
+auxsucZ : N -> Z
+auxsucZ = split 
+         zero -> inr zero
+         suc n -> inl n
+
+sucZ : Z -> Z
+sucZ = split
+         inl u -> auxsucZ u
+         inr v -> inr (suc v)
+
+auxpredZ : N -> Z
+auxpredZ = split 
+         zero -> inl zero
+         suc n -> inr n
+
+predZ : Z -> Z
+predZ = split
+         inl u -> inl (suc u)
+         inr v -> auxpredZ v
+
+sucpredZ : (x:Z) -> Id Z (sucZ (predZ x)) x
+sucpredZ = 
+ split
+  inl u -> lem1 u
+   where
+    lem1 : (u:N) -> Id Z (sucZ (predZ (inl u))) (inl u)
+    lem1 = split
+            zero -> refl Z (inl zero)
+            suc n -> refl Z (inl (suc n))
+  inr v -> lem2 v
+   where
+    lem2 : (u:N) -> Id Z (sucZ (predZ (inr u))) (inr u)
+    lem2 = split
+            zero -> refl Z (inr zero)
+            suc n -> refl Z (inr (suc n))
+
+predsucZ : (x:Z) -> Id Z (predZ (sucZ x)) x
+predsucZ = 
+ split
+  inl u -> lem1 u
+   where
+    lem1 : (u:N) -> Id Z (predZ (sucZ (inl u))) (inl u)
+    lem1 = split
+            zero -> refl Z (inl zero)
+            suc n -> refl Z (inl (suc n))
+  inr v -> lem2 v
+   where
+    lem2 : (u:N) -> Id Z (predZ (sucZ (inr u))) (inr u)
+    lem2 = split
+            zero -> refl Z (inr zero)
+            suc n -> refl Z (inr (suc n))
+
+sucIdZ : Id U Z Z
+sucIdZ = isoId Z Z sucZ predZ sucpredZ predsucZ
