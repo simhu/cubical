@@ -156,8 +156,6 @@ evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
 evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
 evalPN (x:y:_) EquivEqRef [a,s,t]       =
   Path y $ Path x $ VEquivSquare x y a s t
-evalPN (x:_)   Trans      [_,c,_,_,p,t] =
-  com (app c (appName p x)) $ Box up x t []
 evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appName p x)
 evalPN (x:_)   AppOnPath [_,_,f,g,_,_,q,p] = Path x $ app (appName q x) (appName p x)
 evalPN _       u _ = error ("evalPN " ++ show u)

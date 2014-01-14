@@ -100,9 +100,6 @@ data PN = Id | Refl
         -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
         | TransUEquivEq
 
-        -- TODO: Remove, but first fix the bug that get introduced (it can
-        -- be found by running testNO1 in nIso.cub)
-        | Trans
 
         -- undefined constant
         | Undef Prim
