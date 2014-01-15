@@ -49,38 +49,35 @@ pBool = vect Bool
 notSN : (x:N) -> pBool x -> pBool x
 notSN = split
          zero -> not
-         suc n -> split
-                    pair b u -> pair (not b) (notSN n u)
+         suc n -> \ z -> (not z.1,notSN n z.2)
 
 sBool : (x:N) -> pBool x
 sBool = split
         zero -> true
-        suc n -> pair false (sBool n)
+        suc n -> (false,sBool n)
 
 stBool : (x:N) -> pBool x -> Bool
 stBool = split
            zero -> \ z -> z
-           suc n -> split
-                      pair b u -> andBool b (stBool n u)
+           suc n -> \ z -> andBool z.1 (stBool n z.2)
 
 hasSec : U -> U
 hasSec X = Sigma (X->U) (\ P -> (x:X) -> and (P x) (P x -> Bool))
 
 hSN : hasSec N
-hSN = pair pBool (\ n -> pair (sBool n) (stBool n))
+hSN = (pBool,\ n -> (sBool n,stBool n))
 
 hSN' : hasSec (or N Unit)
 hSN' = subst U hasSec N (or N Unit) isoNO hSN
 
 pB' : (or N Unit) -> U
-pB' = fst ((or N Unit) -> U)  (\ P -> (x:or N Unit) -> and (P x) (P x -> Bool)) hSN'
+pB' = hSN'.1
 
 sB' : (z: or N Unit) -> and (pB' z) (pB' z -> Bool)
-sB' = snd ((or N Unit) -> U)  (\ P -> (x:or N Unit) -> and (P x) (P x -> Bool)) hSN'
+sB' = hSN'.2
 
 appBool : (A : U) -> and A (A -> Bool) -> Bool
-appBool A = split
-             pair a f -> f a
+appBool A z = z.2 z.1
 
 pred' : or N Unit -> or N Unit
 pred' = subst U (\ X -> X -> X) N (or N Unit) isoNO pred
@@ -118,7 +115,6 @@ propAdd : (x:N) -> Id N (add zero x) x
 propAdd = split
            zero -> refl N zero
            suc n -> mapOnPath N N (\ x -> suc x) (add zero n) n (propAdd n)
--- propAdd' : (z:or N Unit) 
 
 
 
@@ -129,28 +125,23 @@ aZero : U -> U
 aZero X = Sigma X (\ z -> Sigma (X -> X -> X) (\ f -> (x:X) -> Id X (f z x) x))
 
 aZN : aZero N
-aZN = pair zero (pair add propAdd)
+aZN =  (zero,(add,propAdd))
 
 aZN' : aZero (or N Unit)
 aZN' = subst U aZero N (or N Unit) isoNO aZN
 
 zero' : or N Unit
-zero' = fst (or N Unit) (\ z -> Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
-                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f z x) x)) aZN'
+zero' = aZN'.1
 
 sndaZN' : Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
                                  (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x)
-sndaZN' = snd (or N Unit) (\ z -> Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
-                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f z x) x)) aZN'
+sndaZN' = aZN'.2
 
 add' : (or N Unit) -> (or N Unit) -> or N Unit
-add' = fst ((or N Unit) -> (or N Unit) -> (or N Unit)) 
-                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x) sndaZN'
+add' = sndaZN'.1
 
 propAdd' : (x:or N Unit) -> Id (or N Unit) (add' zero' x) x
-propAdd' = snd ((or N Unit) -> (or N Unit) -> (or N Unit)) 
-                                 (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x) sndaZN'
-
+propAdd' = sndaZN'.2
 
 testNO : or N Unit
 testNO = add' (inl zero) (inl (suc zero))

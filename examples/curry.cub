@@ -3,19 +3,17 @@ module curry where
 import swap
 
 curry : (A B C:U) -> ((and A B) -> C) -> A -> B -> C
-curry A B C f a b = f (pair a b)
+curry A B C f a b = f (a,b)
 
 uncurry : (A B C:U) -> (A -> B -> C) -> (and A B) -> C
-uncurry A B C g = split
-                    pair a b -> g a b
+uncurry A B C g z = g z.1 z.2
 
 secCurry : (A B C :U) (f : (and A B) -> C) 
             -> Id ((and A B) -> C) (uncurry A B C (curry A B C f)) f
 secCurry A B C f = funExt (and A B) (\ _ -> C) (uncurry A B C (curry A B C f)) f rem
  where 
   rem : (z:and A B) -> Id C (uncurry A B C (curry A B C f) z) (f z)
-  rem = split
-         pair a b -> refl C (f (pair a b))
+  rem z = refl C (f z)
 
 retCurry : (A B C :U) (g : A -> B -> C)
             -> Id (A -> B -> C) (curry A B C (uncurry A B C g)) g
@@ -26,7 +24,6 @@ retCurry A B C g = funExt A (\ _ -> B -> C) (curry A B C (uncurry A B C g)) g re
      where
        rem1 : (b:B) -> Id C (curry A B C (uncurry A B C g) a b) (g a b)
        rem1 b = refl C (g a b)
-
 
 eqCurry : (A B C : U) -> Id U ((and A B) -> C) (A -> B -> C)
 eqCurry A B C = isEquivEq ((and A B) -> C) (A -> B -> C) (curry A B C) rem
@@ -67,7 +64,7 @@ test1 =
 test2 : N
 test2 = 
  transport typFst1 typFst
-  eqTestInv (\ X Y a b -> a) N Bool (pair zero true)
+  eqTestInv (\ X Y a b -> a) N Bool (zero,true)
       
 -- more test for the equality in U
 
@@ -83,7 +80,7 @@ eqTest4 = comp U typFst typFst1 typFst eqTest3 (inv U typFst typFst1 eqTest3)
 test4 : N
 test4 =
  transport typFst typFst
-  eqTest2 (\ X Y -> (fst X (\ _ -> Y))) N Bool (pair (suc zero) false)
+  eqTest2 (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero,false)
 
 test5 : N
 test5 =
@@ -93,7 +90,7 @@ test5 =
 test6 : N
 test6 =
  transport typFst typFst
-  eqTest4 (\ X Y -> (fst X (\ _ -> Y))) N Bool (pair (suc zero) false)
+  eqTest4 (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero,false)
 
 
 

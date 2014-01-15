@@ -14,7 +14,7 @@ transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRe
 
 elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
               (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
-elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
+elimIsEquiv A P d = \ B f if -> rem2 B (f,if)
  where 
   rem1 : P A (transport A A (refl U A))
   rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d

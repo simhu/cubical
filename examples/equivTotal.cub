@@ -5,10 +5,7 @@ import elimEquiv
 -- equivalence on total space
 
 lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
-lem3Sub A P a = lemContrSig (singl A a) (singContr A a) Q (pair a (refl A a))
- where
-   Q : singl A a -> U
-   Q z = P (fst A (\ x -> Id A x a) z)
+lem3Sub A P a = lemContrSig (singl A a) (singContr A a) (\ x -> P x.1) (a,refl A a)
 
 -- a corollary of equivalence
 
@@ -22,7 +19,7 @@ transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRe
 
 elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
               (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
-elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
+elimIsEquiv A P d = \ B f if -> rem2 B (f,if)
  where 
   rem1 : P A (transport A A (refl U A))
   rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d
@@ -31,91 +28,66 @@ elimIsEquiv A P d = \ B f if -> rem2 B (pair f if)
   rem = J U A (\ B p ->  P B (transport A B p)) rem1
 
   rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
-  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B (funEquiv A B p)) (rem B)
+  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) 
+                (\ p -> P B (funEquiv A B p)) (rem B)
 
 -- a simple application; with the problem with eta conversion resolved
 
-equivSigId : (A B :U) -> (f:A -> B) -> isEquiv A B f -> (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
+equivSigId : (A B :U) (f:A -> B) 
+         -> isEquiv A B f -> (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
 equivSigId A = elimIsEquiv A P (\ Q -> refl U (Sigma A Q))
  where 
    P : (B:U) -> (A-> B) -> U
    P B f =  (Q : B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
 
---   d : P A (id A)
---   d Q = rem
---      where
---         rem : Id U (Sigma A (\ x -> Q x)) (Sigma A Q)
---         rem = mapOnPath (A -> U) U (Sigma A) (\ x -> Q x) Q (funExt A (\ _ -> U) (\ x -> Q x) Q (\ x -> refl U (Q x)))
-
 -- application to equivalences between total spaces
 
 liftTot :  (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) -> Sigma A P -> Sigma A Q
-liftTot A P Q g = split
-                  pair a u -> pair a (g a u)
+liftTot A P Q g z = (z.1,g z.1 z.2)
 
 lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
-lem3Sub A P a = lemContrSig (singl A a) (singContr A a) Q (pair a (refl A a))
- where
-   Q : singl A a -> U
-   Q z = P (fst A (\ x -> Id A x a) z)
+lem3Sub A P a = lemContrSig (singl A a) (singContr A a) (\ x -> P x.1) (a,refl A a)
 
-
-lem2Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) 
-                                          (Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z)))
-lem2Sub A P a = isoId F T f g sfg rfg
+lem2Sub : (A:U) (P: A -> U) (a:A) 
+         -> Id U (fiber (Sigma A P) A (\x -> x.1) a) 
+                 (Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P z.1))
+lem2Sub A P a = isoId F T f g (refl T) (refl F)
  where
    T : U
-   T = Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P (fst A (\ x -> Id A x a) z))
+   T = Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P z.1)
 
    F : U
-   F = fiber (Sigma A P) A (fst A P) a
+   F = fiber (Sigma A P) A (\x -> x.1) a
 
    f : F -> T
-   f = split
-        pair z p -> rem z p 
-          where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> T
-                rem = split
-                      pair x u -> \ p -> pair (pair x p) u
+   f u = rem u.1 u.2
+          where rem : (z : Sigma A P) (p : Id A z.1 a) -> T
+                rem z p = ((z.1,p),z.2)
 
    g : T -> F
-   g = split
-        pair z u -> rem z u
-          where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> fiber (Sigma A P) A (fst A P) a
-                rem = split
-                        pair x p -> \ u -> pair (pair x u) p
+   g w = rem w.1 w.2
+          where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P z.1) -> 
+                         fiber (Sigma A P) A (\ x -> x.1) a
+                rem z u = ((z.1,u),z.2)
 
-   rfg : (v :F) -> Id F (g (f v)) v
-   rfg = split
-          pair z p -> rem z p
-           where rem : (z : Sigma A P) (p : Id A (fst A P z) a) -> Id (fiber (Sigma A P) A (fst A P) a) (g (f (pair z p))) (pair z p)
-                 rem = split
-                        pair x u -> \ p -> refl F (pair (pair x u) p)
-
-   sfg : (v:T) -> Id T (f (g v)) v
-   sfg = split
-          pair z u -> rem z u
-            where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P (fst A (\ x -> Id A x a) z)) -> Id T (f (g (pair z u))) (pair z u)
-                  rem = split
-                        pair x p -> \ u -> refl T (pair (pair x p) u)
 
 lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) (P a)
 lem1Sub A P a =
- comp U (fiber (Sigma A P) A (fst A P) a) (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
-     (lem2Sub A P a) (lem3Sub A P a)
-
+ comp U (fiber (Sigma A P) A (\ x -> x.1) a) 
+        (Sigma (singl A a) (\ z -> P z.1)) (P a) (lem2Sub A P a) (lem3Sub A P a)
 
 equivTot : (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) ->
            isEquiv (Sigma A P) (Sigma A Q) (liftTot A P Q g) -> (a:A) -> Id U (P a) (Q a)
 equivTot A P Q g igl a = rem5
  where
   F : Sigma A P -> U
-  F z = Id A (fst A P z) a
+  F z = Id A z.1 a
 
   T : U
   T = Sigma (Sigma A P) F
 
   G : Sigma A Q -> U
-  G z = Id A (fst A Q z) a
+  G z = Id A z.1 a
 
   V : U
   V = Sigma (Sigma A Q) G
@@ -138,8 +110,7 @@ equivTot A P Q g igl a = rem5
   rem3 : Id U T T1
   rem3 = mapOnPath (Sigma A P -> U) U (Sigma (Sigma A P)) F F1 eFF1
       where fFF1 : (z : Sigma A P) -> Id U (F z) (F1 z)
-            fFF1 = split
-                    pair x u -> refl U (Id A x a)
+            fFF1 z = refl U (Id A z.1 a)
 
             eFF1 : Id (Sigma A P -> U) F F1
             eFF1 = funExt (Sigma A P) (\ _ -> U) F F1 fFF1

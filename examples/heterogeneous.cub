@@ -41,29 +41,6 @@ composeMapOnPath : (A : U) (B : A -> U) (u v : Sigma A B) ->
 composeMapOnPath A B u v p = refl (Id U (B (fst A B u)) (B (fst A B v)))
           (mapOnPath (Sigma A B) U (\x -> B (fst A B x)) u v p)
 
-
--- eqFstSnd : (A : U) (B : A -> U) (u v : Sigma A B) ->
---            Id U
---              (Id (Sigma A B) u v)
--- 	     (Sigma (Id A (fst A B u) (fst A B v))
---                     (\p -> IdS A B (fst A B u) (fst A B v) p (snd A B u) (snd A B v)))
--- eqFstSnd A B u v = undefined
---   where IdSig : U
---         IdSig = Id (Sigma A B) u v
-
---         SigId : U
---         SigId = Sigma (Id A (fst A B u) (fst A B v))
---                   (\p -> IdS A B (fst A B u) (fst A B v) p (snd A B u) (snd A B v))
-
---         f : IdSig -> SigId
---         f p = pair (eqFst A B u v p) (eqSnd A B u v p)
-
---         g : SigId -> IdSig
---         g = split pair p1 p2 -> mapOnPathS A B (Sigma A B) (\a b -> pair a b)
---                                            (fst A B u) (fst A B v) p1
---                                            (snd A B u) (snd A B v) p2
-
-
 eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
            Id U
              (Id (Sigma A B) (a0, b0) (a1, b1))
@@ -79,7 +56,6 @@ eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
         f : IdSig -> SigId
         f p = (eqFst A B (a0,b0) (a1,b1) p, eqSnd  A B (a0,b0) (a1,b1) p)
 
-          -- pair (eqPair1 A B a0 a1 b0 b1 p) (eqPair2 A B a0 a1 b0 b1 p)
 
         g : SigId -> IdSig
         g z =  mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 z.1 b0 b1 z.2
