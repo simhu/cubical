@@ -89,3 +89,13 @@ eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
 
         retract_fg : (p : IdSig) -> Id IdSig (g (f p)) p
         retract_fg z = refl IdSig z
+
+eqSubstSig : (A : U) (B : A -> U) (a0 a1 : A) (p:Id A a0 a1) (b0 : B a0) (b1 : B a1) ->
+           Id U (IdS A B a0 a1 p b0 b1) (Id (B a1) (subst A B a0 a1 p b0) b1)
+eqSubstSig A B a0 =
+ J A a0 (\ a1 p -> (b0 : B a0) (b1 : B a1) ->
+                    Id U (IdS A B a0 a1 p b0 b1) (Id (B a1) (subst A B a0 a1 p b0) b1))
+        rem
+  where rem :(b0 b1 :B a0) -> Id U (Id (B a0) b0 b1) (Id (B a0) (subst A B a0 a0 (refl A a0) b0) b1)
+        rem b0 b1 = mapOnPath (B a0) U (\ b -> Id (B a0) b b1) 
+                     b0 (subst A B a0 a0 (refl A a0) b0) (substeq A B a0 b0)
