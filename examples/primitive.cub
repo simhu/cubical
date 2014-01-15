@@ -75,3 +75,17 @@ mapOnPath = PN
 
 appOnPath : (A B : U) (f g : A -> B) (a b : A) (q:Id (A->B) f g) -> (p : Id A a b) -> Id B (f a) (g b)
 appOnPath = PN
+
+IdP : (A B :U) -> Id U A B -> A -> B -> U
+IdP = PN
+
+IdS : (A:U) (F:A -> U) (a0 a1:A) (p:Id A a0 a1) -> F a0 -> F a1 -> U
+IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
+
+mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A) (p : Id A a0 a1) ->
+             IdS A F a0 a1 p  (f a0) (f a1)
+mapOnPathD = PN
+
+mapOnPathS : (A:U)(F:A -> U) (C:U) (f: (x:A) -> F x -> C) (a0 a1 : A) (p:Id A a0 a1)
+             (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
+mapOnPathS = PN

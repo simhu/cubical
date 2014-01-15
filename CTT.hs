@@ -70,15 +70,14 @@ data PN = Id | Refl
         -- (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
         | CSingl
 
-
         -- (A B : U) (f : A -> B) (a b : A) ->
         -- (p : Id A a b) -> Id B (f a) (f b)
+        -- TODO: remove?
         | MapOnPath
 
         -- (A B : U) (f g : A -> B) (a b : A) ->
-        -- Id (A->B) f g -> Id A a b -> Id B (f a) (f b)
+        -- Id (A->B) f g -> Id A a b -> Id B (f a) (g b)
         | AppOnPath
-
 
         -- Ext B f g p : Id (Pi A B) f g,
         -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
@@ -100,6 +99,24 @@ data PN = Id | Refl
         -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
         | TransUEquivEq
 
+        -- IdP  :    (A B :U) -> Id U A B ->  A -> B -> U
+        -- IdP A B p a b   is the type of paths  connecting a to b over p
+        | IdP
+
+        -- mapOnPathD :  (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A) (p : Id A a0 a1) ->
+        --               IdS A F a0 a1 p  (f a0) (f a1)
+        -- IdS : (A:U) (F:A -> U) (a0 a1:A) (p:Id A a0 a1) -> F a0 -> F a1 -> U
+        -- IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
+        -- TODO: remove in favor of AppOnPathD?
+        | MapOnPathD
+
+        -- AppOnPathD :  (A : U) (F : A -> U) (f g : (x : A) -> F x) -> Id ((x : A) -> F x) f g ->
+        --               (a0 a1 : A) (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (g a1)
+        -- | AppOnPathD
+
+        -- mapOnPathS : (A:U)(F:A -> U) (C:U) (f: (x:A) -> F x -> C) (a0 a1 : A) (p:Id A a0 a1)
+        -- (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
+        | MapOnPathS -- TODO: AppOnPathS?
 
         -- undefined constant
         | Undef Prim
@@ -129,22 +146,25 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 -- Primitive notions
 primHandle :: [(Ident,Int,PN)]
 primHandle =
-  [("Id"            , 3, Id           ),
-   ("refl"          , 2, Refl         ),
-   ("funExt"        , 5, Ext          ),
-   ("inh"           , 1, Inh          ),
-   ("inc"           , 2, Inc          ),
-   ("squash"        , 3, Squash       ),
-   ("inhrec"        , 5, InhRec       ),
-   ("equivEq"       , 5, EquivEq      ),
-   ("transport"     , 4, TransU       ),
-   ("transpInv"     , 4, TransInvU    ),
-   ("contrSingl"    , 4, CSingl       ),
-   ("transportRef"  , 2, TransURef    ),
-   ("equivEqRef"    , 3, EquivEqRef   ),
-   ("transpEquivEq" , 6, TransUEquivEq),
-   ("appOnPath"     , 8, AppOnPath    ),
-   ("mapOnPath"     , 6, MapOnPath    )]
+  [("Id"            , 3,  Id           ),
+   ("refl"          , 2,  Refl         ),
+   ("funExt"        , 5,  Ext          ),
+   ("inh"           , 1,  Inh          ),
+   ("inc"           , 2,  Inc          ),
+   ("squash"        , 3,  Squash       ),
+   ("inhrec"        , 5,  InhRec       ),
+   ("equivEq"       , 5,  EquivEq      ),
+   ("transport"     , 4,  TransU       ),
+   ("transpInv"     , 4,  TransInvU    ),
+   ("contrSingl"    , 4,  CSingl       ),
+   ("transportRef"  , 2,  TransURef    ),
+   ("equivEqRef"    , 3,  EquivEqRef   ),
+   ("transpEquivEq" , 6,  TransUEquivEq),
+   ("appOnPath"     , 8,  AppOnPath    ),
+   ("mapOnPath"     , 6,  MapOnPath    ),
+   ("IdP"           , 5,  IdP          ),
+   ("mapOnPathD"    , 6,  MapOnPathD   ),
+   ("mapOnPathS"    , 10, MapOnPathS   )]
 
 reservedNames :: [String]
 reservedNames = [s | (s,_,_) <- primHandle]
