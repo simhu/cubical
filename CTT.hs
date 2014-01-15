@@ -226,10 +226,6 @@ data Box a = Box { dir   :: Dir
 instance Show a => Show (Box a) where
   show (Box dir n f xs) = "Box" <+> show dir <+> show n <+> show f <+> show xs
 
--- Showing boxes with parenthesis around
-showBox :: Show a => Box a -> String
-showBox = parens . show
-
 mapBox :: (a -> b) -> Box a -> Box b
 mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 
@@ -460,17 +456,12 @@ data Env = Empty
   deriving Eq
 
 instance Show Env where
-  show = showEnv
-
-showEnv :: Env -> String
-showEnv Empty            = ""
-showEnv (Pair env (x,u)) = parens $ showEnv1 env ++ show u
-showEnv (PDef xas env)   = showEnv env
-
-showEnv1 :: Env -> String
-showEnv1 Empty            = ""
-showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
-showEnv1 (PDef xas env)   = show env
+  show Empty            = ""
+  show (PDef xas env)   = show env
+  show (Pair env (x,u)) = parens $ showEnv1 env ++ show u
+    where
+      showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
+      showEnv1 e                = show e
 
 instance Nominal Env where
   swap e x y = mapEnv (\u -> swap u x y) e
@@ -499,29 +490,28 @@ instance Show Ter where
   show = showTer
 
 showTer :: Ter -> String
-showTer e = case e of
-  App e0 e1       -> showTer e0 <+> showTer1 e1
-  Pi e0 e1        -> "Pi" <+> showTers [e0,e1]
-  Lam x e         -> '\\' : x <+> "->" <+> showTer e
-  Where e d       -> showTer e <+> "where" <+> showDef d
-  Var x           -> x
-  U               -> "U"
-  Con c es        -> c <+> showTers es
-  Split (n,str) _ -> str ++ show n
-  Sum (_,str) _   -> str
-  PN pn           -> showPN pn
+showTer U                 = "U"
+showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
+showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
+showTer (Lam x e)         = '\\' : x <+> "->" <+> showTer e
+showTer (Where e d)       = showTer e <+> "where" <+> showDef d
+showTer (Var x)           = x
+showTer (Con c es)        = c <+> showTers es
+showTer (Split (n,str) _) = str ++ show n
+showTer (Sum (_,str) _)   = str
+showTer (PN pn)           = showPN pn
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
 
 showTer1 :: Ter -> String
-showTer1 U            = "U"
-showTer1 (Con c [])   = c
-showTer1 (Var x)      = x
-showTer1 u@(Split {}) = showTer u
-showTer1 u@(Sum {})   = showTer u
-showTer1 u@(PN {})    = showTer u
-showTer1 u            = parens $ showTer u
+showTer1 U           = "U"
+showTer1 (Con c [])  = c
+showTer1 (Var x)     = x
+showTer1 u@(Split{}) = showTer u
+showTer1 u@(Sum{})   = showTer u
+showTer1 u@(PN{})    = showTer u
+showTer1 u           = parens $ showTer u
 
 -- Warning: do not use showPN as a Show instance as it will loop
 showPN :: PN -> String
@@ -531,14 +521,14 @@ showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
   _   -> error $ "showPN: unknown primitive " ++ show pn
 
 showDef :: Def -> String
-showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> showTer t) xts)
+showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> show t) xts)
 
 instance Show Val where
   show = showVal
 
 showVal :: Val -> String
 showVal VU               = "U"
-showVal (Ter t env)      = showTer t <+> show env
+showVal (Ter t env)      = show t <+> show env
 showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (Path n u)       = abrack (show n) <+> showVal u
 showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
@@ -547,36 +537,30 @@ showVal (VPi a f)        = "Pi" <+> showVals [a,f]
 showVal (VInh u)         = "inh" <+> showVal1 u
 showVal (VInc u)         = "inc" <+> showVal1 u
 showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
-showVal (Kan Fill v box) = "Fill" <+> showVal1 v <+> showBox box
-showVal (Kan Com v box)  = "Com" <+> showVal1 v <+> showBox box
-showVal (VFillN v box)   = "FillN" <+> showVal1 v <+> showBox box
-showVal (VComN v box)    = "ComN" <+> showVal1 v <+> showBox box
+showVal (Kan Fill v box) = "Fill" <+> showVal1 v <+> parens (show box)
+showVal (Kan Com v box)  = "Com" <+> showVal1 v <+> parens (show box)
+showVal (VFillN v box)   = "FillN" <+> showVal1 v <+> parens (show box)
+showVal (VComN v box)    = "ComN" <+> showVal1 v <+> parens (show box)
 showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
 showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
-showVal (VComp box)      = "vcomp" <+> showBox box
-showVal (VFill n box)    = "vfill" <+> show n <+> showBox box
+showVal (VComp box)      = "vcomp" <+> parens (show box)
+showVal (VFill n box)    = "vfill" <+> show n <+> parens (show box)
 showVal (VApp u v)       = showVal u <+> showVal1 v
 showVal (VAppName u n)   = showVal u <+> "@" <+> show n
 showVal (VSplit u v)     = showVal u <+> showVal1 v
-showVal (VVar x d)       = show x    <+> showDim d
-showVal (VEquivEq n a b f s t)   = "equivEq" <+> show n <+> showVals [a,b,f] -- [a,b,f,s,t]
+showVal (VVar x d)       = x <+> showDim d
+showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 
 showDim :: Show a => [a] -> String
-showDim [] = ""
-showDim xs = parens $ showDim1 xs
-
--- TODO: Why not use ccat?
-showDim1 :: Show a => [a] -> String
-showDim1 []     = ""
-showDim1 [x]    = show x
-showDim1 (x:xs) = show x ++ "," ++ showDim1 xs
+showDim = parens . ccat . map show
 
 showVals :: [Val] -> String
 showVals = hcat . map showVal1
 
 showVal1 :: Val -> String
-showVal1 VU          = "U"
-showVal1 (VCon c []) = c
-showVal1 u           = parens $ showVal u
+showVal1 VU           = "U"
+showVal1 (VCon c [])  = c
+showVal1 u@(VVar{})   = showVal u
+showVal1 u            = parens $ showVal u
