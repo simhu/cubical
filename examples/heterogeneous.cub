@@ -46,7 +46,7 @@ eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
              (Id (Sigma A B) (a0, b0) (a1, b1))
 	     (Sigma (Id A a0 a1) (\p -> IdS A B a0 a1 p b0 b1))
 eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
-                           (gradLemma IdSig SigId f g section_fg retract_fg)
+                           (gradLemma IdSig SigId f g (refl SigId) (refl IdSig))
   where IdSig : U
         IdSig = Id (Sigma A B) (a0, b0) (a1, b1)
 
@@ -60,11 +60,6 @@ eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
         g : SigId -> IdSig
         g z =  mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 z.1 b0 b1 z.2
 
-        section_fg : section IdSig SigId f g
-        section_fg z = refl SigId z
-
-        retract_fg : (p : IdSig) -> Id IdSig (g (f p)) p
-        retract_fg z = refl IdSig z
 
 eqSubstSig : (A : U) (B : A -> U) (a0 a1 : A) (p:Id A a0 a1) (b0 : B a0) (b1 : B a1) ->
            Id U (IdS A B a0 a1 p b0 b1) (Id (B a1) (subst A B a0 a1 p b0) b1)
