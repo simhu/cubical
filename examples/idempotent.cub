@@ -34,14 +34,12 @@ aLoop : U -> U
 aLoop A = Sigma A (\ a -> Id A a a)
 
 invALoop : (A:U) -> aLoop A -> aLoop A
-invALoop A = split
-              pair a l -> pair a (inv A a a l)
+invALoop A z = (z.1,inv A z.1 z.1 z.2)
 
 idemInvALoop : (A:U) -> idempotent (aLoop A) (invALoop A)
-idemInvALoop A = 
- split
-  pair a l -> mapOnPath (Id A a a) (aLoop A) 
-                 (\ x -> pair a x) (inv A a a (inv A a a l)) l (idemInv A a l)
+idemInvALoop A z = 
+ mapOnPath (Id A z.1 z.1) (aLoop A) 
+           (\ x -> (z.1, x)) (inv A z.1 z.1 (inv A z.1 z.1 z.2)) z.2 (idemInv A z.1 z.2)
 
 -- equality associated to this idempotent map
 
@@ -61,7 +59,7 @@ eqAutoM = eqInvALoop U
 -- a particular element of autoM
 
 boolAuto : autoM
-boolAuto = pair Bool eqBoolBool
+boolAuto = (Bool,eqBoolBool)
 
 -- by transport we deduce another type and another equality
 

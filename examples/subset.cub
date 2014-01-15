@@ -17,11 +17,10 @@ subset2 A = A -> U
 -- map in both directions
 
 sub12 : (A:U) -> subset1 A -> subset2 A
-sub12 A = split
-           pair X f -> fiber X A f
+sub12 A z = fiber z.1 A z.2
 
 sub21 : (A:U) -> subset2 A -> subset1 A
-sub21 A P = pair (Sigma A P) (fst A P)
+sub21 A P = (Sigma A P,\ x -> x.1)
 
 retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
 retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
@@ -41,17 +40,18 @@ eqSigmaEquiv A = elimIsEquiv A C rem
 -- but actually this is not this consequence that we need
 
 lemSecSub : (A X Y:U)(g:X->Y) -> isEquiv X Y g -> (f:Y -> A) ->
-    Id (subset1 A) (pair Y f) (pair X (\ y -> f (g y))) 
-lemSecSub A X = elimIsEquiv X P rem
+    Id (subset1 A) (Y,f) (X,\ y -> f (g y))
+lemSecSub A X = elimIsEquiv X P (\ f -> refl (subset1 A) (X,f))
  where
   P : (Y:U) -> (X->Y) -> U
-  P Y g = (f:Y -> A) -> Id (subset1 A) (pair Y f) (pair X (\ y -> f (g y))) 
+  P Y g = (f:Y -> A) -> Id (subset1 A) (Y,f) (X,\ y -> f (g y))
 
-  rem : (f:X -> A) -> Id (subset1 A) (pair X f) (pair X (\ y -> f y)) 
-  rem f = mapOnPath (X->A) (subset1 A) (\ h -> pair X h) f (\ y -> f y) 
-                 (funExt X (\ _ -> A) f (\ y -> f y) (\ y -> refl A (f y)))
+--  rem : (f:X -> A) -> Id (subset1 A) (X,f) (X,\ y -> f y)
+--  rem f = mapOnPath (X->A) (subset1 A) (\ h -> (X,h)) f (\ y -> f y) 
+--                 (funExt X (\ _ -> A) f (\ y -> f y) (\ y -> refl A (f y)))
 
-lem2SecSub : (A X:U) (f:X -> A) -> isEquiv X (Sigma A (fiber X A f)) (\ x -> pair (f x) (pair x (refl A (f x))))
+lem2SecSub : (A X:U) (f:X -> A) -> 
+               isEquiv X (Sigma A (fiber X A f)) (\ x -> (f x,(x,refl A (f x))))
 lem2SecSub A X f = rem2
  where
     F : A -> U
@@ -61,104 +61,93 @@ lem2SecSub A X f = rem2
     Y = Sigma A F
 
     h : Y -> A
-    h = fst A F
+    h y = y.1
 
     g : X -> Y
-    g x = pair (f x) (pair x (refl A (f x)))
+    g x = (f x,(x,refl A (f x)))
 
     h : Y -> X
-    h = split
-         pair a xp -> fst X (\ x -> Id A (f x) a) xp
+    h y = y.2.1
 
     Z : U
     Z = Sigma X (\ x -> Sigma A (\ a -> Id A (f x) a))
 
     sw1 : Y -> Z
-    sw1 = split
-           pair a xp -> asw1 xp
-              where asw1 : Sigma X (\ x -> Id A (f x) a) -> Z
-                    asw1 = split 
-                             pair x p -> pair x (pair a p)
+    sw1 y = (y.2.1,(y.1,y.2.2))
 
     sw2 : Z -> Y
-    sw2 = split
-           pair x ap -> asw2 ap
-              where asw2 : Sigma A (\ a -> Id A (f x) a) -> Y
-                    asw2 = split 
-                             pair a p -> pair a (pair x p)
+    sw2 z = (z.2.1,(z.1,z.2.2))
 
     lemsw : (y:Y) -> Id Y (sw2 (sw1 y)) y
-    lemsw = split
-             pair a xp -> lemsw1 xp
-               where lemsw1 : (xp : Sigma X (\ x -> Id A (f x) a)) -> Id Y (sw2 (sw1 (pair a xp))) (pair a xp)
-                     lemsw1 = split
-                               pair x p -> refl Y (pair a (pair x p))               
+    lemsw y = refl Y y
 
     sgh : (x:X) -> Id X (h (g x)) x
     sgh x = refl X x
 
     rgh : (y:Y) -> Id Y (g (h y)) y
-    rgh = split
-           pair a xp -> lem xp
-             where 
-               lem : (xp : Sigma X (\ x -> Id A (f x) a)) -> Id Y (g (h (pair a xp))) (pair a xp)
-               lem = split
-                       pair x p -> lem1
+    rgh y = lem y.2
+              where 
+               lem : (xp : Sigma X (\ x -> Id A (f x) y.1)) -> Id Y (g (h (y.1,xp))) (y.1,xp)
+               lem xp = lem1
                             where
+                              x:X
+                              x = xp.1
+
+                              p : Id A (f x) y.1
+                              p = xp.2
+
                               C : (v u:A) -> Id A v u -> U
-                              C v u q =  Id (Sigma A (\ w -> Id A v w)) (pair v (refl A v)) (pair u q)
+                              C v u q =  Id (Sigma A (Id A v)) (v,refl A v) (u,q)
 
                               lem5 : (v:A) -> C v v (refl A v)
-                              lem5 v = refl (Sigma A (\ w -> Id A v w)) (pair v (refl A v))
+                              lem5 v = refl (Sigma A (Id A v)) (v,refl A v)
 
                               lem4 : (v u:A) (q: Id A v u) -> C v u q
                               lem4 v =  J A v (C v) (lem5 v)
 
-                              lem3 : Id (Sigma A (\ u -> Id A (f x) u)) (pair (f x) (refl A (f x))) (pair a p)
-                              lem3 = lem4 (f x) a p 
+                              lem3 : Id (Sigma A (Id A (f x))) (f x,refl A (f x)) (y.1,p)
+                              lem3 = lem4 (f x) y.1 xp.2 
 
-                              lem2 : Id Z (pair x (pair (f x) (refl A (f x)))) (pair x (pair a p))
-                              lem2 = mapOnPath (Sigma A (\ a -> Id A (f x) a))
-                                          (Sigma X (\ x -> Sigma A (\ a -> Id A (f x) a)))
-                                          (\ z -> pair x z) 
-                                          (pair (f x) (refl A (f x))) (pair a p) lem3
+                              lem2 : Id Z (x,(f x,refl A (f x))) (x,(y.1,xp.2))
+                              lem2 = mapOnPath (Sigma A (Id A (f x)))
+                                          (Sigma X (\ x -> Sigma A (Id A (f x))))
+                                          (\ z -> (x,z)) 
+                                          (f x,refl A (f x)) (y.1,xp.2) lem3
 
-                              lem1 : Id Y (pair (f x) (pair x (refl A (f x)))) (pair a (pair x p))
-                              lem1 = mapOnPath Z Y sw2 (pair x (pair (f x) (refl A (f x)))) (pair x (pair a p)) lem2
+                              lem1 : Id Y (f x,(x,refl A (f x))) (y.1,xp)
+                              lem1 = mapOnPath Z Y sw2 (x,(f x,refl A (f x))) (x,(y.1,p)) lem2
+
 
     rem2 : isEquiv X Y g
     rem2 = gradLemma X Y g h rgh sgh
 
 
 secsub : (A:U) -> (z : subset1 A) -> Id (subset1 A) (sub21 A (sub12 A z)) z
-secsub A = 
- split
-  pair X f -> rem
+secsub A z = rem1
    where
+    X : U
+    X = z.1
+
     F : A -> U
-    F = fiber X A f 
+    F = fiber X A z.2
 
     Y : U
     Y = Sigma A F
+  
+    f : X -> A
+    f = z.2
 
     h : Y -> A
-    h = fst A F
+    h y = y.1
 
     g : X -> Y
-    g x = pair (f x) (pair x (refl A (f x)))
+    g x = (f x,(x,refl A (f x)))
 
     rem2 : isEquiv X Y (\ x -> g x)
     rem2 = lem2SecSub A X f 
 
-    rem1 : Id (subset1 A) (pair Y h) (pair X (\ x -> f x))
+    rem1 : Id (subset1 A) (Y,h) (X,\ x -> f x)
     rem1 = lemSecSub A X Y g rem2 h
-
-    rem3 : Id (subset1 A) (pair X (\ x -> f x)) (pair X f)
-    rem3 = mapOnPath (X->A) (subset1 A) (\ h -> pair X h) 
-                (\ x -> f x) f (funExt X (\ _ -> A) (\ x-> f x) f (\x -> refl A (f x)))
-
-    rem : Id (subset1 A) (pair Y h) (pair X f)
-    rem = comp (subset1 A) (pair Y h) (pair X (\ x -> f x)) (pair X f) rem1 rem3
 
 thmSubset : (A:U) -> Id U (subset1 A) (subset2 A)
 thmSubset A = isEquivEq (subset1 A) (subset2 A) (sub12 A) rem

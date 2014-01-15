@@ -4,7 +4,7 @@ module finite where
 
 import description
 import function 
-import gradLemma
+import gradLemma1
 import oldswapDisc
 
 step : U -> U
@@ -100,8 +100,7 @@ takeAway : (A:U) -> A -> U
 takeAway A a = Sigma A (\ x -> neg (Id A a x))
 
 tAway : ptU -> U
-tAway = split
-         pair A a -> takeAway A a
+tAway z = takeAway z.1 z.2
 
 -- this has been generalized from a special case
 
@@ -125,14 +124,13 @@ eqTkA X = isEquivEq tS X f equivf
             inr z -> \ _ -> z
 
    f : tS -> X
-   f = split
-        pair x p -> faux x p
+   f z = faux z.1 z.2
 
    lem : (x:X) -> neg (Id stS bn (inr x))
    lem x = inlNotinr Unit X tt x
 
    g : X -> tS
-   g x = pair (inr x) (lem x)
+   g x = (inr x,lem x)
 
    T : stS -> U
    T x = neg (Id stS bn x)
@@ -147,13 +145,12 @@ eqTkA X = isEquivEq tS X f equivf
    sfg x = refl X x
 
    rfg : (z:tS) -> Id tS (g (f z)) z
-   rfg = split
-          pair x p -> rem x p
-            where rem : (x:stS) -> (p : T x) -> Id tS (g (f (pair x p))) (pair x p)
+   rfg z = rem z.1 z.2
+            where rem : (x:stS) -> (p : T x) -> Id tS (g (f (x,p))) (x,p)
                   rem = split
-                   inl u -> \ h -> efq (Id tS (g (f (pair (inl u) h))) (pair (inl u) h)) (h (lem1 u))
+                   inl u -> \ h -> efq (Id tS (g (f (inl u,h))) (inl u,h)) (h (lem1 u))
                    inr z -> \ h -> eqPropFam stS T lem2
-                                    (pair (inr z) (lem (faux (inr z) h))) (pair (inr z) h) (refl stS (inr z))
+                                    (inr z,lem (faux (inr z) h)) (inr z,h) (refl stS (inr z))
   
    equivf : isEquiv tS X f 
    equivf = gradLemma tS X f g sfg rfg
@@ -162,17 +159,17 @@ botEl : (n:N) -> stFin (suc n)
 botEl n = inl tt
 
 ptBot : N -> ptU
-ptBot n = pair (stFin (suc n)) (botEl n)
+ptBot n = (stFin (suc n),botEl n)
 
 mkPtU : (n:N) (x:stFin (suc n)) -> ptU 
-mkPtU n x = pair (stFin (suc n)) x
+mkPtU n x = (stFin (suc n),x)
 
-homogSt : (X:U) -> discrete X -> (x:step X) -> Id ptU (pair (step X) x) (pair (step X) (inl tt))
+homogSt : (X:U) -> discrete X -> (x:step X) -> Id ptU (step X,x) (step X,inl tt)
 homogSt X dX x = homogDec (step X) (decSt X dX) x (inl tt)
 
 corHomogSt : (X:U) -> discrete X -> (x:step X) -> Id U (takeAway (step X) x) X
 corHomogSt X dX x = 
- substInv ptU (\ z -> Id U (tAway z) X) (pair (step X) x) (pair (step X) (inl tt)) 
+ substInv ptU (\ z -> Id U (tAway z) X) (step X,x) (step X,inl tt)
     (homogSt X dX x) (eqTkA X)
 
 -- eqTkA : (X:U) -> Id U (takeAway (step X) (inl tt)) X
@@ -264,11 +261,11 @@ cardFin X = inhrec (Sigma N (eqsT X)) (Sigma N (eqsT X)) (propEqsT X) (\ h -> h)
 finUnit : finite Unit
 finUnit = inc (Sigma N (eqsT Unit)) rem
  where rem : Sigma N (eqsT Unit)
-       rem = pair (suc zero) (inc (Id U (stFin (suc zero)) Unit) (lemN0 Unit))
+       rem = (suc zero,inc (Id U (stFin (suc zero)) Unit) (lemN0 Unit))
 
        rem1 : Id U (stFin (suc zero)) Unit
        rem1 = lemN0 Unit
 
 test : N
-test = fst N (eqsT Unit) (cardFin Unit finUnit)
+test = (cardFin Unit finUnit).1
 

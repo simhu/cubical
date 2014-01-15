@@ -7,7 +7,6 @@ import elimEquiv
 
 -- defines the swap function over a discrete type and proves that this is an idempotent map
 -- needed for Nicolai Kraus example
-
 -- we try another representation since the other one is too slow
 
 if : (X:U) -> Bool -> X -> X -> X
@@ -30,15 +29,15 @@ lemTrue : (a b : Bool) ->
             or (True a)
                (or (and (True (not a)) (True b)) (and (True (not a)) (True (not b))))
 lemTrue = split true -> \ b -> inl tt
-                false -> split true -> inr (inl (pair tt tt))
-                               false -> inr (inr (pair tt tt))
+                false -> split true -> inr (inl (tt,tt))
+                               false -> inr (inr (tt,tt))
 
 lemTrue : (a b : Bool) (G:U) ->
             ((True a) -> G) -> ((and (True (not a)) (True b)) -> G) ->
             ((and (True (not a)) (True (not b)))-> G) -> G
 lemTrue = split true -> \ b -> \ G h0 h1 h2 -> h0 tt
-                false -> split true -> \ G h0 h1 h2 -> h1 (pair tt tt)
-                               false -> \ G h0 h1 h2 -> h2 (pair tt tt)
+                false -> split true -> \ G h0 h1 h2 -> h1 (tt,tt)
+                               false -> \ G h0 h1 h2 -> h2 (tt,tt)
 
 
 swapF : (X:U) (eq:X->X-> Bool) -> X -> X -> X -> X
@@ -49,22 +48,20 @@ lemSw0 X eq x y u h = lemIfT X (eq x u) y (if X (eq y u) x u) h
 
 lemSw1 : (X:U) (eq:X->X->Bool) (x y u:X) ->
                and (True (not (eq x u))) (True (eq y u)) -> Id X (swapF X eq x y u) x
-lemSw1 X eq x y u =
- split pair h0 h1 -> comp X (swapF X eq x y u) (if X (eq y u) x u) x rem rem1
+lemSw1 X eq x y u h = comp X (swapF X eq x y u) (if X (eq y u) x u) x rem rem1
    where rem : Id X (swapF X eq x y u) (if X (eq y u) x u)
-         rem = lemIfF X (eq x u) y (if X (eq y u) x u) h0
+         rem = lemIfF X (eq x u) y (if X (eq y u) x u) h.1
          rem1 : Id X (if X (eq y u) x u) x
-         rem1 = lemIfT X (eq y u) x u h1
+         rem1 = lemIfT X (eq y u) x u h.2
 
 lemSw2 : (X:U) (eq:X->X->Bool) (x y u:X) ->
                and (True (not (eq x u))) (True (not (eq y u)))
           -> Id X (swapF X eq x y u) u
-lemSw2 X eq x y u =
- split pair h0 h1 -> comp X (swapF X eq x y u) (if X (eq y u) x u) u rem rem1
+lemSw2 X eq x y u h = comp X (swapF X eq x y u) (if X (eq y u) x u) u rem rem1
    where rem : Id X (swapF X eq x y u) (if X (eq y u) x u)
-         rem = lemIfF X (eq x u) y (if X (eq y u) x u) h0
+         rem = lemIfF X (eq x u) y (if X (eq y u) x u) h.1
          rem1 : Id X (if X (eq y u) x u) u
-         rem1 = lemIfF X (eq y u) x u h1
+         rem1 = lemIfF X (eq y u) x u h.2
 
 faith0 : (X:U) (eq:X->X->Bool) -> U
 faith0 X eq = (x y : X) -> Id X x y -> True (eq x y)
@@ -86,7 +83,7 @@ lemIdemSw X eq f0 f1 x y neq u = lemTrue (eq x u) (eq y u) (H u) rem5 rem6 rem7
    rem1 = lemSw0 X eq x y x (f0 x x (refl X x))
 
    rem2 : Id X (sw y) x
-   rem2 = lemSw1 X eq x y y (pair neq (f0 y y (refl X y)))
+   rem2 = lemSw1 X eq x y y (neq,f0 y y (refl X y))
 
    rem3 : H x
    rem3 = comp X (sw (sw x)) (sw y) x (mapOnPath X X sw (sw x) y rem1) rem2
@@ -98,7 +95,7 @@ lemIdemSw X eq f0 f1 x y neq u = lemTrue (eq x u) (eq y u) (H u) rem5 rem6 rem7
    rem5 h = subst X H x u (f1 x u h) rem3
 
    rem6 : and (True (not (eq x u))) (True (eq y u)) -> H u
-   rem6 = split pair _ h -> subst X H y u (f1 y u h) rem4
+   rem6 h = subst X H y u (f1 y u h.2) rem4
 
    rem7 : and (True (not (eq x u))) (True (not (eq y u))) -> H u
    rem7 h = comp X (sw (sw u)) (sw u) u (mapOnPath X X sw (sw u) u lem) lem
@@ -122,30 +119,26 @@ ptU = Sigma U (id U)
 -- if f : A -> B is an equivalence and f a = b then (A,a) and (B,b) are equal in ptU
 
 lemPtEquiv : (A B : U) (f: A -> B) (ef: isEquiv A B f) (a:A) (b:B) (eab: Id B (f a) b)
-             -> Id ptU (pair A a) (pair B b)
+             -> Id ptU (A,a) (B,b)
 lemPtEquiv A = elimIsEquiv A P rem
   where
    P : (B:U) -> (A->B) -> U
-   P B f = (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (pair A a) (pair B b)
+   P B f = (a:A) -> (b:B) -> (eab: Id B (f a) b) -> Id ptU (A,a) (B,b)
 
    rem : P A (id A)
-   rem = mapOnPath A ptU (\ x -> pair A x)
+   rem = mapOnPath A ptU (\ x -> (A,x))
 
-
--- test : (X:U) (dX: discrete X) (x y:X)
---        -> Id (Id ptU (pair X x) (pair X y)) (homogDec X dX x y) (homogDec X dX x y)
--- test X dX x y = refl (Id ptU (pair X x) (pair X y)) (homogDec X dX x y)
 
 lemEM : (b:Bool) (G:U) -> ((True b) -> G) -> ((True (not b)) -> G) -> G
 lemEM = split true -> \ G h0 h1 -> h0 tt
               false -> \ G h0 h1 -> h1 tt
 
 homogDec : (X:U) (eq:X->X->Bool) (f0:faith0 X eq) (f1:faith1 X eq) (x y : X)
-           -> Id ptU (pair X x) (pair X y)
+           -> Id ptU (X,x) (X,y)
 homogDec X eq f0 f1 x y = lemEM (eq x y) (G y) rem1 rem
  where
    G : X -> U
-   G z = Id ptU (pair X x) (pair X z)
+   G z = Id ptU (X,x) (X,z)
 
    sw : X -> X
    sw = swapF X eq x y
@@ -156,7 +149,7 @@ homogDec X eq f0 f1 x y = lemEM (eq x y) (G y) rem1 rem
                 x y (lemSw0 X eq x y x (f0 x x (refl X x)))
 
    rem1 : True (eq x y) -> G y
-   rem1 h = subst X G x y (f1 x y h) (refl ptU (pair X x))
+   rem1 h = subst X G x y (f1 x y h) (refl ptU (X,x))
 
 
 -- an example of a decidable structure

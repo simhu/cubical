@@ -4,25 +4,20 @@ import exists
 import set
 
 exAtOne : (A : U) (B : A -> U) -> exactOne A B -> atmostOne A B
-exAtOne A B = split
-  pair g h' -> h'
+exAtOne A B z = z.2
 
 propSig : (A : U) (B : A -> U) -> propFam A B -> atmostOne A B ->
           prop (Sigma A B)
-propSig A B h h' au bv =
-  eqPropFam A B h au bv (h' (fst A B au) (fst A B bv) (snd A B au) (snd A B bv))
+propSig A B h h' au bv = eqPropFam A B h au bv (h' au.1 bv.1 au.2 bv.2)
 
 descrAx : (A : U) (B : A -> U) -> propFam A B -> exactOne A B -> Sigma A B
-descrAx A B h = split
-  pair g h' -> lemInh (Sigma A B) rem g
-  where rem : prop (Sigma A B)
-        rem = propSig A B h h'
+descrAx A B h z = lemInh (Sigma A B) (propSig A B h z.2) z.1
 
 iota : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> A
-iota A B h h' = fst A B (descrAx A B h h')
+iota A B h h' = (descrAx A B h h').1
 
 iotaSound : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) -> B (iota A B h h')
-iotaSound A B h h' = snd A B (descrAx A B h h')
+iotaSound A B h h' = (descrAx A B h h').2
 
 iotaLem : (A : U) (B : A -> U) (h : propFam A B) (h' : exactOne A B) ->
           (a : A) -> B a -> Id A a (iota A B h h')
