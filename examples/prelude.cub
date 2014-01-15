@@ -16,14 +16,6 @@ and A B = Sigma A (\_ -> B)
 Pi : (A:U) -> (A -> U) -> U
 Pi A B = (x:A) -> B x
 
-fst : (A : U) (B : A -> U) -> Sigma A B -> A
-fst A B = split
-  pair a b -> a
-
-snd : (A : U) (B : A -> U) (p : Sigma A B) -> B (fst A B p)
-snd A B = split
-  pair a b -> b
-
 -- some data types
 
 Unit : U
@@ -147,16 +139,15 @@ appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 
 J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U) (d: C a (refl A a)) (x : A) (p : Id A a x)
       -> C x p
-J A a C d x p = subst (singl A a) T (pair a (refl A a)) (pair x p) (contrSingl A a x p) d
+J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
  where T : singl A a -> U
-       T = split pair x p -> C x p
+       T z = C (z.1) (z.2)
 
 tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
-tId A a = split 
-  pair x p -> rem x a p 
+tId A a z = rem (z.1) a (z.2)
    where 
-    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (pair x p)
-    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (pair x p)) (refl (pathTo A x) (sId A x))
+    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
+    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p)) (refl (pathTo A x) (sId A x))
 
 typEquivS : (A B : U) -> (f : A -> B) -> U
 typEquivS A B f = (y : B) -> fiber A B f y
@@ -168,8 +159,7 @@ isEquiv : (A B : U) (f : A -> B) -> U
 isEquiv A B f = Sigma (typEquivS A B f) (typEquivT A B f)
 
 isEquivEq : (A B : U) (f : A -> B) -> isEquiv A B f -> Id U A B
-isEquivEq A B f = split 
-  pair s t -> equivEq A B f s t
+isEquivEq A B f z = equivEq A B f z.1 z.2
 
 -- not needed if we have eta
 
@@ -179,9 +169,9 @@ etaId A B f = funExt A B (\ x -> f x) f (\ x -> refl (B x) (f x))
 funSplit : (A:U) (B:A->U) (C: (Pi A B) -> U) -> ((f:Pi A B) -> C (\ x -> f x)) -> Pi (Pi A B) C
 funSplit A B C eC f = subst (Pi A B) C (\ x -> f x) f (etaId A B f) (eC f)
 
-surjPair : (A:U) (B:A -> U) -> (s:Sigma A B) -> Id (Sigma A B) (pair (fst A B s) (snd A B s)) s
-surjPair A B = split
-                pair a b -> refl (Sigma A B) (pair a b)
+-- TODO: not needed anymore
+surjPair : (A:U) (B:A -> U) -> (s:Sigma A B) -> Id (Sigma A B) (s.1, s.2) s
+surjPair A B = refl (Sigma A B)
 
 lemProp1 : (A : U) -> (A -> prop A) -> prop A
 lemProp1 A h a0 = h a0 a0
@@ -211,7 +201,7 @@ singl = pathTo
 -- singl = Sigma A (\ x -> Id A x a)
 
 idIsEquiv : (A:U) -> isEquiv A A (id A)
-idIsEquiv A = pair (sId A) (tId A)
+idIsEquiv A = (sId A, tId A)
 
 propUnit : prop Unit
 propUnit = split
@@ -271,16 +261,13 @@ equivalence : (A : U) -> rel A -> U
 equivalence A R = and (reflexive A R) (euclidean A R)
 
 eqToRefl : (A : U) (R : rel A) -> equivalence A R -> reflexive A R
-eqToRefl A R = split
-  pair r _ -> r
+eqToRefl A R z = z.1
 
 eqToEucl : (A : U) (R : rel A) -> equivalence A R -> euclidean A R
-eqToEucl A R = split
-  pair _ e -> e
+eqToEucl A R z = z.2
 
 eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
-eqToSym A R = split
-  pair r e -> \a b -> e b a b (r b)
+eqToSym A R z a b = (z.2) b a b (z.1 b)
 
 eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
               (a b c : A) -> R c a -> R c b -> R a b

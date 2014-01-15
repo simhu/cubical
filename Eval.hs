@@ -45,6 +45,8 @@ face u xdir@(x,dir) =
                  | x == y && dir == up   -> g
                  | otherwise             -> VExt y (fc b) (fc f) (fc g) (fc p)
   VPi a f    -> VPi (fc a) (fc f)
+  VSigma a f -> VSigma (fc a) (fc f)
+  VSPair a b -> VSPair (fc a) (fc b)
   VInh v     -> VInh (fc v)
   VInc v     -> VInc (fc v)
   VSquash y v0 v1 | x == y && dir == down -> v0
@@ -96,10 +98,13 @@ face u xdir@(x,dir) =
       lookBox (x,dir) (mapBox (`face` (z,down)) b)
     | x == y && dir == dir'                ->
         VComp $ mapBox (`face` (z,up)) b
+  VInhRec b p h a -> inhrec (fc b) (fc p) (fc h) (fc a)
   VApp u v        -> app (fc u) (fc v)
   VAppName u n    -> appName (fc u) (faceName n xdir)
   VSplit u v      -> app (fc u) (fc v)
   VVar s d        -> VVar s [faceName n xdir | n <- d]
+  VFst p          -> fstSVal (fc p)
+  VSnd p          -> sndSVal (fc p)
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -146,7 +151,7 @@ evalPN (x:_) TransInvU     [_,_,p,t]     = com (appName p x) $ Box down x t []
 evalPN (x:_) TransURef     [_,t]         = Path x t
 evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] = Path x (fill b box)
   where box = Box up x (app f u) []   -- TODO: Check this!
-evalPN (x:y:_) CSingl [a,u,v,p] = Path x (VCon "pair" [omega,Path y theta])
+evalPN (x:y:_) CSingl [a,u,v,p] = Path x (VSPair omega (Path y theta))
  where pv = appName p y
        theta = fill a (Box up y u [((x,down),u),((x,up),pv)])
        omega = theta `face` (y,up)
@@ -176,6 +181,10 @@ eval e t@(App r s) =
 eval e (Var i)       = look i e
 eval e (Pi a b)      = VPi (eval e a) (eval e b)
 eval e (Lam x t)     = Ter (Lam x t) e -- stop at lambdas
+eval e (Sigma a b)   = VSigma (eval e a) (eval e b)
+eval e (SPair a b)   = VSPair (eval e a) (eval e b)
+eval e (Fst a)       = fstSVal (eval e a)
+eval e (Snd a)       = sndSVal (eval e a)
 eval e (Where t (_,def))       = eval (PDef def e) t
 eval e (Con name ts)       = VCon name (map (eval e) ts)
 eval e (Split pr alts)     = Ter (Split pr alts) e
@@ -192,6 +201,15 @@ inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
     where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
 inhrec b p phi v = VInhRec b p phi v -- v should be neutral
+
+fstSVal :: Val -> Val
+fstSVal (VSPair a b) = a
+fstSVal u | isNeutral u = VFst u
+          | otherwise   = error $ show u ++ " should be neutral"
+sndSVal :: Val -> Val
+sndSVal (VSPair a b) = b
+sndSVal u | isNeutral u = VSnd u
+          | otherwise   = error $ show u ++ " should be neutral"
 
 kan :: KanType -> Val -> Box Val -> Val
 kan Fill = fill
@@ -221,6 +239,7 @@ isNeutralFill v@(Kan Fill VU tbox') box@(Box d x _ _) =
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
 isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x _ _) =
 --  not (and [isVPair (lookBox yc box) | yc <- aDs])
+-- TODO: check
   or [isNeutral (lookBox yc box) | yc <- aDs]
    where
         nJ    = nonPrincipal box
@@ -244,6 +263,9 @@ fill v box | isNeutralFill v box = VFillN v box
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = Path x $ fill (a `appName` x) box'
   where x    = fresh (vid, box)
         box' = (x,(v0,v1)) `consBox` mapBox (`appName` x) box
+fill (VSigma a f) box@(Box dir x v nvs) =
+  VSPair u $ fill (app f u) (mapBox sndSVal box)
+    where u = fill a (mapBox fstSVal box)
 -- assumes cvs are constructor vals
 fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  =
  VCon n ws
@@ -283,16 +305,18 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         v    = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     in traceb "VEquivEq case 3" $ VPair x ax0 v
   | x == z && dir == down =
-        let VCon "pair" [gb,sb]  = app s vz    -- should be safe given the neutral test at the beginning
+        let gbsb = app s vz
+            (gb,sb)  = (fstSVal gbsb, sndSVal gbsb)
             y  = fresh (veq, box)
             vy = appName sb x
 
             vpTSq :: Name -> Dir -> Val -> (Val,Val)
             vpTSq nz dz (VPair z a0 v0) =
-             let vp = VCon "pair" [a0, Path z v0]
+             let vp = VSPair a0 (Path z v0)
                  t0 = t `face` (nz,dz)
                  b0 = vz `face` (nz,dz)
-                 VCon "pair" [l0,sq0] = appName (app (app t0 b0) vp) y
+                 l0sq0 = appName (app (app t0 b0) vp) y
+                 (l0,sq0) = (fstSVal l0sq0, sndSVal l0sq0)
              in (l0,appName sq0 x)  -- TODO: check the correctness of the square s0
 
          -- TODO: Use modBox!
@@ -490,6 +514,7 @@ fills _ _ _ = error "fills: different lengths of types and values"
 com :: Val -> Box Val -> Val
 com u box | isNeutralFill u box = VComN u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
+com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `face` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
 com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
@@ -568,6 +593,8 @@ conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e')   = (p == p') && convEnv k e e'
 conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') = (p == p') && convEnv k e e'
 conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
     where w = mkVar k $ support [u,u',v,v']
+conv k (VSigma u v) (VSigma u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
+    where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
 conv k (Path x u) (Path x' u')    = conv1 k (swap u x z) (swap u' x' z)
   where z = fresh (u,u')
@@ -577,6 +604,8 @@ conv k p (Path x' u')             = conv1 k (appName p z) (swap u' x' z)
   where z = fresh u'
 conv k (VExt x b f g p) (VExt x' b' f' g' p') =
   and [x == x', conv1 k b b', conv1 k f f', conv1 k g g', conv1 k p p']
+conv k (VFst u) (VFst u')                     = conv1 k u u'
+conv k (VSnd u) (VSnd u')                     = conv1 k u u'
 conv k (VInh u) (VInh u')                     = conv1 k u u'
 conv k (VInc u) (VInc u')                     = conv1 k u u'
 conv k (VSquash x u v) (VSquash x' u' v')     =
@@ -613,6 +642,9 @@ conv k (VComp box) (VComp box')           =
 conv k (VFill x box) (VFill x' box')      =
   convBox k (swap box x y) (swap box' x' y)
   where y      = fresh (box,box')
+conv k (VSPair u v)   (VSPair u' v')   = conv1 k u u' && conv1 k v v'
+conv k (VSPair u v)   w                = conv1 k u (fstSVal w) && conv1 k v (sndSVal w)
+conv k w              (VSPair u v)     = conv1 k (fstSVal w) u && conv1 k (sndSVal w) v
 conv k (VApp u v)     (VApp u' v')     = conv1 k u u' && conv1 k v v'
 conv k (VAppName u x) (VAppName u' x') = conv1 k u u' && (x == x')
 conv k (VSplit u v)   (VSplit u' v')   = conv1 k u u' && conv1 k v v'

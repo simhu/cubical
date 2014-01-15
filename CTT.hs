@@ -31,6 +31,10 @@ type Def    = (Tele,[(Ident,Ter)])
 data Ter = App Ter Ter
          | Pi Ter Ter
          | Lam Binder Ter
+         | Sigma Ter Ter
+         | SPair Ter Ter
+         | Fst Ter
+         | Snd Ter
          | Where Ter Def
          | Var Binder
          | U
@@ -314,6 +318,9 @@ data Val = VU
          | VPi Val Val
          | VId Val Val Val
 
+         | VSigma Val Val
+         | VSPair Val Val
+
          -- tag values which are paths
          | Path Name Val
 
@@ -360,6 +367,8 @@ data Val = VU
          | VInhRec Val Val Val Val -- the last Val must be neutral
          | VFillN Val (Box Val)
          | VComN Val (Box Val)
+         | VFst Val
+         | VSnd Val
   deriving Eq
 
 mkVar :: Int -> Dim -> Val
@@ -368,11 +377,13 @@ mkVar k = VVar ('X' : show k)
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)        = isNeutral u
 isNeutral (VAppName u _)    = isNeutral u
-isNeutral (VSplit _ v)     = isNeutral v
+isNeutral (VSplit _ v)      = isNeutral v
 isNeutral (VVar _ _)        = True
 isNeutral (VInhRec _ _ _ v) = isNeutral v
 isNeutral (VFillN _ _)      = True
 isNeutral (VComN _ _)       = True
+isNeutral (VFst v)          = isNeutral v
+isNeutral (VSnd v)          = isNeutral v
 isNeutral _                 = False
 
 fstVal, sndVal, unSquare :: Val -> Val
@@ -418,6 +429,11 @@ instance Nominal Val where
   support (VAppName u n)    = support (u, n)
   support (VSplit u v)      = support (u, v)
   support (VVar x d)        = support d
+  support (VSigma u v)        = support (u,v)
+  support (VSPair u v)      = support (u,v)
+  support (VFst u)          = support u
+  support (VSnd u)          = support u
+  support (VInhRec b p h a) = support [b,p,h,a]
   support v                 = error ("support " ++ show v)
 
   swap u x y =
@@ -464,8 +480,13 @@ instance Nominal Val where
         in sw (VFill z' (swap b z z'))
     VApp u v        -> VApp (sw u) (sw v)
     VAppName u n    -> VAppName (sw u) (swap n x y)
-    VSplit u v     -> VSplit (sw u) (sw v)
+    VSplit u v      -> VSplit (sw u) (sw v)
     VVar s d        -> VVar s (swap d x y)
+    VSigma u v      -> VSigma (sw u) (sw v)
+    VSPair u v      -> VSPair (sw u) (sw v)
+    VFst u          -> VFst (sw u)
+    VSnd u          -> VSnd (sw u)
+    VInhRec b p h a -> VInhRec (sw b) (sw p) (sw h) (sw a)
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -514,6 +535,10 @@ showTer U                 = "U"
 showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
 showTer (Lam x e)         = '\\' : x <+> "->" <+> showTer e
+showTer (Fst e)           = showTer e <+> ".1"
+showTer (Snd e)           = showTer e <+> ".2"
+showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
+showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
 showTer (Where e d)       = showTer e <+> "where" <+> showDef d
 showTer (Var x)           = x
 showTer (Con c es)        = c <+> showTers es
@@ -572,6 +597,10 @@ showVal (VVar x d)       = x <+> showDim d
 showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
+showVal (VSPair u v)     = "pair" <+> showVals [u,v]
+showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
+showVal (VFst u)         = showVal u <+> ".1"
+showVal (VSnd u)         = showVal u <+> ".2"
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

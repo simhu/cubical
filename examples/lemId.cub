@@ -20,7 +20,7 @@ compIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) (comp A a b b 
 compIdr A a b p = inv (Id A a b) p (comp A a b b p (refl A b)) (compInvIdr A a b p)
 
 unCurry : (A B : U) (P :A -> U) (f : (x:A) -> P x -> B) -> (Sigma A P) -> B
-unCurry A B P f = split pair x p -> f x p
+unCurry A B P f z = f z.1 z.2
 
 compInvIdl : (A : U) -> (b c : A) -> (q : Id A b c) ->
           Id (Id A b c) q (comp A b b c (refl A b) q)
@@ -109,26 +109,25 @@ lemSimpl A a b c p q q' h =
 
 eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
           (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
-          Id (Sigma A B) (pair a u) (pair b v)
+          Id (Sigma A B) (a, u) (b, v)
 eqSigma A B a =
   J A a (\b p -> (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->
-         Id (Sigma A B) (pair a u) (pair b v)) rem2
+         Id (Sigma A B) (a, u) (b, v)) rem2
   where
     rem1 : (u v : B a) -> Id (B a) u v ->
-           Id (Sigma A B) (pair a u) (pair a v)
-    rem1 = mapOnPath (B a) (Sigma A B) (\x -> pair a x)
+           Id (Sigma A B) (a, u) (a, v)
+    rem1 = mapOnPath (B a) (Sigma A B) (\x -> (a, x))
 
     rem2 : (u v : B a) -> Id (B a) (subst A B a a (refl A a) u) v ->
-           Id (Sigma A B) (pair a u) (pair a v)
+           Id (Sigma A B) (a, u) (a, v)
     rem2 u v q = rem1 u v q'
       where q' : Id (B a) u v
             q' = comp (B a) u (subst A B a a (refl A a) u) v (substeq A B a u) q
 
 eqPropFam : (A : U) (B : A -> U) (h : propFam A B) (au bv : Sigma A B) ->
-            Id A (fst A B au) (fst A B bv) -> Id (Sigma A B) au bv
-eqPropFam A B h = split
-  pair a u -> split
-    pair b v -> \p -> eqSigma A B a b p u v (h b (subst A B a b p u) v)
+            Id A au.1 bv.1 -> Id (Sigma A B) au bv
+eqPropFam A B h au bv p =
+  eqSigma A B au.1 bv.1 p au.2 bv.2 (h bv.1 (subst A B au.1 bv.1 p au.2) bv.2)
 
 
 

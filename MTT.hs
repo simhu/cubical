@@ -118,6 +118,9 @@ check a t = case (a,t) of
   (VU,Pi a (Lam x b)) -> do
     check VU a
     local (addType (x,a)) $ check VU b
+  (VU,Sigma a (Lam x b)) -> do
+    check VU a
+    local (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (VPi (Ter (Sum _ cas) nu) f,Split _ ces) ->
     if map fst ces == map fst cas
@@ -127,6 +130,10 @@ check a t = case (a,t) of
   (VPi a f,Lam x t)  -> do
     var <- getFresh
     local (addTypeVal (x,a)) $ check (app f var) t
+  (VSigma a f, SPair t1 t2) -> do
+    check a t1
+    e <- getEnv
+    check (app f (eval e t1)) t2
   (_,Where e d) -> do
     checkDef d
     local (addDef d) $ check a e
@@ -162,6 +169,18 @@ checkInfer e = case e of
         rho <- getEnv
         return (app f (eval rho u))
       _      ->  throwError $ show c ++ " is not a product"
+  Fst t -> do
+    c <- checkInfer t
+    case c of
+      VSigma a f -> return a
+      _          ->  throwError $ show c ++ " is not a sigma-type"
+  Snd t -> do
+    c <- checkInfer t
+    case c of
+      VSigma a f -> do
+        e <- getEnv
+        return (app f (fstSVal (eval e t)))
+      _          ->  throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDef d
     local (addDef d) $ checkInfer t

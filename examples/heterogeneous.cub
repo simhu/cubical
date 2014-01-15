@@ -93,14 +93,14 @@ eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
         section_fg = split pair p1 p2 -> refl SigId (pair p1 p2)
 
         retract_fg : (p : IdSig) -> Id IdSig (g (f p)) p
-        retract_fg p = undefined  -- refl IdSig p
-          where
-            IdSigD : (h : Sigma A B -> Sigma A B) -> U
-            IdSigD h = Id (Sigma A B) (h (pair a0 b0)) (h (pair a1 b1))
+        retract_fg p = refl IdSig p
+          -- where
+          --   IdSigD : (h : Sigma A B -> Sigma A B) -> U
+          --   IdSigD h = Id (Sigma A B) (h (pair a0 b0)) (h (pair a1 b1))
 
-            sthg : (h : Sigma A B -> Sigma A B) -> IdSigD h
-            sthg h = mapOnPath (Sigma A B) (Sigma A B) h
-                               (pair a0 b0) (pair a1 b1) p
+          --   sthg : (h : Sigma A B -> Sigma A B) -> IdSigD h
+          --   sthg h = mapOnPath (Sigma A B) (Sigma A B) h
+          --                      (pair a0 b0) (pair a1 b1) p
 
             -- test : Id IdSig (sthg (expandedPair A B)) (sthg (\x -> x))
             -- test : IdS (Sigma A B -> Sigma A B) IdSigD

@@ -27,11 +27,10 @@ contr' A = Sigma A (\ a -> (x:A) -> Id A a x)
 -- this implies the other definition
 
 isContr : (A:U) -> contr' A -> contr A
-isContr A = split
-             pair a f -> rem a f
-               where 
-                  rem : (a:A) -> ((x:A) -> Id A a x) -> contr A
-                  rem a f = propContr A a (\ a0 a1 -> compInv A a a0 a1 (f a0) (f a1))
+isContr A z = rem z.1 z.2
+  where 
+    rem : (a:A) -> ((x:A) -> Id A a x) -> contr A
+    rem a f = propContr A a (\ a0 a1 -> compInv A a a0 a1 (f a0) (f a1))
 
 isContrProd : (A:U) (B:A->U) -> ((x:A) -> contr (B x)) -> contr (Pi A B)
 isContrProd A B pB = subst U contr (A->Unit) (Pi A B) rem1 rem2
@@ -60,25 +59,23 @@ isContrProd A B pB = subst U contr (A->Unit) (Pi A B) rem1 rem2
 -- a sigma of props over a prop is a prop
 
 sigIsProp : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop A -> prop (Sigma A B)
-sigIsProp A B pB pA =
- split
-  pair a0 b0 -> split
-                 pair a1 b1 -> eqSigma A B a0 a1 (pA a0 a1) b0 b1 (pB a1 (subst A B a0 a1 (pA a0 a1) b0) b1)
+sigIsProp A B pB pA u v =
+  eqSigma A B u.1 v.1 (pA u.1 v.1) u.2 v.2
+          (pB v.1 (subst A B u.1 v.1 (pA u.1 v.1) u.2) v.2)
 
 contr'IsProp : (A : U) -> prop (contr' A)
 contr'IsProp A = lemProp1 (contr' A) rem
  where rem : contr' A -> prop (contr' A)
-       rem = split
-              pair a p -> sigIsProp A (\ a0 -> (x:A) -> Id A a0 x) rem3 rem1 
-                where
-                 rem1 : prop A
-                 rem1 a0 a1 = compInv A a a0 a1 (p a0) (p a1)
+       rem z = sigIsProp A (\ a0 -> (x:A) -> Id A a0 x) rem3 rem1 
+         where
+           rem1 : prop A
+           rem1 a0 a1 = compInv A z.1 a0 a1 (z.2 a0) (z.2 a1)
 
-                 rem2 : (a0 a1:A) -> prop (Id A a0 a1)
-                 rem2 = propUIP A rem1
+           rem2 : (a0 a1:A) -> prop (Id A a0 a1)
+           rem2 = propUIP A rem1
 
-                 rem3 : (a0:A) -> prop ((x:A) -> Id A a0 x)
-                 rem3 a0 = isPropProd A (Id A a0) (rem2 a0) 
+           rem3 : (a0:A) -> prop ((x:A) -> Id A a0 x)
+           rem3 a0 = isPropProd A (Id A a0) (rem2 a0) 
 
 -- Voevodsky's definition of propositions
 
@@ -102,39 +99,34 @@ lemUnitSig P =
     F = P tt
 
     f : T -> F
-    f = split
-         pair x u -> rem x u
+    f z = rem z.1 z.2
           where rem : (x:Unit) -> P x -> P tt
-                rem = split
-                       tt -> \ u -> u
+                rem = split tt -> \ u -> u
 
     g : F -> T
-    g u = pair tt u
+    g u = (tt, u)
 
     rfg : (v:F) -> Id F (f (g v)) v
     rfg v = refl F v
 
     sfg : (v:T) -> Id T (g (f v)) v
-    sfg = split
-           pair x u -> rem x u
-            where rem : (x:Unit) -> (u : P x) -> Id T (g (f (pair x u))) (pair x u)
-                  rem = split
-                         tt -> \ u -> refl T (pair tt u)
+    sfg z = rem z.1 z.2
+      where rem : (x:Unit) -> (u : P x) -> Id T (g (f (x, u))) (x, u)
+            rem = split tt -> \ u -> refl T (tt, u)
 
 lemContrSig : (A:U) -> contr A -> hasContrSig A
 lemContrSig A p = subst U hasContrSig Unit A p lemUnitSig
 
 singContr : (A:U) (a:A) -> contr (singl A a)
-singContr A a = isContr T (pair (pair a (refl A a)) f)
+singContr A a = isContr T ((a, refl A a), f)
  where T : U 
        T = singl A a 
  
-       f : (z:T) -> Id T (pair a (refl A a)) z
-       f = split
-            pair b p -> rem b a p
+       f : (z:T) -> Id T (a, refl A a) z
+       f z = rem z.1 a z.2
              where 
-               rem : (b:A) (a:A) (p:Id A b a) -> Id (singl A a) (pair a (refl A a)) (pair b p)
-               rem b = J A b (\ a p ->  Id (singl A a) (pair a (refl A a)) (pair b p)) (refl (singl A b) (pair b (refl A b)))
+               rem : (b:A) (a:A) (p:Id A b a) -> Id (singl A a) (a, refl A a) (b, p)
+               rem b = J A b (\ a p ->  Id (singl A a) (a, refl A a) (b, p)) (refl (singl A b) (b, refl A b))
  
 
 -- any function between two contractible types is an equivalence

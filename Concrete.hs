@@ -133,12 +133,18 @@ resolveExp PN           = C.PN <$> genPN
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
   cs <- getConstrs
-  if unVarBinder x `elem` cs
-    then C.Con (unVarBinder x) <$> mapM resolveExp xs
-    else C.App <$> resolveExp t <*> resolveExp s
+  case x of
+    Var a -> let n = unArg a in
+      if n `elem` cs then C.Con n <$> mapM resolveExp xs
+      else C.App <$> resolveExp t <*> resolveExp s
+    _ -> C.App <$> resolveExp t <*> resolveExp s
 resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
+resolveExp (Sigma tele b)  = resolveTeleSigma (flattenTelePi tele) (resolveExp b)
 resolveExp (Fun a b)    = C.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
 resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
+resolveExp (Fst t)      = C.Fst <$> resolveExp t
+resolveExp (Snd t)      = C.Snd <$> resolveExp t
+resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
 resolveExp (Split brs)  = C.Split <$> genPrim <*> mapM resolveBranch brs
 resolveExp (Let defs e) = C.mkWheres <$> resolveDefs defs <*> resolveExp e
 resolveExp (Var n)      = do
@@ -169,6 +175,14 @@ resolveTelePi (VDecl [Binder x] a:as) b =
   C.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
 resolveTelePi (t@(VDecl{}):as) _        =
   throwError ("resolveTelePi: non flattened telescope " ++ show t)
+
+-- Assumes a flattened telescope.
+resolveTeleSigma :: [VDecl] -> Resolver C.Ter -> Resolver C.Ter
+resolveTeleSigma [] b                      = b
+resolveTeleSigma (VDecl [Binder x] a:as) b =
+  C.Sigma <$> resolveExp a <*> lam x (resolveTeleSigma as b)
+resolveTeleSigma (t@(VDecl{}):as) _        =
+  throwError ("resolveTeleSigma: non flattened telescope " ++ show t)
 
 resolveLabel :: Sum -> Resolver (String,[(String,C.Ter)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)

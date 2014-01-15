@@ -26,7 +26,14 @@ inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 inhrec = PN
 
 Sigma : (A : U) (B : A -> U) -> U
-data Sigma A B = pair (x : A) (y : B x)
+Sigma A B = (x : A) * B x
+-- data Sigma A B = pair (x : A) (y : B x)
+
+fst : (A : U) (B : A -> U) -> Sigma A B -> A
+fst A B z = z.1
+
+snd : (A : U) (B : A -> U) (z : Sigma A B) -> B (z.1)
+snd A B z = z.2
 
 fiber : (A B : U) (f : A -> B) (y : B) -> U
 fiber A B f y = Sigma A (\x -> Id B (f x) y)
@@ -38,12 +45,12 @@ pathTo : (A:U) -> A -> U
 pathTo A = fiber A A (id A)
 
 sId : (A : U) (a : A) -> pathTo A a
-sId A a = pair a (refl A a)
+sId A a = (a, refl A a)
 
 singl : (A:U) -> A -> U
 singl A a = Sigma A (Id A a)
 
-contrSingl :  (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
+contrSingl :  (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (a, refl A a) (b, p)
 contrSingl = PN
 
 equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)

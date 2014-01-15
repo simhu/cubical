@@ -15,21 +15,16 @@ idTelProp A B C = isoId T0 T1 f g sfg rfg
   T1 = Sigma ((x:A) -> B x) (\ f -> (x:A) -> C x (f x))
 
   f : T0 -> T1
-  f = \ s -> pair (\ x -> fst (B x) (C x) (s x)) (\ x -> snd (B x) (C x) (s x))
+  f s = (\ x -> (s x).1, \ x -> (s x).2)
 
   g : T1 -> T0
-  g = split
-       pair u v -> \ x -> pair (u x) (v x)
+  g z = \ x -> (z.1 x, z.2 x)
 
   sfg : (y:T1) -> Id T1 (f (g y)) y
-  sfg = split
-         pair u v -> refl T1 (pair u v) -- rem2 u v 
+  sfg z = refl T1 z -- rem2 u v 
 
   rfg : (s:T0) -> Id T0 (g (f s)) s
-  rfg s = funExt A (\ x ->  Sigma (B x) (C x)) (g (f s)) s rem
-    where
-      rem : (x:A) -> Id (Sigma (B x) (C x)) (pair (fst (B x) (C x) (s x)) (snd (B x) (C x) (s x))) (s x)
-      rem x = surjPair (B x) (C x) (s x)
+  rfg s = refl T0 s
 
 -- we deduce from this equality that isEquiv f is a proposition
 

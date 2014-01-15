@@ -13,8 +13,8 @@ exConst A = Sigma (A -> A) (const A)
 
 decConst : (A : U) -> dec A -> exConst A
 decConst A = split
-  inl a -> pair (\x -> a) (\ x y -> refl A a)
-  inr h -> pair (\x -> x) (\ x y -> efq (Id A x y) (h x))
+  inl a -> (\x -> a, \ x y -> refl A a)
+  inr h -> (\x -> x, \ x y -> efq (Id A x y) (h x))
 
 hedbergLemma : (A: U) (f : (a b : A) -> Id A a b -> Id A a b) (a b : A)
             (p : Id A a b) ->

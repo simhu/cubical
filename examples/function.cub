@@ -35,34 +35,24 @@ hasSection A B f = Sigma (B->A) (section A B f)
 -- an equivalence has a section
 
 equivSec : (A B :U) -> (f:A->B) -> isEquiv A B f -> hasSection A B f
-equivSec A B f = 
- split 
-  pair s t -> pair g rem
-    where g : B -> A
-          g y = fst A (\ x -> Id B (f x) y) (s y)
-
-          rem : (y:B) -> Id B (f (g y)) y
-          rem y = snd A (\ x -> Id B (f x) y) (s y)
+equivSec A B f st = (\y -> (st.1 y).1, \y -> (st.1 y).2)
 
 allSection : (A B : U) (f:A->B) -> hasSection A B f -> (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
-allSection A B f =
- split
-  pair g sfg -> rem 
-     where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
-           rem Q h y = rem2
-                  where rem1 : Q (f (g y))
-                        rem1 = h (g y)
-
-                        rem2 : Q y
-                        rem2 = subst B Q (f (g y)) y (sfg y) rem1
+allSection A B f z = rem 
+   where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
+         rem Q h y = rem2
+                where rem1 : Q (f (z.1 y))
+                      rem1 = h (z.1 y)
+                      rem2 : Q y
+                      rem2 = subst B Q (f (z.1 y)) y (z.2 y) rem1
 
 
 isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> 
                  ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
-isEquivSection A B f g sfg h = pair s t
+isEquivSection A B f g sfg h = (s, t)
   where
   s : (y : B) -> fiber A B f y
-  s y = pair (g y) (sfg y)
+  s y = (g y, sfg y)
 
   t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
   t y v = h y (s y) v

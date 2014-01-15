@@ -23,13 +23,13 @@ eqNotFiber b = eqPropFam Bool (\x -> Id Bool (not x) b) rem
   rem = \x -> boolIsSet (not x) b
 
 sNot : (b : Bool) -> notFiber b
-sNot b = pair (not b) (notK b)
+sNot b = (not b, notK b)
 
 tNot : (b : Bool) (v : notFiber b) -> Id (notFiber b) (sNot b) v
 tNot b v = eqNotFiber b (sNot b) v rem
   where
   b' : Bool
-  b' = fstNotFiber b v
+  b' = v.1
 
   rem1 : Id Bool (not (not b)) (not b')
   rem1 = comp Bool (not (not b)) b (not b') (notK b)
@@ -72,10 +72,10 @@ monoid : U -> U
 monoid A = and A (A -> A -> A)
 
 zm : (A : U) (m : monoid A) -> A
-zm A m = fst A (\x -> A -> A -> A) m
+zm A m = m.1
 
 opm : (A : U) (m : monoid A) -> (A -> A -> A)
-opm A m = snd A (\x -> A -> A -> A) m
+opm A m = m.2
 
 transm : (A B : U) -> Id U A B -> monoid A -> monoid B
 transm = subst U monoid 
@@ -96,7 +96,7 @@ testF : Bool
 testF = transid false
 
 monoidAndBool : monoid Bool
-monoidAndBool = pair (true) andBool
+monoidAndBool = (true, andBool)
 
 mBool2 : monoid Bool
 mBool2 = transm Bool Bool eqBoolBool monoidAndBool
