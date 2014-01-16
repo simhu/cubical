@@ -15,7 +15,7 @@ import Exp.Layout
 import Exp.ErrM
 import Concrete
 import Pretty
-import qualified MTT as M
+import qualified TypeChecker as TC
 import qualified CTT as C
 import qualified Eval as E
 
@@ -54,10 +54,10 @@ loadFile f = do
   case runResolver (local (insertConstrs cs) (resolveDefs defs)) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.Empty
-    Right ds -> case M.runDefs M.tEmpty ds of
+    Right ds -> case TC.runDefs TC.tEmpty ds of
       Left err -> do assertFailure $ "Type checking failed:" <+> err <+> "on" <+> f
                      return C.Empty
-      Right e  -> return (M.env e)
+      Right e  -> return (TC.env e)
 
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do
