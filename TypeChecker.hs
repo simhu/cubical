@@ -5,7 +5,6 @@ import Data.Either
 import Data.List
 import Data.Maybe
 import Control.Monad
-import Debug.Trace
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Trans.Reader
 import Control.Monad.Identity
@@ -99,7 +98,7 @@ m =?= s2 = do
   unless (s1 == s2) $ throwError (show s1 ++ " =/= " ++ show s2)
 
 checkDef :: Def -> Typing ()
-checkDef (xas,xes) = trace ("checking definition " ++ show (map fst xes)) $ do
+checkDef (xas,xes) = traceb ("checking definition " ++ show (map fst xes)) $ do
   checkTele xas
   rho <- getEnv
   local (addTele xas) $ checks (xas,rho) (map snd xes)
