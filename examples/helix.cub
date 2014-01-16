@@ -32,6 +32,9 @@ test2 = winding (compS1 loop (invS1 loop))
 test3 : Z
 test3 = winding (invS1 (compS1 loop loop))
 
+test4 : Z
+test4 = winding (compS1 (invS1 (compS1 loop loop)) (compS1 loop loop))
+
 encode : (x : S1) -> Id S1 base x -> helix x
 encode x l = subst S1 helix base x l zeroZ
 
