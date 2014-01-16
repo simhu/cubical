@@ -24,7 +24,7 @@ canSurj A R h h' c = class (R c) un cp ex pr
         cp : (a b : A) -> R c a -> R a b -> R c b
         cp a b p q = eqToEucl A R h c b a p (eqToSym A R h a b q)
         ex : exists A (R c)
-        ex = inc (Sigma A (R c)) (pair c (eqToRefl A R h c))
+        ex = inc (Sigma A (R c)) (c,eqToRefl A R h c)
         pr : propFam A (R c)
         pr a = h' c a
 
@@ -63,40 +63,34 @@ univQuot A B R f uip fresp eqR pR = g -- pair g rem
           S b a = and (P a) (Id B (f a) b)
 
           rem3 : Sigma A P -> exists B imfP
-          rem3 = split
-            pair a p -> inc (Sigma B imfP)
-                        (pair (f a) (inc (Sigma A (S (f a))) (pair a (pair p (refl B (f a))))))
+          rem3 z = inc (Sigma B imfP)
+                       (f z.1,inc (Sigma A (S (f z.1))) (z.1,(z.2,refl B (f z.1))))
           rem4 : exists B imfP
           rem4 = inhrec (Sigma A P) (exists B imfP) (squash (Sigma B imfP)) rem3 ex
 
           rem6 : (b b' : B) (a a' : A) (_ : and (P a) (Id B (f a) b))
              (_ : and (P a') (Id B (f a') b')) -> Id B b b'
-          rem6 b b' a a' = split
-            pair p ea -> split
-              pair p' ea' -> compUp B (f a) b (f a') b' ea ea' rem7
+          rem6 b b' a a' z z' = compUp B (f a) b (f a') b' z.2 z'.2 rem7
                 where rem8 : R a a'
-                      rem8 = un a a' p p'
+                      rem8 = un a a' z.1 z'.1
                       rem7 : Id B (f a) (f a')
                       rem7 = fresp a a' rem8
                      
-          rem7 : (b b' : B)  (_ : Sigma A (S b)) (_ : Sigma A (S b'))
-             -> Id B b b'
-          rem7 b b' = split
-            pair a p -> split
-              pair a' p' -> rem6 b b' a a' p p'
+          rem7 : (b b' : B) -> Sigma A (S b) ->  Sigma A (S b') -> Id B b b'
+          rem7 b b' z z' = rem6 b b' z.1 z'.1 z.2 z'.2
 
           rem8 : (b b' : B) -> Sigma A (S b) -> exists A (S b') -> Id B b b'
           rem8 b b' h = exElim A (S b') (Id B b b') (uip b b') (rem7 b b' h)
 
           rem9 : (b b' : B) -> exists A (S b) -> exists A (S b') -> Id B b b'
           rem9 b b' h h' = exElim A (S b) (Id B b b') (uip b b')
-                        (\h'' -> rem8 b b' h'' h') h
+                                    (\h'' -> rem8 b b' h'' h') h
 
           rem5 : atmostOne B imfP
           rem5 = rem9
 
           rem2 : exactOne B imfP
-          rem2 = pair rem4 rem5
+          rem2 = (rem4,rem5)
 
 
 kernel : (A B : U) (f : A -> B) -> rel A
@@ -113,7 +107,7 @@ kerEucl A B f a b c p q = compInv B (f c) (f a) (f b) rem rem1
        rem1 = inv B (f b) (f c) q
 
 kerEquiv : (A B : U) (f : A -> B) -> equivalence A (kernel A B f)
-kerEquiv A B f = pair (kerRef A B f) (kerEucl A B f)
+kerEquiv A B f = (kerRef A B f,kerEucl A B f)
 
 
 mod2 : rel N
