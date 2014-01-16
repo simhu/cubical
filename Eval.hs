@@ -112,6 +112,15 @@ face u xdir@(x,dir) =
     | x == y    -> VBase
     | otherwise -> VLoop y
   VCircleRec f b l s -> circlerec (fc f) (fc b) (fc l) (fc s)
+  VInt    -> VInt
+  VStartI -> VStartI
+  VEndI   -> VEndI
+  VSegI y
+    | x == y && dir == down -> VStartI
+    | x == y && dir == up   -> VEndI
+    | otherwise             -> VSegI y
+  VIntRec f s e l u -> intrec (fc f) (fc s) (fc e) (fc l) (fc u)
+
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -178,6 +187,11 @@ evalPN _       Circle     []               = VCircle
 evalPN _       Base       []               = VBase
 evalPN (x:_)   Loop       []               = Path x $ VLoop x
 evalPN _       CircleRec  [f,b,l,s]        = circlerec f b l s
+evalPN _       Inter      []               = VInt
+evalPN _       StartInt   []               = VStartI
+evalPN _       EndInt     []               = VEndI
+evalPN (x:_)   SegInt     []               = Path x $ VSegI x
+evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
 evalPN _       u _ = error ("evalPN " ++ show u)
 
 
@@ -214,13 +228,24 @@ inhrec b p phi (Kan ktype (VInh a) box) =
 inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 circlerec :: Val -> Val -> Val -> Val -> Val
-circlerec _ b _ VBase = b
+circlerec _ b _ VBase     = b
 circlerec _ _ l (VLoop x) = appName l x
 circlerec f b l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox crec box)
   where crec side u = let fc w = w `face` side
                       in circlerec (fc f) (fc b) (fc l) u
 circlerec f b l v = VCircleRec f b l v -- v should be neutral
+
+intrec :: Val -> Val -> Val -> Val -> Val -> Val
+intrec _ s _ _ VStartI   = s
+intrec _ _ e _ VEndI     = e
+intrec _ _ _ l (VSegI x) = appName l x
+intrec f s e l v@(Kan ktype VCircle box) =
+  kan ktype (app f v) (modBox irec box)
+  where irec side u = let fc w = w `face` side
+                      in intrec (fc f) (fc s) (fc e) (fc l) u
+intrec f s e l v = VIntRec f s e l v -- v should be neutral
+
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a
@@ -676,6 +701,12 @@ conv k VBase          VBase            = True
 conv k (VLoop x)      (VLoop y)        = x == y
 conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
   and [conv1 k f f', conv1 k b b', conv1 k l l', conv1 k v v']
+conv k VInt           VInt             = True
+conv k VStartI        VStartI          = True
+conv k VEndI          VEndI            = True
+conv k (VSegI x)      (VSegI y)        = x == y
+conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
+  and [conv1 k f f', conv1 k s s', conv1 k e e', conv1 k l l', conv1 k u u']
 conv k _              _                = False
 
 convEnv :: Int -> Env -> Env -> Bool

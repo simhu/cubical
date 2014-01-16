@@ -134,6 +134,19 @@ data PN = Id | Refl
         -- S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
         | CircleRec
 
+        -- Int : U
+        | Inter
+
+        -- startInt, endInt : Int
+        | StartInt | EndInt
+
+        -- segInt : Id Int startInt endInt
+        | SegInt
+
+        -- intrec : (F : Int -> U) (s : F startInt) (e : F endInt)
+        --          (l : IdS Int F startInt endInt segInt s e) (x : Int) -> F x
+        | IntRec
+
         -- undefined constant
         | Undef Prim
   deriving (Eq, Show)
@@ -184,7 +197,12 @@ primHandle =
    ("S1"            , 0,  Circle       ),
    ("base"          , 0,  Base         ),
    ("loop"          , 0,  Loop         ),
-   ("S1rec"         , 4,  CircleRec    )]
+   ("S1rec"         , 4,  CircleRec    ),
+   ("Int"           , 0,  Inter        ),
+   ("startInt"      , 0,  StartInt     ),
+   ("endInt"        , 0,  EndInt       ),
+   ("segInt"        , 0,  SegInt       ),
+   ("intrec"        , 5,  IntRec       )]
 
 reservedNames :: [String]
 reservedNames = [s | (s,_,_) <- primHandle]
@@ -380,13 +398,20 @@ data Val = VU
          | VBase
          | VLoop Name -- has type VCircle and connects base along the name
 
+         -- interval
+         | VInt
+         | VStartI
+         | VEndI
+         | VSegI Name           -- connects start and end point along name
+
          -- neutral values
          | VApp Val Val            -- the first Val must be neutral
          | VAppName Val Name
          | VSplit Val Val          -- the second Val must be neutral
          | VVar String Dim
-         | VInhRec Val Val Val Val    -- the last Val must be neutral
-         | VCircleRec Val Val Val Val -- the last Val must be neutral
+         | VInhRec Val Val Val Val     -- the last Val must be neutral
+         | VCircleRec Val Val Val Val  -- the last Val must be neutral
+         | VIntRec Val Val Val Val Val -- the last Val must be neutral
          | VFillN Val (Box Val)
          | VComN Val (Box Val)
          | VFst Val
@@ -403,6 +428,7 @@ isNeutral (VSplit _ v)         = isNeutral v
 isNeutral (VVar _ _)           = True
 isNeutral (VInhRec _ _ _ v)    = isNeutral v
 isNeutral (VCircleRec _ _ _ v) = isNeutral v
+isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
 isNeutral (VFillN _ _)         = True
 isNeutral (VComN _ _)          = True
 isNeutral (VFst v)             = isNeutral v
@@ -461,6 +487,11 @@ instance Nominal Val where
   support VBase                = []
   support (VLoop n)            = [n]
   support (VCircleRec f b l s) = support [f,b,l,s]
+  support VInt                 = []
+  support VStartI              = []
+  support VEndI                = []
+  support (VSegI n)            = [n]
+  support (VIntRec f s e l u)  = support [f,s,e,l,u]
   support v                    = error ("support " ++ show v)
 
   swap u x y =
@@ -518,6 +549,12 @@ instance Nominal Val where
     VBase              -> VBase
     VLoop z            -> VLoop (swap z x y)
     VCircleRec f b l a -> VCircleRec (sw f) (sw b) (sw l) (sw a)
+    VInt               -> VInt
+    VStartI            -> VStartI
+    VEndI              -> VEndI
+    VSegI z            -> VSegI (swap z x y)
+    VIntRec f s e l u  -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
+
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -637,6 +674,11 @@ showVal VCircle          = "S1"
 showVal VBase            = "base"
 showVal (VLoop x)        = "loop" <+> show x
 showVal (VCircleRec f b l s) = "S1rec" <+> showVals [f,b,l,s]
+showVal VInt             = "Int"
+showVal VStartI          = "startInt"
+showVal VEndI            = "endInt"
+showVal (VSegI n)        = "segInt" <+> show n
+showVal (VIntRec f s e l u) = "intrec" <+> showVals [f,s,e,l,u]
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
