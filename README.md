@@ -8,7 +8,7 @@ with univalence with an evaluator for closed terms.
 INSTALL
 -------
 
-To install cubical a working Haskell and cabal installation are
+To install cubical, a working Haskell and cabal installation are
 required.  To build cubical go to the main directory and do
 
   `cabal install`
@@ -91,6 +91,9 @@ We have
 
  * function defined by case
    `f = split c1 x1 ... xn -> e1 | c2 ... -> ... | ...`
+
+ * sigma types `(x:A) * B`, with the pair constructor (e1,e2)
+   and eliminators e.1 and e.2
 
  * a universe `U` and assume `U:U` for simplicity
 
@@ -177,6 +180,34 @@ computations:
    isomorphism between A x B and B x A; the examples are test14,
    test15.
 
+NEWS (to be detailed)
+----
+ * Some constants have a direct cubical semantics having better
+   behavior w.r.t. equality.  For instance the constant
+
+    `mapOnPath : (A B : U) (f : A -> B) (a b : A)
+                 (p : Id A a b) -> Id B (f a) (f b)`
+
+   has a semantics which satisfies the definitional equalities:
+
+    `mapOnPath (id A)       = id A`
+
+    `mapOnPath (g o f)      = (mapOnPath g) o (mapOnPath f)`
+
+    `mapOnPath f (refl A a) = refl B (f a)`
+
+   The evaluation is now used for conversion during type-checking,
+   and then we get these equalities definitionally.
+
+   Some proofs are now much simpler than before, e.g. the proof of the
+   Graduate Lemma.
+
+ * Similarly we also have eta conversion and surjective pairing.
+
+ * As a test, the particular case of the circle has been added (S1).
+   The identities for the eliminator hold definitionally:
+    `S1rec F b l base              = b`
+    `mapOnPathD (S1rec F b l) loop = l`
 
 
 FURTHER WORK (non-exhaustive)
@@ -184,28 +215,6 @@ FURTHER WORK (non-exhaustive)
 
  * The Kan filling operations should be formally proved correct and
    tested on higher inductive types.
-
- * Some constants have a direct cubical semantics having better
-   behavior w.r.t. equality.  For instance the constant
-
-    `cong : (A B : U) (f : A -> B) (a b : A) (p : Id A a b) -> Id B (f a) (f b)`
-
-   has a semantics which satisfies the definitional equalities:
-
-    `cong (id A)       = id A`
-
-    `cong (g o f)      = (cong g) o (cong f)`
-
-    `cong f (refl A a) = refl B (f a)`
-
-   The evaluation should be used for conversion during type-checking,
-   and then we shall get these equalities as definitional.
-
-   Some proofs are then much simpler, e.g. the proof of the Graduate
-   Lemma.
-
- * Similarly we should have eta conversion and surjective pairing;
-   this can be obtained by normalization by evaluation.
 
  * For higher inductive types, like the circle or the sphere, it would
    be appropriate to *extend* the syntax of type theory, in order to
