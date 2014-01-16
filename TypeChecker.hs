@@ -1,4 +1,3 @@
--- miniTT, with recursive definitions
 module TypeChecker where
 
 import Data.Either
@@ -92,11 +91,6 @@ getEnv = env <$> ask
 getCtxt :: Typing Ctxt
 getCtxt = ctxt <$> ask
 
-(=?=) :: Typing Ter -> Ter -> Typing ()
-m =?= s2 = do
-  s1 <- m
-  unless (s1 == s2) $ throwError (show s1 ++ " =/= " ++ show s2)
-
 checkDef :: Def -> Typing ()
 checkDef (xas,xes) = traceb ("checking definition " ++ show (map fst xes)) $ do
   checkTele xas
@@ -140,8 +134,8 @@ check a t = case (a,t) of
   _ -> do
     v <- checkInfer t
     k <- getIndex
-    if conv k v a then return ()
-    else throwError $ "check conv: " ++ show v ++ " /= " ++ show a
+    unless (conv k v a) $
+      throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
@@ -167,19 +161,19 @@ checkInfer e = case e of
         check a u
         rho <- getEnv
         return (app f (eval rho u))
-      _      ->  throwError $ show c ++ " is not a product"
+      _       -> throwError $ show c ++ " is not a product"
   Fst t -> do
     c <- checkInfer t
     case c of
       VSigma a f -> return a
-      _          ->  throwError $ show c ++ " is not a sigma-type"
+      _          -> throwError $ show c ++ " is not a sigma-type"
   Snd t -> do
     c <- checkInfer t
     case c of
       VSigma a f -> do
         e <- getEnv
         return (app f (fstSVal (eval e t)))
-      _          ->  throwError $ show c ++ " is not a sigma-type"
+      _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDef d
     local (addDef d) $ checkInfer t
@@ -194,6 +188,12 @@ checks ((x,a):xas,nu) (e:es) = do
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U
+--
+-- (=?=) :: Typing Ter -> Ter -> Typing ()
+-- m =?= s2 = do
+--   s1 <- m
+--   unless (s1 == s2) $ throwError (show s1 ++ " =/= " ++ show s2)
+--
 -- checkTs :: [(String,Ter)] -> Typing ()
 -- checkTs [] = return ()
 -- checkTs ((x,a):xas) = do
