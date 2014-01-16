@@ -11,40 +11,41 @@ Omega = Sigma U prop
 -- if B is a family of proposition over A then Sigma A B -> A is injective
 
 lemPInj1 :  (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> (a0 a1:A) -> (p:Id A a0 a1) ->
-            (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
+            (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (a0,b0) (a1,b1)
 lemPInj1 A B pB a0 a1 p =  subst A C a0 a1 p rem
  where
   C : A -> U                                      -- (a1:A) -> Id A a0 a1 -> U
-  C a1 = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (pair a0 b0) (pair a1 b1)
+  C a1 = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (a0,b0) (a1,b1)
 
   rem : C a0
-  rem b0 b1 = mapOnPath (B a0) (Sigma A B) (\ b -> pair a0 b) b0 b1 (pB a0 b0 b1)
+  rem b0 b1 = mapOnPath (B a0) (Sigma A B) (\ b -> (a0,b)) b0 b1 (pB a0 b0 b1)
 
 lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (fst A B)
-lemPropInj A B pB =
- split 
-  pair a0 b0 -> split
-                 pair a1 b1 -> \ p -> lemPInj1 A B pB a0 a1 p b0 b1
+lemPropInj A B pB z0 z1 p = lemPInj1 A B pB z0.1 z1.1 p z0.2 z1.2
+
 
 lemPInj2 :  (A : U) (B : A -> U) -> (pB: (x:A) -> prop (B x)) -> (z:Sigma A B) ->
             Id (Id (Sigma A B) z z) (refl (Sigma A B) z) (lemPropInj A B pB z z (refl A (fst A B z)))
-lemPInj2 A B pB = 
- split 
-  pair a b -> rem
+lemPInj2 A B pB z = rem
    where
     T : U
     T = Sigma A B 
 
+    a:A
+    a = z.1
+
+    b : B a
+    b = z.2
+
     L : U
-    L = Id T (pair a b) (pair a b)
+    L = Id T z z
 
     C : A -> U
-    C a1 = (b0 : B a) ->  (b1:B a1) -> Id T (pair a b0) (pair a1 b1) 
+    C a1 = (b0 : B a) ->  (b1:B a1) -> Id T (z.1,b0) (a1,b1) 
 
     rem2 : C a
-    rem2 b0 b1 = mapOnPath (B a) T (\ b -> pair a b) b0 b1 (pB a b0 b1)
+    rem2 b0 b1 = mapOnPath (B a) T (\ b -> (z.1,b)) b0 b1 (pB a b0 b1)
 
---  only use of Jeq so far!
     rem1 : Id (C a) rem2 (lemPInj1 A B pB a a (refl A a))
     rem1 = substeq A C a rem2
              
@@ -54,23 +55,18 @@ lemPInj2 A B pB =
     rem4 : Id Lb  (refl (B a) b) (pB a b b)
     rem4 = propUIP (B a) (pB a) b b (refl (B a) b) (pB a b b)
 
-    rem3 : Id L (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b)
-    rem3 = mapOnPath Lb L (mapOnPath (B a) T (\ b -> pair a b) b b) (refl (B a) b) (pB a b b) rem4
+    rem3 : Id L (mapOnPath (B a) T (\ b -> (a,b)) b b (refl (B a) b)) (rem2 b b)
+    rem3 = mapOnPath Lb L (mapOnPath (B a) T (\ b -> (a,b)) b b) (refl (B a) b) (pB a b b) rem4
         
-    rem5 : Id ((b1 : B a) -> Id T (pair a b) (pair a b1)) (rem2 b) (lemPInj1 A B pB a a (refl A a) b)
-    rem5 = appEq (B a) (\ b0 -> (b1 : B a) -> Id T (pair a b0) (pair a b1)) b rem2 (lemPInj1 A B pB a a (refl A a)) rem1
+    rem5 : Id ((b1 : B a) -> Id T (a,b) (a,b1)) (rem2 b) (lemPInj1 A B pB a a (refl A a) b)
+    rem5 = appEq (B a) (\ b0 -> (b1 : B a) -> Id T (a,b0) (a,b1)) b rem2 (lemPInj1 A B pB a a (refl A a)) rem1
      
     rem6 : Id L (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b)
-    rem6 = appEq (B a) (\ b1 -> Id T (pair a b) (pair a b1)) b (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
+    rem6 = appEq (B a) (\ b1 -> Id T (a,b) (a,b1)) b 
+                (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
 
---    rem7 : Id L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b))
---    rem7 = congRefl (B a) T (\ b -> pair a b) b
-
---    rem8 : Id L (refl T (pair a b)) (rem2 b b)
---    rem8 = comp L (refl T (pair a b)) (mapOnPath (B a) T (\ b -> pair a b) b b (refl (B a) b)) (rem2 b b) rem7 rem3
-
-    rem : Id L (refl T (pair a b)) (lemPInj1 A B pB a a (refl A a) b b)
-    rem = comp L (refl T (pair a b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem3 rem6
+    rem : Id L (refl T (a,b)) (lemPInj1 A B pB a a (refl A a) b b)
+    rem = comp L (refl T (a,b)) (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b) rem3 rem6
 
 -- we should be able to deduce from all this that Omega is a set
 

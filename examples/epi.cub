@@ -37,8 +37,7 @@ surjIsEpi A B f sf X sX g h egh = funExt B (\ _ -> X) g h rem
      rem3 x p = subst B (\ z -> Id X (g z) (h z)) (f x) y p (rem4 x)
 
      rem5 : (Sigma A (\ x -> Id B (f x) y)) -> G
-     rem5 = split
-             pair x p -> rem3 x p
+     rem5 z = rem3 z.1 z.2
 
      rem6 : G
      rem6 = exElim A (\ x -> Id B (f x) y) G rem1 rem5 rem2
@@ -52,13 +51,13 @@ epiIsSurj A B f ef = rem6
    rem = ef Omega omegaIsSet
 
    g : B -> Omega
-   g y = pair Unit propUnit
+   g y = (Unit,propUnit)
 
    h : B -> Omega
-   h y = pair (exists A (\ x -> Id B (f x) y)) (squash (Sigma A (\ x -> Id B (f x) y)))
+   h y =  (exists A (\ x -> Id B (f x) y),squash (Sigma A (\ x -> Id B (f x) y)))
 
    rem1 : (x:A) -> isTrue (h (f x))
-   rem1 x = inc (Sigma A (\ z -> Id B (f z) (f x))) (pair x (refl B (f x)))
+   rem1 x = inc (Sigma A (\ z -> Id B (f z) (f x))) (x,refl B (f x))
 
    rem2 : (x:A) -> Id Omega (g (f x)) (h (f x))
    rem2 x = lemIsTrue (g (f x)) (h (f x)) (\ _ -> rem1 x) (\ _ -> tt)
