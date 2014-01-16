@@ -1,5 +1,5 @@
 -- miniTT, with recursive definitions
-module MTT where
+module TypeChecker where
 
 import Data.Either
 import Data.List

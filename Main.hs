@@ -15,7 +15,7 @@ import Exp.Abs hiding (NoArg)
 import Exp.Layout
 import Exp.ErrM
 import Concrete
-import qualified MTT as M
+import qualified TypeChecker as TC
 import qualified CTT as C
 import qualified Eval as E
 
@@ -95,20 +95,20 @@ runInterpreter b fs = case fs of
     case res of
       Left err    -> do
         outputStrLn $ "Resolver failed: " ++ err
-        loop [] M.tEmpty
-      Right adefs -> case M.runDefs M.tEmpty adefs of
+        loop [] TC.tEmpty
+      Right adefs -> case TC.runDefs TC.tEmpty adefs of
         Left err   -> do
           outputStrLn $ "Type checking failed: " ++ err
-          loop [] M.tEmpty
+          loop [] TC.tEmpty
         Right tenv -> do
           outputStrLn "File loaded."
           loop cs tenv
   _   -> do
     outputStrLn $ "Exactly one file expected: " ++ show fs
-    loop [] M.tEmpty
+    loop [] TC.tEmpty
   where
-    loop :: [String] -> M.TEnv -> Interpreter ()
-    loop cs tenv@(M.TEnv _ rho _) = do
+    loop :: [String] -> TC.TEnv -> Interpreter ()
+    loop cs tenv@(TC.TEnv _ rho _) = do
       input <- getInputLine defaultPrompt
       case input of
         Nothing    -> outputStrLn help >> loop cs tenv
@@ -124,7 +124,7 @@ runInterpreter b fs = case fs of
               case runResolver (local (const (Env cs)) (resolveExp exp)) of
                 Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs tenv
                 Right body ->
-                  case M.runInfer tenv body of
+                  case TC.runInfer tenv body of
                     Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs tenv
                     Right _  ->
                       let value = E.eval rho body
