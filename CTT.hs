@@ -122,6 +122,18 @@ data PN = Id | Refl
         -- (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
         | MapOnPathS -- TODO: AppOnPathS?
 
+        -- S1 : U
+        | Circle
+
+        -- base : S1
+        | Base
+
+        -- loop : Id S1 base base
+        | Loop
+
+        -- S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
+        | CircleRec
+
         -- undefined constant
         | Undef Prim
   deriving (Eq, Show)
@@ -168,7 +180,11 @@ primHandle =
    ("mapOnPath"     , 6,  MapOnPath    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
-   ("mapOnPathS"    , 10, MapOnPathS   )]
+   ("mapOnPathS"    , 10, MapOnPathS   ),
+   ("S1"            , 0,  Circle       ),
+   ("base"          , 0,  Base         ),
+   ("loop"          , 0,  Loop         ),
+   ("S1rec"         , 4,  CircleRec    )]
 
 reservedNames :: [String]
 reservedNames = [s | (s,_,_) <- primHandle]
@@ -359,12 +375,18 @@ data Val = VU
          -- the name is bound
          | VFill Name (Box Val)
 
+         -- circle
+         | VCircle
+         | VBase
+         | VLoop Name -- has type VCircle and connects base along the name
+
          -- neutral values
          | VApp Val Val            -- the first Val must be neutral
          | VAppName Val Name
          | VSplit Val Val          -- the second Val must be neutral
          | VVar String Dim
-         | VInhRec Val Val Val Val -- the last Val must be neutral
+         | VInhRec Val Val Val Val    -- the last Val must be neutral
+         | VCircleRec Val Val Val Val -- the last Val must be neutral
          | VFillN Val (Box Val)
          | VComN Val (Box Val)
          | VFst Val
@@ -375,16 +397,17 @@ mkVar :: Int -> Dim -> Val
 mkVar k = VVar ('X' : show k)
 
 isNeutral :: Val -> Bool
-isNeutral (VApp u _)        = isNeutral u
-isNeutral (VAppName u _)    = isNeutral u
-isNeutral (VSplit _ v)      = isNeutral v
-isNeutral (VVar _ _)        = True
-isNeutral (VInhRec _ _ _ v) = isNeutral v
-isNeutral (VFillN _ _)      = True
-isNeutral (VComN _ _)       = True
-isNeutral (VFst v)          = isNeutral v
-isNeutral (VSnd v)          = isNeutral v
-isNeutral _                 = False
+isNeutral (VApp u _)           = isNeutral u
+isNeutral (VAppName u _)       = isNeutral u
+isNeutral (VSplit _ v)         = isNeutral v
+isNeutral (VVar _ _)           = True
+isNeutral (VInhRec _ _ _ v)    = isNeutral v
+isNeutral (VCircleRec _ _ _ v) = isNeutral v
+isNeutral (VFillN _ _)         = True
+isNeutral (VComN _ _)          = True
+isNeutral (VFst v)             = isNeutral v
+isNeutral (VSnd v)             = isNeutral v
+isNeutral _                    = False
 
 fstVal, sndVal, unSquare :: Val -> Val
 fstVal (VPair _ a _)     = a
@@ -425,16 +448,20 @@ instance Nominal Val where
   support (VPair x a v)                 = support (x, [a,v])
   support (VComp box@(Box _ n _ _))     = delete n $ support box
   support (VFill x box)                 = delete x $ support box
-  support (VApp u v)        = support (u, v)
-  support (VAppName u n)    = support (u, n)
-  support (VSplit u v)      = support (u, v)
-  support (VVar x d)        = support d
-  support (VSigma u v)        = support (u,v)
-  support (VSPair u v)      = support (u,v)
-  support (VFst u)          = support u
-  support (VSnd u)          = support u
-  support (VInhRec b p h a) = support [b,p,h,a]
-  support v                 = error ("support " ++ show v)
+  support (VApp u v)           = support (u, v)
+  support (VAppName u n)       = support (u, n)
+  support (VSplit u v)         = support (u, v)
+  support (VVar x d)           = support d
+  support (VSigma u v)         = support (u,v)
+  support (VSPair u v)         = support (u,v)
+  support (VFst u)             = support u
+  support (VSnd u)             = support u
+  support (VInhRec b p h a)    = support [b,p,h,a]
+  support VCircle              = []
+  support VBase                = []
+  support (VLoop n)            = [n]
+  support (VCircleRec f b l s) = support [f,b,l,s]
+  support v                    = error ("support " ++ show v)
 
   swap u x y =
     let sw u = swap u x y in case u of
@@ -478,15 +505,19 @@ instance Nominal Val where
       | otherwise        -> let
         z' = fresh ([x, y], b)
         in sw (VFill z' (swap b z z'))
-    VApp u v        -> VApp (sw u) (sw v)
-    VAppName u n    -> VAppName (sw u) (swap n x y)
-    VSplit u v      -> VSplit (sw u) (sw v)
-    VVar s d        -> VVar s (swap d x y)
-    VSigma u v      -> VSigma (sw u) (sw v)
-    VSPair u v      -> VSPair (sw u) (sw v)
-    VFst u          -> VFst (sw u)
-    VSnd u          -> VSnd (sw u)
-    VInhRec b p h a -> VInhRec (sw b) (sw p) (sw h) (sw a)
+    VApp u v           -> VApp (sw u) (sw v)
+    VAppName u n       -> VAppName (sw u) (swap n x y)
+    VSplit u v         -> VSplit (sw u) (sw v)
+    VVar s d           -> VVar s (swap d x y)
+    VSigma u v         -> VSigma (sw u) (sw v)
+    VSPair u v         -> VSPair (sw u) (sw v)
+    VFst u             -> VFst (sw u)
+    VSnd u             -> VSnd (sw u)
+    VInhRec b p h a    -> VInhRec (sw b) (sw p) (sw h) (sw a)
+    VCircle            -> VCircle
+    VBase              -> VBase
+    VLoop z            -> VLoop (swap z x y)
+    VCircleRec f b l a -> VCircleRec (sw f) (sw b) (sw l) (sw a)
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -581,6 +612,7 @@ showVal (VCon c us)      = c <+> showVals us
 showVal (VPi a f)        = "Pi" <+> showVals [a,f]
 showVal (VInh u)         = "inh" <+> showVal1 u
 showVal (VInc u)         = "inc" <+> showVal1 u
+showVal (VInhRec b p h a) = "inhrec" <+> showVals [b,p,h,a]
 showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
 showVal (Kan Fill v box) = "Fill" <+> showVal1 v <+> parens (show box)
 showVal (Kan Com v box)  = "Com" <+> showVal1 v <+> parens (show box)
@@ -601,6 +633,10 @@ showVal (VSPair u v)     = "pair" <+> showVals [u,v]
 showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
 showVal (VFst u)         = showVal u <+> ".1"
 showVal (VSnd u)         = showVal u <+> ".2"
+showVal VCircle          = "S1"
+showVal VBase            = "base"
+showVal (VLoop x)        = "loop" <+> show x
+showVal (VCircleRec f b l s) = "S1rec" <+> showVals [f,b,l,s]
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

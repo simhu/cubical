@@ -105,6 +105,12 @@ face u xdir@(x,dir) =
   VVar s d        -> VVar s [faceName n xdir | n <- d]
   VFst p          -> fstSVal (fc p)
   VSnd p          -> sndSVal (fc p)
+  VCircle         -> VCircle
+  VBase           -> VBase
+  VLoop y
+    | x == y    -> VBase
+    | otherwise -> VLoop y
+  VCircleRec f b l s -> VCircleRec (fc f) (fc b) (fc l) (fc s)
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -167,6 +173,10 @@ evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appName p x)
 evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    = Path x $ app f (appName p x)
 evalPN (x:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path x $ app (appName p x) (appName q x)
 evalPN (x:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] = Path x $ app (app f (appName p x)) (appName q x)
+evalPN _       Circle     []               = VCircle
+evalPN _       Base       []               = VBase
+evalPN (x:_)   Loop       []               = Path x $ VLoop x
+evalPN _       CircleRec  [f,b,l,s]        = circlerec f b l s
 evalPN _       u _ = error ("evalPN " ++ show u)
 
 
@@ -196,11 +206,20 @@ inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
         b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
-inhrec b p phi (Kan ktype (VInh a) box@(Box dir x v nvs)) =
+inhrec b p phi (Kan ktype (VInh a) box) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
                          in inhrec (fc b) (fc p) (fc phi) v
 inhrec b p phi v = VInhRec b p phi v -- v should be neutral
+
+circlerec :: Val -> Val -> Val -> Val -> Val
+circlerec _ b _ VBase = b
+circlerec _ _ l (VLoop x) = appName l x
+circlerec f b l v@(Kan ktype VCircle box) =
+  kan ktype (app f v) (modBox crec box)
+  where crec side v = let fc v = v `face` side
+                      in circlerec (fc f) (fc b) (fc l) v
+circlerec f b l v = VCircleRec f b l v
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a
@@ -291,7 +310,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         bx0  = app f ax0
         bx   = mapBox sndVal box
         bx1  = fill b $ mapBox (`face` (x,up)) bx       --- independent of x
-        v    = fill b $ (x,(bx0,bx1)) `consBox` bx      
+        v    = fill b $ (x,(bx0,bx1)) `consBox` bx
     in traceb ("VEquivEq case 1" ) $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,down) box
@@ -651,6 +670,11 @@ conv k (VSplit u v)   (VSplit u' v')   = conv1 k u u' && conv1 k v v'
 conv k (VVar x d)     (VVar x' d')     = (x == x')   && (d == d')
 conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
   and [conv1 k b b', conv1 k p p', conv1 k phi phi', conv1 k v v']
+conv k VCircle        VCircle          = True
+conv k VBase          VBase            = True
+conv k (VLoop x)      (VLoop y)        = x == y
+conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
+  and [conv1 k f f', conv1 k b b', conv1 k l l', conv1 k v v']
 conv k _              _                = False
 
 convEnv :: Int -> Env -> Env -> Bool
