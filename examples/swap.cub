@@ -62,7 +62,6 @@ test10 = incr3 (true,zero)
 test11 : and Bool N
 test11 = incr3 (true,suc zero)
 
-
 -- simple example with swap and product
 
 eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
@@ -144,5 +143,5 @@ eqUU : Id U (U -> and U U) (U -> and U U)
 eqUU = eqPi U (\ _ -> and U U) (\ _ -> and U U) (\ _ -> eqSwap U U)
 
 testUU : U
-testUU = fst U (\ _ -> U) (transport (U -> and U U) (U -> and U U) eqUU (\ X -> (X,X)) Bool)
+testUU = (transport (U -> and U U) (U -> and U U) eqUU (\ X -> (X,X)) Bool).1
 
