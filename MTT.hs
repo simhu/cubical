@@ -123,7 +123,7 @@ check a t = case (a,t) of
     local (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (VPi (Ter (Sum _ cas) nu) f,Split _ ces) ->
-    if map fst ces == map fst cas
+    if sort (map fst ces) == sort (map fst cas)
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces cas ]
        else throwError "case branches does not match the data type"

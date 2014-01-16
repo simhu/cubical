@@ -31,3 +31,19 @@ test2 = winding (compS1 loop (invS1 loop))
 
 test3 : Z
 test3 = winding (invS1 (compS1 loop loop))
+
+encode : (x : S1) -> Id S1 base x -> helix x
+encode x l = subst S1 helix base x l zeroZ
+
+loopN : N -> loopS1
+loopN = split
+  zero -> refl S1 base
+  suc n -> compS1 loop (loopN n)
+
+loopZ : Z -> loopS1
+loopZ = split
+  inl n -> invS1 (loopN (suc n))
+  inr n -> loopN n
+
+-- loopZpred : (n : Z) -> Id loopS1 (loopZ (predZ n)) (compS1 (invS1 loop) (loopZ n))
+-- loopZpred n = undefined
