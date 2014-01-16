@@ -15,13 +15,9 @@ separator Imp ";" ;
 Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl.  Def ::= AIdent ":" Exp ;
 DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
-
--- Anders: This is kind of an ugly way to get mutual to work, but at least it
--- works, I guess there is a bug in bnfc when handling layout blocks and lists
--- TODO: Bug report?
--- DefMutual. Def ::= Def "mutual" "{" [Def] "}" ;
+-- Warning: This does not work unless one puts a semicolon after the
+-- definition on the line before the mutual block because of a bug in BNFC.
 -- Mutual.    Def ::= "mutual" "{" [Def] "}" ;
-
 separator  Def ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;

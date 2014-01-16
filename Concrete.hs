@@ -188,13 +188,13 @@ resolveLabel :: Sum -> Resolver (String,[(String,C.Ter)])
 resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
 
 resolveDefs :: [Def] -> Resolver [C.Def]
-resolveDefs [] = return []
+resolveDefs []                  = return []
 resolveDefs (DefTDecl n e:d:ds) = do
   e' <- resolveExp e
   xd <- checkDef (unIdent n,d)
   rest <- resolveDefs ds
   return $ ([(unIdent n, e')],[xd]) : rest
--- resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
+-- resolveDefs (Mutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
 checkDef :: (String,Def) -> Resolver (String,C.Ter)
