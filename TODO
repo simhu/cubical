@@ -1,7 +1,6 @@
 TODO:
 *High priority*
 - review the code for the filling of the universe
-- add unit testing (failure testing as well as success)
 - find the right abstraction for Box manipulation
   (more functional, less association lists in the abstraction)
 - fix mutual in bnfc
@@ -24,21 +23,3 @@ TODO:
 - auto-completion in the main loop
 - namespacing
 - make the import system-independent
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
