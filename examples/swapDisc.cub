@@ -102,15 +102,6 @@ lemIdemSw X eq f0 f1 x y neq u = lemTrue (eq x u) (eq y u) (H u) rem5 rem6 rem7
      where lem : Id X (sw u) u
            lem = lemSw2 X eq x y u h
 
-
-
--- lemIfT : (X:U) (b:Bool) (x y:X) -> True b -> Id X (if X b x y) x
-
-
-
-
-
-
 -- pointed sets
 
 ptU : U
