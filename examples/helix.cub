@@ -14,6 +14,16 @@ loopSpace A a = Id A a a
 loopS1 : U
 loopS1 = loopSpace S1 base
 
+S1recbase : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
+  Id (F base) (S1rec F b l base) b
+S1recbase F b l = refl (F base) b
+
+S1recloop : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
+  Id (IdS S1 F base base loop b b)
+    (mapOnPathD S1 F (S1rec F b l) base base loop)
+    l
+S1recloop F b l = refl (IdS S1 F base base loop b b) l
+
 winding : loopS1 -> Z
 winding l = transport Z Z (rem l) zeroZ
   where
