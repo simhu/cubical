@@ -108,5 +108,5 @@ base = PN
 loop : Id S1 base base
 loop = PN
 
-S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
+S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) -> F x
 S1rec = PN

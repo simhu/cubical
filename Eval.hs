@@ -28,8 +28,9 @@ unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
 appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
-appName (Path x u) y         = swap u x y -- valid only when y is not a free name of u
-                                          -- (see Pitts' concretisation)
+appName (Path x u) y         = let z = fresh (u,y) in
+  swap (swap u x z) z y `face` (z,down) -- (see Pitts' concretisation,
+                                        -- Andy Pitts' Book Rem. 11.8)
 appName v y                  = VAppName v y
 
 -- Compute the face of a value
@@ -110,7 +111,7 @@ face u xdir@(x,dir) =
   VLoop y
     | x == y    -> VBase
     | otherwise -> VLoop y
-  VCircleRec f b l s -> VCircleRec (fc f) (fc b) (fc l) (fc s)
+  VCircleRec f b l s -> circlerec (fc f) (fc b) (fc l) (fc s)
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -217,9 +218,9 @@ circlerec _ b _ VBase = b
 circlerec _ _ l (VLoop x) = appName l x
 circlerec f b l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox crec box)
-  where crec side v = let fc v = v `face` side
-                      in circlerec (fc f) (fc b) (fc l) v
-circlerec f b l v = VCircleRec f b l v
+  where crec side u = let fc w = w `face` side
+                      in circlerec (fc f) (fc b) (fc l) u
+circlerec f b l v = VCircleRec f b l v -- v should be neutral
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a

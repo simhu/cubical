@@ -1,0 +1,33 @@
+module helix where
+
+import integer
+
+helix : S1 -> U
+helix = S1rec (\_ -> U) Z sucIdZ
+
+test : Id U Z (helix base)
+test = refl U Z
+
+loopSpace : (A : U) (a : A) -> U
+loopSpace A a = Id A a a
+
+loopS1 : U
+loopS1 = loopSpace S1 base
+
+winding : loopS1 -> Z
+winding l = transport Z Z (rem l) zeroZ
+  where
+    rem : loopS1 -> Id U Z Z
+    rem l = mapOnPath S1 U helix base base l
+
+compS1 : loopS1 -> loopS1 -> loopS1
+compS1 = comp S1 base base base
+
+invS1 : loopS1 -> loopS1
+invS1 = inv S1 base base
+
+test2 : Z
+test2 = winding (compS1 loop (invS1 loop))
+
+test3 : Z
+test3 = winding (invS1 (compS1 loop loop))

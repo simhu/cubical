@@ -5,6 +5,9 @@ import gradLemma1
 Z : U 
 Z = or N N
 
+zeroZ : Z
+zeroZ = inr zero
+
 auxsucZ : N -> Z
 auxsucZ = split 
          zero -> inr zero
