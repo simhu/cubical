@@ -25,19 +25,7 @@ sub21 A P = (Sigma A P,\ x -> x.1)
 retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
 retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
 
-
 -- in the other direction we use a corollary of equivalence
-
-eqSigmaEquiv : (A B :U) (f:A -> B) -> isEquiv A B f -> (Q:B -> U) -> Id U (Sigma A (\ x -> Q (f x))) (Sigma B Q)
-eqSigmaEquiv A = elimIsEquiv A C rem
- where
-  C : (B:U) -> (A->B) -> U
-  C B f = (Q:B->U) -> Id U (Sigma A (\ y -> Q (f y))) (Sigma B Q)
-
-  rem : (Q:A->U) -> Id U (Sigma A (\ y -> Q y)) (Sigma A Q)
-  rem Q =  mapOnPath (A -> U) U (Sigma A) (\ y -> Q y) Q (funExt A (\ _ -> U) (\ y -> Q y) Q(\ y -> refl U (Q y)))
-
--- but actually this is not this consequence that we need
 
 lemSecSub : (A X Y:U)(g:X->Y) -> isEquiv X Y g -> (f:Y -> A) ->
     Id (subset1 A) (Y,f) (X,\ y -> f (g y))
@@ -46,13 +34,9 @@ lemSecSub A X = elimIsEquiv X P (\ f -> refl (subset1 A) (X,f))
   P : (Y:U) -> (X->Y) -> U
   P Y g = (f:Y -> A) -> Id (subset1 A) (Y,f) (X,\ y -> f (g y))
 
---  rem : (f:X -> A) -> Id (subset1 A) (X,f) (X,\ y -> f y)
---  rem f = mapOnPath (X->A) (subset1 A) (\ h -> (X,h)) f (\ y -> f y) 
---                 (funExt X (\ _ -> A) f (\ y -> f y) (\ y -> refl A (f y)))
-
 lem2SecSub : (A X:U) (f:X -> A) -> 
                isEquiv X (Sigma A (fiber X A f)) (\ x -> (f x,(x,refl A (f x))))
-lem2SecSub A X f = rem2
+lem2SecSub A X f =  gradLemma X Y g h rgh sgh
  where
     F : A -> U
     F = fiber X A f 
@@ -77,9 +61,6 @@ lem2SecSub A X f = rem2
 
     sw2 : Z -> Y
     sw2 z = (z.2.1,(z.1,z.2.2))
-
-    lemsw : (y:Y) -> Id Y (sw2 (sw1 y)) y
-    lemsw y = refl Y y
 
     sgh : (x:X) -> Id X (h (g x)) x
     sgh x = refl X x
@@ -117,13 +98,8 @@ lem2SecSub A X f = rem2
                               lem1 : Id Y (f x,(x,refl A (f x))) (y.1,xp)
                               lem1 = mapOnPath Z Y sw2 (x,(f x,refl A (f x))) (x,(y.1,p)) lem2
 
-
-    rem2 : isEquiv X Y g
-    rem2 = gradLemma X Y g h rgh sgh
-
-
 secsub : (A:U) -> (z : subset1 A) -> Id (subset1 A) (sub21 A (sub12 A z)) z
-secsub A z = rem1
+secsub A z = lemSecSub A z.1 Y g (lem2SecSub A z.1 z.2) h
    where
     X : U
     X = z.1
@@ -142,12 +118,6 @@ secsub A z = rem1
 
     g : X -> Y
     g x = (f x,(x,refl A (f x)))
-
-    rem2 : isEquiv X Y (\ x -> g x)
-    rem2 = lem2SecSub A X f 
-
-    rem1 : Id (subset1 A) (Y,h) (X,\ x -> f x)
-    rem1 = lemSecSub A X Y g rem2 h
 
 thmSubset : (A:U) -> Id U (subset1 A) (subset2 A)
 thmSubset A = isEquivEq (subset1 A) (subset2 A) (sub12 A) rem
