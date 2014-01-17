@@ -27,13 +27,34 @@ unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
-appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
-appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
+appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
+appName p y          | y `elem` [0,1] = VAppName p y		-- p has to be neutral
+appName (Path x u) y                  =  -- swap u x y    -- assume that u is independent of y
  if x == y then u
    else if y `elem` support u
           then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
          else swap u x y
-appName v y                  = VAppName v y
+appName v y                           = -- traceb ("appName " ++ show v ++ "\ny = " ++ show y) $ 
+ VAppName v y
+
+
+-- p(x) = <z>q(x,z)
+-- a(x) = q(x,0)     b(x) = q(x,1)
+-- q(0,y) connects a(0) and b(0)
+-- we connect q(0,0) to q(1,1)
+appDiag :: Val -> Val -> Name -> Val
+appDiag tu p x | x `elem` [0,1] = appName p x
+appDiag tu p x = 
+-- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = " 
+--                       ++ show x ++ " " ++ show y
+--                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox) 
+ com tu newBox
+   where y = fresh (p,(tu,x))
+         q = appName p y
+         a = appName p 0
+         b = appName p 1
+         newBox = Box up y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
+
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -103,7 +124,9 @@ face u xdir@(x,dir) =
         VComp $ mapBox (`face` (z,up)) b
   VInhRec b p h a -> inhrec (fc b) (fc p) (fc h) (fc a)
   VApp u v        -> app (fc u) (fc v)
-  VAppName u n    -> appName (fc u) (faceName n xdir)
+  VAppName u n    -> traceb ("face " ++ "\nxdir " ++ show xdir ++
+                             "\nu " ++ show u ++ "\nn " ++ show n) $
+                      appName (fc u) (faceName n xdir)
   VSplit u v      -> app (fc u) (fc v)
   VVar s d        -> VVar s [faceName n xdir | n <- d]
   VFst p          -> fstSVal (fc p)
@@ -205,7 +228,7 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
-inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
+inhrec b p phi (VSquash x a0 a1) = appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
         b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
@@ -217,7 +240,9 @@ inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 circlerec :: Val -> Val -> Val -> Val -> Val
 circlerec _ b _ VBase = b
-circlerec _ _ l (VLoop x) = appName l x
+circlerec f _ l v@(VLoop x) = 
+ traceb ("circlerec " ++ "\nf = " ++ show f ++ "\nl = " ++ show l ++ "\nx = " ++ show x)
+        $ appDiag (app f v) l x
 circlerec f b l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox crec box)
   where crec side u = let fc w = w `face` side
@@ -361,7 +386,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
                           -- to consider the auxsides?
       add yc = fill (lookBox yc tbox `face` (x,tdir)) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
-    in traceb ("Kan Com 1 ") $ fill v newBox
+    in error ("Kan Com 1 " ++ "\nv " ++ show v ++ "\nnewbox " ++ show newBox) -- $ fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
@@ -541,7 +566,7 @@ com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
 com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
 com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 com v box                                 = Kan Com v box
--- traceb ("com " ++ "\nv = " ++ show v ++ "\n box = " ++ showBox box) (Kan Com v box)
+ -- traceb ("com " ++ "\nv = " ++ show v ++ "\n box = " ++ show box) (Kan Com v box)
 
 appBox :: Box Val -> Box Val -> Box Val
 appBox (Box dir x v nvs) (Box _ _ u nus) = Box dir x (app v u) nvus

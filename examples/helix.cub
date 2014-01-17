@@ -18,11 +18,11 @@ S1recbase : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
   Id (F base) (S1rec F b l base) b
 S1recbase F b l = refl (F base) b
 
-S1recloop : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
-  Id (IdS S1 F base base loop b b)
-    (mapOnPathD S1 F (S1rec F b l) base base loop)
-    l
-S1recloop F b l = refl (IdS S1 F base base loop b b) l
+-- S1recloop : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
+--  Id (IdS S1 F base base loop b b)
+--    (mapOnPathD S1 F (S1rec F b l) base base loop)
+--    l
+-- S1recloop F b l = refl (IdS S1 F base base loop b b) l
 
 winding : loopS1 -> Z
 winding l = transport Z Z (rem l) zeroZ
@@ -35,6 +35,11 @@ compS1 = comp S1 base base base
 
 invS1 : loopS1 -> loopS1
 invS1 = inv S1 base base
+
+test1 : Z
+test1 = winding loop
+
+
 
 test2 : Z
 test2 = winding (compS1 loop (invS1 loop))
