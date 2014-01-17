@@ -28,9 +28,11 @@ unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
 appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
-appName (Path x u) y         = let z = fresh (u,y) in
-  swap (swap u x z) z y `face` (z,down) -- (see Pitts' concretisation,
-                                        -- Andy Pitts' Book Rem. 11.8)
+appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
+ if x == y then u
+   else if y `elem` support u
+          then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
+         else swap u x y
 appName v y                  = VAppName v y
 
 -- Compute the face of a value
@@ -299,7 +301,6 @@ fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  =
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y v
   where v = fill a $ modBox unPack box
-
         unPack :: (Name,Dir) -> Val -> Val
         unPack (z,c) v | z /= x && z /= y  = unSquare v
                        | z == y && c == up = sndVal v
