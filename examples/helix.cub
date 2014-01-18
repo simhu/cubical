@@ -39,13 +39,26 @@ invS1 = inv S1 base base
 test1 : Z
 test1 = winding loop
 
+loop2 : loopS1
+loop2 = compS1 loop loop
 
+loop4 : loopS1
+loop4 = compS1 loop2 loop2
+
+loop8 : loopS1
+loop8 = compS1 loop4 loop4
 
 test2 : Z
 test2 = winding (compS1 loop (invS1 loop))
 
 test3 : Z
-test3 = winding (invS1 (compS1 loop loop))
+test3 = winding (invS1 loop2)
+
+test4 : Z
+test4 = winding (compS1 loop4 (invS1 loop2))
+
+test5 : Z
+test5 = winding (compS1 loop8 (invS1 loop2))
 
 encode : (x : S1) -> Id S1 base x -> helix x
 encode x l = subst S1 helix base x l zeroZ
