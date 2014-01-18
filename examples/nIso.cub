@@ -154,3 +154,45 @@ testNO2 = zero'
 
 testNO3 : or N Unit
 testNO3 = add' zero' zero'
+
+step : U -> U
+step X = or X Unit
+
+lemIt : (A:U) (f:A->A) (a:A) -> Id A a (f a) -> Id A a (f (f a))
+lemIt A f a p = subst A (\ z -> Id A a (f z)) a (f a) p p
+
+isoNOIt : Id U N (step (step N))
+isoNOIt = lemIt U step N isoNO
+
+
+
+aZNIt : aZero (step (step N))
+aZNIt = subst U aZero N (step (step N)) isoNOIt aZN
+
+zeroIt : step (step N)
+zeroIt = aZNIt.1
+
+
+sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N))) 
+                                 (\ f -> (x:(step (step N))) -> Id (step (step N)) (f zeroIt x) x)
+sndaZNIt = aZNIt.2
+
+addIt : (step (step N)) -> (step (step N)) -> step (step N)
+addIt = sndaZNIt.1
+
+propAddIt : (x:step (step N)) -> Id (step (step N)) (addIt zeroIt x) x
+propAddIt = sndaZNIt.2
+
+testIt : step (step N)
+testIt = addIt (inl (inl zero)) (inl (inl (suc zero)))
+
+testIt1 : Id (step (step N)) (addIt zeroIt zeroIt) zeroIt
+testIt1 = propAddIt zeroIt
+
+testIt2 : step (step N)
+testIt2 = zeroIt
+
+testIt3 : step (step N)
+testIt3 = addIt zeroIt zeroIt
+
+

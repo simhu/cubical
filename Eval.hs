@@ -53,7 +53,7 @@ appDiag tu p x =
          q = appName p y
          a = appName p 0
          b = appName p 1
-         newBox = Box up y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
+         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
 
 -- Compute the face of a value
@@ -228,6 +228,7 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
+--  appName (face (app (app p b0) b1) (x,0)) x  should be valid as well??
 inhrec b p phi (VSquash x a0 a1) = appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
@@ -386,7 +387,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
                           -- to consider the auxsides?
       add yc = fill (lookBox yc tbox `face` (x,tdir)) (mapBox (`face` yc) box)
       newBox = [ (n,(add (n,down),add (n,up)))| n <- toAdd ] `appendBox` box
-    in error ("Kan Com 1 " ++ "\nv " ++ show v ++ "\nnewbox " ++ show newBox) -- $ fill v newBox
+    in fill v newBox
   | x' `notElem` nK =
     let principal = fill tx (mapBox (pickout (x,tdir')) boxL)
         nonprincipal =
