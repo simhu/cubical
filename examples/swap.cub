@@ -27,11 +27,11 @@ incr z = (z.1,suc z.2)
 incr' : and N Bool -> and N Bool
 incr' = subst U (\ X -> X -> X) (and Bool N) (and N Bool) (eqSwap Bool N) incr
 
-test6 : and N Bool
-test6 = incr' (zero,true)
+test1 : and N Bool
+test1 = incr' (zero,true)
 
-test7 : and N Bool
-test7 = incr' (suc zero,true)
+test2 : and N Bool
+test2 = incr' (suc zero,true)
 
 -- what happens if we compose eqSwap with itself?
 
@@ -41,11 +41,11 @@ eqSwap2 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B) (eqSwap B A)
 incr2 : and Bool N -> and Bool N
 incr2 = subst U (\ X -> X -> X) (and Bool N) (and Bool N) (eqSwap2 Bool N) incr
 
-test8 : and Bool N
-test8 = incr2 (true,zero)
+test3 : and Bool N
+test3 = incr2 (true,zero)
 
-test9 : and Bool N
-test9 = incr2 (true,suc zero)
+test4 : and Bool N
+test4 = incr2 (true,suc zero)
 
 -- what happens if we compose eqSwap with its inverse?
 
@@ -56,11 +56,11 @@ eqSwap3 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B)
 incr3 : and Bool N -> and Bool N
 incr3 = subst U (\ X -> X -> X) (and Bool N) (and Bool N) (eqSwap2 Bool N) incr
 
-test10 : and Bool N
-test10 = incr3 (true,zero)
+test5 : and Bool N
+test5 = incr3 (true,zero)
 
-test11 : and Bool N
-test11 = incr3 (true,suc zero)
+test6 : and Bool N
+test6 = incr3 (true,suc zero)
 
 -- simple example with swap and product
 
@@ -97,14 +97,11 @@ eqSigTest = eqSig U (\ X -> and X Bool) (\ X -> and Bool X) rem1
 transSigTest : (Sigma U (\ X -> and X Bool)) -> Sigma U (and Bool)
 transSigTest = transport (Sigma U (\ X -> and X Bool)) (Sigma U (\ X -> and Bool X)) eqSigTest
 
-test13 : U
-test13 = (transSigTest (Bool,(false,true))).1
+test7 : U
+test7 = (transSigTest (Bool,(false,true))).1
 
-test14 : and Bool test13
-test14 = (transSigTest (Bool,(false,true))).2
-
-test15 : Bool
-test15 = test14.1
+test8 : and Bool test7
+test8 = (transSigTest (Bool,(false,true))).2
 
 eqSig1Test : Id U (Sigma U (\ X -> and N Bool)) (Sigma U (\ X -> and Bool N))
 eqSig1Test = eqSig U (\ X -> and N Bool) (\ X -> and Bool N) rem1
@@ -122,14 +119,11 @@ eqSig2Test = eqSig N (\ _ -> and N Bool) (\ _ -> and Bool N) rem1
 transSig2Test : (Sigma N (\ X -> and N Bool)) -> Sigma N (\ _ -> and Bool N)
 transSig2Test = transport (Sigma N (\ _ -> and N Bool)) (Sigma N (\ _ -> and Bool N)) eqSig2Test
 
-test213 : N
-test213 = (transSig2Test (zero,(zero,true))).1
+test9 : N
+test9 = (transSig2Test (zero,(zero,true))).1
 
-test214 : and Bool N
-test214 =  (transSig2Test (zero,(zero,true))).2
-
-test215 : Bool
-test215 = test214.1
+test10 : and Bool N
+test10 =  (transSig2Test (zero,(zero,true))).2
 
 --- simple test
 
