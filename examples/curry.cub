@@ -38,12 +38,12 @@ eqTestInv = inv U  ((X Y:U) -> (and X Y) -> X) ((X Y:U) -> X -> Y -> X) eqTest
 test : N
 test =
  transport typFst typFst1
-  eqTest (\ X Y -> (fst X (\ _ -> Y))) N Bool zero true
+  eqTest (\ X Y z -> z.1) N Bool zero true
       
 test1 : N
 test1 =
  transport typFst typFst1
-  eqTest (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero) false
+  eqTest (\ X Y z -> z.1) N Bool (suc zero) false
 
 test2 : N
 test2 = 
@@ -64,17 +64,17 @@ eqTest4 = comp U typFst typFst1 typFst eqTest3 (inv U typFst typFst1 eqTest3)
 test4 : N
 test4 =
  transport typFst typFst
-  eqTest2 (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero,false)
+  eqTest2 (\ X Y z -> z.1) N Bool (suc zero,false)
 
 test5 : N
 test5 =
  transport typFst typFst1
-  eqTest3 (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero) false
+  eqTest3 (\ X Y z -> z.1) N Bool (suc zero) false
 
 test6 : N
 test6 =
  transport typFst typFst
-  eqTest4 (\ X Y -> (fst X (\ _ -> Y))) N Bool (suc zero,false)
+  eqTest4 (\ X Y z -> z.1) N Bool (suc zero,false)
 
 
 

@@ -4,7 +4,7 @@ import elimEquiv
 
 -- equivalence on total space
 
-lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P z.1)) (P a)
 lem3Sub A P a = lemContrSig (singl A a) (singContr A a) (\ x -> P x.1) (a,refl A a)
 
 -- a corollary of equivalence
@@ -45,7 +45,7 @@ equivSigId A = elimIsEquiv A P (\ Q -> refl U (Sigma A Q))
 liftTot :  (A:U) (P Q : A -> U) (g : (x:A) -> P x -> Q x) -> Sigma A P -> Sigma A Q
 liftTot A P Q g z = (z.1,g z.1 z.2)
 
-lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P (fst A (\ x -> Id A x a) z))) (P a)
+lem3Sub : (A:U) (P: A -> U) (a:A) -> Id U (Sigma (singl A a) (\ z -> P z.1)) (P a)
 lem3Sub A P a = lemContrSig (singl A a) (singContr A a) (\ x -> P x.1) (a,refl A a)
 
 lem2Sub : (A:U) (P: A -> U) (a:A) 
@@ -71,7 +71,7 @@ lem2Sub A P a = isoId F T f g (refl T) (refl F)
                 rem z u = ((z.1,u),z.2)
 
 
-lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (fst A P) a) (P a)
+lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (\ z -> z.1) a) (P a)
 lem1Sub A P a =
  comp U (fiber (Sigma A P) A (\ x -> x.1) a) 
         (Sigma (singl A a) (\ z -> P z.1)) (P a) (lem2Sub A P a) (lem3Sub A P a)

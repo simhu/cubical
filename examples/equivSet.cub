@@ -13,11 +13,8 @@ equivSet A B f g sfg injf setB = equivEq A B f sf tf
   fFiber : B -> U
   fFiber b = fiber A B f b
 
-  fstfFiber : (b : B) -> fFiber b -> A
-  fstfFiber b = fst A (\x -> Id B (f x) b)
-
   eqfFiber : (b : B) -> (v v' : fFiber b) ->
-             Id A (fstfFiber b v) (fstfFiber b v') -> Id (fFiber b) v v'
+             Id A v.1 v'.1 -> Id (fFiber b) v v'
   eqfFiber b = eqPropFam A (\x -> Id B (f x) b) (\x -> setB (f x) b)
 
   sf : (b : B) -> fFiber b
@@ -27,7 +24,7 @@ equivSet A B f g sfg injf setB = equivEq A B f sf tf
   tf b v = eqfFiber b (sf b) v rem
     where
     a' : A
-    a' = fstfFiber b v
+    a' = v.1
 
     rem1 : Id B (f (g b)) (f a')
     rem1 = comp B (f (g b)) b (f a') (sfg b)

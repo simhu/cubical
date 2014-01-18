@@ -20,12 +20,12 @@ lemPInj1 A B pB a0 a1 p =  subst A C a0 a1 p rem
   rem : C a0
   rem b0 b1 = mapOnPath (B a0) (Sigma A B) (\ b -> (a0,b)) b0 b1 (pB a0 b0 b1)
 
-lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (fst A B)
+lemPropInj : (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> injective (Sigma A B) A (\ z -> z.1)
 lemPropInj A B pB z0 z1 p = lemPInj1 A B pB z0.1 z1.1 p z0.2 z1.2
 
 
 lemPInj2 :  (A : U) (B : A -> U) -> (pB: (x:A) -> prop (B x)) -> (z:Sigma A B) ->
-            Id (Id (Sigma A B) z z) (refl (Sigma A B) z) (lemPropInj A B pB z z (refl A (fst A B z)))
+            Id (Id (Sigma A B) z z) (refl (Sigma A B) z) (lemPropInj A B pB z z (refl A z.1))
 lemPInj2 A B pB z = rem
    where
     T : U
@@ -71,7 +71,7 @@ lemPInj2 A B pB z = rem
 -- we should be able to deduce from all this that Omega is a set
 
 isTrue : Omega -> U
-isTrue = fst U prop
+isTrue z = z.1
 
 lemIsTrue : (x y : Omega) -> (isTrue x -> isTrue y) -> (isTrue y -> isTrue x) -> Id Omega x y
 lemIsTrue x y f g = injf x y rem
@@ -132,4 +132,3 @@ omegaIsSet = rem4
 
         rem8 : Id (Id Omega x y) (injf x y (h p)) (injf x y (h q))
         rem8 = mapOnPath (Id U (isTrue x) (isTrue y)) (Id Omega x y) (injf x y) (h p) (h q) rem5
-

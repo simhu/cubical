@@ -20,10 +20,7 @@ transpIsEquiv A = J U A (\ B p -> isEquiv A B (transport A B p)) rem
 Equiv : U -> U -> U
 Equiv A B = Sigma (A->B) (isEquiv A B)
 
-funEquiv : (A B : U) -> Equiv A B -> A -> B
-funEquiv A B = fst (A->B) (isEquiv A B)
-
-eqEquiv : (A B : U) (e0 e1:Equiv A B) -> Id (A -> B) (funEquiv A B e0) (funEquiv A B e1) -> Id (Equiv A B) e0 e1
+eqEquiv : (A B : U) (e0 e1:Equiv A B) -> Id (A -> B) e0.1 e1.1 -> Id (Equiv A B) e0 e1
 eqEquiv A B = eqPropFam (A->B) (isEquiv A B) (propIsEquiv A B)
 
 IdToEquiv : (A B:U) -> Id U A B -> Equiv A B
