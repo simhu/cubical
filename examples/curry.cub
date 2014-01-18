@@ -8,36 +8,20 @@ curry A B C f a b = f (a,b)
 uncurry : (A B C:U) -> (A -> B -> C) -> (and A B) -> C
 uncurry A B C g z = g z.1 z.2
 
-secCurry : (A B C :U) (f : (and A B) -> C) 
-            -> Id ((and A B) -> C) (uncurry A B C (curry A B C f)) f
-secCurry A B C f = funExt (and A B) (\ _ -> C) (uncurry A B C (curry A B C f)) f rem
- where 
-  rem : (z:and A B) -> Id C (uncurry A B C (curry A B C f) z) (f z)
-  rem z = refl C (f z)
-
-retCurry : (A B C :U) (g : A -> B -> C)
-            -> Id (A -> B -> C) (curry A B C (uncurry A B C g)) g
-retCurry A B C g = funExt A (\ _ -> B -> C) (curry A B C (uncurry A B C g)) g rem
- where 
-  rem : (a:A) -> Id (B -> C) (curry A B C (uncurry A B C g) a) (g a)
-  rem a = funExt B (\ _ -> C) (curry A B C (uncurry A B C g) a) (g a) rem1
-     where
-       rem1 : (b:B) -> Id C (curry A B C (uncurry A B C g) a b) (g a b)
-       rem1 b = refl C (g a b)
-
 eqCurry : (A B C : U) -> Id U ((and A B) -> C) (A -> B -> C)
-eqCurry A B C = isEquivEq ((and A B) -> C) (A -> B -> C) (curry A B C) rem
+eqCurry A B C = 
+ isEquivEq T V (curry A B C) (gradLemma T V (curry A B C) (uncurry A B C) (refl V) (refl T))
   where
-   rem : isEquiv ((and A B) -> C) (A -> B -> C) (curry A B C) 
-   rem =  gradLemma ((and A B) -> C) (A -> B -> C) 
-                 (curry A B C) (uncurry A B C) (retCurry A B C) (secCurry A B C) 
+   T:U
+   T = (and A B) -> C
+   V : U
+   V = A -> B -> C
 
 typFst : U
 typFst = (X Y:U) -> (and X Y) -> X
 
 typFst1 : U
 typFst1 = (X Y:U) -> X -> Y -> X
-
 
 eqTest : Id U typFst typFst1
 eqTest = eqPi U  (\ X -> Pi U (\ Y -> (and X Y) -> X)) (\ X -> Pi U (\ Y -> X -> Y -> X)) rem
