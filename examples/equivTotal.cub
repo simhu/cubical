@@ -27,9 +27,9 @@ elimIsEquiv A P d = \ B f if -> rem2 B (f,if)
   rem : (B:U) -> (p:Id U A B) -> P B (transport A B p)
   rem = J U A (\ B p ->  P B (transport A B p)) rem1
 
-  rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
+  rem2 : (B:U) -> (p:Equiv A B) -> P B p.1
   rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) 
-                (\ p -> P B (funEquiv A B p)) (rem B)
+                (\ p -> P B p.1) (rem B)
 
 -- a simple application; with the problem with eta conversion resolved
 
@@ -51,25 +51,14 @@ lem3Sub A P a = lemContrSig (singl A a) (singContr A a) (\ x -> P x.1) (a,refl A
 lem2Sub : (A:U) (P: A -> U) (a:A) 
          -> Id U (fiber (Sigma A P) A (\x -> x.1) a) 
                  (Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P z.1))
-lem2Sub A P a = isoId F T f g (refl T) (refl F)
- where
+lem2Sub A P a = 
+ isoId F T (\ u -> ((u.1.1,u.2),u.1.2)) (\ v -> ((v.1.1,v.2),v.1.2)) (refl T) (refl F)
+  where
    T : U
    T = Sigma (Sigma A (\ x -> Id A x a)) (\ z -> P z.1)
 
    F : U
    F = fiber (Sigma A P) A (\x -> x.1) a
-
-   f : F -> T
-   f u = rem u.1 u.2
-          where rem : (z : Sigma A P) (p : Id A z.1 a) -> T
-                rem z p = ((z.1,p),z.2)
-
-   g : T -> F
-   g w = rem w.1 w.2
-          where rem : (z: Sigma A (\x -> Id A x a)) -> (u: P z.1) -> 
-                         fiber (Sigma A P) A (\ x -> x.1) a
-                rem z u = ((z.1,u),z.2)
-
 
 lem1Sub : (A:U) (P: A -> U) (a:A) -> Id U (fiber (Sigma A P) A (\ z -> z.1) a) (P a)
 lem1Sub A P a =
