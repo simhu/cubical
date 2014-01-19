@@ -14,7 +14,7 @@ transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRe
 
 elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
               (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
-elimIsEquiv A P d = \ B f if -> rem2 B (f,if)
+elimIsEquiv A P d B f if = rem2 B (f,if)
  where 
   rem1 : P A (transport A A (refl U A))
   rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d
@@ -22,6 +22,6 @@ elimIsEquiv A P d = \ B f if -> rem2 B (f,if)
   rem : (B:U) -> (p:Id U A B) -> P B (transport A B p)
   rem = J U A (\ B p ->  P B (transport A B p)) rem1
 
-  rem2 : (B:U) -> (p:Equiv A B) -> P B (funEquiv A B p)
-  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B (funEquiv A B p)) (rem B)
+  rem2 : (B:U) -> (p:Equiv A B) -> P B p.1
+  rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B p.1) (rem B)
 
