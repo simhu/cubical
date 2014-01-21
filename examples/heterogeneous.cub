@@ -70,3 +70,35 @@ eqSubstSig A B a0 =
   where rem :(b0 b1 :B a0) -> Id U (Id (B a0) b0 b1) (Id (B a0) (subst A B a0 a0 (refl A a0) b0) b1)
         rem b0 b1 = mapOnPath (B a0) U (\ b -> Id (B a0) b b1) 
                      b0 (subst A B a0 a0 (refl A a0) b0) (substeq A B a0 b0)
+
+
+-- an application for Guillaume's example
+
+transpL : (A:U)(a b:A) -> Id A a b -> Id A a a -> Id A b b
+transpL A a b p l = (compInv A a b b p (comp A a a b l p))
+
+lemTranspL : (A:U)(a:A)(l:Id A a a) -> Id (Id A a a) l (transpL A a a (refl A a) l)
+lemTranspL A a l = rem2
+ where
+  l1 : Id A a a
+  l1 = comp A a a a l (refl A a)
+  rem : Id (Id A a a) l1 l
+  rem = compIdr A a a l
+  rem1 : Id (Id A a a) l1 (compInv A a a a (refl A a) l1) 
+  rem1 = compInvIdl' A a a l1
+  rem2 : Id (Id A a a) l (compInv A a a a (refl A a) l1) 
+  rem2 = compInv (Id A a a) l1 l (compInv A a a a (refl A a) l1) rem rem1
+
+lemTranspL1 : (A:U)(a:A)(l:Id A a a) -> Id (Id A a a) l (transpL A a a l l)
+lemTranspL1 A a l = lemInv A a a a l l
+
+lemG0 : (A:U)(a b:A)(p:Id A a b)(l : Id A a a) -> 
+        IdS A (\ x -> Id A x x) a b p l (transpL A a b p l)
+lemG0 A a = J A a (\ b p -> (l : Id A a a) -> IdS A (\ x -> Id A x x) a b p l (transpL A a b p l))
+              (lemTranspL A a)
+
+lemG1 : (A:U)(a:A)(l:Id A a a) -> IdS A (\ x -> Id A x x) a a l l l
+lemG1 A a l = 
+ substInv (Id A a a) (IdS A (\ x -> Id A x x) a a l l) l (transpL A a a l l) 
+    (lemTranspL1 A a l) (lemG0 A a a l l)
+

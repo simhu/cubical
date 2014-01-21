@@ -75,3 +75,32 @@ loopZ = split
 
 -- loopZpred : (n : Z) -> Id loopS1 (loopZ (predZ n)) (compS1 (invS1 loop) (loopZ n))
 -- loopZpred n = undefined
+
+testDan : Id U Z Z 
+testDan = mapOnPath S1 U helix base base loop
+
+funDan : Z -> Z
+funDan = transport Z Z testDan
+
+funDan1 : Z -> Z
+funDan1 = transport Z Z sucIdZ
+
+-- testDan1 : Id (Z->Z) sucZ funDan1
+-- testDan1 = refl (Z -> Z) sucZ
+
+test0 : Z
+test0 = transport Z Z testDan zeroZ
+
+vect : N -> U
+vect = split 
+         zero -> Unit
+         suc n -> and N (vect n)
+
+Peter : S1 -> N
+Peter = S1rec (\ _ -> N) zero (refl N zero)
+
+testPeter : Id N zero zero
+testPeter = mapOnPath S1 N Peter base base loop
+
+
+-- helix = S1rec (\_ -> U) Z sucIdZ

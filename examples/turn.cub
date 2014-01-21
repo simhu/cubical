@@ -1,0 +1,18 @@
+module turn where
+
+import heterogeneous
+import helix
+
+lp : (x:S1) -> Id S1 x x
+lp = S1rec (\ x -> Id S1 x x) loop (lemG1 S1 base loop)
+
+lp1 : S1 -> S1
+lp1 x = S1rec (\ _ -> S1) x (lp x) x
+
+path : Id S1 base base
+path = mapOnPath S1 S1 lp1 base base loop
+
+test : Z
+test = winding path
+
+
