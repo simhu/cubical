@@ -26,14 +26,6 @@ unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
-appName :: Val -> Name -> Val
-appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
-appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
- if x == y then u
-   else if y `elem` support u
-          then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
-         else swap u x y
-appName v y                  = VAppName v y
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -219,19 +211,20 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
-inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
+--inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
+inhrec b p phi (VSquash x a0 a1) = appName (app (app (p `face` (x,down)) b0) b1) x
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
         b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
 inhrec b p phi (Kan ktype (VInh a) box) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
-                         in inhrec (fc b) (fc p) (fc phi) v
+                           in inhrec (fc b) (fc p) (fc phi) v
 inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 circlerec :: Val -> Val -> Val -> Val -> Val
 circlerec _ b _ VBase     = b
-circlerec _ _ l (VLoop x) = appName l x
+circlerec f _ l (VLoop x) = appDiag f l x
 circlerec f b l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox crec box)
   where crec side u = let fc w = w `face` side
@@ -241,12 +234,44 @@ circlerec f b l v = VCircleRec f b l v -- v should be neutral
 intrec :: Val -> Val -> Val -> Val -> Val -> Val
 intrec _ s _ _ VStartI   = s
 intrec _ _ e _ VEndI     = e
-intrec _ _ _ l (VSegI x) = appName l x
+intrec f _ _ l (VSegI x) = appDiag f l x
 intrec f s e l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox irec box)
   where irec side u = let fc w = w `face` side
                       in intrec (fc f) (fc s) (fc e) (fc l) u
 intrec f s e l v = VIntRec f s e l v -- v should be neutral
+
+-- appName :: Val -> Name -> Val
+-- appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
+-- appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
+--  if x == y then u
+--    else if y `elem` support u
+--           then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
+--          else swap u x y
+-- appName v y                  = VAppName v y
+
+appName :: Val -> Name -> Val
+appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
+appName p y | y `elem` [0,1] = VAppName p y             -- p has to be neutral
+appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
+ if x == y then u
+   else if y `elem` support u
+          then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
+         else swap u x y
+appName v y                  = traceb ("appName " ++ show v ++ "\ny = " ++ show y) $ VAppName v y
+
+
+appDiag :: Val -> Val -> Name -> Val
+appDiag tu p x | x `elem` [0,1] = appName p x
+appDiag tu p x =
+ traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
+                       ++ show x ++ " " ++ show y) $ -- "\nnewBox =" ++ show newBox) $
+  com tu newBox
+   where y = fresh (p,(tu,x))
+         q = appName p y
+         a = appName p 0
+         b = appName p 1
+         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
 
 fstSVal :: Val -> Val
