@@ -2,3 +2,5 @@
 *.hi
 *.ho
 *.o
+dist/
+Exp/
