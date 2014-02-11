@@ -24,4 +24,4 @@ executable cubical
   build-tools:         alex, happy
   default-language:    Haskell2010
   hs-source-dirs:      .
-  other-modules:       CTT, Concrete, Eval, MTT, MTTtoCTT, Pretty
+  other-modules:       CTT, Concrete, Eval, Pretty
