@@ -10,7 +10,7 @@ import CTT
 
 -- Switch to False to turn off debugging
 debug :: Bool
-debug = False
+debug = True
 
 traceb :: String -> a -> a
 traceb s x = if debug then trace s x else x
