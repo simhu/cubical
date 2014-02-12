@@ -112,18 +112,18 @@ S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) ->
 S1rec = PN
 
 
-Int : U
-Int = PN
+I : U
+I = PN
 
-startInt : Int
-startInt = PN
+I0 : Int
+I0 = PN
 
-endInt : Int
-endInt = PN
+I1 : Int
+I1 = PN
 
-segInt : Id Int startInt endInt
-segInt = PN
+line : Id Int startInt endInt
+line = PN
 
-intrec : (F : Int -> U) (s : F startInt) (e : F endInt)
-         (l : IdS Int F startInt endInt segInt s e) (x : Int) -> F x
+intrec : (F : I -> U) (s : F I0) (e : F I1)
+         (l : IdS Int F I0 I1 line s e) (x : I) -> F x
 intrec = PN

@@ -134,17 +134,18 @@ data PN = Id | Refl
         -- S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
         | CircleRec
 
-        -- Int : U
-        | Inter
+        -- I : U
+        | I
 
-        -- startInt, endInt : Int
-        | StartInt | EndInt
+        -- I0, I1 : Int
+        | I0 | I1
 
-        -- segInt : Id Int startInt endInt
-        | SegInt
+        -- line : Id Int I0 I1
+        | Line
 
-        -- intrec : (F : Int -> U) (s : F startInt) (e : F endInt)
-        --          (l : IdS Int F startInt endInt segInt s e) (x : Int) -> F x
+
+        -- intrec : (F : I -> U) (s : F I0) (e : F I1)
+        --  (l : IdS Int F I0 I1 line s e) (x : I) -> F x
         | IntRec
 
         -- undefined constant
@@ -198,10 +199,10 @@ primHandle =
    ("base"          , 0,  Base         ),
    ("loop"          , 0,  Loop         ),
    ("S1rec"         , 4,  CircleRec    ),
-   ("Int"           , 0,  Inter        ),
-   ("startInt"      , 0,  StartInt     ),
-   ("endInt"        , 0,  EndInt       ),
-   ("segInt"        , 0,  SegInt       ),
+   ("I"             , 0,  I            ),
+   ("I0"            , 0,  I0           ),
+   ("I1"            , 0,  I1           ),
+   ("line"          , 0,  Line         ),
    ("intrec"        , 5,  IntRec       )]
 
 reservedNames :: [String]
@@ -399,10 +400,10 @@ data Val = VU
          | VLoop Name -- has type VCircle and connects base along the name
 
          -- interval
-         | VInt
-         | VStartI
-         | VEndI
-         | VSegI Name           -- connects start and end point along name
+         | VI
+         | VI0
+         | VI1
+         | VLine Name           -- connects start and end point along name
 
          -- neutral values
          | VApp Val Val            -- the first Val must be neutral
@@ -487,10 +488,10 @@ instance Nominal Val where
   support VBase                = []
   support (VLoop n)            = [n]
   support (VCircleRec f b l s) = support [f,b,l,s]
-  support VInt                 = []
-  support VStartI              = []
-  support VEndI                = []
-  support (VSegI n)            = [n]
+  support VI                   = []
+  support VI0                  = []
+  support VI1                  = []
+  support (VLine n)            = [n]
   support (VIntRec f s e l u)  = support [f,s,e,l,u]
   support v                    = error ("support " ++ show v)
 
@@ -549,10 +550,10 @@ instance Nominal Val where
     VBase              -> VBase
     VLoop z            -> VLoop (swap z x y)
     VCircleRec f b l a -> VCircleRec (sw f) (sw b) (sw l) (sw a)
-    VInt               -> VInt
-    VStartI            -> VStartI
-    VEndI              -> VEndI
-    VSegI z            -> VSegI (swap z x y)
+    VI                 -> VI
+    VI0                -> VI0
+    VI1                -> VI1
+    VLine z            -> VLine (swap z x y)
     VIntRec f s e l u  -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
 
 
@@ -674,10 +675,10 @@ showVal VCircle          = "S1"
 showVal VBase            = "base"
 showVal (VLoop x)        = "loop" <+> show x
 showVal (VCircleRec f b l s) = "S1rec" <+> showVals [f,b,l,s]
-showVal VInt             = "Int"
-showVal VStartI          = "startInt"
-showVal VEndI            = "endInt"
-showVal (VSegI n)        = "segInt" <+> show n
+showVal VI               = "I"
+showVal VI0              = "I0"
+showVal VI1              = "I1"
+showVal (VLine n)        = "line" <+> show n
 showVal (VIntRec f s e l u) = "intrec" <+> showVals [f,s,e,l,u]
 
 showDim :: Show a => [a] -> String

@@ -106,13 +106,13 @@ face u xdir@(x,dir) =
     | x == y    -> VBase
     | otherwise -> VLoop y
   VCircleRec f b l s -> circlerec (fc f) (fc b) (fc l) (fc s)
-  VInt    -> VInt
-  VStartI -> VStartI
-  VEndI   -> VEndI
-  VSegI y
-    | x == y && dir == down -> VStartI
-    | x == y && dir == up   -> VEndI
-    | otherwise             -> VSegI y
+  VI  -> VI
+  VI0 -> VI0
+  VI1 -> VI1
+  VLine y
+    | x == y && dir == down -> VI0
+    | x == y && dir == up   -> VI1
+    | otherwise             -> VLine y
   VIntRec f s e l u -> intrec (fc f) (fc s) (fc e) (fc l) (fc u)
 
 
@@ -181,10 +181,10 @@ evalPN _       Circle     []               = VCircle
 evalPN _       Base       []               = VBase
 evalPN (x:_)   Loop       []               = Path x $ VLoop x
 evalPN _       CircleRec  [f,b,l,s]        = circlerec f b l s
-evalPN _       Inter      []               = VInt
-evalPN _       StartInt   []               = VStartI
-evalPN _       EndInt     []               = VEndI
-evalPN (x:_)   SegInt     []               = Path x $ VSegI x
+evalPN _       I          []               = VI
+evalPN _       I0         []               = VI0
+evalPN _       I1         []               = VI1
+evalPN (x:_)   Line       []               = Path x $ VLine x
 evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
 evalPN _       u _ = error ("evalPN " ++ show u)
 
@@ -232,9 +232,9 @@ circlerec f b l v@(Kan ktype VCircle box) =
 circlerec f b l v = VCircleRec f b l v -- v should be neutral
 
 intrec :: Val -> Val -> Val -> Val -> Val -> Val
-intrec _ s _ _ VStartI   = s
-intrec _ _ e _ VEndI     = e
-intrec f _ _ l (VSegI x) = appDiag f l x
+intrec _ s _ _ VI0       = s
+intrec _ _ e _ VI1       = e
+intrec f _ _ l (VLine x) = appDiag f l x
 intrec f s e l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox irec box)
   where irec side u = let fc w = w `face` side
@@ -727,10 +727,10 @@ conv k VBase          VBase            = True
 conv k (VLoop x)      (VLoop y)        = x == y
 conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
   and [conv1 k f f', conv1 k b b', conv1 k l l', conv1 k v v']
-conv k VInt           VInt             = True
-conv k VStartI        VStartI          = True
-conv k VEndI          VEndI            = True
-conv k (VSegI x)      (VSegI y)        = x == y
+conv k VI             VI               = True
+conv k VI0            VI0              = True
+conv k VI1            VI1              = True
+conv k (VLine x)      (VLine y)        = x == y
 conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
   and [conv1 k f f', conv1 k s s', conv1 k e e', conv1 k l l', conv1 k u u']
 conv k _              _                = False
