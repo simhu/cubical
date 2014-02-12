@@ -118,23 +118,27 @@ quotient = toTests "quotient" [ ("test5","false")
 set :: Test
 set = toTests "set" [ ("test2" ,"<3> <4> tt") ]
 
-swap :: Test
-swap = toTests "swap" [ ("test6"  ,"pair (suc zero) true")
-                      , ("test7"  ,"pair (suc (suc zero)) true")
-                      , ("test8"  ,"pair true (suc zero)")
-                      , ("test9"  ,"pair true (suc (suc zero))")
-                      , ("test10" ,"pair true (suc zero)")
-                      , ("test11" ,"pair true (suc (suc zero))")
-                      , ("test12" ,"pair true zero")
-                      , ("test13" ,"Com U (Box 1 2 Bool [])")
-                      , ("test14" ,"pair true (vcomp (Box 1 4 false []))")
-                      , ("test15" ,"true")
-                      , ("test213","zero")
-                      , ("test214","pair true zero")
-                      , ("test215","true") ]
+-- swap :: Test
+-- swap = toTests "swap" [ ("test6"  ,"pair true (suc (suc zero))")
+--                       , ("test7"  ,"Com U (Box 1 2 Bool [])")
+--                      , ("test8"  ,"pair true (suc zero)")
+--                       , ("test9"  ,"pair true (suc (suc zero))")
+--                       , ("test10" ,"pair true (suc zero)")
+--                       , ("test11" ,"pair true (suc (suc zero))")
+--                       , ("test12" ,"pair true zero")
+--                      , ("test13" ,"Com U (Box 1 2 Bool [])")
+--                      , ("test14" ,"pair true (vcomp (Box 1 4 false []))")
+--                       , ("test15" ,"true")
+--                       , ("test213","zero")
+--                       , ("test214","pair true zero")
+--                       , ("test215","true") ]
+
+turn :: Test
+turn = toTests "turn" [ ("test", "inr (suc (suc zero))")
+                      , ("test2", "inr (suc (suc (suc (suc (suc (suc zero))))))")]
 
 tests :: Test
-tests = TestList [boolEqBool,curry,finite,guillaume,hedberg,nIso,quotient,set,swap]
+tests = TestList [boolEqBool,curry,finite,guillaume,hedberg,nIso,quotient,set,turn]
 
 main :: IO ()
 main = void $ runTestTT tests
