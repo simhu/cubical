@@ -10,7 +10,7 @@ import CTT
 
 -- Switch to False to turn off debugging
 debug :: Bool
-debug = True
+debug = False
 
 traceb :: String -> a -> a
 traceb s x = if debug then trace s x else x
@@ -42,18 +42,18 @@ appName v y                           = -- traceb ("appName " ++ show v ++ "\ny 
 -- a(x) = q(x,0)     b(x) = q(x,1)
 -- q(0,y) connects a(0) and b(0)
 -- we connect q(0,0) to q(1,1)
-appDiag :: Val -> Val -> Name -> Val
-appDiag tu p x | x `elem` [0,1] = appName p x
-appDiag tu p x = 
--- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = " 
---                       ++ show x ++ " " ++ show y
---                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox) 
- com tu newBox
-   where y = fresh (p,(tu,x))
-         q = appName p y
-         a = appName p 0
-         b = appName p 1
-         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
+-- appDiag :: Val -> Val -> Name -> Val
+-- appDiag tu p x | x `elem` [0,1] = appName p x
+-- appDiag tu p x = 
+-- -- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = " 
+-- --                       ++ show x ++ " " ++ show y
+-- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox) 
+--  com tu newBox
+--    where y = fresh (p,(tu,x))
+--          q = appName p y
+--          a = appName p 0
+--          b = appName p 1
+--          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
 
 -- Compute the face of a value
@@ -228,8 +228,8 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
---  appName (face (app (app p b0) b1) (x,0)) x  should be valid as well??
-inhrec b p phi (VSquash x a0 a1) = appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
+inhrec b p phi (VSquash x a0 a1) = appName (face (app (app p b0) b1) (x,0)) x
+  -- appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
         b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
@@ -241,14 +241,36 @@ inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 circlerec :: Val -> Val -> Val -> Val -> Val
 circlerec _ b _ VBase = b
-circlerec f _ l v@(VLoop x) = 
+circlerec f b l v@(VLoop x) =
  traceb ("circlerec " ++ "\nf = " ++ show f ++ "\nl = " ++ show l ++ "\nx = " ++ show x)
-        $ appDiag (app f v) l x
+--        $ appDiag (app f v) l x
+ com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
+ where y     = fresh [f,b,l,v]
+       pxy   = appName l y
+       theta = connection VCircle x y v
+       a     = app f theta
+       px1   = pxy `face` (y,up)
+       p11   = px1 `face` (x,up)
+       p0y   = pxy `face` (x,down)
 circlerec f b l v@(Kan ktype VCircle box) =
   kan ktype (app f v) (modBox crec box)
   where crec side u = let fc w = w `face` side
                       in circlerec (fc f) (fc b) (fc l) u
 circlerec f b l v = VCircleRec f b l v -- v should be neutral
+
+-- Assumes y is fresh and x fresh for a; constructs a connection
+-- square with faces u (x), u (y), u (1), u (1).
+connection :: Val -> Name -> Name -> Val -> Val
+connection a x y u =
+  let u1 = u `face` (x,up)
+      ufill = fill a (Box down y u1 [((x,down), swap u x y), ((x,up),u1)])
+      z = fresh ([x,y], [a,u])
+      ufillzy = swap ufill x z
+      ufillzx = swap ufillzy y x
+  in
+   com a (Box down z u1
+          [((x,down),ufillzy),((x,up),u1),((y,down),ufillzx),((y,up),u1)])
+
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a

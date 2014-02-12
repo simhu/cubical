@@ -42,4 +42,10 @@ path = mapOnPath S1 S1 lp1 base base loop
 test : Z
 test = winding path
 
+path2 : Id S1 base base
+path2 = mapOnPath S1 S1 lp1 base base (compS1 loop (compS1 loop loop))
+
+test2 : Z
+test2 = winding path2
+
 
