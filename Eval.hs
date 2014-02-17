@@ -261,48 +261,6 @@ circlerec f b l v@(Kan ktype VCircle box) =
 circlerec f b l v = VCircleRec f b l v -- v should be neutral
 
 intrec :: Val -> Val -> Val -> Val -> Val -> Val
-intrec _ s _ _ VI0       = s
-intrec _ _ e _ VI1       = e
-intrec f _ _ l (VLine x) = appDiag f l x
-intrec f s e l v@(Kan ktype VCircle box) =
-  kan ktype (app f v) (modBox irec box)
-  where irec side u = let fc w = w `face` side
-                      in intrec (fc f) (fc s) (fc e) (fc l) u
-intrec f s e l v = VIntRec f s e l v -- v should be neutral
-
--- appName :: Val -> Name -> Val
--- appName p y | y `elem` [0,1] = let x = fresh p in appName p x `face` (x,y)
--- appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
---  if x == y then u
---    else if y `elem` support u
---           then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
---          else swap u x y
--- appName v y                  = VAppName v y
-
-appName :: Val -> Name -> Val
-appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
-appName p y | y `elem` [0,1] = VAppName p y             -- p has to be neutral
-appName (Path x u) y         =  -- swap u x y    -- assume that u is independent of y
- if x == y then u
-   else if y `elem` support u
-          then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
-         else swap u x y
-appName v y                  = traceb ("appName " ++ show v ++ "\ny = " ++ show y) $ VAppName v y
-
-
-appDiag :: Val -> Val -> Name -> Val
-appDiag tu p x | x `elem` [0,1] = appName p x
-appDiag tu p x =
- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
-                       ++ show x ++ " " ++ show y) $ -- "\nnewBox =" ++ show newBox) $
-  com tu newBox
-   where y = fresh (p,(tu,x))
-         q = appName p y
-         a = appName p 0
-         b = appName p 1
-         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
-
-intrec :: Val -> Val -> Val -> Val -> Val -> Val
 intrec _ s _ _ VI0         = s
 intrec _ _ e _ VI1         = e
 intrec f s e l v@(VLine x) =
