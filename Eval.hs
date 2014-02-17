@@ -34,7 +34,7 @@ appName (Path x u) y                  =  -- swap u x y    -- assume that u is in
    else if y `elem` support u
           then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
          else swap u x y
-appName v y                           = -- traceb ("appName " ++ show v ++ "\ny = " ++ show y) $ 
+appName v y                           = -- traceb ("appName " ++ show v ++ "\ny = " ++ show y) $
  VAppName v y
 
 
@@ -44,10 +44,10 @@ appName v y                           = -- traceb ("appName " ++ show v ++ "\ny 
 -- we connect q(0,0) to q(1,1)
 -- appDiag :: Val -> Val -> Name -> Val
 -- appDiag tu p x | x `elem` [0,1] = appName p x
--- appDiag tu p x = 
--- -- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = " 
+-- appDiag tu p x =
+-- -- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
 -- --                       ++ show x ++ " " ++ show y
--- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox) 
+-- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox)
 --  com tu newBox
 --    where y = fresh (p,(tu,x))
 --          q = appName p y
@@ -137,6 +137,15 @@ face u xdir@(x,dir) =
     | x == y    -> VBase
     | otherwise -> VLoop y
   VCircleRec f b l s -> circlerec (fc f) (fc b) (fc l) (fc s)
+  VI  -> VI
+  VI0 -> VI0
+  VI1 -> VI1
+  VLine y
+    | x == y && dir == down -> VI0
+    | x == y && dir == up   -> VI1
+    | otherwise             -> VLine y
+  VIntRec f s e l u -> intrec (fc f) (fc s) (fc e) (fc l) (fc u)
+
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -203,6 +212,11 @@ evalPN _       Circle     []               = VCircle
 evalPN _       Base       []               = VBase
 evalPN (x:_)   Loop       []               = Path x $ VLoop x
 evalPN _       CircleRec  [f,b,l,s]        = circlerec f b l s
+evalPN _       I          []               = VI
+evalPN _       I0         []               = VI0
+evalPN _       I1         []               = VI1
+evalPN (x:_)   Line       []               = Path x $ VLine x
+evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
 evalPN _       u _ = error ("evalPN " ++ show u)
 
 
@@ -228,7 +242,7 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
-inhrec b p phi (VSquash x a0 a1) = appName (face (app (app p b0) b1) (x,0)) x
+inhrec b p phi (VSquash x a0 a1) = appName (face (app (app p b0) b1) (x,down)) x
   -- appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
@@ -236,7 +250,7 @@ inhrec b p phi (VSquash x a0 a1) = appName (face (app (app p b0) b1) (x,0)) x
 inhrec b p phi (Kan ktype (VInh a) box) =
   kan ktype b (modBox irec box)
     where irec (j,dir) v = let fc v = v `face` (j,dir)
-                         in inhrec (fc b) (fc p) (fc phi) v
+                           in inhrec (fc b) (fc p) (fc phi) v
 inhrec b p phi v = VInhRec b p phi v -- v should be neutral
 
 circlerec :: Val -> Val -> Val -> Val -> Val
@@ -271,6 +285,23 @@ connection a x y u =
    com a (Box down z u1
           [((x,down),ufillzy),((x,up),u1),((y,down),ufillzx),((y,up),u1)])
 
+intrec :: Val -> Val -> Val -> Val -> Val -> Val
+intrec _ s _ _ VI0         = s
+intrec _ _ e _ VI1         = e
+intrec f s e l v@(VLine x) =
+  com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
+  where y = fresh [f,s,e,l,v]
+        pxy   = appName l y
+        theta = connection VI x y v
+        a     = app f theta
+        px1   = pxy `face` (y,up)
+        p11   = px1 `face` (x,up)
+        p0y   = pxy `face` (x,down)
+intrec f s e l v@(Kan ktype VCircle box) =
+  kan ktype (app f v) (modBox irec box)
+  where irec side u = let fc w = w `face` side
+                      in intrec (fc f) (fc s) (fc e) (fc l) u
+intrec f s e l v = VIntRec f s e l v -- v should be neutral
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a
@@ -725,6 +756,12 @@ conv k VBase          VBase            = True
 conv k (VLoop x)      (VLoop y)        = x == y
 conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
   and [conv1 k f f', conv1 k b b', conv1 k l l', conv1 k v v']
+conv k VI             VI               = True
+conv k VI0            VI0              = True
+conv k VI1            VI1              = True
+conv k (VLine x)      (VLine y)        = x == y
+conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
+  and [conv1 k f f', conv1 k s s', conv1 k e e', conv1 k l l', conv1 k u u']
 conv k _              _                = False
 
 convEnv :: Int -> Env -> Env -> Bool

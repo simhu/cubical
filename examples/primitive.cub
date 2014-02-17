@@ -110,3 +110,20 @@ loop = PN
 
 S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) -> F x
 S1rec = PN
+
+
+I : U
+I = PN
+
+I0 : I
+I0 = PN
+
+I1 : I
+I1 = PN
+
+line : Id I I0 I1
+line = PN
+
+intrec : (F : I -> U) (s : F I0) (e : F I1)
+         (l : IdS I F I0 I1 line s e) (x : I) -> F x
+intrec = PN
