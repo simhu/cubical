@@ -26,6 +26,35 @@ unFillAs :: Val -> Name -> Box Val
 unFillAs (VFill x box) y = swap box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
+appName :: Val -> Name -> Val
+appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
+appName p y          | y `elem` [0,1] = VAppName p y		-- p has to be neutral
+appName (Path x u) y                  =  -- swap u x y    -- assume that u is independent of y
+ if x == y then u
+   else if y `elem` support u
+          then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
+         else swap u x y
+appName v y                           = -- traceb ("appName " ++ show v ++ "\ny = " ++ show y) $
+ VAppName v y
+
+
+-- p(x) = <z>q(x,z)
+-- a(x) = q(x,0)     b(x) = q(x,1)
+-- q(0,y) connects a(0) and b(0)
+-- we connect q(0,0) to q(1,1)
+-- appDiag :: Val -> Val -> Name -> Val
+-- appDiag tu p x | x `elem` [0,1] = appName p x
+-- appDiag tu p x =
+-- -- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
+-- --                       ++ show x ++ " " ++ show y
+-- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox)
+--  com tu newBox
+--    where y = fresh (p,(tu,x))
+--          q = appName p y
+--          a = appName p 0
+--          b = appName p 1
+--          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
+
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -211,8 +240,8 @@ eval e (Sum pr ntss)      = Ter (Sum pr ntss) e
 
 inhrec :: Val -> Val -> Val -> Val -> Val
 inhrec _ _ phi (VInc a)          = app phi a
---inhrec b p phi (VSquash x a0 a1) = appName (app (app p b0) b1) x
-inhrec b p phi (VSquash x a0 a1) = appName (app (app (p `face` (x,down)) b0) b1) x
+inhrec b p phi (VSquash x a0 a1) = appName (face (app (app p b0) b1) (x,down)) x
+  -- appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
   where fc w d = w `face` (x,d)
         b0     = inhrec (fc b down) (fc p down) (fc phi down) a0
         b1     = inhrec (fc b up)   (fc p up)   (fc phi up)   a1
@@ -273,6 +302,23 @@ appDiag tu p x =
          b = appName p 1
          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
+intrec :: Val -> Val -> Val -> Val -> Val -> Val
+intrec _ s _ _ VI0         = s
+intrec _ _ e _ VI1         = e
+intrec f s e l v@(VLine x) =
+  com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
+  where y = fresh [f,s,e,l,v]
+        pxy   = appName l y
+        theta = connection VI x y v
+        a     = app f theta
+        px1   = pxy `face` (y,up)
+        p11   = px1 `face` (x,up)
+        p0y   = pxy `face` (x,down)
+intrec f s e l v@(Kan ktype VCircle box) =
+  kan ktype (app f v) (modBox irec box)
+  where irec side u = let fc w = w `face` side
+                      in intrec (fc f) (fc s) (fc e) (fc l) u
+intrec f s e l v = VIntRec f s e l v -- v should be neutral
 
 fstSVal :: Val -> Val
 fstSVal (VSPair a b) = a

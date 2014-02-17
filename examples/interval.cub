@@ -4,7 +4,7 @@ import primitive
 
 funExt' : (A : U) (B : A -> U) (f g : (x : A) -> B x) ->
           ((x : A) -> Id (B x) (f x) (g x)) -> Id ((x : A) -> B x) f g
-funExt' A B f g ptw = mapOnPath Int ((x : A) -> B x) htpy startInt endInt segInt
+funExt' A B f g ptw = mapOnPath I ((x : A) -> B x) htpy I0 I1 line
   where
-    htpy : Int -> (x : A) -> B x
+    htpy : I -> (x : A) -> B x
     htpy i x = intrec (\_ -> B x) (f x) (g x) (ptw x) i

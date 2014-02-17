@@ -115,15 +115,15 @@ S1rec = PN
 I : U
 I = PN
 
-I0 : Int
+I0 : I
 I0 = PN
 
-I1 : Int
+I1 : I
 I1 = PN
 
-line : Id Int startInt endInt
+line : Id I I0 I1
 line = PN
 
 intrec : (F : I -> U) (s : F I0) (e : F I1)
-         (l : IdS Int F I0 I1 line s e) (x : I) -> F x
+         (l : IdS I F I0 I1 line s e) (x : I) -> F x
 intrec = PN
