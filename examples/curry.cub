@@ -9,7 +9,7 @@ uncurry : (A B C:U) -> (A -> B -> C) -> (and A B) -> C
 uncurry A B C g z = g z.1 z.2
 
 eqCurry : (A B C : U) -> Id U ((and A B) -> C) (A -> B -> C)
-eqCurry A B C = 
+eqCurry A B C =
  isEquivEq T V (curry A B C) (gradLemma T V (curry A B C) (uncurry A B C) (refl V) (refl T))
   where
    T:U
@@ -25,8 +25,8 @@ typFst1 = (X Y:U) -> X -> Y -> X
 
 eqTest : Id U typFst typFst1
 eqTest = eqPi U  (\ X -> Pi U (\ Y -> (and X Y) -> X)) (\ X -> Pi U (\ Y -> X -> Y -> X)) rem
- where 
-  rem : (X:U) -> Id U (Pi U (\ Y -> (and X Y) -> X)) (Pi U (\ Y -> X -> Y -> X)) 
+ where
+  rem : (X:U) -> Id U (Pi U (\ Y -> (and X Y) -> X)) (Pi U (\ Y -> X -> Y -> X))
   rem X = eqPi U (\ Y -> (and X Y) -> X) (\ Y -> X -> Y -> X) rem1
     where
      rem1 : (Y:U) -> Id U ((and X Y) -> X) (X -> Y -> X)
@@ -39,17 +39,17 @@ test : N
 test =
  transport typFst typFst1
   eqTest (\ X Y z -> z.1) N Bool zero true
-      
+
 test1 : N
 test1 =
  transport typFst typFst1
   eqTest (\ X Y z -> z.1) N Bool (suc zero) false
 
 test2 : N
-test2 = 
+test2 =
  transport typFst1 typFst
   eqTestInv (\ X Y a b -> a) N Bool (zero,true)
-      
+
 -- more test for the equality in U
 
 eqTest2 : Id U typFst typFst

@@ -77,7 +77,7 @@ or : U -> U -> U
 data or A B = inl (a : A) | inr (b : B)
 
 orElim : (A B C:U) -> (A->C) -> (B -> C) -> or A B -> C
-orElim A B C f g = 
+orElim A B C f g =
  split
   inl a -> f a
   inr b -> g b
@@ -130,10 +130,10 @@ notK = split
   false -> refl Bool (false)
 
 appId : (A B : U) (a : A) (f0 f1 : A -> B) -> Id (A -> B) f0 f1 -> Id B (f0 a) (f1 a)
-appId A B a = mapOnPath (A->B) B (\ f -> f a) 
+appId A B a = mapOnPath (A->B) B (\ f -> f a)
 
 appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
-appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a) 
+appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 
 -- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
 
@@ -145,7 +145,7 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
 
 tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
 tId A a z = rem (z.1) a (z.2)
-   where 
+   where
     rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
     rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p)) (refl (pathTo A x) (sId A x))
 
@@ -189,10 +189,10 @@ propNeg A = isPropProd A (\ _ -> N0) (\ _ -> propN0)
 
 lemProp2 : (A : U) -> prop A -> prop (dec A)
 lemProp2 A pA  = split
- inl a -> split 
+ inl a -> split
            inl b -> mapOnPath A (dec A) (\ x -> inl x) a b (pA a b)
            inr nb -> efq (Id (dec A) (inl a) (inr nb)) (nb a)
- inr na -> split 
+ inr na -> split
            inl b -> efq (Id (dec A) (inr na) (inl b)) (na b)
            inr nb -> mapOnPath (neg A) (dec A) (\ x -> inr x) na nb (propNeg A na nb)
 
@@ -243,7 +243,7 @@ natDec = split
                        (mapOnPath N N (\ x -> suc x) n m) (sucInj n m) (natDec n m)
 
 propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
-propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x)) 
+propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
 
 propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
 propImply A B h = propPi A (\_ -> B) h
@@ -278,18 +278,18 @@ eqToInvEucl A R eq a b c p q =
 -- needed for Nicolai Kraus example
 
 defCase : (A X:U) -> X -> X -> dec A -> X
-defCase A X x0 x1 = 
+defCase A X x0 x1 =
  split
   inl _ -> x0
   inr _ -> x1
 
-IdDefCasel : (A X:U) (x0 x1 : X) (p : dec A)  -> A -> 
+IdDefCasel : (A X:U) (x0 x1 : X) (p : dec A)  -> A ->
              Id X (defCase A X x0 x1 p) x0
 IdDefCasel A X x0 x1 = split
  inl _ -> \ _ -> refl X x0
  inr v -> \ u -> efq (Id X (defCase A X x0 x1 (inr v)) x0) (v u)
 
-IdDefCaser : (A X:U) (x0 x1 : X) (p : dec A)  -> (neg A) -> 
+IdDefCaser : (A X:U) (x0 x1 : X) (p : dec A)  -> (neg A) ->
              Id X (defCase A X x0 x1 p) x1
 IdDefCaser A X x0 x1 = split
  inl u -> \ v -> efq (Id X (defCase A X x0 x1 (inl u)) x1) (v u)
