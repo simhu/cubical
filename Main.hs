@@ -83,6 +83,13 @@ imports st@(notok,loaded,defs) f
 -- defs env          _ =
 --   error $ "defs: environment should a list of definitions " ++ show env
 
+getConstructors :: [Def] -> [String]
+getConstructors [] = []
+getConstructors (DefData _ _ lbls:defs) =
+  [ unIdent n | Sum n _ <- lbls] ++ getConstructors defs
+getConstructors (DefMutual ds:ds') = getConstructors ds ++ getConstructors ds'
+getConstructors (_:ds) = getConstructors ds
+
 -- The Bool is intended to be whether or not to run in debug mode
 runInterpreter :: Bool -> [FilePath] -> Interpreter ()
 runInterpreter b fs = case fs of
@@ -90,7 +97,7 @@ runInterpreter b fs = case fs of
     -- parse and type-check files
     (_,_,defs) <- imports ([],[],[]) f
     -- Compute all constructors
-    let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
+    let cs = getConstructors defs
     let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
     case res of
       Left err    -> do

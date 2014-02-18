@@ -194,7 +194,7 @@ resolveDefs (DefTDecl n e:d:ds) = do
   xd <- checkDef (unIdent n,d)
   rest <- resolveDefs ds
   return $ ([(unIdent n, e')],[xd]) : rest
--- resolveDefs (Mutual defs:ds) = resolveMutual defs <:> resolveDefs ds
+resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
 resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
 
 checkDef :: (String,Def) -> Resolver (String,C.Ter)

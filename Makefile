@@ -1,7 +1,7 @@
 all: 
 	ghc --make -o cubical Main.hs
 bnfc:
-	bnfc -d Exp.cf
+	bnfc --haskell -d Exp.cf
 	happy -gca Exp/Par.y
 	alex -g Exp/Lex.x
 	ghc --make Exp/Test.hs -o Exp/Test

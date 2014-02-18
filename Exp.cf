@@ -3,7 +3,7 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "of", "split" ; -- , "mutual" ;
+layout "where", "let", "of", "split", "mutual" ;
 layout stop "in" ;
 -- Do not use layout toplevel as it makes pExp fail!
 
@@ -15,9 +15,7 @@ separator Imp ";" ;
 Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
 DefTDecl.  Def ::= AIdent ":" Exp ;
 DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
--- Warning: This does not work unless one puts a semicolon after the
--- definition on the line before the mutual block because of a bug in BNFC.
--- Mutual.    Def ::= "mutual" "{" [Def] "}" ;
+DefMutual. Def ::= "mutual" "{" [Def] "}" ;
 separator  Def ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;
