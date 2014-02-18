@@ -14,7 +14,7 @@ import Exp.Print
 import Exp.Abs hiding (NoArg)
 import Exp.Layout
 import Exp.ErrM
-import Concrete
+import Concrete hiding (getConstrs)
 import qualified TypeChecker as TC
 import qualified CTT as C
 import qualified Eval as E
@@ -45,99 +45,116 @@ showTree tree = do
   putStrLn $ "\n[Abstract Syntax]\n\n" ++ show tree
   putStrLn $ "\n[Linearized tree]\n\n" ++ printTree tree
 
+-- Used for auto completion
+searchFunc :: [String] -> String -> [Completion]
+searchFunc ns str = map simpleCompletion $ filter (str `isPrefixOf`) ns
+
+settings :: [String] -> Settings IO
+settings ns = Settings
+  { historyFile    = Nothing
+  , complete       = completeWord Nothing " \t" $ return . searchFunc ns
+  , autoAddHistory = True }
+
 main :: IO ()
 main = do
   args <- getArgs
   (flags,files) <- parseOpts args
-  runInputT defaultSettings $ runInterpreter (Debug `elem` flags) files
+  -- Should it be run in debugging mode?
+  let b = Debug `elem` flags
+  case files of
+    [f] -> do
+      (cs,env) <- initInterpreter b f
+      -- All the names for auto completion
+      let ns = cs ++ namesEnv env
+      runInputT (settings ns) (loop b f cs env)
+    _   -> do
+      putStrLn $ "Exactly one file expected: " ++ show files
+      runInputT (settings []) (loop b [] [] TC.tEmpty)
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
-imports :: ([String],[String],[Def]) -> String -> Interpreter ([String],[String],[Def])
+imports :: ([String],[String],[Def]) -> String -> IO ([String],[String],[Def])
 imports st@(notok,loaded,defs) f
-  | f `elem` notok  = do
-    outputStrLn $ "Looping imports in " ++ f
-    return ([],[],[])
+  | f `elem` notok  = putStrLn ("Looping imports in " ++ f) >> return ([],[],[])
   | f `elem` loaded = return st
   | otherwise       = do
-    b <- lift $ doesFileExist f
+    b <- doesFileExist f
     if not b
-      then do
-        outputStrLn ("The file " ++ f ++ " does not exist")
-        return ([],[],[])
+      then putStrLn (f ++ " does not exist") >> return ([],[],[])
       else do
-        s <- lift $ readFile f
+        s <- readFile f
         let ts = lexer s
         case pModule ts of
           Bad s  -> do
-            outputStrLn $ "Parse Failed in file " ++ show f ++ "\n" ++ show s
+            putStrLn $ "Parse failed in " ++ show f ++ "\n" ++ show s
             return ([],[],[])
           Ok mod@(Module _ imps defs') -> do
             let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
             (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
-            outputStrLn $ "Parsed file " ++ show f ++ " successfully!"
+            putStrLn $ "Parsed " ++ show f ++ " successfully!"
             return (notok,f:loaded1,def1 ++ defs')
 
--- defs :: C.Env -> C.Ter -> C.Ter
--- defs C.Empty        t = t
--- defs (C.PDef d env) t = defs env (C.Where t d)
--- defs env          _ =
---   error $ "defs: environment should a list of definitions " ++ show env
 
-getConstructors :: [Def] -> [String]
-getConstructors [] = []
-getConstructors (DefData _ _ lbls:defs) =
-  [ unIdent n | Sum n _ <- lbls] ++ getConstructors defs
-getConstructors (DefMutual ds:ds') = getConstructors ds ++ getConstructors ds'
-getConstructors (_:ds) = getConstructors ds
+getConstrs :: [Def] -> [String]
+getConstrs []                  = []
+getConstrs (DefData _ _ ls:ds) = [ unIdent n | Sum n _ <- ls] ++ getConstrs ds
+getConstrs (DefMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
+getConstrs (_:ds)              = getConstrs ds
+
+namesEnv :: TC.TEnv -> [String]
+namesEnv (TC.TEnv _ env ctxt) = namesCEnv env ++ map fst ctxt
+  where namesCEnv C.Empty          = []
+        namesCEnv (C.Pair e (b,_)) = namesCEnv e ++ [b]
+        namesCEnv (C.PDef xs e)    = map fst xs ++ namesCEnv e
 
 -- The Bool is intended to be whether or not to run in debug mode
-runInterpreter :: Bool -> [FilePath] -> Interpreter ()
-runInterpreter b fs = case fs of
-  [f] -> do
-    -- parse and type-check files
-    (_,_,defs) <- imports ([],[],[]) f
-    -- Compute all constructors
-    let cs = getConstructors defs
-    let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
-    case res of
-      Left err    -> do
-        outputStrLn $ "Resolver failed: " ++ err
-        loop [] TC.tEmpty
-      Right adefs -> case TC.runDefs TC.tEmpty adefs of
-        Left err   -> do
-          outputStrLn $ "Type checking failed: " ++ err
-          loop [] TC.tEmpty
-        Right tenv -> do
-          outputStrLn "File loaded."
-          loop cs tenv
-  _   -> do
-    outputStrLn $ "Exactly one file expected: " ++ show fs
-    loop [] TC.tEmpty
-  where
-    loop :: [String] -> TC.TEnv -> Interpreter ()
-    loop cs tenv@(TC.TEnv _ rho _) = do
-      input <- getInputLine defaultPrompt
-      case input of
-        Nothing    -> outputStrLn help >> loop cs tenv
-        Just ":q"  -> return ()
-        Just ":r"  -> runInterpreter b fs
-        Just (':':'l':' ':str) -> runInterpreter b (words str)
-        Just (':':'c':'d':' ':str) -> lift (setCurrentDirectory str) >> loop cs tenv
-        Just ":h"  -> outputStrLn help >> loop cs tenv
-        Just str   -> let ts = lexer str in
-          case pExp ts of
-            Bad err -> outputStrLn ("Parse error: " ++ err) >> loop cs tenv
-            Ok exp  ->
-              case runResolver (local (const (Env cs)) (resolveExp exp)) of
-                Left err   -> outputStrLn ("Resolver failed: " ++ err) >> loop cs tenv
-                Right body ->
-                  case TC.runInfer tenv body of
-                    Left err -> outputStrLn ("Could not type-check: " ++ err) >> loop cs tenv
-                    Right _  ->
-                      let value = E.eval rho body
-                          -- t = defs rho body
-                          -- value = E.eval C.Empty t
-                      in outputStrLn ("EVAL: " ++ show value) >> loop cs tenv
+initInterpreter :: Bool -> FilePath -> IO ([String],TC.TEnv)
+initInterpreter b f = do
+  -- Parse and type-check files
+  (_,_,defs) <- imports ([],[],[]) f
+  -- Compute all constructors
+  let cs  = getConstrs defs
+  -- Translate to CTT
+  let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
+  case res of
+    Left err    -> do
+      putStrLn $ "Resolver failed: " ++ err
+      return (cs,TC.tEmpty)
+    Right adefs -> case TC.runDefs TC.tEmpty adefs of
+      Left err   -> do
+        putStrLn $ "Type checking failed: " ++ err
+        return (cs,TC.tEmpty)
+      Right tenv -> do
+        putStrLn "File loaded."
+        return (cs,tenv)
+
+loop :: Bool -> FilePath -> [String] -> TC.TEnv -> Interpreter ()
+loop b f cs tenv@(TC.TEnv _ rho _) = do
+  input <- getInputLine defaultPrompt
+  case input of
+    Nothing    -> outputStrLn help >> loop b f cs tenv
+    Just ":q"  -> return ()
+    Just ":r"  -> do (_,env) <- lift $ initInterpreter b f
+                     loop b f cs env
+    Just (':':'l':' ':str) -> do
+      if ' ' `elem` str
+        then outputStrLn "Only one file allowed after :l" >> loop b f cs tenv
+        else do (cs',env) <- lift $ initInterpreter b str
+                -- TODO: The auto completion list should be updated
+                loop b str cs' env
+    Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
+                                     loop b f cs tenv
+    Just ":h"  -> outputStrLn help >> loop b f cs tenv
+    Just str   -> case pExp (lexer str) of
+      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop b f cs tenv
+      Ok exp  -> case runResolver (local (const (Env cs)) (resolveExp exp)) of
+        Left err   -> do outputStrLn ("Resolver failed: " ++ err)
+                         loop b f cs tenv
+        Right body -> case TC.runInfer tenv body of
+          Left err -> do
+            outputStrLn ("Could not type-check: " ++ err)
+            loop b f cs tenv
+          Right _  -> do outputStrLn ("EVAL: " ++ show (E.eval rho body))
+                         loop b f cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++
