@@ -19,21 +19,29 @@ evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals e = map (second (eval e))
 
 unCompAs :: Val -> Name -> Box Val
-unCompAs (VComp box) y = swap box (pname box) y
+unCompAs u@(VComp box) y =
+  if y `elem` support u
+    then error $ "unCompAs: " ++ show y ++ " not fresh in " ++
+           show u ++ " while renaming with " ++ show (pname box)
+    else rename box (pname box) y
 unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
 
 unFillAs :: Val -> Name -> Box Val
-unFillAs (VFill x box) y = swap box x y
+unFillAs u@(VFill x box) y =
+  if y `elem` support u
+    then error $ "unFillAs: " ++ show y ++ " not fresh in " ++
+           show u ++ " while renaming with " ++ show x
+    else rename box x y
 unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 
 appName :: Val -> Name -> Val
 appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
 appName p y          | y `elem` [0,1] = VAppName p y		-- p has to be neutral
-appName (Path x u) y                  =  -- swap u x y    -- assume that u is independent of y
+appName (Path x u) y                  =  -- rename u x y    -- assume that u is independent of y
  if x == y then u
    else if y `elem` support u
           then error ("appName " ++ "\nu = " ++ show u ++ "\ny = " ++ show y)
-         else swap u x y
+         else rename u x y
 appName v y                           = -- traceb ("appName " ++ show v ++ "\ny = " ++ show y) $
  VAppName v y
 
@@ -277,10 +285,10 @@ circlerec f b l v = VCircleRec f b l v -- v should be neutral
 connection :: Val -> Name -> Name -> Val -> Val
 connection a x y u =
   let u1 = u `face` (x,up)
-      ufill = fill a (Box down y u1 [((x,down), swap u x y), ((x,up),u1)])
+      ufill = fill a (Box down y u1 [((x,down), rename u x y), ((x,up),u1)])
       z = fresh ([x,y], [a,u])
-      ufillzy = swap ufill x z
-      ufillzx = swap ufillzy y x
+      ufillzy = rename ufill x z
+      ufillzx = rename ufillzy y x
   in
    com a (Box down z u1
           [((x,down),ufillzy),((x,up),u1),((y,down),ufillzx),((y,up),u1)])
@@ -369,6 +377,7 @@ fill (VSigma a f) box@(Box dir x v nvs) =
     where u = fill a (mapBox fstSVal box)
 -- assumes cvs are constructor vals
 fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _)  =
+  traceb ("v = " ++ show v)
  VCon n ws
   where as = case lookup n nass of
                Just as -> as
@@ -477,7 +486,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
         nJ    = nonPrincipal box
         z     = fresh (tbox', box)
         -- x is z
-        tbox@(Box tdir x tx nvs) = swap tbox' (pname tbox') z
+        tbox@(Box tdir x tx nvs) = rename tbox' (pname tbox') z
         toAdd = nK \\ (x' : nJ)
         nL    = nJ \\ nK
         boxL  = subBox nL box
@@ -651,7 +660,7 @@ app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box up y pvxw [((x,down),left)
   where y     = fresh (vext, w)
         w0    = w `face` (x,down)
         left  = app fv w0
-        right = app gv (swap w x y)
+        right = app gv (rename w x y)
         pvxw  = appName (app pv w0) x
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
@@ -696,11 +705,11 @@ conv k (VPi u v) (VPi u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
 conv k (VSigma u v) (VSigma u' v') = conv1 k u u' && conv1 (k+1) (app v w) (app v' w)
     where w = mkVar k $ support [u,u',v,v']
 conv k (VId a u v) (VId a' u' v') = and [conv1 k a a', conv1 k u u', conv1 k v v']
-conv k (Path x u) (Path x' u')    = conv1 k (swap u x z) (swap u' x' z)
+conv k (Path x u) (Path x' u')    = conv1 k (rename u x z) (rename u' x' z)
   where z = fresh (u,u')
-conv k (Path x u) p'              = conv1 k (swap u x z) (appName p' z)
+conv k (Path x u) p'              = conv1 k (rename u x z) (appName p' z)
   where z = fresh u
-conv k p (Path x' u')             = conv1 k (appName p z) (swap u' x' z)
+conv k p (Path x' u')             = conv1 k (appName p z) (rename u' x' z)
   where z = fresh u'
 conv k (VExt x b f g p) (VExt x' b' f' g' p') =
   and [x == x', conv1 k b b', conv1 k f f', conv1 k g g', conv1 k p p']
@@ -715,15 +724,15 @@ conv k (VCon c us) (VCon c' us') =
 conv k (Kan Fill v box) (Kan Fill v' box')    =
   and $ [conv1 k v v', convBox k box box']
 conv k (Kan Com v box) (Kan Com v' box')      =
-  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
+  and $ [conv1 k v v', convBox k (rename box x y) (rename box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VComN v box) (VComN v' box')      =
-  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
+  and $ [conv1 k v v', convBox k (rename box x y) (rename box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VFillN v box) (VFillN v' box')      =
-  and $ [conv1 k v v', convBox k (swap box x y) (swap box' x' y)]
+  and $ [conv1 k v v', convBox k (rename box x y) (rename box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VEquivEq x a b f s t) (VEquivEq x' a' b' f' s' t') =
@@ -736,11 +745,11 @@ conv k (VPair x u v) (VPair x' u' v')     =
 conv k (VSquare x y u) (VSquare x' y' u') =
   and [x == x', y == y', conv1 k u u']
 conv k (VComp box) (VComp box')           =
-  convBox k (swap box x y) (swap box' x' y)
+  convBox k (rename box x y) (rename box' x' y)
   where y      = fresh (box,box')
         (x,x') = (pname box, pname box')
 conv k (VFill x box) (VFill x' box')      =
-  convBox k (swap box x y) (swap box' x' y)
+  convBox k (rename box x y) (rename box' x' y)
   where y      = fresh (box,box')
 conv k (VSPair u v)   (VSPair u' v')   = conv1 k u u' && conv1 k v v'
 conv k (VSPair u v)   w                = conv1 k u (fstSVal w) && conv1 k v (sndSVal w)

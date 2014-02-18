@@ -118,8 +118,8 @@ quotient = toTests "quotient" [ ("test5","false")
 set :: Test
 set = toTests "set" [ ("test2" ,"<3> <4> tt") ]
 
--- swap :: Test
--- swap = toTests "swap" [ ("test6"  ,"pair true (suc (suc zero))")
+-- rename :: Test
+-- rename = toTests "rename" [ ("test6"  ,"pair true (suc (suc zero))")
 --                       , ("test7"  ,"Com U (Box 1 2 Bool [])")
 --                      , ("test8"  ,"pair true (suc zero)")
 --                       , ("test9"  ,"pair true (suc (suc zero))")

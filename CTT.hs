@@ -228,7 +228,7 @@ gensyms :: Dim -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
 
 class Nominal a where
-  swap :: a -> Name -> Name -> a
+  rename :: a -> Name -> Name -> a
   support :: a -> [Name]
 
 fresh :: Nominal a => a -> Name
@@ -239,11 +239,11 @@ freshs = gensyms . support
 
 instance (Nominal a, Nominal b) => Nominal (a, b) where
   support (a, b)  = support a `union` support b
-  swap (a, b) x y = (swap a x y, swap b x y)
+  rename (a, b) x y = (rename a x y, rename b x y)
 
 instance Nominal a => Nominal [a]  where
   support vs  = unions (map support vs)
-  swap vs x y = [swap v x y | v <- vs]
+  rename vs x y = [rename v x y | v <- vs]
 
 -- Make Name an instance of Nominal
 instance Nominal Integer where
@@ -251,8 +251,7 @@ instance Nominal Integer where
   support 1 = []
   support n = [n]
 
-  swap z x y | z == x    = y
-             | z == y    = x
+  rename z x y | z == x    = y
              | otherwise = z
 
 --------------------------------------------------------------------------------
@@ -339,8 +338,10 @@ transposeBox (Box dir x (v:vs) nvss) =
 -- Nominal for boxes
 instance Nominal a => Nominal (Box a) where
   support (Box dir n v nvs)  = support ((n, v), nvs)
-  swap (Box dir z v nvs) x y = Box dir z' v' nvs' where
-    ((z',v'), nvs') = swap ((z, v), nvs) x y
+
+  rename u x y | x == y        = u
+  rename (Box dir z v nvs) x y = Box dir z' v' nvs' where
+    ((z',v'), nvs') = rename ((z, v), nvs) x y
 
 --------------------------------------------------------------------------------
 -- | Values
@@ -495,52 +496,59 @@ instance Nominal Val where
   support (VIntRec f s e l u)  = support [f,s,e,l,u]
   support v                    = error ("support " ++ show v)
 
-  swap u x y =
-    let sw u = swap u x y in case u of
+  rename u x y | x == y = u
+  rename u x y | y `elem` support u = error $ "rename: " ++ show y ++ " not fresh in " ++ show u ++ " while renaming with " ++ show x
+  rename u x y =
+    let sw u = rename u x y in case u of
     VU          -> VU
-    Ter t e     -> Ter t (swap e x y)
+    Ter t e     -> Ter t (rename e x y)
     VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
-    Path z v | z /= x && z /= y    -> Path z (sw v)
+    Path z v | z == x    -> u
+             | z /= y    -> Path z (sw v)
              | otherwise -> let z' = fresh ([x, y], v)
-                                v' = swap v z z'
+                                v' = rename v z z'
                             in Path z' (sw v')
-    VExt z b f g p  -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
+    VExt z b f g p  -> VExt (rename z x y) (sw b) (sw f) (sw g) (sw p)
     VPi a f         -> VPi (sw a) (sw f)
     VInh v          -> VInh (sw v)
     VInc v          -> VInc (sw v)
-    VSquash z v0 v1 -> VSquash (swap z x y) (sw v0) (sw v1)
+    VSquash z v0 v1 -> VSquash (rename z x y) (sw v0) (sw v1)
     VCon c us       -> VCon c (map sw us)
     VEquivEq z a b f s t ->
-      VEquivEq (swap z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
-    VPair z a v  -> VPair (swap z x y) (sw a) (sw v)
+      VEquivEq (rename z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
+    VPair z a v  -> VPair (rename z x y) (sw a) (sw v)
     VEquivSquare z w a s t ->
-      VEquivSquare (swap z x y) (swap w x y) (sw a) (sw s) (sw t)
-    VSquare z w v -> VSquare (swap z x y) (swap w x y) (sw v)
-    Kan Fill a b  -> Kan Fill (sw a) (swap b x y)
-    VFillN a b    -> VFillN (sw a) (swap b x y)
+      VEquivSquare (rename z x y) (rename w x y) (sw a) (sw s) (sw t)
+    VSquare z w v -> VSquare (rename z x y) (rename w x y) (sw v)
+    Kan Fill a b  -> Kan Fill (sw a) (rename b x y)
+    VFillN a b    -> VFillN (sw a) (rename b x y)
     Kan Com a b@(Box _ z _ _)
-      | z /= x && z /= y -> Kan Com (sw a) (swap b x y)
+      | z == x    -> u
+      | z /= y    -> Kan Com (sw a) (rename b x y)
       | otherwise -> let z' = fresh ([x, y], u)
-                         a' = swap a z z'
-                     in sw (Kan Com a' (swap b z z'))
+                         a' = rename a z z'
+                     in sw (Kan Com a' (rename b z z'))
     VComN a b@(Box _ z _ _)
-      | z /= x && z /= y -> VComN (sw a) (swap b x y)
+      | z == x    -> u
+      | z /= y    -> VComN (sw a) (rename b x y)
       | otherwise -> let z' = fresh ([x, y], u)
-                         a' = swap a z z'
-                     in sw (VComN a' (swap b z z'))
+                         a' = rename a z z'
+                     in sw (VComN a' (rename b z z'))
     VComp b@(Box _ z _ _)
-      | z /= x && z /= y -> VComp (swap b x y)
+      | z == x    -> u
+      | z /= y    -> VComp (rename b x y)
       | otherwise -> let z' = fresh ([x, y], u)
-                     in sw (VComp (swap b z z'))
+                     in sw (VComp (rename b z z'))
     VFill z b@(Box dir n _ _)
-      | z /= x && z /= x -> VFill z (swap b x y)
-      | otherwise        -> let
+      | z == x    -> u
+      | z /= y    -> VFill z (rename b x y)
+      | otherwise -> let
         z' = fresh ([x, y], b)
-        in sw (VFill z' (swap b z z'))
+        in sw (VFill z' (rename b z z'))
     VApp u v           -> VApp (sw u) (sw v)
-    VAppName u n       -> VAppName (sw u) (swap n x y)
+    VAppName u n       -> VAppName (sw u) (rename n x y)
     VSplit u v         -> VSplit (sw u) (sw v)
-    VVar s d           -> VVar s (swap d x y)
+    VVar s d           -> VVar s (rename d x y)
     VSigma u v         -> VSigma (sw u) (sw v)
     VSPair u v         -> VSPair (sw u) (sw v)
     VFst u             -> VFst (sw u)
@@ -548,12 +556,12 @@ instance Nominal Val where
     VInhRec b p h a    -> VInhRec (sw b) (sw p) (sw h) (sw a)
     VCircle            -> VCircle
     VBase              -> VBase
-    VLoop z            -> VLoop (swap z x y)
+    VLoop z            -> VLoop (rename z x y)
     VCircleRec f b l a -> VCircleRec (sw f) (sw b) (sw l) (sw a)
     VI                 -> VI
     VI0                -> VI0
     VI1                -> VI1
-    VLine z            -> VLine (swap z x y)
+    VLine z            -> VLine (rename z x y)
     VIntRec f s e l u  -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
 
 
@@ -574,7 +582,7 @@ instance Show Env where
       showEnv1 e                = show e
 
 instance Nominal Env where
-  swap e x y = mapEnv (\u -> swap u x y) e
+  rename e x y = mapEnv (\u -> rename u x y) e
 
   support Empty          = []
   support (Pair e (_,v)) = support (e, v)
