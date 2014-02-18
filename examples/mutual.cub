@@ -1,0 +1,29 @@
+module mutualtest where
+
+import prelude
+
+mutual
+  even : N -> Bool
+  odd : N -> Bool
+
+  even = split
+    zero  -> true
+    suc n -> odd n
+  odd = split
+    zero  -> false
+    suc n -> even n
+
+testEven3 : Bool
+testEven3 = even (suc (suc (suc zero)))
+
+mutual
+  V : U
+  T : V -> U
+
+  data V = nat | pi (a : V) (b : T a -> V)
+
+  T = split
+    nat -> N
+    pi a b -> Pi (T a) (\x -> T (b x))
+
+  
