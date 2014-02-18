@@ -533,7 +533,7 @@ instance Nominal Val where
       | otherwise -> let z' = fresh ([x, y], u)
                      in sw (VComp (swap b z z'))
     VFill z b@(Box dir n _ _)
-      | z /= x && z /= x -> VFill z (swap b x y)
+      | z /= x && z /= y -> VFill z (swap b x y)
       | otherwise        -> let
         z' = fresh ([x, y], b)
         in sw (VFill z' (swap b z z'))
