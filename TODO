@@ -3,12 +3,11 @@ TODO:
 - review the code for the filling of the universe
 - find the right abstraction for Box manipulation
   (more functional, less association lists in the abstraction)
-- fix mutual in bnfc
 - abstract names and dim (remove hack with {0,1} + ...)
 - monadic eval(?(!))
 - find a characterization for neutral values
 - eta for constructors
-- reorganize the primitive notions 
+- reorganize the primitive notions
   - subst can be defined in terms of transport
   - J in terms of mapOnPath, transport and contractible
 - fix showVal for
@@ -20,6 +19,5 @@ TODO:
 
 *Low priority*
 - rudimentary emacs mode (send the current buffer to a process)
-- auto-completion in the main loop
 - namespacing
 - make the import system-independent
