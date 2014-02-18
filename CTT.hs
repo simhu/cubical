@@ -269,79 +269,87 @@ up, down :: Dir
 up   = 1
 down = 0
 
-type Side = (Name,Dir)
+type Side = (Name,Interval)
+
+type Interval = Integer
 
 allDirs :: [Name] -> [Side]
 allDirs []     = []
 allDirs (n:ns) = (n,down) : (n,up) : allDirs ns
 
-data Box a = Box { dir   :: Dir
-                 , pname :: Name
-                 , pface :: a
-                 , sides :: [(Side,a)] }
+data Box a = Box { source :: Interval
+                 , target :: Interval
+                 , pname  :: Name
+                 , pface  :: a
+                 , sides  :: [(Side,a)] }
   deriving Eq
 
 instance Show a => Show (Box a) where
-  show (Box dir n f xs) = "Box" <+> show dir <+> show n <+> show f <+> show xs
+  show (Box s t n f xs) =
+    "Box" <+> show s <+> show t <+> show n <+> show f <+> show xs
 
 mapBox :: (a -> b) -> Box a -> Box b
-mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
+mapBox f (Box s t n x xs) = Box s t n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 
 instance Functor Box where
   fmap = mapBox
 
 lookBox :: Show a => Side -> Box a -> a
-lookBox (y,dir) (Box d x v _)  | x == y && mirror d == dir = v
-lookBox xd box@(Box _ _ _ nvs) = case lookup xd nvs of
+-- lookBox (y,dir) (Box d x v _)  | x == y && mirror d == dir = v
+lookBox (y,dir) (Box s t x v _)  | x == y = error $ "lookBox: principal direction"
+lookBox xd box = case lookup xd (sides box) of
   Just v  -> v
   Nothing -> error $ "lookBox: box not defined on " ++
                       show xd ++ "\nbox = " ++ show box
 
 nonPrincipal :: Box a -> [Name]
-nonPrincipal (Box _ _ _ nvs) = nub $ map (fst . fst) nvs
+nonPrincipal box = nub $ map (fst . fst) (sides box)
 
-defBox :: Box a -> [(Name, Dir)]
-defBox (Box d x _ nvs) = (x,mirror d) : [ zd | (zd,_) <- nvs ]
+defBox :: Box a -> [Side]
+defBox (Box s _ x _ nvs) = (x,s) : [ zd | (zd,_) <- nvs ]
+
+-- sidesBox :: Box a -> [Side]
+-- sidesBox box = [ zd | (zd,_) <- sides box ]
 
 fromBox :: Box a -> [(Side,a)]
-fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
+fromBox (Box s t x v nvs) = ((x,s),v) : nvs
 
 modBox :: (Side -> a -> b) -> Box a -> Box b
-modBox f (Box dir x v nvs) =
-  Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
+modBox f (Box s t x v nvs) =
+  Box s t x (f (x,s) v) [ (nd,f nd v) | (nd,v) <- nvs ]
 
 -- Restricts the non-principal faces to np.
 subBox :: [Name] -> Box a -> Box a
-subBox np (Box dir x v nvs) =
-  Box dir x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
+subBox np (Box s t x v nvs) =
+  Box s t x v [ nv | nv@((n,_),_) <- nvs, n `elem` np]
 
 shapeOfBox :: Box a -> Box ()
 shapeOfBox = mapBox (const ())
 
 -- fst is down, snd is up
 consBox :: (Name,(a,a)) -> Box a -> Box a
-consBox (n,(v0,v1)) (Box dir x v nvs) =
-  Box dir x v $ ((n,down),v0) : ((n,up),v1) : nvs
+consBox (n,(v0,v1)) (Box s t x v nvs) =
+  Box s t x v $ ((n,down),v0) : ((n,up),v1) : nvs
 
 appendBox :: [(Name,(a,a))] -> Box a -> Box a
 appendBox xs b = foldr consBox b xs
 
 appendSides :: [(Side, a)] -> Box a -> Box a
-appendSides sides (Box dir x v nvs) = Box dir x v (sides ++ nvs)
+appendSides sides (Box s t x v nvs) = Box s t x v (sides ++ nvs)
 
 transposeBox :: Box [a] -> [Box a]
-transposeBox b@(Box dir _ [] _)      = []
-transposeBox (Box dir x (v:vs) nvss) =
-  Box dir x v [ (nnd,head vs) | (nnd,vs) <- nvss ] :
-  transposeBox (Box dir x vs [ (nnd,tail vs) | (nnd,vs) <- nvss ])
+transposeBox b@(Box _ _ _ [] _)      = []
+transposeBox (Box s t x (v:vs) nvss) =
+  Box s t x v [ (nnd,head vs) | (nnd,vs) <- nvss ] :
+  transposeBox (Box s t x vs [ (nnd,tail vs) | (nnd,vs) <- nvss ])
 
 -- Nominal for boxes
 instance Nominal a => Nominal (Box a) where
-  support (Box dir n v nvs)  = support ((n, v), nvs)
+  support (Box s t n v nvs)    = support (([s,t,n], v), nvs)
 
   rename u x y | x == y        = u
-  rename (Box dir z v nvs) x y = Box dir z' v' nvs' where
-    ((z',v'), nvs') = rename ((z, v), nvs) x y
+  rename (Box s t z v nvs) x y = Box s' t' z' v' nvs' where
+     ((z',v'), nvs') = rename ((z, v), nvs) x y
 
 --------------------------------------------------------------------------------
 -- | Values
@@ -360,7 +368,7 @@ data Val = VU
          -- tag values which are paths
          | Path Name Val
 
-         | VExt Name Val Val Val Val
+--         | VExt Name Val Val Val Val
 
          -- inhabited
          | VInh Val
@@ -373,27 +381,28 @@ data Val = VU
 
          | VCon Ident [Val]
 
-         | Kan KanType Val (Box Val)
+--         | Kan KanType Val (Box Val)
+         | Comp Val (Box Val)
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
-         | VEquivEq Name Val Val Val Val Val
+--         | VEquivEq Name Val Val Val Val Val
 
          -- names x, y and values a, s, t
-         | VEquivSquare Name Name Val Val Val
+--         | VEquivSquare Name Name Val Val Val
 
          -- of type VEquivEq
-         | VPair Name Val Val
+--         | VPair Name Val Val
 
          -- of type VEquivSquare
-         | VSquare Name Name Val
+--         | VSquare Name Name Val
 
          -- a value of type Kan Com VU (Box (type of values))
-         | VComp (Box Val)
+--         | VComp (Box Val)
 
          -- a value of type Kan Fill VU (Box (type of values minus name))
          -- the name is bound
-         | VFill Name (Box Val)
+--         | VFill Name (Box Val)
 
          -- circle
          | VCircle
@@ -414,8 +423,9 @@ data Val = VU
          | VInhRec Val Val Val Val     -- the last Val must be neutral
          | VCircleRec Val Val Val Val  -- the last Val must be neutral
          | VIntRec Val Val Val Val Val -- the last Val must be neutral
-         | VFillN Val (Box Val)
-         | VComN Val (Box Val)
+         | CompN Val (Box Val)
+--         | VFillN Val (Box Val)
+--         | VComN Val (Box Val)
          | VFst Val
          | VSnd Val
   deriving Eq
@@ -431,8 +441,9 @@ isNeutral (VVar _ _)           = True
 isNeutral (VInhRec _ _ _ v)    = isNeutral v
 isNeutral (VCircleRec _ _ _ v) = isNeutral v
 isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
-isNeutral (VFillN _ _)         = True
-isNeutral (VComN _ _)          = True
+isNeutral (CompN _ _)          = True
+--isNeutral (VFillN _ _)         = True
+--isNeutral (VComN _ _)          = True
 isNeutral (VFst v)             = isNeutral v
 isNeutral (VSnd v)             = isNeutral v
 isNeutral _                    = False
@@ -442,8 +453,8 @@ fstVal (VPair _ a _)     = a
 fstVal x                 = error $ "error fstVal: " ++ show x
 sndVal (VPair _ _ v)     = v
 sndVal x                 = error $ "error sndVal: " ++ show x
-unSquare (VSquare _ _ v) = v
-unSquare v               = error $ "unSquare bad input: " ++ show v
+-- unSquare (VSquare _ _ v) = v
+-- unSquare v               = error $ "unSquare bad input: " ++ show v
 
 unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
@@ -466,8 +477,8 @@ instance Nominal Val where
   support (VCon _ vs)       = support vs
   support (VSquash x v0 v1) = support (x, [v0,v1])
   support (VExt x b f g p)  = support (x, [b,f,g,p])
-  support (Kan Fill a box)  = support (a, box)
-  support (VFillN a box)    = support (a, box)
+--  support (Kan Fill a box)  = support (a, box)
+--  support (VFillN a box)    = support (a, box)
   support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
   support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
