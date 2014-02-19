@@ -1,5 +1,8 @@
+{-# LANGUAGE TupleSections #-}
 module CTT where
 
+import Control.Applicative
+import Control.Monad
 import Data.List
 import Data.Maybe
 import Pretty
@@ -288,6 +291,22 @@ instance Show a => Show (Box a) where
 mapBox :: (a -> b) -> Box a -> Box b
 mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 
+sequenceSnd :: Monad m => [(a,m b)] -> m [(a,b)]
+sequenceSnd []          = return []
+sequenceSnd ((a,b):abs) = do
+  b' <- b
+  acs <- sequenceSnd abs
+  return $ (a,b') : acs
+
+sequenceBox :: Monad m => Box (m a) -> m (Box a)
+sequenceBox (Box d n x xs) = do
+  x' <- x
+  xs' <- sequenceSnd xs
+  return $ Box d n x' xs'
+
+mapBoxM :: Monad m => (a -> m b) -> Box a -> m (Box b)
+mapBoxM f = sequenceBox . mapBox f
+  
 instance Functor Box where
   fmap = mapBox
 
@@ -587,6 +606,11 @@ mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
+
+mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
+mapEnvM _ Empty          = pure Empty
+mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
+mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
 
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
