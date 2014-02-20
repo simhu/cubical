@@ -147,9 +147,9 @@ loop debug f cs tenv@(TC.TEnv _ rho _) = do
           Left err -> do outputStrLn ("Could not type-check: " ++ err)
                          loop debug f cs tenv
           Right _ -> do
-            let e = E.evalTer rho body
---            let (e,t) = E.evalWithTrace rho (E.eval body)
---            when debug (outputStrLn ("TRACE: " ++ show t))
+            -- let e = E.evalTer rho body
+            let (e,t) = E.evalWithTrace rho (E.eval body)
+            when debug $ outputStrLn ("TRACE: " ++ show t)
             outputStrLn ("EVAL: " ++ show e)
             loop debug f cs tenv
 

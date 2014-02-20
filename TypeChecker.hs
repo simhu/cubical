@@ -14,7 +14,7 @@ import Pretty
 import Debug.Trace
 
 import CTT
-import Eval hiding (getEnv) -- ,trace)
+import Eval hiding (getEnv,trace)
 
 genName :: Int -> String
 genName n = 'X' : show n
@@ -36,7 +36,7 @@ getLblType c u = throwError ("expected a data type for the constructor "
 data TEnv = TEnv { index :: Int   -- for de Bruijn levels
                  , env   :: Env
                  , ctxt  :: Ctxt }
-          deriving Eq
+          deriving (Eq,Show)
 
 tEmpty :: TEnv
 tEmpty = TEnv 0 Empty []
