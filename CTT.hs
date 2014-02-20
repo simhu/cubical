@@ -306,7 +306,7 @@ sequenceBox (Box d n x xs) = do
 
 mapBoxM :: Monad m => (a -> m b) -> Box a -> m (Box b)
 mapBoxM f = sequenceBox . mapBox f
-  
+
 instance Functor Box where
   fmap = mapBox
 
@@ -329,6 +329,9 @@ fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
 modBox :: (Side -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
   Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
+
+modBoxM :: Monad m => (Side -> a -> m b) -> Box a -> m (Box b)
+modBoxM f = sequenceBox . modBox f
 
 -- Restricts the non-principal faces to np.
 subBox :: [Name] -> Box a -> Box a

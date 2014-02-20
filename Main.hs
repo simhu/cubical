@@ -125,29 +125,32 @@ initLoop b f = do
 
 -- The main loop
 loop :: Bool -> FilePath -> [String] -> TC.TEnv -> Interpreter ()
-loop b f cs tenv@(TC.TEnv _ rho _) = do
+loop debug f cs tenv@(TC.TEnv _ rho _) = do
   input <- getInputLine defaultPrompt
   case input of
-    Nothing    -> outputStrLn help >> loop b f cs tenv
+    Nothing    -> outputStrLn help >> loop debug f cs tenv
     Just ":q"  -> return ()
-    Just ":r"  -> lift $ initLoop b f
+    Just ":r"  -> lift $ initLoop debug f
     Just (':':'l':' ':str)
       | ' ' `elem` str -> do outputStrLn "Only one file allowed after :l"
-                             loop b f cs tenv
-      | otherwise      -> lift $ initLoop b str
+                             loop debug f cs tenv
+      | otherwise      -> lift $ initLoop debug str
     Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
-                                     loop b f cs tenv
-    Just ":h"  -> outputStrLn help >> loop b f cs tenv
+                                     loop debug f cs tenv
+    Just ":h"  -> outputStrLn help >> loop debug f cs tenv
     Just str   -> case pExp (lexer str) of
-      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop b f cs tenv
+      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop debug f cs tenv
       Ok  exp -> case runResolver (local (const (Env cs)) (resolveExp exp)) of
         Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
-                         loop b f cs tenv
+                         loop debug f cs tenv
         Right body -> case TC.runInfer tenv body of
           Left err -> do outputStrLn ("Could not type-check: " ++ err)
-                         loop b f cs tenv
-          Right _  -> do outputStrLn ("EVAL: " ++ show (E.eval rho body))
-                         loop b f cs tenv
+                         loop debug f cs tenv
+          Right _ -> do
+            let (e,t) = E.evalWithTrace rho (E.eval body)
+            when debug (outputStrLn ("TRACE: " ++ show t))
+            outputStrLn ("EVAL: " ++ show e)
+            loop debug f cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++

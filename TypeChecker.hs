@@ -11,8 +11,10 @@ import Control.Monad.Error (throwError)
 import Control.Applicative
 import Pretty
 
+import Debug.Trace
+
 import CTT
-import Eval
+import Eval hiding (getEnv) -- ,trace)
 
 genName :: Int -> String
 genName n = 'X' : show n
@@ -20,7 +22,7 @@ genName n = 'X' : show n
 addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Ctxt
 addC gam _             []          = gam
 addC gam ((y,a):as,nu) ((x,u):xus) =
-  addC ((x,eval nu a):gam) (as,Pair nu (y,u)) xus
+  addC ((x,evalTer nu a):gam) (as,Pair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Val -> Typing (Tele, Env)
@@ -62,7 +64,7 @@ addTypeVal p@(x,_) (TEnv k rho gam) =
   TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam)
 
 addType :: (String,Ter) -> TEnv -> TEnv
-addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,eval rho a) tenv
+addType (x,a) tenv@(TEnv _ rho _) = addTypeVal (x,evalTer rho a) tenv
 
 addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> TEnv
 addBranch nvs (tele,env) (TEnv k rho gam) =
@@ -71,7 +73,7 @@ addBranch nvs (tele,env) (TEnv k rho gam) =
 addDef :: Def -> TEnv -> TEnv
 addDef d@(ts,es) (TEnv k rho gam) =
   let rho1 = PDef es rho
-  in TEnv k rho1 (addC gam (ts,rho) (evals rho1 es))
+  in TEnv k rho1 (addC gam (ts,rho) (evalTers rho1 es))
 
 addTele :: Tele -> TEnv -> TEnv
 addTele xas lenv = foldl (flip addType) lenv xas
@@ -92,7 +94,7 @@ getCtxt :: Typing Ctxt
 getCtxt = ctxt <$> ask
 
 checkDef :: Def -> Typing ()
-checkDef (xas,xes) = traceb ("checking definition " ++ show (map fst xes)) $ do
+checkDef (xas,xes) = trace ("checking definition " ++ show (map fst xes)) $ do
   checkTele xas
   rho <- getEnv
   local (addTele xas) $ checks (xas,rho) (map snd xes)
@@ -122,11 +124,11 @@ check a t = case (a,t) of
        else throwError "case branches does not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
-    local (addTypeVal (x,a)) $ check (app f var) t
+    local (addTypeVal (x,a)) $ check (appVal f var) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
     e <- getEnv
-    check (app f (eval e t1)) t2
+    check (appVal f (evalTer e t1)) t2
   (_,Where e d) -> do
     checkDef d
     local (addDef d) $ check a e
@@ -134,7 +136,7 @@ check a t = case (a,t) of
   _ -> do
     v <- checkInfer t
     k <- getIndex
-    unless (conv k v a) $
+    unless (convVal k v a) $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
@@ -144,7 +146,7 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
   let d  = support env
   let l  = length xas
   let us = map (`mkVar` d) [k..k+l-1]
-  local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
+  local (addBranch (zip xs us) (xas,nu)) $ check (appVal f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
@@ -160,7 +162,7 @@ checkInfer e = case e of
       VPi a f -> do
         check a u
         rho <- getEnv
-        return (app f (eval rho u))
+        return (appVal f (evalTer rho u))
       _       -> throwError $ show c ++ " is not a product"
   Fst t -> do
     c <- checkInfer t
@@ -172,7 +174,7 @@ checkInfer e = case e of
     case c of
       VSigma a f -> do
         e <- getEnv
-        return (app f (fstSVal (eval e t)))
+        return (appVal f (fstSVal (evalTer e t)))
       _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDef d
@@ -182,9 +184,9 @@ checkInfer e = case e of
 checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  check (eval nu a) e
+  check (evalTer nu a) e
   rho <- getEnv
-  checks (xas,Pair nu (x,eval rho e)) es
+  checks (xas,Pair nu (x,evalTer rho e)) es
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U

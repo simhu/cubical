@@ -62,7 +62,7 @@ loadFile f = do
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do
   env <- loadFile f
-  sequence_ [ assertEqual ("for" <+> n) output (show (E.eval env (C.Var n)))
+  sequence_ [ assertEqual ("for" <+> n) output (show (E.evalTer env (C.Var n)))
             | (n,output) <- xs ]
 
 toTests :: String -> [(String,String)] -> Test
