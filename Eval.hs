@@ -3,9 +3,10 @@ module Eval where
 import Control.Applicative
 import Control.Arrow (second)
 import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Trans.Reader
-import Control.Monad.Writer.Strict hiding (Sum)
+-- import Control.Monad.Trans
+-- import Control.Monad.Trans.Reader
+import Control.Monad.Reader
+-- import Control.Monad.Writer hiding (Sum)
 import Data.List
 import Data.Maybe (fromMaybe)
 
@@ -15,19 +16,22 @@ import CTT
 
 type Trace = [String]
 
-type Eval a = ReaderT Env (Writer Trace) a
+type Eval a = Reader Env  a -- (Writer Trace) a
 
-evalWithTrace :: Env -> Eval a -> (a,Trace)
-evalWithTrace env e = runWriter (runReaderT e env)
+-- evalWithTrace :: Env -> Eval a -> (a,Trace)
+-- evalWithTrace env e = runWriter (runReaderT e env)
+
+-- runEval :: Env -> Eval a -> a
+-- runEval env = fst . evalWithTrace env
 
 runEval :: Env -> Eval a -> a
-runEval env = fst . evalWithTrace env
+runEval env e = runReader e env
 
 evalTer :: Env -> Ter -> Val
 evalTer env = runEval env . eval
 
-evalTerWithTrace :: Env -> Ter -> (Val,Trace)
-evalTerWithTrace env = evalWithTrace env . eval
+-- evalTerWithTrace :: Env -> Ter -> (Val,Trace)
+-- evalTerWithTrace env = evalWithTrace env . eval
 
 evalTers :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evalTers env = map (second (evalTer env))
