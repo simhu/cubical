@@ -14,7 +14,7 @@ import Debug.Trace
 
 import CTT
 
-type Trace = [String]
+-- type Trace = [String]
 
 type Eval a = Reader Env  a -- (Writer Trace) a
 
@@ -376,9 +376,6 @@ unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 --          a = appName p 0
 --          b = appName p 1
 --          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
-
--- idV :: Val
--- idV = Ter (Lam "x" (Var "x")) Empty
 
 cubeToBox :: Val -> Box () -> Eval (Box Val)
 cubeToBox v = modBoxM (\nd _ -> v `face` nd)
@@ -808,6 +805,9 @@ comM u b = do u' <- u
               b' <- b
               com u' b'
 
+
+-- Conversion test functions
+
 convBox :: Int -> Box Val -> Box Val -> Eval Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
   if   and [d == d', pn == pn', sort np == sort np']
@@ -816,11 +816,6 @@ convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
           return $ and bs
   else return False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
-
--- conv1 :: Int -> Val -> Val -> Bool
--- conv1 k u v = -- traceb (show ("\n" ++ " =? "))
---               -- traceb (show u ++ " =? " ++ show v ++ "\n")
---               (conv k u v)
 
 convM :: Int -> Eval Val -> Eval Val -> Eval Bool
 convM k v1 v2 = do
