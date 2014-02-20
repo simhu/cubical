@@ -4,7 +4,6 @@ TODO:
 - find the right abstraction for Box manipulation
   (more functional, less association lists in the abstraction)
 - abstract names and dim (remove hack with {0,1} + ...)
-- monadic eval(?(!))
 - find a characterization for neutral values
 - eta for constructors
 - reorganize the primitive notions
