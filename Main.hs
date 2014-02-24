@@ -102,7 +102,7 @@ namesEnv (TC.TEnv _ env ctxt) = namesCEnv env ++ map fst ctxt
 
 -- Initialize the main loop
 initLoop :: Bool -> FilePath -> IO ()
-initLoop b f = do
+initLoop debug f = do
   -- Parse and type-check files
   (_,_,defs) <- imports ([],[],[]) f
   -- Compute all constructors
@@ -112,16 +112,20 @@ initLoop b f = do
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
-      runInputT (settings []) (loop b [] [] TC.tEmpty)
+      runInputT (settings []) (loop debug [] [] TC.tEmpty)
     Right adefs -> case TC.runDefs TC.tEmpty adefs of
       Left err   -> do
         putStrLn $ "Type checking failed: " ++ err
-        runInputT (settings []) (loop b [] [] TC.tEmpty)
-      Right tenv -> do
+        runInputT (settings []) (loop debug [] [] TC.tEmpty)
+      Right (tenv,TC.TState ttrc ftrc) -> do
+        -- In debugging mode output full trace
+        when debug $ putStr (unlines ftrc)
+        -- Otherwise output only trace from type checking
+        when (not debug) $ putStr (unlines ttrc)
         putStrLn "File loaded."
         -- Compute names for auto completion
         let ns = cs ++ namesEnv tenv
-        runInputT (settings ns) (loop b f cs tenv)
+        runInputT (settings ns) (loop debug f cs tenv)
 
 -- The main loop
 loop :: Bool -> FilePath -> [String] -> TC.TEnv -> Interpreter ()
@@ -146,10 +150,9 @@ loop debug f cs tenv@(TC.TEnv _ rho _) = do
         Right body -> case TC.runInfer tenv body of
           Left err -> do outputStrLn ("Could not type-check: " ++ err)
                          loop debug f cs tenv
-          Right _ -> do
-            -- let e = E.evalTer rho body
-            let (e,t) = E.evalWithTrace rho (E.eval body)
-            when debug $ outputStrLn ("TRACE: " ++ show t)
+          Right _  -> do
+            let (e,trace) = E.evalTer rho body
+            when debug $ outputStr (unlines trace)
             outputStrLn ("EVAL: " ++ show e)
             loop debug f cs tenv
 

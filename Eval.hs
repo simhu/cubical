@@ -1,4 +1,9 @@
-module Eval where
+module Eval ( evalTer
+            , evalTers
+            , appVal
+            , convVal
+            , fstSVal
+            ) where
 
 import Control.Applicative
 import Control.Arrow (second)
@@ -12,26 +17,21 @@ import Data.Maybe (fromMaybe)
 
 import CTT
 
-type Trace = [String]
-
 type Eval a = ReaderT Env (StateT Trace Identity) a
 
-evalWithTrace :: Env -> Eval a -> (a,Trace)
-evalWithTrace env e = runIdentity $ runStateT (runReaderT e env) []
+runEval :: Env -> Eval a -> (a,Trace)
+runEval env e = runIdentity $ runStateT (runReaderT e env) []
 
-runEval :: Env -> Eval a -> a
-runEval env e = runIdentity $ evalStateT (runReaderT e env) []
-
-evalTer :: Env -> Ter -> Val
+evalTer :: Env -> Ter -> (Val,Trace)
 evalTer env = runEval env . eval
 
-evalTers :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
+evalTers :: Env -> [(Binder,Ter)] -> ([(Binder,Val)],Trace)
 evalTers env bts = runEval env (evals bts)
 
-appVal :: Val -> Val -> Val
+appVal :: Val -> Val -> (Val,Trace)
 appVal v1 v2 = runEval Empty $ app v1 v2
 
-convVal :: Int -> Val -> Val -> Bool
+convVal :: Int -> Val -> Val -> (Bool,Trace)
 convVal k v1 v2 = runEval Empty $ conv k v1 v2
 
 getEnv :: Eval Env
@@ -50,7 +50,7 @@ inEnvM e menv = do
   env <- menv
   local (const env) e
 
--- WARNING: This version becomes too strict when run in the State monad!!!
+-- WARNING: This version becomes too strict when run in the State monad???
 -- look :: Binder -> Eval Val
 -- look x = do
 --   env <- getEnv
@@ -64,12 +64,10 @@ inEnvM e menv = do
 look :: Binder -> Env -> Val
 look x (Pair s (y,u)) | x == y    = u
                       | otherwise = look x s
-look x r@(PDef es r1)             = look x (upds r1 (evalTers r es))
-
+look x r@(PDef es r1)             = look x (upds r1 (fst (evalTers r es)))
 
 eval :: Ter -> Eval Val
-eval U                 = do trace "U"
-                            return VU
+eval U                 = return VU
 eval (PN pn)           = evalAppPN pn []
 eval t@(App r s)       = case unApps t of
   (PN pn,us) -> evalAppPN pn us
@@ -84,7 +82,7 @@ eval (Snd a)           = sndSVal <$> eval a
 eval (Where t (_,def)) = do
   e <- getEnv
   eval t `inEnv` PDef def e
-eval (Con name ts)     = VCon name <$> (mapM eval ts)
+eval (Con name ts)     = VCon name <$> mapM eval ts
 eval (Split pr alts)   = Ter (Split pr alts) <$> getEnv
 eval (Sum pr ntss)     = Ter (Sum pr ntss) <$> getEnv
 
@@ -119,11 +117,11 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v = do
   bcu   <- cubeToBox ufill (shapeOfBox box)
   vfill <- fill a (Box (mirror dir) i u [((x,down),ufill),((x,up),v)])
   vx    <- fillM (app b ufill) (appBox box bcu)
-  vi0   <- appM2 w (vfill `face` (i,down))
+  vi0   <- appM (return w) (vfill `face` (i,down))
   vi1   <- comM (app b ufill) (appBox box bcu)
-  nvs   <- sequenceSnd [ ((n,d),appM2 ws (vfill `face` (n,d)))
+  nvs   <- sequenceSnd [ ((n,d),appM (return ws) (vfill `face` (n,d)))
                        | ((n,d),ws) <- nws ]
-  comM1 (app b vfill) (Box up x vx (((i,down),vi0) : ((i,up),vi1):nvs))
+  comM (app b vfill) (return (Box up x vx (((i,down),vi0) : ((i,up),vi1):nvs)))
 app vext@(VExt x bv fv gv pv) w = do
   -- NB: there are various choices how to construct this
   let y = fresh (vext, w)
@@ -131,7 +129,7 @@ app vext@(VExt x bv fv gv pv) w = do
   left  <- app fv w0
   right <- app gv (swap w x y)
   pvxw  <- appNameM (app pv w0) x
-  comM1 (app bv w) (Box up y pvxw [((x,down),left),((x,up),right)])
+  comM (app bv w) (return (Box up y pvxw [((x,down),left),((x,up),right)]))
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval t `inEnv` upds e (zip xs us)
     Nothing -> error $ "app: Split with insufficient arguments; " ++
@@ -144,22 +142,7 @@ app r s
   | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
 
 
--- For all of the functions that may be applied to arguments that are monadic
--- values use the following name conventions for the helper functions:
-
--- First argument is monadic
-appM1 :: Eval Val -> Val -> Eval Val
-appM1 u b = do
-  v <- u
-  app v b
-
--- Second argument is monadic
-appM2 :: Val -> Eval Val -> Eval Val
-appM2 u b = do
-  v <- b
-  app u v
-
--- Both arguments are monadic
+-- Monadic version of app
 appM :: Eval Val -> Eval Val -> Eval Val
 appM t1 t2 = do
   u <- t1
@@ -210,11 +193,11 @@ evalPN :: [Name] -> PN -> [Val] -> Eval Val
 evalPN (x:_) Id            [a,a0,a1]     = return $ VId (Path x a) a0 a1
 evalPN (x:_) IdP           [_,_,p,a0,a1] = return $ VId p a0 a1
 evalPN (x:_) Refl          [_,a]         = return $ Path x a
-evalPN (x:_) TransU        [_,_,p,t]     = comM1 (appName p x) (Box up x t [])
-evalPN (x:_) TransInvU     [_,_,p,t]     = comM1 (appName p x) (Box down x t [])
+evalPN (x:_) TransU        [_,_,p,t]     = comM (appName p x) (return (Box up x t []))
+evalPN (x:_) TransInvU     [_,_,p,t]     = comM (appName p x) (return (Box down x t []))
 evalPN (x:_) TransURef     [a,t]         = Path x <$> fill a (Box up x t [])
 evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] = do
-  fu <- (app f u)
+  fu <- app f u
   Path x <$> fill b (Box up x fu [])   -- TODO: Check this!
 evalPN (x:y:_) CSingl [a,u,v,p] = do
   pv    <- appName p y
@@ -288,7 +271,7 @@ face u xdir@(x,dir) =
   VEquivSquare y z a s t | x == y                -> return a
                          | x == z && dir == down -> return a
                          | x == z && dir == up   -> do
-                           let idV = (Ter (Lam "x" (Var "x")) Empty)
+                           let idV = Ter (Lam "x" (Var "x")) Empty
                            return $ VEquivEq y a a idV s t
                          | otherwise             ->
                           VEquivSquare y z <$> fc a <*> fc s <*> fc t
@@ -391,7 +374,7 @@ inhrec b p phi (VSquash x a0 a1) = do
   let fc w d = w `face` (x,d)
   b0 <- join $ inhrec <$> fc b down <*> fc p down <*> fc phi down <*> pure a0
   b1 <- join $ inhrec <$> fc b up   <*> fc p up   <*> fc phi up   <*> pure a1
-  appNameM (appM1 (app p b0) b1 `faceM` (x,down)) x
+  appNameM (appM (app p b0) (return b1) `faceM` (x,down)) x
   -- appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
 inhrec b p phi (Kan ktype (VInh a) box) = do
   let irec (j,dir) v = let fc v = v `face` (j,dir)
@@ -492,16 +475,7 @@ isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x vx nxs) = do
              return $ or [ isNeutral (lookBox yc box) | yc <- aDs ]
 isNeutralFill v box = return False
 
-fillM1 :: Eval Val -> Box Val -> Eval Val
-fillM1 t b = do
-  v <- t
-  fill v b
-
-fillM2 :: Val -> Eval (Box Val) -> Eval Val
-fillM2 v b = do
-  b' <- b
-  fill v b'
-
+-- Monadic version of fill
 fillM :: Eval Val -> Eval (Box Val) -> Eval Val
 fillM v b = do
   v' <- v
@@ -511,7 +485,7 @@ fillM v b = do
 fills :: [(Binder,Ter)] -> [Box Val] -> Eval [Val]
 fills []         []          = return []
 fills ((x,a):as) (box:boxes) = do
-  v  <- fillM1 (eval a) box
+  v  <- fillM (eval a) (return box)
   e  <- getEnv
   vs <- fills as boxes `inEnv` Pair e (x,v)
   return $ v : vs
@@ -525,14 +499,14 @@ unPack x y (z,c) v | z /= x && z /= y  = unSquare v
 -- Kan filling
 fill :: Val -> Box Val -> Eval Val
 -- TODO: is is ok to use runEval like this?
-fill v box | runEval Empty (isNeutralFill v box) = return $ VFillN v box
+fill v box | fst (runEval Empty (isNeutralFill v box)) = return $ VFillN v box
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = do
   let x = fresh (vid, box)
   box' <- consBox (x,(v0,v1)) <$> mapBoxM (`appName` x) box
-  Path x <$> fillM1 (a `appName` x) box'
+  Path x <$> fillM (a `appName` x) (return box')
 fill (VSigma a f) box@(Box dir x v nvs) = do
   u <- fill a (mapBox fstSVal box)
-  VSPair u <$> fillM1 (app f u) (mapBox sndSVal box)
+  VSPair u <$> fillM (app f u) (return (mapBox sndSVal box))
 -- assumes cvs are constructor vals
 fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case lookup n nass of
   Just as -> do
@@ -605,12 +579,12 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = do  -- W.l.o.g. assume that box contains faces for
                       -- the non-principal sides of tbox.
 
-    trace ("Kan Com 1")
+    trace "Kan Com 1"
 
     let -- TODO: Is this correct? Do we have to consider the auxsides?
         add :: Side -> Eval Val
         add yc = do box' <- mapBoxM (`face` yc) box
-                    fillM1 (lookBox yc tbox `face` (x,tdir)) box'
+                    fillM (lookBox yc tbox `face` (x,tdir)) (return box')
 
     -- Note: This could be done nicer by providing a monad instance for (,)
     sides' <- sequence [ do m1 <- add (n,down)
@@ -619,7 +593,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
 
     fill v (sides' `appendBox` box)
   | x' `notElem` nK = do
-    trace ("Kan Com 2")
+    trace "Kan Com 2"
 
     principal <- fill tx (mapBox (pickout (x,tdir')) boxL)
     nonprincipal <-
@@ -632,7 +606,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
 
     return $ VComp (Box tdir x principal nonprincipal)
   | x' `elem` nK = do
-    trace ("Kan Com 3")
+    trace "Kan Com 3"
 
     let -- assumes zc in defBox tbox
         auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
@@ -682,7 +656,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | toAdd /= [] = do
     trace "Kan Fill VU Case 1"
     let add :: Side -> Eval Val
-        add zc = fillM2 (lookBox zc tbox) (mapBoxM (`face` zc) box)
+        add zc = fillM (return (lookBox zc tbox)) (mapBoxM (`face` zc) box)
     newSides <- sequenceSnd [ (zc,add zc) | zc <- allDirs toAdd ]
     fill v (newSides `appendSides` box)     -- W.l.o.g. nK subset x:nJ
   | x == x' && dir == tdir = do -- assumes K subset x',J
@@ -724,8 +698,9 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     trace "Kan Fill VU Case 4"
     comU <- v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
     let fcbox = mapBoxM (`face` (x,tdir)) box
-    xsides <- sequenceSnd [ ((x,tdir), fillM2 comU fcbox)
-                          , ((x,tdir'),fillM2 (lookBox (x,tdir') tbox) fcbox) ]
+    xsides <- sequenceSnd [ ((x,tdir), fillM (return comU) fcbox)
+                          , ((x,tdir'),
+                             fillM (return (lookBox (x,tdir') tbox)) fcbox) ]
 
     fill v (xsides `appendSides` box)
   | x' `notElem` nK = do -- assumes x,K subset x',J
@@ -797,7 +772,7 @@ fill v b = return $ Kan Fill v b
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Eval Val
 -- TODO: is is ok to use runEval like this?
-com u box | runEval Empty (isNeutralFill u box) = return $ VComN u box
+com u box | fst (runEval Empty (isNeutralFill u box)) = return $ VComN u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
 com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
@@ -806,23 +781,15 @@ com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `faceM` (i,dir)
 com ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
 com v box                                 = return $ Kan Com v box
 
-comM1 :: Eval Val -> Box Val -> Eval Val
-comM1 t b = do
-  v <- t
-  com v b
-
-comM2 :: Val -> Eval (Box Val) -> Eval Val
-comM2 v b = do
-  b' <- b
-  com v b'
-
+-- Monadic version of com
 comM :: Eval Val -> Eval (Box Val) -> Eval Val
 comM t b = do
-  v <- t
+  v  <- t
   b' <- b
   com v b'
 
--- Conversion test functions
+-- Conversion functions
+  
 (<&&>) :: Monad m => m Bool -> m Bool -> m Bool
 (<&&>) = liftM2 (&&)
 
@@ -859,9 +826,9 @@ conv k (VSigma u v) (VSigma u' v') = do
 conv k (VId a u v) (VId a' u' v') = andM [conv k a a', conv k u u', conv k v v']
 conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
   where z = fresh (u,u')
-conv k (Path x u) p'              = convM2 k (swap u x z) (appName p' z)
+conv k (Path x u) p'              = convM k (return (swap u x z)) (appName p' z)
   where z = fresh u
-conv k p (Path x' u')             = convM1 k (appName p z) (swap u' x' z)
+conv k p (Path x' u')             = convM k (appName p z) (return (swap u' x' z))
   where z = fresh u'
 conv k (VExt x b f g p) (VExt x' b' f' g' p') =
   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
@@ -927,21 +894,12 @@ conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
   andM [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
 conv k _              _                = return False
 
+-- Monadic version of conv
 convM :: Int -> Eval Val -> Eval Val -> Eval Bool
 convM k v1 v2 = do
   v1' <- v1
   v2' <- v2
   conv k v1' v2'
-
-convM1 :: Int -> Eval Val -> Val -> Eval Bool
-convM1 k v1 v2 = do
-  v1' <- v1
-  conv k v1' v2
-
-convM2 :: Int -> Val -> Eval Val -> Eval Bool
-convM2 k v1 v2 = do
-  v2' <- v2
-  conv k v1 v2'
 
 convBox :: Int -> Box Val -> Box Val -> Eval Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
