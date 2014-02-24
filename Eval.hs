@@ -149,18 +149,22 @@ app r s
 
 -- First argument is monadic
 appM1 :: Eval Val -> Val -> Eval Val
-appM1 u b = u >>= flip app b
+appM1 u b = do
+  v <- u
+  app v b
 
 -- Second argument is monadic
 appM2 :: Val -> Eval Val -> Eval Val
-appM2 u b = b >>= app u
+appM2 u b = do
+  v <- b
+  app u v
 
 -- Both arguments are monadic
 appM :: Eval Val -> Eval Val -> Eval Val
 appM t1 t2 = do
-  v1 <- t1
-  v2 <- t2
-  app v1 v2
+  u <- t1
+  v <- t2
+  app u v
 
 apps :: Val -> [Val] -> Eval Val
 apps = foldM app
@@ -173,14 +177,13 @@ appBox (Box dir x v nvs) (Box _ _ u nus) = do
 
 appName :: Val -> Name -> Eval Val
 appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
-appName p y
-  | y `elem` [0,1] = return $ VAppName p y -- p has to be neutral
-appName (Path x u) y
-  | x == y             = return u
-  | y `elem` support u = error ("appName " ++ "\nu = " ++
-                                show u ++ "\ny = " ++ show y)
-  | otherwise          = return $ swap u x y
-appName v y            = return $ VAppName v y
+appName p y          | y `elem` [0,1] = return $ VAppName p y
+                                        -- p has to be neutral
+appName (Path x u) y | x == y             = return u
+                     | y `elem` support u = error ("appName " ++ "\nu = " ++
+                                                   show u ++ "\ny = " ++ show y)
+                     | otherwise          = return $ swap u x y
+appName v y          = return $ VAppName v y
 
 appNameM :: Eval Val -> Name -> Eval Val
 appNameM v n = v >>= flip appName n
@@ -194,7 +197,7 @@ evalAppPN pn ts
           binders = map (\n -> '_' : show n) [1..r]
           vars    = map Var binders
       in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) <$> getEnv
-  | otherwise            = do
+  | otherwise = do
       let (args,rest) = splitAt (arity pn) ts
       vas <- mapM eval args
       e   <- getEnv
@@ -252,9 +255,6 @@ faceName 0 _                 = 0
 faceName 1 _                 = 1
 faceName x (y,d) | x == y    = d
                  | otherwise = x
-
-faceM :: Eval Val -> Side -> Eval Val
-faceM u xdir = u >>= flip face xdir
 
 -- Compute the face of a value
 face :: Val -> Side -> Eval Val
@@ -351,6 +351,11 @@ face u xdir@(x,dir) =
     | x == y && dir == up   -> return VI1
     | otherwise             -> return $ VLine y
   VIntRec f s e l u -> join $ intrec <$> fc f <*> fc s <*> fc e <*> fc l <*> fc u
+
+faceM :: Eval Val -> Side -> Eval Val
+faceM t xdir = do
+  v <- t
+  v `face` xdir
 
 unCompAs :: Val -> Name -> Box Val
 unCompAs (VComp box) y = swap box (pname box) y
@@ -488,15 +493,20 @@ isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x vx nxs) = do
 isNeutralFill v box = return False
 
 fillM1 :: Eval Val -> Box Val -> Eval Val
-fillM1 v b = v >>= flip fill b
+fillM1 t b = do
+  v <- t
+  fill v b
 
 fillM2 :: Val -> Eval (Box Val) -> Eval Val
-fillM2 v b = b >>= fill v
+fillM2 v b = do
+  b' <- b
+  fill v b'
 
 fillM :: Eval Val -> Eval (Box Val) -> Eval Val
-fillM v b = do v' <- v
-               b' <- b
-               fill v' b'
+fillM v b = do
+  v' <- v
+  b' <- b
+  fill v' b'
 
 fills :: [(Binder,Ter)] -> [Box Val] -> Eval [Val]
 fills []         []          = return []
@@ -797,44 +807,22 @@ com ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
 com v box                                 = return $ Kan Com v box
 
 comM1 :: Eval Val -> Box Val -> Eval Val
-comM1 u b = u >>= flip com b
+comM1 t b = do
+  v <- t
+  com v b
 
 comM2 :: Val -> Eval (Box Val) -> Eval Val
-comM2 u b = b >>= com u
+comM2 v b = do
+  b' <- b
+  com v b'
 
 comM :: Eval Val -> Eval (Box Val) -> Eval Val
-comM u b = do u' <- u
-              b' <- b
-              com u' b'
-
+comM t b = do
+  v <- t
+  b' <- b
+  com v b'
 
 -- Conversion test functions
-
-convBox :: Int -> Box Val -> Box Val -> Eval Bool
-convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
-  if   and [d == d', pn == pn', sort np == sort np']
-  then do bs <- sequence [ conv k (lookBox s box) (lookBox s box')
-                         | s <- defBox box ]
-          return $ and bs
-  else return False
-  where (np, np') = (nonPrincipal box, nonPrincipal box')
-
-convM :: Int -> Eval Val -> Eval Val -> Eval Bool
-convM k v1 v2 = do
-  v1' <- v1
-  v2' <- v2
-  conv k v1' v2'
-
-convM1 :: Int -> Eval Val -> Val -> Eval Bool
-convM1 k v1 v2 = do
-  v1' <- v1
-  conv k v1' v2
-
-convM2 :: Int -> Val -> Eval Val -> Eval Bool
-convM2 k v1 v2 = do
-  v2' <- v2
-  conv k v1 v2'
-
 (<&&>) :: Monad m => m Bool -> m Bool -> m Bool
 (<&&>) = liftM2 (&&)
 
@@ -845,7 +833,7 @@ andM :: [Eval Bool] -> Eval Bool
 andM = liftM and . sequence
 
 conv :: Int -> Val -> Val -> Eval Bool
-conv k VU VU                 = return True
+conv k VU VU                                  = return True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = do
   let v = mkVar k $ support (e, e')
   convM (k+1) (eval u `inEnv` (Pair e (x,v)))
@@ -938,6 +926,31 @@ conv k (VLine x)      (VLine y)        = x <==> y
 conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
   andM [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
 conv k _              _                = return False
+
+convM :: Int -> Eval Val -> Eval Val -> Eval Bool
+convM k v1 v2 = do
+  v1' <- v1
+  v2' <- v2
+  conv k v1' v2'
+
+convM1 :: Int -> Eval Val -> Val -> Eval Bool
+convM1 k v1 v2 = do
+  v1' <- v1
+  conv k v1' v2
+
+convM2 :: Int -> Val -> Eval Val -> Eval Bool
+convM2 k v1 v2 = do
+  v2' <- v2
+  conv k v1 v2'
+
+convBox :: Int -> Box Val -> Box Val -> Eval Bool
+convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
+  if   and [d == d', pn == pn', sort np == sort np']
+  then do bs <- sequence [ conv k (lookBox s box) (lookBox s box')
+                         | s <- defBox box ]
+          return $ and bs
+  else return False
+  where (np, np') = (nonPrincipal box, nonPrincipal box')
 
 convEnv :: Int -> Env -> Env -> Eval Bool
 convEnv k e e' = liftM and $ zipWithM (conv k) (valOfEnv e) (valOfEnv e')
