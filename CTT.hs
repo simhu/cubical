@@ -14,6 +14,7 @@ type Binder = String
 type Ident  = String
 type Label  = String
 type Prim   = (Integer,String)
+type Trace  = [String]
 
 -- Branch of the form: c x1 .. xn -> e
 type Brc    = (Label,([String],Ter))
@@ -631,8 +632,8 @@ showTer U                 = "U"
 showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
 showTer (Lam x e)         = '\\' : x <+> "->" <+> showTer e
-showTer (Fst e)           = showTer e <+> ".1"
-showTer (Snd e)           = showTer e <+> ".2"
+showTer (Fst e)           = showTer e ++ ".1"
+showTer (Snd e)           = showTer e ++ ".2"
 showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
 showTer (Where e d)       = showTer e <+> "where" <+> showDef d
@@ -696,8 +697,8 @@ showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 showVal (VSPair u v)     = "pair" <+> showVals [u,v]
 showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
-showVal (VFst u)         = showVal u <+> ".1"
-showVal (VSnd u)         = showVal u <+> ".2"
+showVal (VFst u)         = showVal u ++ ".1"
+showVal (VSnd u)         = showVal u ++ ".2"
 showVal VCircle          = "S1"
 showVal VBase            = "base"
 showVal (VLoop x)        = "loop" <+> show x
