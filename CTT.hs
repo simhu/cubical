@@ -79,7 +79,7 @@ data PN = Id | Refl
         -- TODO: remove?
         | MapOnPath
 
-        -- (A B : U) (f g : A -> B) (a b : A) ->
+        -- (A B : U) (f g : A -> B) (a b : A) ->  
         -- Id (A->B) f g -> Id A a b -> Id B (f a) (g b)
         | AppOnPath
 
@@ -392,7 +392,7 @@ data Val = VU
 
          -- a value of type Kan Fill VU (Box (type of values minus name))
          -- the name is bound
-         | VFill Name (Box Val)
+         | VFill Name (Box Val)	 
 
          -- circle
          | VCircle
@@ -418,6 +418,9 @@ data Val = VU
          | VFst Val
          | VSnd Val
   deriving Eq
+
+vepair :: Name -> Val -> Val -> Val
+vepair x a b = VSPair a (Path x b)
 
 mkVar :: Int -> Dim -> Val
 mkVar k = VVar ('X' : show k)
@@ -692,3 +695,4 @@ showVal1 VU           = "U"
 showVal1 (VCon c [])  = c
 showVal1 u@(VVar{})   = showVal u
 showVal1 u            = parens $ showVal u
+

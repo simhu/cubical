@@ -164,14 +164,14 @@ lemIt A f a p = subst A (\ z -> Id A a (f z)) a (f a) p p
 isoNOIt : Id U N (step (step N))
 isoNOIt = lemIt U step N isoNO
 
-
+isoNOIt2 : Id U N (step (step (step (step N))))
+isoNOIt2 = lemIt U (\ x -> step (step x)) N isoNOIt
 
 aZNIt : aZero (step (step N))
 aZNIt = subst U aZero N (step (step N)) isoNOIt aZN
 
 zeroIt : step (step N)
 zeroIt = aZNIt.1
-
 
 sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N))) 
                                  (\ f -> (x:(step (step N))) -> Id (step (step N)) (f zeroIt x) x)
@@ -194,5 +194,39 @@ testIt2 = zeroIt
 
 testIt3 : step (step N)
 testIt3 = addIt zeroIt zeroIt
+
+step4 : U -> U
+step4 x = step (step (step (step x)))
+
+aZNIt2 : aZero (step4 N)
+aZNIt2 = subst U aZero N (step4 N) isoNOIt2 aZN
+
+zeroIt2 : step4 N
+zeroIt2 = aZNIt2.1
+
+sndaZNIt2 : Sigma ((step4 N) -> (step4 N) -> (step4 N)) 
+                                 (\ f -> (x:(step4 N)) -> Id (step4 N) (f zeroIt2 x) x)
+sndaZNIt2 = aZNIt2.2
+
+addIt2 : (step4 N) -> (step4 N) -> step4 N
+addIt2 = sndaZNIt2.1
+
+propAddIt2 : (x:step4 N) -> Id (step4 N) (addIt2 zeroIt2 x) x
+propAddIt2 = sndaZNIt2.2
+
+inl4 : N -> step4 N
+inl4 x = inl (inl (inl (inl x)))
+
+testIt2 : step4 N
+testIt2 = addIt2 (inl4 zero) (inl4 zero)
+
+testIt21 : Id (step4 N) (addIt2 zeroIt2 zeroIt2) zeroIt2
+testIt21 = propAddIt2 zeroIt2
+
+testIt22 : step4 N
+testIt22 = zeroIt2
+
+testIt23 : step4 N
+testIt23 = addIt2 zeroIt2 zeroIt2
 
 

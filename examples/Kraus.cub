@@ -12,30 +12,32 @@ swZero : N -> N -> N
 swZero = swapF N eqN zero
 
 
-homogeneous : (x:N) -> Id ptU (pair N x) (pair N zero)
+homogeneous : (x:N) -> Id ptU (N,x) (N,zero)
 homogeneous x = homogDec N eqN f0N f1N x zero
 
--- test : (x:N) -> Id (Id ptU (pair N x) (pair N zero)) (homogeneous x) (homogeneous x)
--- test x = refl (Id ptU (pair N x) (pair N zero)) (homogeneous x)
+-- test : (x:N) -> Id (Id ptU (N,x) (N,zero)) (homogeneous x) (homogeneous x)
+-- test x = refl (Id ptU (N,x) (N,zero)) (homogeneous x)
 
 -- the following type is a contractible, hence a proposition
 
 sNzero : U
-sNzero = singl ptU (pair N zero)  -- Sigma (Sigma U (id U)) (\ v -> Id ptU u (pair N zero))
+sNzero = singl ptU (N,zero)  -- Sigma (Sigma U (id U)) (\ v -> Id ptU u (N,zero))
 
 propSNzero : prop sNzero
-propSNzero = singlIsProp ptU (pair N zero)
+propSNzero = singlIsProp ptU (N,zero)
 
 -- we have a map inhI N -> sNzero, with the notation of Nicolai Kraus
 
 flifted : inhI N -> sNzero
-flifted = inhrecI N sNzero propSNzero (\ x -> pair (pair N x) (homogeneous x))
+flifted = inhrecI N sNzero propSNzero (\ x -> ((N,x),homogeneous x))
 
 Tmyst : inhI N -> U
-Tmyst x = fst U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
+Tmyst x = (flifted x).1.1
+-- fst U (id U) (fst ptU (\ v -> Id ptU v (N,zero)) (flifted x))
 
 myst : (x: inhI N) -> Tmyst x
-myst x = snd U (id U) (fst ptU (\ v -> Id ptU v (pair N zero)) (flifted x))
+myst x = (flifted x).1.2
+-- snd U (id U) (fst ptU (\ v -> Id ptU v (N,zero)) (flifted x))
 
 mystN : (n: N) -> Tmyst (incI N n)
 mystN n = myst (incI N n)

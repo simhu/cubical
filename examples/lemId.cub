@@ -10,6 +10,17 @@ comp A a b c p q = subst A (Id A a) b c q p
 compInvIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) p (comp A a b b p (refl A b))
 compInvIdr A a b p = substeq A (\x -> Id A a x) b p
 
+-- test : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) p (comp A a b b p (refl A a))
+-- test A a b p = refl (Id A a b) p
+
+-- S1recId : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) 
+--         -> Id (IdS S1 F base base loop b b)
+--               (mapOnPathD S1 F (S1rec F b l) base base loop)
+--               (comp l 
+-- S1recId = PN
+
+
+
 inv : (A : U) -> (a b :A) -> Id A a b -> Id A b a
 inv A a b p = subst A (\ x -> Id A x a) a b p (refl A a)
 

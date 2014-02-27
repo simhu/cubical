@@ -90,9 +90,9 @@ lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
               -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))
 lemInj A B f injf h x = 
  J A x (\ y p -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))) (h x)
- where
-  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
-  rem1 = h x
+--  where
+--  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
+--  rem1 = h x
 
 omegaIsSet : set Omega
 omegaIsSet = rem4
@@ -101,7 +101,7 @@ omegaIsSet = rem4
    rem = propIsProp
 
    g : (x:Omega) -> prop (isTrue x)
-   g = snd U prop
+   g x = x.2
 
    injf : injective Omega U isTrue
    injf = lemPropInj U prop rem 
@@ -109,26 +109,22 @@ omegaIsSet = rem4
    rem1 : (z:Omega) -> Id (Id Omega z z) (refl Omega z) (injf z z (refl U (isTrue z)))
    rem1 = lemPInj2 U prop rem
    
-   rem2 : (x y : Omega) -> (p : Id Omega x y) -> Id (Id Omega x y) p (injf x y (mapOnPath Omega U isTrue x y p))
+   rem2 : (x y : Omega) -> (p : Id Omega x y) 
+      -> Id (Id Omega x y) p (injf x y (mapOnPath Omega U isTrue x y p))
    rem2 = lemInj Omega U isTrue injf rem1
 
    rem3 : (x y : Omega) -> prop (Id U (isTrue x) (isTrue y))
    rem3 x y = idPropIsProp (isTrue x) (isTrue y) (g x) (g y)
 
    rem4 : (x y : Omega) -> (p q : Id Omega x y) -> Id (Id Omega x y) p q
-   rem4 x y p q = compDown (Id Omega x y) p (injf x y (h p)) q (injf x y (h q)) rem6 rem7 rem8
+   rem4 x y p q = compDown (Id Omega x y) p (injf x y (h p)) q (injf x y (h q)) 
+                       (rem2 x y p) (rem2 x y q) rem8
      where
         h : Id Omega x y -> Id U (isTrue x) (isTrue y)
         h = mapOnPath Omega U isTrue x y
 
         rem5 : Id (Id U (isTrue x) (isTrue y)) (h p) (h q)
         rem5 = rem3 x y (h p) (h q)
-
-        rem6 : Id (Id Omega x y) p (injf x y (h p))
-        rem6 = rem2 x y p
-
-        rem7 : Id (Id Omega x y) q (injf x y (h q))
-        rem7 = rem2 x y q
 
         rem8 : Id (Id Omega x y) (injf x y (h p)) (injf x y (h q))
         rem8 = mapOnPath (Id U (isTrue x) (isTrue y)) (Id Omega x y) (injf x y) (h p) (h q) rem5

@@ -14,7 +14,6 @@ corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem
   rem = funExt A (\_ -> A) h (id A) ph
 
 
-
 gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g ->
             isEquiv A B f
 gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem

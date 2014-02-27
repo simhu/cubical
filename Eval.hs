@@ -55,6 +55,18 @@ appName v y                           = -- traceb ("appName " ++ show v ++ "\ny 
 --          b = appName p 1
 --          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
+appS1 :: Val -> Val -> Name -> Val
+appS1 f p x | x `elem` [0,1] = appName p x
+appS1 f p x = 
+ com tu newBox
+   where y = fresh (p,(f,x))
+         q = appName p y
+         a = appName p 0
+         b = appName p 1
+         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
+         tu = fill VU (Box down y fb [((x,down),fl `face` (x,down)),((x,up),fb `face` (x,up))])
+         fb = app f VBase
+         fl = app f (VLoop y)
 
 -- Compute the face of a value
 face :: Val -> Side -> Val
@@ -393,6 +405,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
         bx1  = fill b $ mapBox (`face` (x,up)) bx       --- independent of x
         v    = fill b $ (x,(bx0,bx1)) `consBox` bx
     in traceb ("VEquivEq case 1" ) $ VPair x ax0 v
+--    in traceb ("VEquivEq case 1" ) $ vepair x ax0 v
   | x /= z && x `elem` nonPrincipal box =
     let ax0 = lookBox (x,down) box
         bx  = modBox (\(ny,dy) vy -> if x /= ny then sndVal vy else
