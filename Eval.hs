@@ -10,45 +10,31 @@ import Control.Arrow (second)
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
-import Control.Monad.Trans.Reader
 import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
 
 import CTT
 
-type Eval a = ReaderT Env (StateT Trace Identity) a
+type Eval a = StateT Trace Identity a
 
-runEval :: Env -> Eval a -> (a,Trace)
-runEval env e = runIdentity $ runStateT (runReaderT e env) []
+runEval :: Eval a -> (a,Trace)
+runEval e = runIdentity $ runStateT e []
 
 evalTer :: Env -> Ter -> (Val,Trace)
-evalTer env = runEval env . eval
+evalTer env = runEval . eval env
 
 evalTers :: Env -> [(Binder,Ter)] -> ([(Binder,Val)],Trace)
-evalTers env bts = runEval env (evals bts)
+evalTers env bts = runEval (evals env bts)
 
 appVal :: Val -> Val -> (Val,Trace)
-appVal v1 v2 = runEval Empty $ app v1 v2
+appVal v1 v2 = runEval $ app v1 v2
 
 convVal :: Int -> Val -> Val -> (Bool,Trace)
-convVal k v1 v2 = runEval Empty $ conv k v1 v2
-
-getEnv :: Eval Env
-getEnv = ask
+convVal k v1 v2 = runEval $ conv k v1 v2
 
 trace :: String -> Eval ()
-trace s = lift $ modify (\x -> x ++ [s])
-
--- Run in a new environment
-inEnv :: Eval a -> Env -> Eval a
-inEnv e env = local (const env) e
-
--- Monadic version on inEnv
-inEnvM :: Eval a -> Eval Env -> Eval a
-inEnvM e menv = do
-  env <- menv
-  local (const env) e
+trace s = modify (\x -> x ++ [s])
 
 -- WARNING: This version becomes too strict when run in the State monad???
 -- look :: Binder -> Eval Val
@@ -66,31 +52,29 @@ look x (Pair s (y,u)) | x == y    = u
                       | otherwise = look x s
 look x r@(PDef es r1)             = look x (upds r1 (fst (evalTers r es)))
 
-eval :: Ter -> Eval Val
-eval U                 = return VU
-eval (PN pn)           = evalAppPN pn []
-eval t@(App r s)       = case unApps t of
-  (PN pn,us) -> evalAppPN pn us
-  _          -> appM (eval r) (eval s)
-eval (Var i)           = look i <$> getEnv
-eval (Pi a b)          = VPi <$> eval a <*> eval b
-eval (Lam x t)         = Ter (Lam x t) <$> getEnv -- stop at lambdas
-eval (Sigma a b)       = VSigma <$> eval a <*> eval b
-eval (SPair a b)       = VSPair <$> eval a <*> eval b
-eval (Fst a)           = fstSVal <$> eval a
-eval (Snd a)           = sndSVal <$> eval a
-eval (Where t (_,def)) = do
-  e <- getEnv
-  eval t `inEnv` PDef def e
-eval (Con name ts)     = VCon name <$> mapM eval ts
-eval (Split pr alts)   = Ter (Split pr alts) <$> getEnv
-eval (Sum pr ntss)     = Ter (Sum pr ntss) <$> getEnv
+eval :: Env -> Ter -> Eval Val
+eval e U                 = return VU
+eval e (PN pn)           = evalAppPN e pn []
+eval e t@(App r s)       = case unApps t of
+  (PN pn,us) -> evalAppPN e pn us
+  _          -> appM (eval e r) (eval e s)
+eval e (Var i)           = return $ look i e
+eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
+eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
+eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
+eval e (SPair a b)       = VSPair <$> eval e a <*> eval e b
+eval e (Fst a)           = fstSVal <$> eval e a
+eval e (Snd a)           = sndSVal <$> eval e a
+eval e (Where t (_,def)) = eval (PDef def e) t
+eval e (Con name ts)     = VCon name <$> mapM (eval e) ts
+eval e (Split pr alts)   = return $ Ter (Split pr alts) e
+eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
 
-evals :: [(Binder,Ter)] -> Eval [(Binder,Val)]
-evals []          = return []
-evals ((b,t):bts) = do
-  v   <- eval t
-  bvs <- evals bts
+evals :: Env -> [(Binder,Ter)] -> Eval [(Binder,Val)]
+evals _ []          = return []
+evals e ((b,t):bts) = do
+  v   <- eval e t
+  bvs <- evals e bts
   return $ (b,v) : bvs
 
 fstSVal, sndSVal :: Val -> Val
@@ -103,7 +87,7 @@ sndSVal u | isNeutral u = VSnd u
 
 -- Application
 app :: Val -> Val -> Eval Val
-app (Ter (Lam x t) e) u                         = eval t `inEnv` Pair e (x,u)
+app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u = do
   trace "Pi Com"
   ufill <- fill a (Box (mirror dir) x u [])
@@ -131,7 +115,7 @@ app vext@(VExt x bv fv gv pv) w = do
   pvxw  <- appNameM (app pv w0) x
   comM (app bv w) (return (Box up y pvxw [((x,down),left),((x,up),right)]))
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
-    Just (xs,t)  -> eval t `inEnv` upds e (zip xs us)
+    Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
 app u@(Ter (Split _ _) _) v
@@ -140,7 +124,6 @@ app u@(Ter (Split _ _) _) v
 app r s
   | isNeutral r = return $ VApp r s -- r should be neutral
   | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
-
 
 -- Monadic version of app
 appM :: Eval Val -> Eval Val -> Eval Val
@@ -169,23 +152,24 @@ appName (Path x u) y | x == y             = return u
 appName v y          = return $ VAppName v y
 
 appNameM :: Eval Val -> Name -> Eval Val
-appNameM v n = v >>= flip appName n
+appNameM v n = do
+  v' <- v
+  appName v' n
 
 -- Apply a primitive notion
-evalAppPN :: PN -> [Ter] -> Eval Val
-evalAppPN pn ts
+evalAppPN :: Env -> PN -> [Ter] -> Eval Val
+evalAppPN e pn ts
   | length ts < arity pn =
       -- Eta expand primitive notions
       let r       = arity pn - length ts
           binders = map (\n -> '_' : show n) [1..r]
           vars    = map Var binders
-      in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) <$> getEnv
+      in return $ Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) e
   | otherwise = do
       let (args,rest) = splitAt (arity pn) ts
-      vas <- mapM eval args
-      e   <- getEnv
+      vas <- mapM (eval e) args
       p   <- evalPN (freshs e) pn vas
-      r   <- mapM eval rest
+      r   <- mapM (eval e) rest
       apps p r
 
 -- Evaluate primitive notions
@@ -193,8 +177,10 @@ evalPN :: [Name] -> PN -> [Val] -> Eval Val
 evalPN (x:_) Id            [a,a0,a1]     = return $ VId (Path x a) a0 a1
 evalPN (x:_) IdP           [_,_,p,a0,a1] = return $ VId p a0 a1
 evalPN (x:_) Refl          [_,a]         = return $ Path x a
-evalPN (x:_) TransU        [_,_,p,t]     = comM (appName p x) (return (Box up x t []))
-evalPN (x:_) TransInvU     [_,_,p,t]     = comM (appName p x) (return (Box down x t []))
+evalPN (x:_) TransU        [_,_,p,t]     =
+  comM (appName p x) (return (Box up x t []))
+evalPN (x:_) TransInvU     [_,_,p,t]     =
+  comM (appName p x) (return (Box down x t []))
 evalPN (x:_) TransURef     [a,t]         = Path x <$> fill a (Box up x t [])
 evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] = do
   fu <- app f u
@@ -212,8 +198,10 @@ evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
 evalPN (x:_)   EquivEq    [a,b,f,s,t]   = return $ Path x $ VEquivEq x a b f s t
 evalPN (x:y:_) EquivEqRef [a,s,t]       =
   return $ Path y $ Path x $ VEquivSquare x y a s t
-evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x <$> appM (pure f) (appName p x)
-evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    = Path x <$> appM (pure f) (appName p x)
+evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    =
+  Path x <$> appM (return f) (appName p x)
+evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    =
+  Path x <$> appM (return f) (appName p x)
 evalPN (x:_)   AppOnPath [_,_,_,_,_,_,p,q] =
   Path x <$> appM (appName p x) (appName q x)
 evalPN (x:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
@@ -244,7 +232,8 @@ face :: Val -> Side -> Eval Val
 face u xdir@(x,dir) =
   let fc v = v `face` xdir in case u of
   VU          -> return VU
-  Ter t e     -> eval t `inEnvM` (e `faceEnv` xdir)
+  Ter t e -> do e' <- e `faceEnv` xdir
+                eval e' t
   VId a v0 v1 -> VId <$> fc a <*> fc v0 <*> fc v1
   Path y v | x == y    -> return u
            | otherwise -> Path y <$> fc v
@@ -482,14 +471,13 @@ fillM v b = do
   b' <- b
   fill v' b'
 
-fills :: [(Binder,Ter)] -> [Box Val] -> Eval [Val]
-fills []         []          = return []
-fills ((x,a):as) (box:boxes) = do
-  v  <- fillM (eval a) (return box)
-  e  <- getEnv
-  vs <- fills as boxes `inEnv` Pair e (x,v)
+fills :: [(Binder,Ter)] -> Env -> [Box Val] -> Eval [Val]
+fills []         _ []          = return []
+fills ((x,a):as) e (box:boxes) = do
+  v  <- fillM (eval e a) (return box)
+  vs <- fills as (Pair e (x,v)) boxes
   return $ v : vs
-fills _ _ = error "fills: different lengths of types and values"
+fills _ _ _ = error "fills: different lengths of types and values"
 
 unPack :: Name -> Name -> (Name,Dir) -> Val -> Val
 unPack x y (z,c) v | z /= x && z /= y  = unSquare v
@@ -499,7 +487,7 @@ unPack x y (z,c) v | z /= x && z /= y  = unSquare v
 -- Kan filling
 fill :: Val -> Box Val -> Eval Val
 -- TODO: is is ok to use runEval like this?
-fill v box | fst (runEval Empty (isNeutralFill v box)) = return $ VFillN v box
+fill v box | fst (runEval (isNeutralFill v box)) = return $ VFillN v box
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = do
   let x = fresh (vid, box)
   box' <- consBox (x,(v0,v1)) <$> mapBoxM (`appName` x) box
@@ -512,7 +500,7 @@ fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case lookup n nass of
   Just as -> do
     let boxes = transposeBox $ mapBox unCon box
     -- fill boxes for each argument position of the constructor
-    VCon n <$> fills as boxes `inEnv` env
+    VCon n <$> fills as env boxes
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
 fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y <$> fill a (modBox (unPack x y) box)
@@ -573,8 +561,6 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     bcom <- com b box2
     return $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
-
-
 fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = do  -- W.l.o.g. assume that box contains faces for
                       -- the non-principal sides of tbox.
@@ -765,14 +751,12 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
           pickout zc vfill = lookBox zc (unFillAs vfill z)
           -- asumes zc is in the sides of tbox
           auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
-
 fill v b = return $ Kan Fill v b
-
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Eval Val
 -- TODO: is is ok to use runEval like this?
-com u box | fst (runEval Empty (isNeutralFill u box)) = return $ VComN u box
+com u box | fst (runEval (isNeutralFill u box)) = return $ VComN u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
 com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
@@ -803,14 +787,13 @@ conv :: Int -> Val -> Val -> Eval Bool
 conv k VU VU                                  = return True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = do
   let v = mkVar k $ support (e, e')
-  convM (k+1) (eval u `inEnv` (Pair e (x,v)))
-              (eval u' `inEnv` (Pair e' (x',v)))
+  convM (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
 conv k (Ter (Lam x u) e) u' = do
   let v = mkVar k $ support e
-  convM (k+1) (eval u `inEnv` (Pair e (x,v))) (app u' v)
+  convM (k+1) (eval (Pair e (x,v)) u) (app u' v)
 conv k u' (Ter (Lam x u) e) = do
   let v = mkVar k $ support e
-  convM (k+1) (app u' v) (eval u `inEnv` (Pair e (x,v)))
+  convM (k+1) (app u' v) (eval (Pair e (x,v)) u)
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
   liftM ((p == p') &&) $ convEnv k e e'
 conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
