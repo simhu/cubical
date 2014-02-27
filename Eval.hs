@@ -36,22 +36,13 @@ convVal k v1 v2 = runEval $ conv k v1 v2
 trace :: String -> Eval ()
 trace s = modify (\x -> x ++ [s])
 
--- WARNING: This version becomes too strict when run in the State monad???
--- look :: Binder -> Eval Val
--- look x = do
---   env <- getEnv
---   case env of
---     Pair s (y,u) | x == y    -> return u
---                  | otherwise -> look x `inEnv` s
---     r@(PDef es r1)           -> do
---       vs <- evals es `inEnv` r
---       look x `inEnv` upds r1 vs
-
 look :: Binder -> Env -> Val
 look x (Pair s (y,u)) | x == y    = u
                       | otherwise = look x s
-look x r@(PDef es r1)             = look x (upds r1 (fst (evalTers r es)))
-
+look x r@(PDef es r1)             = case lookup x es of
+  Just t  -> fst $ evalTer r t
+  Nothing -> look x r1
+  
 eval :: Env -> Ter -> Eval Val
 eval e U                 = return VU
 eval e (PN pn)           = evalAppPN e pn []
