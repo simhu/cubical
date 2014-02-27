@@ -10,6 +10,8 @@ import Control.Arrow (second)
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
+-- nIso breaks if we use:
+-- import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
@@ -42,7 +44,7 @@ look x (Pair s (y,u)) | x == y    = u
 look x r@(PDef es r1)             = case lookup x es of
   Just t  -> fst $ evalTer r t
   Nothing -> look x r1
-  
+
 eval :: Env -> Ter -> Eval Val
 eval e U                 = return VU
 eval e (PN pn)           = evalAppPN e pn []
@@ -62,11 +64,7 @@ eval e (Split pr alts)   = return $ Ter (Split pr alts) e
 eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
 
 evals :: Env -> [(Binder,Ter)] -> Eval [(Binder,Val)]
-evals _ []          = return []
-evals e ((b,t):bts) = do
-  v   <- eval e t
-  bvs <- evals e bts
-  return $ (b,v) : bvs
+evals env = sequenceSnd . map (second (eval env))
 
 fstSVal, sndSVal :: Val -> Val
 fstSVal (VSPair a b)    = a
@@ -764,7 +762,7 @@ comM t b = do
   com v b'
 
 -- Conversion functions
-  
+
 (<&&>) :: Monad m => m Bool -> m Bool -> m Bool
 (<&&>) = liftM2 (&&)
 
