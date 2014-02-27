@@ -113,15 +113,17 @@ initLoop debug f = do
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
       runInputT (settings []) (loop debug [] [] TC.tEmpty)
-    Right adefs -> case TC.runDefs TC.tEmpty adefs of
+    Right adefs -> TC.runDefs debug TC.tEmpty adefs >>= \x -> case x of
       Left err   -> do
         putStrLn $ "Type checking failed: " ++ err
         runInputT (settings []) (loop debug [] [] TC.tEmpty)
-      Right (tenv,TC.TState ttrc ftrc) -> do
+--      Right (tenv,TC.TState ttrc ftrc) -> do
+      Right tenv -> do
+
         -- In debugging mode output full trace
-        when debug $ putStr (unlines ftrc)
+--        when debug $ putStr (unlines ftrc)
         -- Otherwise output only trace from type checking
-        when (not debug) $ putStr (unlines ttrc)
+--        when (not debug) $ putStr (unlines ttrc)
         putStrLn "File loaded."
         -- Compute names for auto completion
         let ns = cs ++ namesEnv tenv
@@ -147,12 +149,13 @@ loop debug f cs tenv@(TC.TEnv _ rho _) = do
       Ok  exp -> case runResolver (local (const (Env cs)) (resolveExp exp)) of
         Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
                          loop debug f cs tenv
-        Right body -> case TC.runInfer tenv body of
+        Right body -> lift (TC.runInfer debug tenv body) >>= \x -> case x of
           Left err -> do outputStrLn ("Could not type-check: " ++ err)
                          loop debug f cs tenv
           Right _  -> do
-            let (e,trace) = E.evalTer rho body
-            when debug $ outputStr (unlines trace)
+--            let (e,trace) = E.evalTer rho body
+            e <- lift $ E.evalTer debug rho body
+--            when debug $ outputStr (unlines trace)
             outputStrLn ("EVAL: " ++ show e)
             loop debug f cs tenv
 

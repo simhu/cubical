@@ -54,15 +54,16 @@ loadFile f = do
   case runResolver (local (insertConstrs cs) (resolveDefs defs)) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.Empty
-    Right ds -> case TC.runDefs TC.tEmpty ds of
+    Right ds -> TC.runDefs False TC.tEmpty ds >>= \x -> case x of
       Left err    -> do assertFailure $ "Type checking failed:" <+> err <+> "on" <+> f
                         return C.Empty
-      Right (e,_) -> return (TC.env e)
+      Right e -> return (TC.env e)
 
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do
   env <- loadFile f
-  sequence_ [ assertEqual ("for" <+> n) output (show (fst (E.evalTer env (C.Var n))))
+  sequence_ [ do v <- E.evalTer False env (C.Var n)
+                 assertEqual ("for" <+> n) output (show v)
             | (n,output) <- xs ]
 
 toTests :: String -> [(String,String)] -> Test

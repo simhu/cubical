@@ -1,56 +1,62 @@
-module Eval ( evalTer
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+module Eval ( Eval(..)
+            , runEval  
+            , evalTer
             , evalTers
-            , appVal
-            , convVal
+            , app, eval, evals, conv
+            -- , appVal
+            -- , convVal
             , fstSVal
             ) where
 
 import Control.Applicative
 import Control.Arrow (second)
 import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Trans.State
+import Control.Monad.State
+-- import Control.Monad.Trans
+-- import Control.Monad.Trans.State
 import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
 
 import CTT
 
-type Eval a = StateT Trace Identity a
+-- type Eval a = StateT Trace Identity a
+-- The Bool denotes whether we are in debugging mode or not
+newtype Eval a = Eval { unEval :: StateT Bool IO a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadState Bool)
 
-runEval :: Eval a -> (a,Trace)
-runEval e = runIdentity $ runStateT e []
+runEval :: Bool -> Eval a -> IO a
+runEval b e = evalStateT (unEval e) b
 
-evalTer :: Env -> Ter -> (Val,Trace)
-evalTer env = runEval . eval env
+evalTer :: Bool -> Env -> Ter -> IO Val
+evalTer b env = runEval b . eval env
 
-evalTers :: Env -> [(Binder,Ter)] -> ([(Binder,Val)],Trace)
-evalTers env bts = runEval (evals env bts)
+evalTers :: Bool -> Env -> [(Binder,Ter)] -> IO [(Binder,Val)]
+evalTers b env bts = runEval b (evals env bts)
 
-appVal :: Val -> Val -> (Val,Trace)
-appVal v1 v2 = runEval $ app v1 v2
+-- appVal :: Bool -> Val -> Val -> IO Val
+-- appVal b v1 v2 = runEval b $ app v1 v2
 
-convVal :: Int -> Val -> Val -> (Bool,Trace)
-convVal k v1 v2 = runEval $ conv k v1 v2
+-- convVal :: Bool -> Int -> Val -> Val -> IO Bool
+-- convVal b k v1 v2 = runEval b $ conv k v1 v2
+
+debug :: Eval Bool
+debug = get
 
 trace :: String -> Eval ()
-trace s = modify (\x -> x ++ [s])
+-- trace s = modify (\x -> x ++ [s])
+trace s = do
+  debug <- get
+  liftIO $ when debug (putStrLn s)
 
--- WARNING: This version becomes too strict when run in the State monad???
--- look :: Binder -> Eval Val
--- look x = do
---   env <- getEnv
---   case env of
---     Pair s (y,u) | x == y    -> return u
---                  | otherwise -> look x `inEnv` s
---     r@(PDef es r1)           -> do
---       vs <- evals es `inEnv` r
---       look x `inEnv` upds r1 vs
-
-look :: Binder -> Env -> Val
-look x (Pair s (y,u)) | x == y    = u
-                      | otherwise = look x s
-look x r@(PDef es r1)             = look x (upds r1 (fst (evalTers r es)))
+look :: Binder -> Env -> Eval Val
+look x env = case env of
+  Pair s (y,u) | x == y    -> return u
+               | otherwise -> look x s
+  r@(PDef es r1)           -> case lookup x es of
+    Just t  -> eval r t
+    Nothing -> look x r1
 
 eval :: Env -> Ter -> Eval Val
 eval e U                 = return VU
@@ -58,7 +64,7 @@ eval e (PN pn)           = evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
   (PN pn,us) -> evalAppPN e pn us
   _          -> appM (eval e r) (eval e s)
-eval e (Var i)           = return $ look i e
+eval e (Var i)           = look i e
 eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
 eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
 eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
@@ -71,11 +77,7 @@ eval e (Split pr alts)   = return $ Ter (Split pr alts) e
 eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
 
 evals :: Env -> [(Binder,Ter)] -> Eval [(Binder,Val)]
-evals _ []          = return []
-evals e ((b,t):bts) = do
-  v   <- eval e t
-  bvs <- evals e bts
-  return $ (b,v) : bvs
+evals e bts = sequenceSnd $ map (second (eval e)) bts
 
 fstSVal, sndSVal :: Val -> Val
 fstSVal (VSPair a b)    = a
@@ -486,25 +488,26 @@ unPack x y (z,c) v | z /= x && z /= y  = unSquare v
 
 -- Kan filling
 fill :: Val -> Box Val -> Eval Val
--- TODO: is is ok to use runEval like this?
-fill v box | fst (runEval (isNeutralFill v box)) = return $ VFillN v box
-fill vid@(VId a v0 v1) box@(Box dir i v nvs) = do
+fill v box = do
+  b <- isNeutralFill v box
+  if b then return $ VFillN v box else fill' v box
+fill' vid@(VId a v0 v1) box@(Box dir i v nvs) = do
   let x = fresh (vid, box)
   box' <- consBox (x,(v0,v1)) <$> mapBoxM (`appName` x) box
   Path x <$> fillM (a `appName` x) (return box')
-fill (VSigma a f) box@(Box dir x v nvs) = do
+fill' (VSigma a f) box@(Box dir x v nvs) = do
   u <- fill a (mapBox fstSVal box)
   VSPair u <$> fillM (app f u) (return (mapBox sndSVal box))
 -- assumes cvs are constructor vals
-fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case lookup n nass of
+fill' v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case lookup n nass of
   Just as -> do
     let boxes = transposeBox $ mapBox unCon box
     -- fill boxes for each argument position of the constructor
     VCon n <$> fills as env boxes
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
-fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
+fill' (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y <$> fill a (modBox (unPack x y) box)
-fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
+fill' veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x /= z && x `notElem` nonPrincipal box = do
     trace "VEquivEq case 1"
     ax0 <- fill a (mapBox fstVal box)
@@ -561,7 +564,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     bcom <- com b box2
     return $ VPair x acom bcom
   | otherwise = error "fill EqEquiv"
-fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
+fill' v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = do  -- W.l.o.g. assume that box contains faces for
                       -- the non-principal sides of tbox.
 
@@ -631,7 +634,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
         -- asumes zd is in the sides of tbox
         pickout zd vcomp = lookBox zd (unCompAs vcomp z)
 
-fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
+fill' v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- the cases should be (in order):
   -- 1) W.l.o.g. K subset x', J
   -- 2) x' = x &  dir = tdir
@@ -751,19 +754,21 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
           pickout zc vfill = lookBox zc (unFillAs vfill z)
           -- asumes zc is in the sides of tbox
           auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
-fill v b = return $ Kan Fill v b
+fill' v b = return $ Kan Fill v b
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Eval Val
 -- TODO: is is ok to use runEval like this?
-com u box | fst (runEval (isNeutralFill u box)) = return $ VComN u box
-com vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
-com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
-com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
-com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `faceM` (i,dir)
-com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `faceM` (i,dir)
-com ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
-com v box                                 = return $ Kan Com v box
+com u box = do
+  b <- isNeutralFill u box
+  if b then return $ VComN u box else com' u box
+com' vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
+com' vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
+com' veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
+com' u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `faceM` (i,dir)
+com' u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `faceM` (i,dir)
+com' ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
+com' v box                                 = return $ Kan Com v box
 
 -- Monadic version of com
 comM :: Eval Val -> Eval (Box Val) -> Eval Val
