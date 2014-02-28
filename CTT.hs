@@ -392,7 +392,7 @@ data Val = VU
 
          -- a value of type Kan Fill VU (Box (type of values minus name))
          -- the name is bound
-         | VFill Name (Box Val)	 
+         | VFill Name (Box Val)
 
          -- circle
          | VCircle

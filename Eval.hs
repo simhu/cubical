@@ -344,14 +344,8 @@ isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) =
         nJ    = nonPrincipal box
         nL    = nJ \\ nK
         aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
-isNeutralFill v@(Kan Fill VU tbox') box@(Box d x _ _) =
---  not (and [isVFill (lookBox yc box) | yc <- aDs])
-  or [isNeutral (lookBox yc box) | yc <- aDs]
-   where
-        nK    = (pname tbox'):(nonPrincipal tbox')
-        nJ    = nonPrincipal box
-        nL    = nJ \\ nK
-        aDs   = if x `elem` nK then allDirs nL else (x,mirror d):(allDirs nL)
+isNeutralFill v@(Kan Fill VU tbox) box =
+  or [isNeutral (lookBox yc box) | yc <- defBox box \\ defBox tbox]
 isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x _ _) =
 --  not (and [isVPair (lookBox yc box) | yc <- aDs])
 -- TODO: check
@@ -514,7 +508,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       add :: Side -> Val
       add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
       newBox = [ (zc,add zc) | zc <- allDirs toAdd ] `appendSides` box
-    in traceb "Kan Fill VU Case 1" fill v newBox            -- W.l.o.g. nK subset x:nJ
+    in traceb "Kan Fill VU Case 1" fill v newBox -- W.l.o.g. nK subset x':nJ
   | x == x' && dir == tdir = -- assumes K subset x',J
     let
       boxp = lookBox (x,dir') box  -- is vx'
@@ -523,20 +517,21 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
         [ (zc,
            let principzc = lookBox zc box
                sides = [((x,tdir'),principal `face` zc)
-                       ,((x,tdir),principzc)] -- "degenerate" along z!
+                       ,((x,tdir),principzc `face` (x,tdir))] -- "degenerate" along z!
            in fill (lookBox zc tbox) (Box up z principzc (sides ++ auxsides zc)))
         | zc <- allDirs nK ]
     in     traceb ("Kan Fill VU Case 2") --  ++ show v ++ "\nbox= " ++ show box
-     VFill z (Box tdir x' principal nonprincipal)
+     VFill z (Box tdir x principal nonprincipal)
 
   | x == x' && dir == mirror tdir = -- assumes K subset x',J
-        let      -- the principal side of box must be a VComp
-          upperbox = unCompAs (lookBox (x,dir') box) x   -- should be safe given the neutral test at the beginning
+        let -- the principal side of box must be a VComp
+            -- should be safe given the neutral test at the beginning
+          upperbox = unCompAs (lookBox (x,dir') box) x
           nonprincipal =
             [ (zc,
                let top    = lookBox zc upperbox
                    bottom = lookBox zc box
-                   princ  = top `face` (x',tdir) -- same as: bottom `face` (x',tdir)
+                   princ  = top `face` (x,tdir) -- same as: bottom `face` (x,tdir)
                    sides  = [((z,down),bottom),((z,up),top)]
                in fill (lookBox zc tbox)
                     (Box tdir' x princ -- "degenerate" along z!
@@ -548,7 +543,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
             fill (lookBox (x,tdir') tbox) (Box up z (lookBox (x,tdir') upperbox)
                                          (nonprincipalfaces ++ auxsides (x,tdir')))
         in traceb "Kan Fill VU Case 3"
-           VFill z (Box tdir x' principal nonprincipal)
+           VFill z (Box tdir x principal nonprincipal)
   | x `notElem` nJ =  -- assume x /= x' and K subset x', J
     let
       comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
@@ -559,7 +554,8 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
      fill v (xsides `appendSides` box)
   | x' `notElem` nK =  -- assumes x,K subset x',J
         let
-          xaux      = unCompAs (lookBox (x,tdir) box) x -- TODO: Do we need a fresh name?
+          -- TODO: Do we need a fresh name? (Probably not: doesn't depend on x!)
+          xaux      = unCompAs (lookBox (x,tdir) box) x
           boxprinc  = unFillAs (lookBox (x',dir') box) z
           princnp   = [((z,up),lookBox (x,tdir') xaux)
                       ,((z,down),lookBox (x,tdir') box)]
@@ -576,7 +572,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                         (Box dir x' (lookBox yc boxprinc) np))
             | yc@(y,c) <- allDirs nK]
         in     traceb "Kan Fill VU Case 5"
-               VFill z (Box tdir x' principal nonprincipal)
+               VFill z (Box tdir x principal nonprincipal)
   | x' `elem` nK =              -- assumes x,K subset x',J
         let -- surprisingly close to the last case of the Kan-Com-VU filling
           upperbox = unCompAs (lookBox (x,dir') box) x
@@ -603,13 +599,12 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                    ++ map (\(zc,u) -> (zc,u `face` (x',dir))) (sides npintbox)
           nplast = ((x',dir),fill (lookBox (x',dir) tbox) (Box down z nplp nplnp))
         in       traceb "Kan Fill VU Case 6"
-         VFill z (Box tdir x' principal (nplast:npint))
+         VFill z (Box tdir x principal (nplast:npint))
     where z     = fresh (v, box)
           nK    = nonPrincipal tbox
           nJ    = nonPrincipal box
           toAdd = nK \\ (x' : nJ)
-          nL    = nJ \\ nK
-          boxL  = subBox nL box
+          nL    = nJ \\ (x:nK)
           dir'  = mirror dir
           tdir' = mirror tdir
           -- asumes zc is in the sides of tbox
