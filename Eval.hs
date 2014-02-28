@@ -57,14 +57,16 @@ appName v y                           = -- traceb ("appName " ++ show v ++ "\ny 
 
 appS1 :: Val -> Val -> Name -> Val
 appS1 f p x | x `elem` [0,1] = appName p x
-appS1 f p x = 
+appS1 f p x =
  com tu newBox
    where y = fresh (p,(f,x))
          q = appName p y
          a = appName p 0
          b = appName p 1
-         newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
-         tu = fill VU (Box down y fb [((x,down),fl `face` (x,down)),((x,up),fb `face` (x,up))])
+         newBox = Box down y b [((x,down),q `face` (x,down)),
+                                ((x,up),b `face` (x,up))]
+         tu = fill VU (Box down y fb [((x,down),fl `face` (x,down)),
+                                      ((x,up),fb `face` (x,up))])
          fb = app f VBase
          fl = app f (VLoop y)
 
@@ -655,11 +657,13 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
         bcu   = cubeToBox ufill (shapeOfBox box)
         vfill = fill a (Box (mirror dir) i u [((x,down),ufill),((x,up),v)])
         vx    = fill (app b ufill) (appBox box bcu)
-        vi0   = app w (vfill `face` (i,down))
+        vi0   = app w (vfill `face` (i,mirror dir))
         vi1   = com (app b ufill) (appBox box bcu)
         nvs   = [ ((n,d),app ws (vfill `face` (n,d))) | ((n,d),ws) <- nws ]
-        answer = com (app b vfill) (Box up x vx (((i,down),vi0) : ((i,up),vi1):nvs))
-app vext@(VExt x bv fv gv pv) w = com (app bv w) (Box up y pvxw [((x,down),left),((x,up),right)])
+        answer = com (app b vfill)
+                     (Box up x vx (((i,mirror dir),vi0) : ((i,dir),vi1):nvs))
+app vext@(VExt x bv fv gv pv) w =
+  com (app bv w) (Box up y pvxw [((x,down),left),((x,up),right)])
   -- NB: there are various choices how to construct this
   where y     = fresh (vext, w)
         w0    = w `face` (x,down)
