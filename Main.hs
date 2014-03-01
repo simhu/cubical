@@ -64,7 +64,7 @@ main = do
   case files of
     [f] -> initLoop b f
     _   -> do putStrLn $ "Exactly one file expected: " ++ show files
-              runInputT (settings []) (loop b [] [] TC.tEmpty)
+              runInputT (settings []) (loop [] [] (TC.tEmpty b))
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
 imports :: ([String],[String],[Def]) -> String -> IO ([String],[String],[Def])
@@ -95,7 +95,7 @@ getConstrs (DefMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
 getConstrs (_:ds)              = getConstrs ds
 
 namesEnv :: TC.TEnv -> [String]
-namesEnv (TC.TEnv _ env ctxt) = namesCEnv env ++ map fst ctxt
+namesEnv (TC.TEnv _ env ctxt _) = namesCEnv env ++ map fst ctxt
   where namesCEnv C.Empty          = []
         namesCEnv (C.Pair e (b,_)) = namesCEnv e ++ [b]
         namesCEnv (C.PDef xs e)    = map fst xs ++ namesCEnv e
@@ -112,49 +112,48 @@ initLoop debug f = do
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
-      runInputT (settings []) (loop debug [] [] TC.tEmpty)
-    Right adefs -> case TC.runDefs TC.tEmpty adefs of
-      Left err   -> do
-        putStrLn $ "Type checking failed: " ++ err
-        runInputT (settings []) (loop debug [] [] TC.tEmpty)
-      Right (tenv,TC.TState ttrc ftrc) -> do
-        -- In debugging mode output full trace
-        when debug $ putStr (unlines ftrc)
-        -- Otherwise output only trace from type checking
-        when (not debug) $ putStr (unlines ttrc)
-        putStrLn "File loaded."
-        -- Compute names for auto completion
-        let ns = cs ++ namesEnv tenv
-        runInputT (settings ns) (loop debug f cs tenv)
+      runInputT (settings []) (loop [] [] (TC.tEmpty debug))
+    Right adefs -> do
+      x <- TC.runDefs (TC.tEmpty debug) adefs
+      case x of
+        Left err   -> do
+          putStrLn $ "Type checking failed: " ++ err
+          runInputT (settings []) (loop [] [] (TC.tEmpty debug))
+        Right tenv -> do
+          putStrLn "File loaded."
+          -- Compute names for auto completion
+          let ns = cs ++ namesEnv tenv
+          runInputT (settings ns) (loop f cs tenv)
 
 -- The main loop
-loop :: Bool -> FilePath -> [String] -> TC.TEnv -> Interpreter ()
-loop debug f cs tenv@(TC.TEnv _ rho _) = do
+loop :: FilePath -> [String] -> TC.TEnv -> Interpreter ()
+loop f cs tenv@(TC.TEnv _ rho _ debug) = do
   input <- getInputLine defaultPrompt
   case input of
-    Nothing    -> outputStrLn help >> loop debug f cs tenv
+    Nothing    -> outputStrLn help >> loop f cs tenv
     Just ":q"  -> return ()
     Just ":r"  -> lift $ initLoop debug f
     Just (':':'l':' ':str)
       | ' ' `elem` str -> do outputStrLn "Only one file allowed after :l"
-                             loop debug f cs tenv
+                             loop f cs tenv
       | otherwise      -> lift $ initLoop debug str
     Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
-                                     loop debug f cs tenv
-    Just ":h"  -> outputStrLn help >> loop debug f cs tenv
+                                     loop f cs tenv
+    Just ":h"  -> outputStrLn help >> loop f cs tenv
     Just str   -> case pExp (lexer str) of
-      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop debug f cs tenv
+      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop f cs tenv
       Ok  exp -> case runResolver (local (const (Env cs)) (resolveExp exp)) of
         Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
-                         loop debug f cs tenv
-        Right body -> case TC.runInfer tenv body of
-          Left err -> do outputStrLn ("Could not type-check: " ++ err)
-                         loop debug f cs tenv
-          Right _  -> do
-            let (e,trace) = E.evalTer rho body
-            when debug $ outputStr (unlines trace)
-            outputStrLn ("EVAL: " ++ show e)
-            loop debug f cs tenv
+                         loop f cs tenv
+        Right body -> do
+          x <- liftIO $ TC.runInfer tenv body
+          case x of
+            Left err -> do outputStrLn ("Could not type-check: " ++ err)
+                           loop f cs tenv
+            Right _  -> do
+              let e = E.evalTer debug rho body
+              outputStrLn ("EVAL: " ++ show e)
+              loop f cs tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++

@@ -16,33 +16,40 @@ import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
 
+import Debug.Trace
+
 import CTT
 
-type Eval a = StateT Trace Identity a
+traceb :: String -> Eval a -> Eval a
+traceb s x = do
+  debug <- get
+  if debug then trace s x else x
 
-runEval :: Eval a -> (a,Trace)
-runEval e = runIdentity $ runStateT e []
+-- For now only store the debugging boolean
+type EState = Bool
 
-evalTer :: Env -> Ter -> (Val,Trace)
-evalTer env = runEval . eval env
+type Eval a = StateT EState Identity a
 
-evalTers :: Env -> [(Binder,Ter)] -> ([(Binder,Val)],Trace)
-evalTers env bts = runEval (evals env bts)
+runEval :: Bool -> Eval a -> a
+runEval debug e = runIdentity $ evalStateT e debug
 
-appVal :: Val -> Val -> (Val,Trace)
-appVal v1 v2 = runEval $ app v1 v2
+evalTer :: Bool -> Env -> Ter -> Val
+evalTer b env = runEval b . eval env
 
-convVal :: Int -> Val -> Val -> (Bool,Trace)
-convVal k v1 v2 = runEval $ conv k v1 v2
+evalTers :: Bool -> Env -> [(Binder,Ter)] -> [(Binder,Val)]
+evalTers b env bts = runEval b (evals env bts)
 
-trace :: String -> Eval ()
-trace s = modify (\x -> x ++ [s])
+appVal :: Bool -> Val -> Val -> Val
+appVal b v1 v2 = runEval b $ app v1 v2
 
-look :: Binder -> Env -> Val
-look x (Pair s (y,u)) | x == y    = u
+convVal :: Bool -> Int -> Val -> Val -> Bool
+convVal b k v1 v2 = runEval b $ conv k v1 v2
+
+look :: Binder -> Env -> Eval Val
+look x (Pair s (y,u)) | x == y    = return u
                       | otherwise = look x s
 look x r@(PDef es r1)             = case lookup x es of
-  Just t  -> fst $ evalTer r t
+  Just t  -> eval r t
   Nothing -> look x r1
 
 eval :: Env -> Ter -> Eval Val
@@ -51,7 +58,7 @@ eval e (PN pn)           = evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
   (PN pn,us) -> evalAppPN e pn us
   _          -> appM (eval e r) (eval e s)
-eval e (Var i)           = return $ look i e
+eval e (Var i)           = look i e
 eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
 eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
 eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
@@ -78,12 +85,12 @@ sndSVal u | isNeutral u = VSnd u
 app :: Val -> Val -> Eval Val
 app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u = do
-  trace "Pi Com"
+  traceb "Pi Com" $ do
   ufill <- fill a (Box (mirror dir) x u [])
   bcu   <- cubeToBox ufill (shapeOfBox box)
   comM (app b ufill) (appBox box bcu)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v = do
-  trace "Pi fill"
+  traceb "Pi fill" $ do
   let x = fresh (kf, v)
   u     <- v `face` (i,dir)
   ufill <- fill a (Box (mirror dir) i u [])
@@ -310,8 +317,8 @@ face u xdir@(x,dir) =
   VInhRec b p h a     -> join $ inhrec <$> fc b <*> fc p <*> fc h <*> fc a
   VApp u v            -> appM (fc u) (fc v)
   VAppName u n        -> do
-   trace ("face " ++ "\nxdir " ++ show xdir ++
-          "\nu " ++ show u ++ "\nn " ++ show n)
+   traceb ("face " ++ "\nxdir " ++ show xdir ++
+          "\nu " ++ show u ++ "\nn " ++ show n) $ do
    appNameM (fc u) (faceName n xdir)
   VSplit u v          -> appM (fc u) (fc v)
   VVar s d            -> return $ VVar s [ faceName n xdir | n <- d ]
@@ -351,7 +358,7 @@ unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
 -- appDiag :: Val -> Val -> Name -> Val
 -- appDiag tu p x | x `elem` [0,1] = appName p x
 -- appDiag tu p x =
--- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
+-- tracebb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
 -- --                       ++ show x ++ " " ++ show y
 -- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox)
 --  com tu newBox
@@ -389,8 +396,8 @@ circlerec f b l v@(VLoop x) = do
   px1   <- pxy `face` (y,up)
   p11   <- px1 `face` (x,up)
   p0y   <- pxy `face` (x,down)
-  trace ("circlerec " ++ "\nf = " ++ show f ++ "\nl = " ++
-         show l ++ "\nx = " ++ show x)
+  traceb ("circlerec " ++ "\nf = " ++ show f ++ "\nl = " ++
+         show l ++ "\nx = " ++ show x) $ do
   com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
 circlerec f b l v@(Kan ktype VCircle box) = do
   let crec side u = let fc w = w `face` side
@@ -489,8 +496,7 @@ unPack x y (z,c) v | z /= x && z /= y  = unSquare v
 
 -- Kan filling
 fill :: Val -> Box Val -> Eval Val
--- TODO: is is ok to use runEval like this?
-fill v box | fst (runEval (isNeutralFill v box)) = return $ VFillN v box
+fill v box | runEval False (isNeutralFill v box) = return $ VFillN v box
 fill vid@(VId a v0 v1) box@(Box dir i v nvs) = do
   let x = fresh (vid, box)
   box' <- consBox (x,(v0,v1)) <$> mapBoxM (`appName` x) box
@@ -509,7 +515,7 @@ fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
   VSquare x y <$> fill a (modBox (unPack x y) box)
 fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
   | x /= z && x `notElem` nonPrincipal box = do
-    trace "VEquivEq case 1"
+    traceb "VEquivEq case 1" $ do
     ax0 <- fill a (mapBox fstVal box)
     bx0 <- app f ax0
     let bx = mapBox sndVal box
@@ -518,7 +524,7 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     v   <- fill b $ (x,(bx0,bx1)) `consBox` bx
     return $ VPair x ax0 v
   | x /= z && x `elem` nonPrincipal box = do
-    trace "VEquivEq case 2"
+    traceb "VEquivEq case 2" $ do
     let ax0 = lookBox (x,down) box
 
         -- modification function
@@ -529,13 +535,13 @@ fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
     bx  <- sequenceBox $ modBox mf box
     VPair x ax0 <$> fill b bx
   | x == z && dir == up = do
-    trace "VEquivEq case 3"
+    traceb "VEquivEq case 3" $ do
     let ax0 = vz
     bx0 <- app f ax0
     v   <- fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
     return $ VPair x ax0 v
   | x == z && dir == down = do
-    trace "VEquivEq case 4"
+    traceb "VEquivEq case 4" $ do
     gbsb <- app s vz
     let (gb,sb) = (fstSVal gbsb, sndSVal gbsb)
         y       = fresh (veq, box)
@@ -568,7 +574,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = do  -- W.l.o.g. assume that box contains faces for
                       -- the non-principal sides of tbox.
 
-    trace "Kan Com 1"
+    traceb "Kan Com 1" $ do
 
     let -- TODO: Is this correct? Do we have to consider the auxsides?
         add :: Side -> Eval Val
@@ -582,7 +588,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
 
     fill v (sides' `appendBox` box)
   | x' `notElem` nK = do
-    trace "Kan Com 2"
+    traceb "Kan Com 2" $ do
 
     principal <- fill tx (mapBox (pickout (x,tdir')) boxL)
     nonprincipal <-
@@ -595,7 +601,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
 
     return $ VComp (Box tdir x principal nonprincipal)
   | x' `elem` nK = do
-    trace "Kan Com 3"
+    traceb "Kan Com 3" $ do
 
     let -- assumes zc in defBox tbox
         auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
@@ -643,13 +649,13 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 5) x' `notElem` K
   -- 6) x' `elem` K
   | toAdd /= [] = do
-    trace "Kan Fill VU Case 1" -- W.l.o.g. nK subset x':nJ
+    traceb "Kan Fill VU Case 1" $ do -- W.l.o.g. nK subset x':nJ
     let add :: Side -> Eval Val
         add zc = fillM (return (lookBox zc tbox)) (mapBoxM (`face` zc) box)
     newSides <- sequenceSnd [ (zc,add zc) | zc <- allDirs toAdd ]
     fill v (newSides `appendSides` box)
   | x == x' && dir == tdir = do -- assumes K subset x',J
-    trace "Kan Fill VU Case 2"
+    traceb "Kan Fill VU Case 2" $ do
     let boxp = lookBox (x,dir') box  -- is vx'
     principal <- fill (lookBox (x',tdir') tbox)
                       (Box up z boxp (auxsides (x',tdir')))
@@ -665,7 +671,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     return $ VFill z (Box tdir x principal nonprincipal)
 
   | x == x' && dir == mirror tdir = do -- assumes K subset x',J
-    trace "Kan Fill VU Case 3"
+    traceb "Kan Fill VU Case 3" $ do
     let -- the principal side of box must be a VComp
         -- should be safe given the neutral test at the beginning
         upperbox = unCompAs (lookBox (x,dir') box) x
@@ -684,7 +690,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                        (nonprincipalfaces ++ auxsides (x,tdir')))
     return $ VFill z (Box tdir x principal nonprincipal)
   | x `notElem` nJ = do  -- assume x /= x' and K subset x', J
-    trace "Kan Fill VU Case 4"
+    traceb "Kan Fill VU Case 4" $ do
     comU <- v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
     let fcbox = mapBoxM (`face` (x,tdir)) box
     xsides <- sequenceSnd [ ((x,tdir), fillM (return comU) fcbox)
@@ -693,7 +699,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
 
     fill v (xsides `appendSides` box)
   | x' `notElem` nK = do -- assumes x,K subset x',J
-    trace "Kan Fill VU Case 5"
+    traceb "Kan Fill VU Case 5" $ do
     let -- TODO: Do we need a fresh name? (Probably not: doesn't depend on x!)
         xaux      = unCompAs (lookBox (x,tdir) box) x
         boxprinc  = unFillAs (lookBox (x',dir') box) z
@@ -713,7 +719,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
       | yc@(y,c) <- allDirs nK]
     return $ VFill z (Box tdir x principal nonprincipal)
   | x' `elem` nK = do -- assumes x,K subset x',J
-    trace "Kan Fill VU Case 6"
+    traceb "Kan Fill VU Case 6" $ do
     -- surprisingly close to the last case of the Kan-Com-VU filling
     let upperbox = unCompAs (lookBox (x,dir') box) x
     npintbox <- modBoxM (\zc downside ->
@@ -757,8 +763,8 @@ fill v b = return $ Kan Fill v b
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Eval Val
--- TODO: is is ok to use runEval like this?
-com u box | fst (runEval (isNeutralFill u box)) = return $ VComN u box
+-- TODO: Fix
+com u box | runEval False (isNeutralFill u box) = return $ VComN u box
 com vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
 com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
 com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)

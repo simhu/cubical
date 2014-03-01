@@ -40,7 +40,7 @@ isoNO4 = comp U N N (or N Unit) (comp U N (or N Unit) N isoNO2 (inv U N (or N Un
 
 vect : U -> N -> U
 vect A = split
-          zero -> A 
+          zero -> A
           suc n -> and A (vect A n)
 
 pBool : N -> U
@@ -101,7 +101,7 @@ testSN3 : Bool
 testSN3 = saB' (inl (suc (suc zero)))
 
 add : N -> N -> N
-add x = split 
+add x = split
          zero -> x
          suc y -> suc (add x y)
 
@@ -133,7 +133,7 @@ aZN' = subst U aZero N (or N Unit) isoNO aZN
 zero' : or N Unit
 zero' = aZN'.1
 
-sndaZN' : Sigma ((or N Unit) -> (or N Unit) -> (or N Unit)) 
+sndaZN' : Sigma ((or N Unit) -> (or N Unit) -> (or N Unit))
                                  (\ f -> (x:(or N Unit)) -> Id (or N Unit) (f zero' x) x)
 sndaZN' = aZN'.2
 
@@ -173,7 +173,7 @@ zeroIt : step (step N)
 zeroIt = aZNIt.1
 
 
-sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N))) 
+sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N)))
                                  (\ f -> (x:(step (step N))) -> Id (step (step N)) (f zeroIt x) x)
 sndaZNIt = aZNIt.2
 

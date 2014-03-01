@@ -14,7 +14,6 @@ type Binder = String
 type Ident  = String
 type Label  = String
 type Prim   = (Integer,String)
-type Trace  = [String]
 
 -- Branch of the form: c x1 .. xn -> e
 type Brc    = (Label,([String],Ter))

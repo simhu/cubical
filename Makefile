@@ -1,6 +1,6 @@
-OPT=2
+OPT=0
 
-all: 
+all:
 	ghc --make -O$(OPT) -o cubical Main.hs
 bnfc:
 	bnfc --haskell -d Exp.cf

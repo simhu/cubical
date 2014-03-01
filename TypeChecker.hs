@@ -3,7 +3,6 @@ module TypeChecker ( runDef
                    , runInfer
                    , TEnv(..)
                    , tEmpty
-                   , TState(..)
                    ) where
 
 import Data.Either
@@ -12,10 +11,8 @@ import Data.Maybe
 import Data.Monoid hiding (Sum)
 import Control.Monad
 import Control.Monad.Trans
-import Control.Monad.Trans.State
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Trans.Reader
-import Control.Monad.Identity
 import Control.Monad.Error (throwError)
 import Control.Applicative
 import Pretty
@@ -23,28 +20,51 @@ import Pretty
 import CTT
 import Eval
 
--- Type checking monad
-type Typing a = ReaderT TEnv (StateT TState (ErrorT String Identity)) a
+trace :: String -> Typing ()
+trace s = liftIO $ putStrLn s
 
-runTyping :: Typing a -> TEnv -> Either String (a,TState)
-runTyping t env = runIdentity $ runErrorT $ runStateT (runReaderT t env) mempty
+-- Type checking monad
+type Typing a = ReaderT TEnv (ErrorT String IO) a
+
+runTyping :: Typing a -> TEnv -> IO (Either String a)
+runTyping t env = runErrorT $ runReaderT t env
 
 -- Used in the interaction loop
-runDef :: TEnv -> Def -> Either String (TEnv,TState)
+runDef :: TEnv -> Def -> IO (Either String TEnv)
 runDef lenv d = do
-  (_,s)   <- runTyping (checkDef d) lenv
-  (d',s') <- runTyping (addDef d lenv) lenv
-  return (d',s)
+  runTyping (checkDef d) lenv
+  runTyping (addDef d lenv) lenv
 
-runDefs :: TEnv -> [Def] -> Either String (TEnv,TState)
-runDefs tenv []     = Right (tenv,mempty)
+runDefs :: TEnv -> [Def] -> IO (Either String TEnv)
+runDefs tenv []     = return $ Right tenv
 runDefs tenv (d:ds) = do
-  (tenv',ts)   <- runDef tenv d
-  (tenv'',ts') <- runDefs tenv' ds
-  return (tenv'',ts `mappend` ts')
+  x   <- runDef tenv d
+  case x of
+    Right tenv' -> runDefs tenv' ds
+    Left s      -> return $ Left s
 
-runInfer :: TEnv -> Ter -> Either String (Val,TState)
+runInfer :: TEnv -> Ter -> IO (Either String Val)
 runInfer lenv e = runTyping (checkInfer e) lenv
+
+eval :: Env -> Ter -> Typing Val
+eval env ter = do
+  b <- getDebug
+  return $ evalTer b env ter
+
+app :: Val -> Val -> Typing Val
+app v1 v2 = do
+  b <- getDebug
+  return $ appVal b v1 v2
+
+evals :: Env -> [(Binder,Ter)] -> Typing [(Binder,Val)]
+evals rho t = do
+  b <- getDebug
+  return $ evalTers b rho t
+
+conv :: Int -> Val -> Val -> Typing Bool
+conv k v1 v2 = do
+  b <- getDebug
+  return $ convVal b k v1 v2
 
 addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Typing Ctxt
 addC gam _             []          = return gam
@@ -63,81 +83,36 @@ getLblType c u = throwError ("expected a data type for the constructor "
 -- Environment for type checker
 data TEnv = TEnv { index :: Int   -- for de Bruijn levels
                  , env   :: Env
-                 , ctxt  :: Ctxt }
+                 , ctxt  :: Ctxt
+                 , debug :: Bool }
   deriving (Eq,Show)
 
-tEmpty :: TEnv
-tEmpty = TEnv 0 Empty []
+tEmpty :: Bool -> TEnv
+tEmpty b = TEnv 0 Empty [] b
 
 addTypeVal :: (String,Val) -> TEnv -> TEnv
-addTypeVal p@(x,_) (TEnv k rho gam) =
-  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam)
+addTypeVal p@(x,_) (TEnv k rho gam b) =
+  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) b
 
 addType :: (String,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ rho _) = do
+addType (x,a) tenv@(TEnv _ rho _ _) = do
   v <- eval rho a
   return $ addTypeVal (x,v) tenv
 
 addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
-addBranch nvs (tele,env) (TEnv k rho gam) = do
+addBranch nvs (tele,env) (TEnv k rho gam b) = do
   e <- addC gam (tele,env) nvs
-  return $ TEnv (k + length nvs) (upds rho nvs) e
+  return $ TEnv (k + length nvs) (upds rho nvs) e b
 
 addDef :: Def -> TEnv -> Typing TEnv
-addDef d@(ts,es) (TEnv k rho gam) = do
+addDef d@(ts,es) (TEnv k rho gam b) = do
   let rho1 = PDef es rho
-  es' <- evals rho1 es
-  TEnv k rho1 <$> addC gam (ts,rho) es'
+  es'  <- evals rho1 es
+  gam' <- addC gam (ts,rho) es'
+  return $ TEnv k rho1 gam' b
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
-
--- State for the type checker holding type checking and full trace
-data TState = TState { typeTrace :: Trace
-                     , fullTrace :: Trace }
-  deriving (Eq,Show)
-
-emptyState :: TState
-emptyState = TState [] []
-
-instance Monoid TState where
-  mempty                                          = emptyState
-  (TState ttc1 tec1) `mappend` (TState ttc2 tec2) =
-    TState (ttc1 ++ ttc2) (tec1 ++ tec2)
-
-
-trace :: String -> Typing ()
-trace s = lift $ modify (\(TState ttrc ftrc) ->
-                          TState (ttrc ++ [s]) (ftrc ++ [s]))
-
--- Add a trace to the full trace
-addTrace :: Trace -> Typing ()
-addTrace s = lift $ modify (\(TState ttrc ftrc) -> TState ttrc (ftrc ++ s))
-
--- Redefine eval, evals, app and conv from Eval to keep track of the trace
-eval :: Env -> Ter -> Typing Val
-eval rho t = do
-  let (v,trc) = evalTer rho t
-  addTrace trc
-  return v
-
-evals :: Env -> [(Binder,Ter)] -> Typing [(Binder,Val)]
-evals rho t = do
-  let (v,trc) = evalTers rho t
-  addTrace trc
-  return v
-
-app :: Val -> Val -> Typing Val
-app v1 v2 = do
-  let (v,trc) = appVal v1 v2
-  addTrace trc
-  return v
-
-conv :: Int -> Val -> Val -> Typing Bool
-conv k v1 v2 = do
-  let (b,trc) = convVal k v1 v2
-  addTrace trc
-  return b
 
 -- Useful monadic versions of functions:
 checkM :: Typing Val -> Ter -> Typing ()
@@ -154,6 +129,9 @@ localM f r = do
 -- Getters:
 getIndex :: Typing Int
 getIndex = index <$> ask
+
+getDebug :: Typing Bool
+getDebug = debug <$> ask
 
 getFresh :: Typing Val
 getFresh = do
@@ -264,10 +242,10 @@ checkInfer e = case e of
 checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  v   <- eval nu a
+  v <- eval nu a
   check v e
   rho <- getEnv
-  v'  <- eval rho e
+  v' <- eval rho e
   checks (xas,Pair nu (x,v')) es
 checks _              _      = throwError "checks"
 
