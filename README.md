@@ -261,32 +261,32 @@ REFERENCES AND NOTES
  * Type Theory in Color, J.P. Bernardy, G. Moulin
 
  * A simple type-theoretic language: Mini-TT, Th. Coquand,
-   Y. Kinoshita, B. Nordstrom and M. Takeyama
+   Y. Kinoshita, B. Nordström and M. Takeyama
 
- * A cubical set model of type theory, M. Bezem, Th. Coquand and
-   S. Huber available at
-   [www.cse.chalmers.se/~coquand/model1.pdf](www.cse.chalmers.se/~coquand/model1.pdf)
+ * [A cubical set model of type
+   theory](http://www.cse.chalmers.se/~coquand/model1.pdf), M. Bezem,
+   Th. Coquand and S. Huber.
 
- * A remark on contractible family of type, Th. Coquand available at
-   [www.cse.chalmers.se/~coquand/contr.pdf](www.cse.chalmers.se/~coquand/contr.pdf)
+ * [A remark on contractible family of
+   type](http://www.cse.chalmers.se/~coquand/contr.pdf), Th. Coquand.
 
    This note explains how to derive univalence.
 
- * An equivalent presentation of the Bezem-Coquand-Huber category of
-   cubical sets, A. Pitts available at
-   [http://arxiv.org/abs/1401.7807](http://arxiv.org/abs/1401.7807)
+ * [An equivalent presentation of the Bezem-Coquand-Huber category of
+   cubical sets](http://arxiv.org/abs/1401.7807), A. Pitts.
 
    This gives a presentation of the cubical set model in nominal sets.
 
- * Remark on singleton types, Th. Coquand available at
-   [www.cse.chalmers/~coquand/singl.pdf](www.cse.chalmers/~coquand/singl.pdf)
+ * [Remark on singleton
+   types](http://www.cse.chalmers/~coquand/singl.pdf), Th. Coquand.
 
- * Note on Kripke model, M. Bezem and Th. Coquand avaiable at
-   [www.cse.chalmers/~coquand/countermodel.pdf](www.cse.chalmers/~coquand/countermodel.pdf)
+ * [Note on Kripke
+   model](http://www.cse.chalmers/~coquand/countermodel.pdf), M. Bezem
+   and Th. Coquand.
 
- * Some connections between cubical sets and parametricity,
-   Th. Coquand avaiable at
-   [www.cse.chalmers/~coquand/param.pdf](www.cse.chalmers/~coquand/param.pdf)
+ * [Some connections between cubical sets and
+   parametricity](http://www.cse.chalmers/~coquand/param.pdf),
+   Th. Coquand.
 
 
 AUTHORS
