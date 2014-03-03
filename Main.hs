@@ -64,7 +64,7 @@ main = do
   case files of
     [f] -> initLoop b f
     _   -> do putStrLn $ "Exactly one file expected: " ++ show files
-              runInputT (settings []) (loop [] [] (TC.tEmpty b))
+              runInputT (settings []) (loop [] [] (TC.verboseEnv b))
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
 imports :: ([String],[String],[Def]) -> String -> IO ([String],[String],[Def])
@@ -95,7 +95,7 @@ getConstrs (DefMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
 getConstrs (_:ds)              = getConstrs ds
 
 namesEnv :: TC.TEnv -> [String]
-namesEnv (TC.TEnv _ env ctxt _) = namesCEnv env ++ map fst ctxt
+namesEnv (TC.TEnv _ env ctxt _ _) = namesCEnv env ++ map fst ctxt
   where namesCEnv C.Empty          = []
         namesCEnv (C.Pair e (b,_)) = namesCEnv e ++ [b]
         namesCEnv (C.PDef xs e)    = map fst xs ++ namesCEnv e
@@ -112,13 +112,13 @@ initLoop debug f = do
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
-      runInputT (settings []) (loop [] [] (TC.tEmpty debug))
+      runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
     Right adefs -> do
-      x <- TC.runDefs (TC.tEmpty debug) adefs
+      x <- TC.runDefs (TC.verboseEnv debug) adefs
       case x of
         Left err   -> do
           putStrLn $ "Type checking failed: " ++ err
-          runInputT (settings []) (loop [] [] (TC.tEmpty debug))
+          runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
         Right tenv -> do
           putStrLn "File loaded."
           -- Compute names for auto completion
@@ -127,7 +127,7 @@ initLoop debug f = do
 
 -- The main loop
 loop :: FilePath -> [String] -> TC.TEnv -> Interpreter ()
-loop f cs tenv@(TC.TEnv _ rho _ debug) = do
+loop f cs tenv@(TC.TEnv _ rho _ _ debug) = do
   input <- getInputLine defaultPrompt
   case input of
     Nothing    -> outputStrLn help >> loop f cs tenv

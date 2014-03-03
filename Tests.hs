@@ -54,7 +54,7 @@ loadFile f = do
   case runResolver (local (insertConstrs cs) (resolveDefs defs)) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.Empty
-    Right ds -> TC.runDefs (TC.tEmpty False) ds >>= \x -> case x of
+    Right ds -> TC.runDefs TC.silentEnv ds >>= \x -> case x of
       Left err -> do assertFailure $ "Type checking failed:" <+>
                                       err <+> "on" <+> f
                      return C.Empty

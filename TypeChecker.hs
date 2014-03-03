@@ -2,7 +2,8 @@ module TypeChecker ( runDef
                    , runDefs
                    , runInfer
                    , TEnv(..)
-                   , tEmpty
+                   , verboseEnv
+                   , silentEnv
                    ) where
 
 import Data.Either
@@ -21,7 +22,9 @@ import CTT
 import Eval
 
 trace :: String -> Typing ()
-trace s = liftIO $ putStrLn s
+trace s = do
+  b <- getVerbose
+  if b then liftIO (putStrLn s) else return ()
 
 -- Type checking monad
 type Typing a = ReaderT TEnv (ErrorT String IO) a
@@ -81,35 +84,42 @@ getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
 -- Environment for type checker
-data TEnv = TEnv { index :: Int   -- for de Bruijn levels
-                 , env   :: Env
-                 , ctxt  :: Ctxt
-                 , debug :: Bool }
+data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
+                 , env     :: Env
+                 , ctxt    :: Ctxt
+                 , verbose :: Bool  -- Should it be verbose and print
+                                    -- what it typechecks?
+                 , debug   :: Bool  -- Should the evaluator be run in
+                                    -- debug mode?
+                 }
   deriving (Eq,Show)
 
-tEmpty :: Bool -> TEnv
-tEmpty b = TEnv 0 Empty [] b
+verboseEnv :: Bool -> TEnv
+verboseEnv debug = TEnv 0 Empty [] True debug
+
+silentEnv :: TEnv
+silentEnv = TEnv 0 Empty [] False False
 
 addTypeVal :: (String,Val) -> TEnv -> TEnv
-addTypeVal p@(x,_) (TEnv k rho gam b) =
-  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) b
+addTypeVal p@(x,_) (TEnv k rho gam v d) =
+  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v d
 
 addType :: (String,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ rho _ _) = do
+addType (x,a) tenv@(TEnv _ rho _ _ _) = do
   v <- eval rho a
   return $ addTypeVal (x,v) tenv
 
 addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
-addBranch nvs (tele,env) (TEnv k rho gam b) = do
+addBranch nvs (tele,env) (TEnv k rho gam v d) = do
   e <- addC gam (tele,env) nvs
-  return $ TEnv (k + length nvs) (upds rho nvs) e b
+  return $ TEnv (k + length nvs) (upds rho nvs) e v d
 
 addDef :: Def -> TEnv -> Typing TEnv
-addDef d@(ts,es) (TEnv k rho gam b) = do
+addDef d@(ts,es) (TEnv k rho gam v b) = do
   let rho1 = PDef es rho
   es'  <- evals rho1 es
   gam' <- addC gam (ts,rho) es'
-  return $ TEnv k rho1 gam' b
+  return $ TEnv k rho1 gam' v b
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
@@ -132,6 +142,9 @@ getIndex = index <$> ask
 
 getDebug :: Typing Bool
 getDebug = debug <$> ask
+
+getVerbose :: Typing Bool
+getVerbose = verbose <$> ask
 
 getFresh :: Typing Val
 getFresh = do
