@@ -96,6 +96,8 @@ For writing this semantics, it was convenient to use the alternative
 presentation of cubical sets as nominal sets with 01-substitutions
 (see A. Pitts' note, references listed below).
 
+The primitives needed to get univalence [are](notes/allprim.txt).
+
 
 DESCRIPTION OF THE LANGUAGE
 ---------------------------
