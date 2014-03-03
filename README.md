@@ -278,14 +278,14 @@ REFERENCES AND NOTES
    This gives a presentation of the cubical set model in nominal sets.
 
  * [Remark on singleton
-   types](http://www.cse.chalmers/~coquand/singl.pdf), Th. Coquand.
+   types](http://www.cse.chalmers.se/~coquand/singl.pdf), Th. Coquand.
 
  * [Note on Kripke
-   model](http://www.cse.chalmers/~coquand/countermodel.pdf), M. Bezem
+   model](http://www.cse.chalmers.se/~coquand/countermodel.pdf), M. Bezem
    and Th. Coquand.
 
  * [Some connections between cubical sets and
-   parametricity](http://www.cse.chalmers/~coquand/param.pdf),
+   parametricity](http://www.cse.chalmers.se/~coquand/param.pdf),
    Th. Coquand.
 
 
