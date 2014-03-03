@@ -261,7 +261,7 @@ REFERENCES AND NOTES
  * Type Theory in Color, J.P. Bernardy, G. Moulin
 
  * A simple type-theoretic language: Mini-TT, Th. Coquand,
-   Y. Kinoshita, B. NordstrÃ¶m and M. Takeyama
+   Y. Kinoshita, B. Nordström and M. Takeyama
 
  * [A cubical set model of type
    theory](http://www.cse.chalmers.se/~coquand/model1.pdf), M. Bezem,
