@@ -19,13 +19,34 @@ To only build (not install) cubical do
 
   `cabal build`
 
-Alternatively one can also use the Makefile to build the system by typing:
+Alternatively one can also use the Makefile to build the system by
+typing:
 
   `make bnfc && make`
 
-However this requires that the following Haskell packages are installed:
+However this requires that the following Haskell packages are
+installed:
 
   mtl, haskeline, directory, BNFC, alex, happy
+
+
+**Note:** In order to make the mutual keyword work a patched version
+of BNFC is needed. To install this download the patched version from
+
+[https://github.com/simhu/bnfc](https://github.com/simhu/bnfc)
+
+and then `cabal install` it.
+
+###Emacs mode:
+
+To install syntax highlighting for cubical files load the cubical.el
+file into emacs. In order to load it automatically add
+
+`(load-file "/path/to/cubical.el")`
+
+`(add-to-list 'auto-mode-alist '("\\.cub\\'" . cub-mode))`
+
+to your .emacs file.
 
 
 USAGE
@@ -35,9 +56,9 @@ To run cubical type
 
   `cubical <filename>`
 
-In the interaction loop type :h to get a list of available commands.
-Note that the current directory will be taken as the search path for
-the imports.
+To enable the debugging mode add the -d flag. In the interaction loop
+type :h to get a list of available commands. Note that the current
+directory will be taken as the search path for the imports.
 
 
 OVERVIEW
@@ -57,16 +78,16 @@ The program is organized as follows:
  * if the expression is well-typed it is translated to the cubical
    syntax and evaluated by a "cubical abstract machine", which
    computes its semantics in cubical sets; the result is shown after
-   "EVAL:" (to disable the trace of the evaluation set the boolean
-   "debug" to False in Eval.hs);
+   "EVAL:" (to enable the trace of the evaluation run cubical with the
+   -d flag);
 
 During type-checking, we consider the primitives listed in
-examples/primitive.cub as non interpreted constants.  The type-checker
-is in the file MTT.hs and is rudimentary (300 lines), without good
+examples/primitive.cub as non interpreted constants. The type-checker
+is in the file TypeChecker.hs and is rudimentary (200 lines), without good
 error messages.
 
 These primitives however have a meaning in cubical sets, and the
-evaluation function computes this meaning.  This semantics/evaluation
+evaluation function computes this meaning. This semantics/evaluation
 is described in the file Eval.hs, which is the main file. The most
 complex part corresponds to the computations witnessing that the
 universe has Kan filling operations.
@@ -100,16 +121,20 @@ We have
  * let/where: `let D in e` where D is a list of definitions an
    alternative syntax is `e where D`
 
-* `undefined` like in Haskell
+ * `undefined` like in Haskell
+
+ * mutual definitions (this requires a patched version of BNFC, see
+   the install instructions above).
+
 
 The syntax allows Landin's offside rule similar to Haskell.
 
 The basic (untyped) language has a direct simple denotational
 semantics. Type theory works with the total part of this language (it
 is possible to define totality at the denotational semantics level).
-Our evaluator works in a nominal version of this semantics.  The
-type-checker assumes that we work in this total part, however,
-there is no termination check.
+Our evaluator works in a nominal version of this semantics. The
+type-checker assumes that we work in this total part, however, there
+is no termination check.
 
 
 DESCRIPTION OF THE SEMANTICS/EVALUATION
@@ -125,14 +150,14 @@ in an identity type will then be interpreted as a "square" of the form
 current implementation directions/names are represented by numbers).
 
 Operationally, a type is explained by giving what are its Kan filling
-operation.  For instance, we have to explain what are the Kan filling
+operation. For instance, we have to explain what are the Kan filling
 for the dependent product.
 
 The main step for interpreting univalence is to transform an
 equivalence A -> B to a path in any direction x connecting A and B.
 This is a new basic element of the universe, called VEquivEq in the
 file Eval.hs which takes a name and arguments A,B,f and the proof that
-f is an equivalence.  The main part of the work is then to explain the
+f is an equivalence. The main part of the work is then to explain the
 Kan filling operation for this new type.
 
 The Kan filling for the universe can be seen as a generalization of
@@ -144,7 +169,7 @@ DESCRIPTION OF THE EXAMPLES
 
 The directory examples contains some examples of proofs. The file
 examples/primitive.cub list the new primitives that have cubical set
-semantics. These primitive notions imply the axiom of univalence.  The
+semantics. These primitive notions imply the axiom of univalence. The
 file examples/primitive.cub should be the basis of any development
 using univalence.
 
@@ -160,7 +185,7 @@ computations:
    N+1; the examples are testSN, testSN1, testSN2, testSN3.
 
  * The file testInh.cub contains examples of computation for the
-   propositional reflection.  It gives an example test which produces
+   propositional reflection. It gives an example test which produces
    a (surprisingly complex) composition of squares in the universe.
 
  * The file quotient.cub contains an example of a computation from an
@@ -180,8 +205,10 @@ computations:
    isomorphism between A x B and B x A; the examples are test14,
    test15.
 
+
 NEWS (to be detailed)
 ----
+
  * Some constants have a direct cubical semantics having better
    behavior w.r.t. equality.  For instance the constant
 
@@ -204,10 +231,8 @@ NEWS (to be detailed)
 
  * Similarly we also have eta conversion and surjective pairing.
 
- * As a test, the particular case of the circle has been added (S1).
-   The identities for the eliminator hold definitionally:
-    `S1rec F b l base              = b`
-    `mapOnPathD (S1rec F b l) loop = l`
+ * As a test, the particular case of the circle (S1) and the interval
+   (I) has been added.
 
 
 FURTHER WORK (non-exhaustive)
@@ -230,7 +255,8 @@ REFERENCES
 
  * Voevodsky's home page on univalent foundation
 
- * HoTT book
+ * HoTT book and webpage:
+   [http://homotopytypetheory.org/](http://homotopytypetheory.org/)
 
  * Type Theory in Color, J.P. Bernardy, G. Moulin
 
@@ -238,13 +264,15 @@ REFERENCES
    Y. Kinoshita, B. Nordstrom and M. Takeyama
 
  * A cubical set model of type theory, M. Bezem, Th. Coquand and
-   S. Huber available at www.cse.chalmers.se/~coquand/model1.pdf
+   S. Huber available at
+   [www.cse.chalmers.se/~coquand/model1.pdf](www.cse.chalmers.se/~coquand/model1.pdf)
 
  * A property of contractible types, Th. Coquand available at
-   www.cse.chalmers.se/~coquand/contr.pdf
+   [www.cse.chalmers.se/~coquand/contr.pdf](www.cse.chalmers.se/~coquand/contr.pdf)
 
  * An equivalent presentation of the Bezem-Coquand-Huber category of
-   cubical sets, A. Pitts
+   cubical sets, A. Pitts available at
+   [http://arxiv.org/abs/1401.7807](http://arxiv.org/abs/1401.7807)
 
 
 AUTHORS
