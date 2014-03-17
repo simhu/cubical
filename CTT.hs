@@ -1,5 +1,8 @@
+{-# LANGUAGE TupleSections #-}
 module CTT where
 
+import Control.Applicative
+import Control.Monad
 import Data.List
 import Data.Maybe
 import Pretty
@@ -288,6 +291,22 @@ instance Show a => Show (Box a) where
 mapBox :: (a -> b) -> Box a -> Box b
 mapBox f (Box d n x xs) = Box d n (f x) [ (nnd,f v) | (nnd,v) <- xs ]
 
+sequenceSnd :: Monad m => [(a,m b)] -> m [(a,b)]
+sequenceSnd []          = return []
+sequenceSnd ((a,b):abs) = do
+  b' <- b
+  acs <- sequenceSnd abs
+  return $ (a,b') : acs
+
+sequenceBox :: Monad m => Box (m a) -> m (Box a)
+sequenceBox (Box d n x xs) = do
+  x' <- x
+  xs' <- sequenceSnd xs
+  return $ Box d n x' xs'
+
+mapBoxM :: Monad m => (a -> m b) -> Box a -> m (Box b)
+mapBoxM f = sequenceBox . mapBox f
+
 instance Functor Box where
   fmap = mapBox
 
@@ -310,6 +329,9 @@ fromBox (Box d x v nvs) = ((x, mirror d),v) : nvs
 modBox :: (Side -> a -> b) -> Box a -> Box b
 modBox f (Box dir x v nvs) =
   Box dir x (f (x,mirror dir) v) [ (nd,f nd v) | (nd,v) <- nvs ]
+
+modBoxM :: Monad m => (Side -> a -> m b) -> Box a -> m (Box b)
+modBoxM f = sequenceBox . modBox f
 
 -- Restricts the non-principal faces to np.
 subBox :: [Name] -> Box a -> Box a
@@ -591,6 +613,11 @@ mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
+mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
+mapEnvM _ Empty          = pure Empty
+mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
+mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
+
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
 valOfEnv (Pair env (_,v)) = v : valOfEnv env
@@ -607,8 +634,8 @@ showTer U                 = "U"
 showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
 showTer (Lam x e)         = '\\' : x <+> "->" <+> showTer e
-showTer (Fst e)           = showTer e <+> ".1"
-showTer (Snd e)           = showTer e <+> ".2"
+showTer (Fst e)           = showTer e ++ ".1"
+showTer (Snd e)           = showTer e ++ ".2"
 showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
 showTer (Where e d)       = showTer e <+> "where" <+> showDef d
@@ -672,8 +699,8 @@ showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
 showVal (VSPair u v)     = "pair" <+> showVals [u,v]
 showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
-showVal (VFst u)         = showVal u <+> ".1"
-showVal (VSnd u)         = showVal u <+> ".2"
+showVal (VFst u)         = showVal u ++ ".1"
+showVal (VSnd u)         = showVal u ++ ".2"
 showVal VCircle          = "S1"
 showVal VBase            = "base"
 showVal (VLoop x)        = "loop" <+> show x
