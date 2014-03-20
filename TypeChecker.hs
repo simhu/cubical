@@ -34,9 +34,9 @@ runTyping t env = runErrorT $ runReaderT t env
 
 -- Used in the interaction loop
 runDef :: TEnv -> Def -> IO (Either String TEnv)
-runDef lenv d = do
-  runTyping (checkDef d) lenv
-  runTyping (addDef d lenv) lenv
+runDef lenv d = flip runTyping lenv $ do
+  checkDef d
+  addDef d lenv
 
 runDefs :: TEnv -> [Def] -> IO (Either String TEnv)
 runDefs tenv []     = return $ Right tenv
