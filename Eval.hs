@@ -377,8 +377,11 @@ inhrec b p phi (VSquash x a0 a1) = do
   let fc w d = w `face` (x,d)
   b0 <- join $ inhrec <$> fc b down <*> fc p down <*> fc phi down <*> pure a0
   b1 <- join $ inhrec <$> fc b up   <*> fc p up   <*> fc phi up   <*> pure a1
-  appNameM (appM (app p b0) (return b1) `faceM` (x,down)) x
-  -- appDiag b (app (app p b0) b1) x  -- x may occur in p and/or b
+  let z = fresh [b,p,phi,b0,b1]
+  b0fill   <- fill b (Box up x b0 [])
+  b0fillx1 <- b0fill `face` (x, up)
+  right    <- appNameM (appM (appM (fc p up) (return b0fillx1)) (return b1)) z
+  com b (Box up z b0fill [((x,down),b0),((x,up),right)])
 inhrec b p phi (Kan ktype (VInh a) box) = do
   let irec (j,dir) v = let fc v = v `face` (j,dir)
                        in join $ inhrec <$> fc b <*> fc p <*> fc phi <*> pure v
