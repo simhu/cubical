@@ -38,13 +38,13 @@ runDef lenv d = flip runTyping lenv $ do
   checkDef d
   addDef d lenv
 
-runDefs :: TEnv -> [Def] -> IO (Either String TEnv)
-runDefs tenv []     = return $ Right tenv
+runDefs :: TEnv -> [Def] -> IO (Maybe String,TEnv)
+runDefs tenv []     = return $ (Nothing, tenv)
 runDefs tenv (d:ds) = do
   x   <- runDef tenv d
   case x of
     Right tenv' -> runDefs tenv' ds
-    Left s      -> return $ Left s
+    Left s      -> return $ (Just s , tenv)
 
 runInfer :: TEnv -> Ter -> IO (Either String Val)
 runInfer lenv e = runTyping (checkInfer e) lenv

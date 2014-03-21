@@ -54,11 +54,11 @@ loadFile f = do
   case runResolver (local (insertConstrs cs) (resolveDefs defs)) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.Empty
-    Right ds -> TC.runDefs TC.silentEnv ds >>= \x -> case x of
-      Left err -> do assertFailure $ "Type checking failed:" <+>
+    Right ds -> TC.runDefs TC.silentEnv ds >>= \(x , e) -> case x of
+      Just err -> do assertFailure $ "Type checking failed:" <+>
                                       err <+> "on" <+> f
-                     return C.Empty
-      Right e  -> return (TC.env e)
+                     return (TC.env e)
+      Nothing  -> return (TC.env e)
 
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do

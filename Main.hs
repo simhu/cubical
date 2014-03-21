@@ -114,16 +114,14 @@ initLoop debug f = do
       putStrLn $ "Resolver failed: " ++ err
       runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
     Right adefs -> do
-      x <- TC.runDefs (TC.verboseEnv debug) adefs
-      case x of
-        Left err   -> do
-          putStrLn $ "Type checking failed: " ++ err
-          runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
-        Right tenv -> do
-          putStrLn "File loaded."
-          -- Compute names for auto completion
-          let ns = cs ++ namesEnv tenv
-          runInputT (settings ns) (loop f cs tenv)
+      (merr , tenv) <- TC.runDefs (TC.verboseEnv debug) adefs
+      case merr of
+        Just err -> putStrLn $ "Type checking failed: " ++ err
+        Nothing  -> return ()      
+      putStrLn "File loaded."
+      -- Compute names for auto completion
+      let ns = cs ++ namesEnv tenv
+      runInputT (settings ns) (loop f cs tenv)
 
 -- The main loop
 loop :: FilePath -> [String] -> TC.TEnv -> Interpreter ()
