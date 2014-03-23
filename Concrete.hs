@@ -84,41 +84,30 @@ namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
 -- | Resolver and environment
 
 -- local environment for constructors
-data Env = Env { constrs :: [String] }
+data Env = Env { fileEnv      :: String,
+                 constructors :: [String],
+                 variables    :: (String, (Int,Int))}
          deriving (Eq, Show)
 
-type Resolver a = ReaderT Env (StateT C.Prim (ErrorT String Identity)) a
+type Resolver a = ReaderT Env (ErrorT String Identity) a
 
 emptyEnv :: Env
-emptyEnv = Env []
+emptyEnv = Env "" [] []
 
 runResolver :: Resolver a -> Either String a
-runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) (0,"")
+runResolver x = runIdentity $ runErrorT $ runReaderT x emptyEnv
 
-insertConstrs :: [String] -> Env -> Env
-insertConstrs cs (Env cs') = Env $ cs ++ cs'
+updateFile :: String -> Env -> Env
+updateFile file e = e {fileEnv = file}
+
+insertConstructors :: [String] -> Env -> Env
+insertConstructors cs (Env cs') = Env $ cs ++ cs'
 
 getEnv :: Resolver Env
 getEnv = ask
 
-getConstrs :: Resolver [String]
-getConstrs = constrs <$> getEnv
-
-genPrim :: Resolver C.Prim
-genPrim = do
-  prim <- lift get
-  lift (modify (first succ))
-  return prim
-
-genPN :: Resolver C.PN
-genPN = do
-  (_,str) <- lift get
-  case C.mkPN str of
-    Just pn -> return pn
-    Nothing -> C.Undef <$> genPrim
-
-updateName :: String -> Resolver ()
-updateName str = lift $ modify (\(g,_) -> (g,str))
+getConstructors :: Resolver [String]
+getConstructors = constructors <$> getEnv
 
 lam :: Arg -> Resolver C.Ter -> Resolver C.Ter
 lam a e = C.Lam (unArg a) <$> e
@@ -132,7 +121,7 @@ resolveExp Undef        = C.PN <$> genPN
 resolveExp PN           = C.PN <$> genPN
 resolveExp e@(App t s)  = do
   let x:xs = unApps e
-  cs <- getConstrs
+  cs <- getConstructors
   case x of
     Var a -> let n = unArg a in
       if n `elem` cs then C.Con n <$> mapM resolveExp xs

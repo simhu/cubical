@@ -10,10 +10,13 @@ import Pretty
 --------------------------------------------------------------------------------
 -- | Terms
 
-type Binder = String
+data Loc = Loc {locFile :: String, locPos :: (Int, Int)}
+  deriving (Eq, Show)
+
+type Binder = (Loc,String)
 type Ident  = String
 type Label  = String
-type Prim   = (Integer,String)
+type Prim   = (Loc,String)
 
 -- Branch of the form: c x1 .. xn -> e
 type Brc    = (Label,([String],Ter))
@@ -28,18 +31,18 @@ type LblSum = [(Label,Tele)]
 type Ctxt   = [(String,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
-type Def    = (Tele,[(Ident,Ter)])
+type Def    = (Tele, [(String,Ter)])
 
 -- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
-         | Lam Binder Ter
+         | Lam Ident Ter
          | Sigma Ter Ter
          | SPair Ter Ter
          | Fst Ter
          | Snd Ter
          | Where Ter Def
-         | Var Binder
+         | Var Ident
          | U
          -- constructor c Ms
          | Con Ident [Ter]
