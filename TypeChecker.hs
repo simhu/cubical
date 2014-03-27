@@ -1,5 +1,5 @@
-module TypeChecker ( runDef
-                   , runDefs
+module TypeChecker ( runDecls
+                   , runDeclss
                    , runInfer
                    , TEnv(..)
                    , verboseEnv
@@ -33,17 +33,17 @@ runTyping :: Typing a -> TEnv -> IO (Either String a)
 runTyping t env = runErrorT $ runReaderT t env
 
 -- Used in the interaction loop
-runDef :: TEnv -> Def -> IO (Either String TEnv)
-runDef lenv d = flip runTyping lenv $ do
-  checkDef d
-  addDef d lenv
+runDecls :: TEnv -> Decls -> IO (Either String TEnv)
+runDecls lenv d = flip runTyping lenv $ do
+  checkDecls d
+  addDecls d lenv
 
-runDefs :: TEnv -> [Def] -> IO (Maybe String,TEnv)
-runDefs tenv []     = return $ (Nothing, tenv)
-runDefs tenv (d:ds) = do
-  x   <- runDef tenv d
+runDeclss :: TEnv -> [Decls] -> IO (Maybe String,TEnv)
+runDeclss tenv []     = return $ (Nothing, tenv)
+runDeclss tenv (d:ds) = do
+  x   <- runDecls tenv d
   case x of
-    Right tenv' -> runDefs tenv' ds
+    Right tenv' -> runDeclss tenv' ds
     Left s      -> return $ (Just s , tenv)
 
 runInfer :: TEnv -> Ter -> IO (Either String Val)
@@ -69,7 +69,7 @@ conv k v1 v2 = do
   b <- getDebug
   return $ convVal b k v1 v2
 
-addC :: Ctxt -> (Tele,Env) -> [(String,Val)] -> Typing Ctxt
+addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Typing Ctxt
 addC gam _             []          = return gam
 addC gam ((y,a):as,nu) ((x,u):xus) = do
   v <- eval nu a
@@ -77,7 +77,7 @@ addC gam ((y,a):as,nu) ((x,u):xus) = do
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Val -> Typing (Tele, Env)
-getLblType c (Ter (Sum _ cas) r) = case lookup c cas of
+getLblType c (Ter (Sum _ cas) r) = case getIdent c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("expected a data type for the constructor "
@@ -100,25 +100,25 @@ verboseEnv debug = TEnv 0 Empty [] True debug
 silentEnv :: TEnv
 silentEnv = TEnv 0 Empty [] False False
 
-addTypeVal :: (String,Val) -> TEnv -> TEnv
+addTypeVal :: (Binder,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam v d) =
   TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v d
 
-addType :: (String,Ter) -> TEnv -> Typing TEnv
+addType :: (Binder,Ter) -> TEnv -> Typing TEnv
 addType (x,a) tenv@(TEnv _ rho _ _ _) = do
   v <- eval rho a
   return $ addTypeVal (x,v) tenv
 
-addBranch :: [(String,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
+addBranch :: [(Binder,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
 addBranch nvs (tele,env) (TEnv k rho gam v d) = do
   e <- addC gam (tele,env) nvs
   return $ TEnv (k + length nvs) (upds rho nvs) e v d
 
-addDef :: Def -> TEnv -> Typing TEnv
-addDef d@(ts,es) (TEnv k rho gam v b) = do
-  let rho1 = PDef es rho
-  es'  <- evals rho1 es
-  gam' <- addC gam (ts,rho) es'
+addDecls :: Decls -> TEnv -> Typing TEnv
+addDecls d (TEnv k rho gam v b) = do
+  let rho1 = PDef (declDefs d) rho
+  es'  <- evals rho1 (declDefs d)
+  gam' <- addC gam (declTele d,rho) es'
   return $ TEnv k rho1 gam' v b
 
 addTele :: Tele -> TEnv -> Typing TEnv
@@ -159,12 +159,14 @@ getCtxt :: Typing Ctxt
 getCtxt = ctxt <$> ask
 
 -- The typechecker:
-checkDef :: Def -> Typing ()
-checkDef (xas,xes) = do
-  trace ("Checking definition: " ++ unwords (map fst xes))
-  checkTele xas
-  rho <- getEnv
-  localM (addTele xas) $ checks (xas,rho) (map snd xes)
+checkDecls :: Decls -> Typing ()
+checkDecls d =
+  let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
+  in do
+    trace ("Checking definition: " ++ unwords idents)
+    checkTele tele
+    rho <- getEnv
+    localM (addTele tele) $ checks (tele,rho) ters
 
 checkTele :: Tele -> Typing ()
 checkTele []          = return ()
@@ -185,7 +187,7 @@ check a t = case (a,t) of
     localM (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (VPi (Ter (Sum _ cas) nu) f,Split _ ces) ->
-    if sort (map fst ces) == sort (map fst cas)
+    if sort (map fst ces) == sort [n | ((n,_),_) <- cas]
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces cas ]
        else throwError "case branches does not match the data type"
@@ -198,8 +200,8 @@ check a t = case (a,t) of
     v <- eval e t1
     checkM (app f v) t2
   (_,Where e d) -> do
-    checkDef d
-    localM (addDef d) $ check a e
+    checkDecls d
+    localM (addDecls d) $ check a e
   (_,PN _) -> return ()
   _ -> do
     v <- checkInfer t
@@ -222,7 +224,7 @@ checkInfer e = case e of
   U -> return VU                 -- U : U
   Var n -> do
     gam <- getCtxt
-    case lookup n gam of
+    case getIdent n gam of
       Just v  -> return v
       Nothing -> throwError $ show n ++ " is not declared!"
   App t u -> do
@@ -248,8 +250,8 @@ checkInfer e = case e of
         app f (fstSVal v)
       _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
-    checkDef d
-    localM (addDef d) $ checkInfer t
+    checkDecls d
+    localM (addDecls d) $ checkInfer t
   _ -> throwError ("checkInfer " ++ show e)
 
 checks :: (Tele,Env) -> [Ter] -> Typing ()

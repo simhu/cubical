@@ -10,25 +10,45 @@ import Pretty
 --------------------------------------------------------------------------------
 -- | Terms
 
-type Binder = String
+data Loc = Loc {locFile :: String, locPos :: (Int, Int)}
+  deriving (Eq, Show)
+
 type Ident  = String
 type Label  = String
-type Prim   = (Integer,String)
+type Binder = (Ident,Loc)
+
+noLoc :: String -> Binder
+noLoc x = (x, Loc "" (0,0))
 
 -- Branch of the form: c x1 .. xn -> e
-type Brc    = (Label,([String],Ter))
+type Brc    = (Label,([Binder],Ter))
 
 -- Telescope (x1 : A1) .. (xn : An)
 type Tele   = [(Binder,Ter)]
 
 -- Labelled sum: c (x1 : A1) .. (xn : An)
-type LblSum = [(Label,Tele)]
+type LblSum = [(Binder,Tele)]
 
 -- Context gives type values to identifiers
-type Ctxt   = [(String,Val)]
+type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
-type Def    = (Tele,[(Ident,Ter)])
+type Decls    = [(Binder,Ter,Ter)]
+
+declIdents :: Decls -> [Ident]
+declIdents decl = [ x | ((x,_),_,_) <- decl]
+
+declBinders :: Decls -> [Binder]
+declBinders decl = [ x | (x,_,_) <- decl]
+
+declTers :: Decls -> [Ter]
+declTers decl = [ d | (_,_,d) <- decl]
+
+declTele :: Decls -> Tele
+declTele decl = [ (x,t) | (x,t,_) <- decl]
+
+declDefs :: Decls -> [(Binder,Ter)]
+declDefs decl = [ (x,d) | (x,_,d) <- decl]
 
 -- Terms
 data Ter = App Ter Ter
@@ -38,15 +58,15 @@ data Ter = App Ter Ter
          | SPair Ter Ter
          | Fst Ter
          | Snd Ter
-         | Where Ter Def
-         | Var Binder
+         | Where Ter Decls
+         | Var Ident
          | U
          -- constructor c Ms
-         | Con Ident [Ter]
+         | Con Label [Ter]
          -- branches c1 xs1  -> M1,..., cn xsn -> Mn
-         | Split Prim [Brc]
+         | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | Sum Prim LblSum
+         | Sum Loc LblSum
          | PN PN
   deriving Eq
 
@@ -152,11 +172,11 @@ data PN = Id | Refl
         | IntRec
 
         -- undefined constant
-        | Undef Prim
+        | Undef Loc
   deriving (Eq, Show)
 
 -- For an expression t, returns (u,ts) where u is no application
--- and t = u ts
+-- and t = u t
 unApps :: Ter -> (Ter,[Ter])
 unApps = aux []
   where aux :: [Ter] -> Ter -> (Ter,[Ter])
@@ -167,12 +187,13 @@ unApps = aux []
 -- unApps t         = (t,[])
 
 mkApps :: Ter -> [Ter] -> Ter
-mkApps = foldl App
+mkApps (Con l us) vs = Con l (us ++ vs)
+mkApps t ts          = foldl App t ts
 
 mkLams :: [String] -> Ter -> Ter
-mkLams bs t = foldr Lam t bs
+mkLams bs t = foldr Lam t [noLoc b | b <- bs]
 
-mkWheres :: [Def] -> Ter -> Ter
+mkWheres :: [Decls] -> Ter -> Ter
 mkWheres []     e = e
 mkWheres (d:ds) e = Where (mkWheres ds e) d
 
@@ -605,8 +626,18 @@ instance Nominal Env where
   support (Pair e (_,v)) = support (e, v)
   support (PDef _ e)     = support e
 
+
 upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
+
+lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
+lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
+
+getIdent :: Ident -> [(Binder,a)] -> Maybe a
+getIdent x defs = do (_,t) <- lookupIdent x defs; return t
+
+getBinder :: Ident -> [(Binder,a)] -> Maybe Binder
+getBinder x defs = do (b,_) <- lookupIdent x defs; return b
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
@@ -633,16 +664,16 @@ showTer :: Ter -> String
 showTer U                 = "U"
 showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
-showTer (Lam x e)         = '\\' : x <+> "->" <+> showTer e
+showTer (Lam (x,_) e)         = '\\' : x <+> "->" <+> showTer e
 showTer (Fst e)           = showTer e ++ ".1"
 showTer (Snd e)           = showTer e ++ ".2"
 showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
-showTer (Where e d)       = showTer e <+> "where" <+> showDef d
+showTer (Where e d)       = showTer e <+> "where" <+> showDecls d
 showTer (Var x)           = x
 showTer (Con c es)        = c <+> showTers es
-showTer (Split (n,str) _) = str ++ show n
-showTer (Sum (_,str) _)   = str
+showTer (Split l _)       = "split " ++ show l
+showTer (Sum l _)         = "sum " ++ show l
 showTer (PN pn)           = showPN pn
 
 showTers :: [Ter] -> String
@@ -659,13 +690,13 @@ showTer1 u           = parens $ showTer u
 
 -- Warning: do not use showPN as a Show instance as it will loop
 showPN :: PN -> String
-showPN (Undef (n,str)) = str ++ show n
+showPN (Undef l) = show l
 showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
   [s] -> s
   _   -> error $ "showPN: unknown primitive " ++ show pn
 
-showDef :: Def -> String
-showDef (_,xts) = ccat (map (\(x,t) -> x <+> "=" <+> show t) xts)
+showDecls :: Decls -> String
+showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
 
 instance Show Val where
   show = showVal

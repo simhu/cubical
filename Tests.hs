@@ -6,7 +6,7 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Prelude hiding (curry)
 import System.Directory
-import Test.HUnit
+import Test.HUnit hiding (Label)
 
 import Exp.Lex
 import Exp.Par
@@ -18,43 +18,19 @@ import Pretty
 import qualified TypeChecker as TC
 import qualified CTT as C
 import qualified Eval as E
+import Main hiding (main)
 
 -- The folder where the tests are located
 folder :: FilePath
 folder = "examples/"
 
-lexer :: String -> [Token]
-lexer = resolveLayout True . myLexer
-
-imports :: ([String],[String],[Def]) -> String -> IO ([String],[String],[Def])
-imports st@(notok,loaded,defs) f
-  | f `elem` loaded = return st
-  | f `elem` notok  = do
-    assertFailure ("Looping imports in" <+> f)
-    return ([],[],[])
-  | otherwise       = do
-    let f' = folder ++ f
-    b <- doesFileExist f'
-    assertBool ("The file " ++ f' ++ " does not exist") b
-    s <- readFile f'
-    let ts = lexer s
-    case pModule ts of
-      Bad err -> do
-        assertFailure ("Parse failed:" <+> err <+> "on" <+> f)
-        return ([],[],[])
-      Ok mod@(Module _ imps defs') -> do
-        let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
-        (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
-        return (notok,f:loaded1,def1 ++ defs')
-
 loadFile :: FilePath -> IO C.Env
 loadFile f = do
-  (_,_,defs) <- imports ([],[],[]) f
-  let cs = concat [ [ unIdent n | Sum n _ <- lbls] | DefData _ _ lbls <- defs ]
-  case runResolver (local (insertConstrs cs) (resolveDefs defs)) of
+  (_,_,mods) <- imports folder ([],[],[]) f
+  case runResolver (resolveModules mods) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.Empty
-    Right ds -> TC.runDefs TC.silentEnv ds >>= \(x , e) -> case x of
+    Right (ds,_) -> TC.runDeclss TC.silentEnv ds >>= \(x , e) -> case x of
       Just err -> do assertFailure $ "Type checking failed:" <+>
                                       err <+> "on" <+> f
                      return (TC.env e)
@@ -67,7 +43,7 @@ testFile f xs = do
             | (n,output) <- xs ]
 
 toTests :: String -> [(String,String)] -> Test
-toTests n = TestLabel n . TestCase . testFile (n ++ ".cub")
+toTests n = TestLabel n . TestCase . testFile (folder ++ n ++ ".cub")
 
 boolEqBool :: Test
 boolEqBool = toTests "BoolEqBool" [ ("testBool"   ,"false")

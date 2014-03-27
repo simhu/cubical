@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, ParallelListComp #-}
 
 -- Convert the concrete syntax into the syntax of miniTT.
 module Concrete where
@@ -16,9 +16,10 @@ import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Control.Monad (when)
 import Data.Functor.Identity
-import Data.List (union)
+import Data.List (union, delete, nub)
 
-type Tele = [VDecl]
+type Tele = [(AIdent,Exp)]
+type Ter = C.Ter
 
 -- | Useful auxiliary functions
 unions :: Eq a => [[a]] -> [a]
@@ -29,195 +30,225 @@ unions = foldr union []
 a <:> b = (:) <$> a <*> b
 
 -- un-something functions
-unIdent :: AIdent -> String
-unIdent (AIdent (_,n)) = n
+unAIdent :: AIdent -> C.Ident
+unAIdent (AIdent (_,x)) = x
 
-unArg :: Arg -> String
-unArg (Arg n) = unIdent n
-unArg NoArg   = "_"
-
-unArgs :: [Arg] -> [String]
-unArgs = map unArg
-
-unBinder :: Binder -> Arg
-unBinder (Binder b) = b
-
-unArgBinder :: Binder -> String
-unArgBinder = unArg . unBinder
-
-unArgsBinder :: [Binder] -> [String]
-unArgsBinder = map unArgBinder
+unVar :: Exp -> Maybe AIdent
+unVar (Var x) = Just x
+unVar _       = Nothing
 
 unWhere :: ExpWhere -> Exp
 unWhere (Where e ds) = Let ds e
 unWhere (NoWhere e)  = e
 
--- Flatten a telescope, e.g., flatten (a b : A) (c : C) into
--- (a : A) (b : A) (c : C).
-flattenTele :: Tele -> [VDecl]
-flattenTele = concatMap (\(VDecl bs e) -> [VDecl [b] e | b <- bs])
+-- tail recursive form to transform a sequence of applications
+-- App (App (App u v) ...) w  into (u, [v, …, w])
+-- (cleaner than the previous version of unApps)
+unApps :: Exp -> [Exp] -> (Exp, [Exp])
+unApps (App u v) ws = unApps u (v : ws)
+unApps u         ws = (u, ws)
 
--- Note: It is important to only apply unApps to e1 as otherwise the
--- structure of the application will be destroyed which leads to trouble
--- for constructor disambiguation!
-unApps :: Exp -> [Exp]
-unApps (App e1 e2) = unApps e1 ++ [e2]
-unApps e           = [e]
+vTele :: [VTDecl] -> Tele
+vTele decls = concat [[(i, typ)| i <- id:ids] | VTDecl id ids typ <- decls]
 
-unVar :: Exp -> Arg
-unVar (Var b) = b
-unVar e       = error $ "unVar bad input: " ++ show e
+-- turns an expression of the form App (... (App id1 id2) ... idn)
+-- into a list of idents
+pseudoIdents :: Exp -> Maybe [AIdent]
+pseudoIdents e = mapM unVar (x:xs) where (x, xs) = unApps e []
 
-unVarBinder :: Exp -> String
-unVarBinder = unArg . unVar
-
-unPiDecl :: PiDecl -> VDecl
-unPiDecl (PiDecl e t) = VDecl (map (Binder . unVar) (unApps e)) t
-
-flattenTelePi :: [PiDecl] -> [VDecl]
-flattenTelePi = flattenTele . map unPiDecl
-
-namesTele :: Tele -> [String]
-namesTele vs = unions [ unArgsBinder args | VDecl args _ <- vs ]
+pseudoTele :: [PseudoTDecl] -> Maybe Tele
+pseudoTele []                        = return []
+pseudoTele (PseudoTDecl exp typ : pd) = do
+    ids <- pseudoIdents exp
+    pt  <- pseudoTele pd
+    return $ map (,typ) ids ++ pt
 
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
 -- local environment for constructors
-data Env = Env { constrs :: [String] }
+data Env = Env { envModule  :: String,
+                 variables  :: [(C.Binder,Bool)] } -- true for Var, false for Con
          deriving (Eq, Show)
 
-type Resolver a = ReaderT Env (StateT C.Prim (ErrorT String Identity)) a
+type Resolver a = ReaderT Env (ErrorT String Identity) a
 
 emptyEnv :: Env
-emptyEnv = Env []
+emptyEnv = Env "" []
 
 runResolver :: Resolver a -> Either String a
-runResolver x = runIdentity $ runErrorT $ evalStateT (runReaderT x emptyEnv) (0,"")
+runResolver x = runIdentity $ runErrorT $ runReaderT x emptyEnv
 
-insertConstrs :: [String] -> Env -> Env
-insertConstrs cs (Env cs') = Env $ cs ++ cs'
+updateModule :: String -> Env -> Env
+updateModule mod e = e {envModule = mod}
+
+insertBinder :: (C.Binder,Bool) -> Env -> Env
+insertBinder (x@(n,_),var) e | n == "_"         = e
+                             | n == "undefined" = e
+                             | otherwise        =
+  e {variables    = (x, var) : variables e}
+
+insertBinders :: [(C.Binder,Bool)] -> Env -> Env
+insertBinders = flip $ foldr insertBinder
+
+insertVar :: C.Binder -> Env -> Env
+insertVar x = insertBinder (x, True)
+
+insertVars :: [C.Binder] -> Env -> Env
+insertVars = flip $ foldr insertVar
+
+insertCon :: C.Binder -> Env -> Env
+insertCon x = insertBinder (x, True)
+
+insertCons :: [C.Binder] -> Env -> Env
+insertCons = flip $ foldr insertCon
 
 getEnv :: Resolver Env
 getEnv = ask
 
-getConstrs :: Resolver [String]
-getConstrs = constrs <$> getEnv
+getModule :: Resolver String
+getModule = envModule <$> ask
 
-genPrim :: Resolver C.Prim
-genPrim = do
-  prim <- lift get
-  lift (modify (first succ))
-  return prim
+getVariables :: Resolver [(C.Binder,Bool)]
+getVariables = variables <$> ask
 
-genPN :: Resolver C.PN
-genPN = do
-  (_,str) <- lift get
-  case C.mkPN str of
-    Just pn -> return pn
-    Nothing -> C.Undef <$> genPrim
+getLoc :: (Int,Int) -> Resolver C.Loc
+getLoc l = do m <- getModule; return $ C.Loc m l
 
-updateName :: String -> Resolver ()
-updateName str = lift $ modify (\(g,_) -> (g,str))
+resolveBinder :: AIdent -> Resolver C.Binder
+resolveBinder (AIdent (l,x)) = do l <- getLoc l; return (x, l)
 
-lam :: Arg -> Resolver C.Ter -> Resolver C.Ter
-lam a e = C.Lam (unArg a) <$> e
+resolveVar :: AIdent -> Resolver Ter
+resolveVar (AIdent (l,x)) =
+  if (x == "_") || (x == "undefined")
+  then C.PN <$> (C.Undef <$> getLoc l)
+  else do
+    modName <- getModule
+    vars    <- getVariables
+    case C.getIdent x vars of
+      Just True  -> return $ C.Var x
+      Just False -> return $ C.Con x []
+      Nothing    -> throwError $
+        "Cannot resolve variable " ++ x ++ " at position " ++ show l 
+        ++ " in module " ++ modName
+  
+lam :: AIdent -> Resolver Ter -> Resolver Ter
+lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
 
-lams :: [Arg] -> Resolver C.Ter -> Resolver C.Ter
-lams as e = foldr lam e as
+lams :: [AIdent] -> Resolver Ter -> Resolver Ter
+lams = flip $ foldr $ lam
 
-resolveExp :: Exp -> Resolver C.Ter
+bind :: (Ter -> Ter -> Ter) -> (AIdent, Exp) -> Resolver Ter -> Resolver Ter
+bind f (x,t) e = f <$> resolveExp t <*> lam x e
+
+binds :: (Ter -> Ter -> Ter) -> Tele-> Resolver Ter -> Resolver Ter
+binds f = flip $ foldr $ bind f
+
+resolveExp :: Exp -> Resolver Ter
 resolveExp U            = return C.U
-resolveExp Undef        = C.PN <$> genPN
-resolveExp PN           = C.PN <$> genPN
-resolveExp e@(App t s)  = do
-  let x:xs = unApps e
-  cs <- getConstrs
-  case x of
-    Var a -> let n = unArg a in
-      if n `elem` cs then C.Con n <$> mapM resolveExp xs
-      else C.App <$> resolveExp t <*> resolveExp s
-    _ -> C.App <$> resolveExp t <*> resolveExp s
-resolveExp (Pi tele b)  = resolveTelePi (flattenTelePi tele) (resolveExp b)
-resolveExp (Sigma tele b)  = resolveTeleSigma (flattenTelePi tele) (resolveExp b)
-resolveExp (Fun a b)    = C.Pi <$> resolveExp a <*> lam NoArg (resolveExp b)
-resolveExp (Lam bs t)   = lams (map unBinder bs) (resolveExp t)
+resolveExp (Var x)      = resolveVar x
+resolveExp (App t s)    = C.mkApps <$> resolveExp x <*> mapM resolveExp xs
+  where (x, xs) = unApps t [s]
+resolveExp (Sigma t b)  = case pseudoTele t of
+  Just tele -> binds C.Sigma tele (resolveExp b)
+  Nothing   -> throwError "telescope malformed in Sigma"
+resolveExp (Pi t b)     =  case pseudoTele t of
+  Just tele -> binds C.Pi tele (resolveExp b)
+  Nothing   -> throwError "telescope malformed in Pigma"
+resolveExp (Fun a b)    = bind C.Pi (AIdent ((0,0),"_"), a) (resolveExp b)
+resolveExp (Lam x xs t) = lams (x:xs) (resolveExp t)
 resolveExp (Fst t)      = C.Fst <$> resolveExp t
 resolveExp (Snd t)      = C.Snd <$> resolveExp t
 resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
-resolveExp (Split brs)  = C.Split <$> genPrim <*> mapM resolveBranch brs
-resolveExp (Let defs e) = C.mkWheres <$> resolveDefs defs <*> resolveExp e
-resolveExp (Var n)      = do
-  let x = unArg n
-  when (x == "_") (throwError "_ not a valid variable name")
-  Env cs <- getEnv
-  return (if x `elem` cs then C.Con x [] else C.Var x)
+resolveExp (Split brs)  = do
+    brs' <- mapM resolveBranch brs
+    loc  <- getLoc (case brs of (Branch (AIdent (l,_)) _ _):_ -> l ; _ -> (0,0))
+    return $ C.Split loc brs'
+resolveExp (Let decls e) = do
+  (rdecls,names) <- resolveDecls decls
+  C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
 
-resolveWhere :: ExpWhere -> Resolver C.Ter
+resolveWhere :: ExpWhere -> Resolver Ter
 resolveWhere = resolveExp . unWhere
 
-resolveBranch :: Branch -> Resolver (String,([String],C.Ter))
-resolveBranch (Branch name args e) =
-  ((unIdent name,) . (unArgs args,)) <$> resolveWhere e
+resolveBranch :: Branch -> Resolver (C.Label,([C.Binder],C.Ter))
+resolveBranch (Branch lbl args e) = do
+    binders <- mapM resolveBinder args
+    re      <- local (insertVars binders) $ resolveWhere e
+    return (unAIdent lbl, (binders, re))
 
--- Assumes a flattened telescope.
-resolveTele :: [VDecl] -> Resolver [(String,C.Ter)]
-resolveTele []                      = return []
-resolveTele (VDecl [Binder a] t:ds) =
-  ((unArg a,) <$> resolveExp t) <:> resolveTele ds
-resolveTele ds                      =
-  throwError $ "resolveTele: non flattened telescope " ++ show ds
+resolveTele :: [(AIdent,Exp)] -> Resolver C.Tele
+resolveTele []        = return []
+resolveTele ((i,d):t) = do 
+  x <- resolveBinder i
+  ((x,) <$> resolveExp d) <:> local (insertVar x) (resolveTele t)
 
--- Assumes a flattened telescope.
-resolveTelePi :: [VDecl] -> Resolver C.Ter -> Resolver C.Ter
-resolveTelePi [] b                      = b
-resolveTelePi (VDecl [Binder x] a:as) b =
-  C.Pi <$> resolveExp a <*> lam x (resolveTelePi as b)
-resolveTelePi (t@(VDecl{}):as) _        =
-  throwError ("resolveTelePi: non flattened telescope " ++ show t)
+resolveLabel :: Label -> Resolver (C.Binder, C.Tele)
+resolveLabel (Label n vdecl) = (,) <$> resolveBinder n <*> resolveTele (vTele vdecl)
 
--- Assumes a flattened telescope.
-resolveTeleSigma :: [VDecl] -> Resolver C.Ter -> Resolver C.Ter
-resolveTeleSigma [] b                      = b
-resolveTeleSigma (VDecl [Binder x] a:as) b =
-  C.Sigma <$> resolveExp a <*> lam x (resolveTeleSigma as b)
-resolveTeleSigma (t@(VDecl{}):as) _        =
-  throwError ("resolveTeleSigma: non flattened telescope " ++ show t)
+declsLabels :: [Decl] -> Resolver [C.Binder]
+declsLabels decls = mapM resolveBinder [lbl | Label lbl _ <- sums]
+  where sums = concat [sum | DeclData _ _ sum <- decls]
 
-resolveLabel :: Sum -> Resolver (String,[(String,C.Ter)])
-resolveLabel (Sum n tele) = (unIdent n,) <$> resolveTele (flattenTele tele)
-
-resolveDefs :: [Def] -> Resolver [C.Def]
-resolveDefs []                  = return []
-resolveDefs (DefTDecl n e:d:ds) = do
-  e' <- resolveExp e
-  xd <- checkDef (unIdent n,d)
-  rest <- resolveDefs ds
-  return $ ([(unIdent n, e')],[xd]) : rest
-resolveDefs (DefMutual defs:ds) = resolveMutual defs <:> resolveDefs ds
-resolveDefs (d:_) = error $ "Type declaration expected: " ++ show d
-
-checkDef :: (String,Def) -> Resolver (String,C.Ter)
-checkDef (n,Def (AIdent (_,m)) args body) | n == m = do
-  updateName n
+-- resolve Data or Def declaration
+resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
+resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
   (n,) <$> lams args (resolveWhere body)
-checkDef (n,DefData (AIdent (_,m)) args sums) | n == m = do
-  updateName n
-  (n,) <$> lams args (C.Sum <$> genPrim <*> mapM resolveLabel sums)
-checkDef (n,d) =
-  throwError ("Mismatching names in " ++ show n ++ " and " ++ show d)
+resolveDDecl (DeclData (AIdent (l,n)) args sum) = do
+  (n,) <$> lams args (C.Sum <$> getLoc l <*> mapM resolveLabel sum)
+resolveDDecl d = throwError $ "Definition expected " ++ show d
 
-resolveMutual :: [Def] -> Resolver C.Def
-resolveMutual defs = do
-  tdecls' <- mapM resolveTDecl tdecls
-  let names = map fst tdecls'
-  when (length names /= length decls) $
-    throwError $ "Definitions missing in " ++ show defs
-  tdef' <- mapM checkDef (zip names decls)
-  return (tdecls',tdef')
+-- resolve mutual declarations (possibly one)
+resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,Bool)])
+resolveMutuals decls = do
+    binders <- mapM resolveBinder idents
+    cs      <- declsLabels decls
+    let    cns = [n | (n,_) <- cs] ++ names
+    when (nub cns /= cns) $
+      throwError $ "Duplicated constructor or ident: " ++ show cns
+    rddecls <- flip mapM ddecls
+      (local (insertVars binders . insertCons cs) . resolveDDecl)
+    when (names /= [n | (n,d) <- rddecls]) $
+      throwError $ "Mismatching names in " ++ show decls
+    rtdecls <- resolveTele tdecls
+    return ([(x,t,d) | (x,t) <- rtdecls | (_,d) <- rddecls],
+                       zip cs (repeat False) ++ zip binders (repeat True))
   where
-    (tdecls,decls) = span isTDecl defs
-    isTDecl d@(DefTDecl {}) = True
-    isTDecl _               = False
-    resolveTDecl (DefTDecl n e) = do e' <- resolveExp e
-                                     return (unIdent n, e')
+    idents = [x | DeclType x _ <- decls]
+    names  = [unAIdent x | x <- idents]
+    tdecls = [(x,t) | DeclType x t <- decls]
+    ddecls = [t | t <- decls, not $ isTDecl t]
+    isTDecl d = case d of DeclType {} -> True; _ -> False 
+
+resolveDecls :: [Decl] -> Resolver ([C.Decls],[(C.Binder,Bool)])
+resolveDecls []                  = return ([],[])
+resolveDecls (td@(DeclType x t):ds) = do
+  case (C.mkPN (unAIdent x), ds) of
+    (Just pn, ds) -> do
+      b <- resolveBinder x
+      rt <- resolveExp t
+      (rds,names) <- local (insertVar b) $ resolveDecls ds
+      return $ ([(b, rt, C.PN pn)] : rds, names ++ [(b,True)])
+    (Nothing, d:ds) -> do
+        (rtd,names)  <- resolveMutuals [td,d]
+        (rds,names') <- local (insertBinders names) $ resolveDecls ds
+        return $ (rtd:rds, names' ++ names)
+    (Nothing, []) -> throwError $
+       "Missing definition for " ++ (unAIdent x) ++ " (not a primitive)"
+resolveDecls (DeclMutual defs : ds) = do
+  (rdefs,names)  <- resolveMutuals defs
+  (rds,  names') <- local (insertBinders names) $ resolveDecls ds
+  return $ (rdefs:rds, names' ++ names)
+resolveDecls (decl:_) = throwError $ "Invalid declaration " ++ show decl
+
+resolveModule :: Module -> Resolver ([C.Decls],[(C.Binder,Bool)])
+resolveModule (Module id imports decls) = do
+  local (updateModule $ unAIdent id) $ resolveDecls decls
+
+resolveModules :: [Module] -> Resolver ([C.Decls],[(C.Binder,Bool)])
+resolveModules []         = return ([],[])
+resolveModules (mod:mods) = do
+  (rmod, names)  <- resolveModule mod
+  (rmods,names') <- local (insertBinders names) $ resolveModules mods
+  return $ (rmod ++ rmods, names' ++ names)
+  

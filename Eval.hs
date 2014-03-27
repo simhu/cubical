@@ -45,12 +45,12 @@ appVal b v1 v2 = runEval b $ app v1 v2
 convVal :: Bool -> Int -> Val -> Val -> Bool
 convVal b k v1 v2 = runEval b $ conv k v1 v2
 
-look :: Binder -> Env -> Eval Val
-look x (Pair s (y,u)) | x == y    = return u
-                      | otherwise = look x s
-look x r@(PDef es r1)             = case lookup x es of
-  Just t  -> eval r t
-  Nothing -> look x r1
+look :: Ident -> Env -> Eval Val
+look x (Pair s ((y,_),u)) | x == y    = return u
+                          | otherwise = look x s
+look x r@(PDef es r1)                 = case lookupIdent x es of
+  Just (_,t)  -> eval r t
+  Nothing     -> look x r1
 
 eval :: Env -> Ter -> Eval Val
 eval e U                 = return VU
@@ -65,7 +65,7 @@ eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
 eval e (SPair a b)       = VSPair <$> eval e a <*> eval e b
 eval e (Fst a)           = fstSVal <$> eval e a
 eval e (Snd a)           = sndSVal <$> eval e a
-eval e (Where t (_,def)) = eval (PDef def e) t
+eval e (Where t decl)     = eval (PDef (declDefs decl) e) t
 eval e (Con name ts)     = VCon name <$> mapM (eval e) ts
 eval e (Split pr alts)   = return $ Ter (Split pr alts) e
 eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
@@ -274,7 +274,7 @@ face u xdir@(x,dir) =
   VEquivSquare y z a s t | x == y                -> return a
                          | x == z && dir == down -> return a
                          | x == z && dir == up   -> do
-                           let idV = Ter (Lam "x" (Var "x")) Empty
+                           let idV = Ter (Lam (noLoc "x") (Var "x")) Empty
                            return $ VEquivEq y a a idV s t
                          | otherwise             ->
                           VEquivSquare y z <$> fc a <*> fc s <*> fc t
@@ -508,7 +508,7 @@ fill (VSigma a f) box@(Box dir x v nvs) = do
   u <- fill a (mapBox fstSVal box)
   VSPair u <$> fillM (app f u) (return (mapBox sndSVal box))
 -- assumes cvs are constructor vals
-fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case lookup n nass of
+fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case getIdent n nass of
   Just as -> do
     let boxes = transposeBox $ mapBox unCon box
     -- fill boxes for each argument position of the constructor

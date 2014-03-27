@@ -67,8 +67,9 @@ main = do
               runInputT (settings []) (loop [] [] (TC.verboseEnv b))
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
-imports :: ([String],[String],[Def]) -> String -> IO ([String],[String],[Def])
-imports st@(notok,loaded,defs) f
+imports :: String -> ([String],[String],[Module]) -> String ->
+  IO ([String],[String],[Module])
+imports prefix st@(notok,loaded,mods) f
   | f `elem` notok  = putStrLn ("Looping imports in " ++ f) >> return ([],[],[])
   | f `elem` loaded = return st
   | otherwise       = do
@@ -82,76 +83,80 @@ imports st@(notok,loaded,defs) f
           Bad s  -> do
             putStrLn $ "Parse failed in " ++ show f ++ "\n" ++ show s
             return ([],[],[])
-          Ok mod@(Module _ imps defs') -> do
-            let imps' = [ unIdent s ++ ".cub" | Import s <- imps ]
-            (notok1,loaded1,def1) <- foldM imports (f:notok,loaded,defs) imps'
-            putStrLn $ "Parsed " ++ show f ++ " successfully!"
-            return (notok,f:loaded1,def1 ++ defs')
+          Ok mod@(Module id imp decls) ->
+            let name    = unAIdent id
+                imp_cub = [prefix ++ unAIdent i ++ ".cub" | Import i <- imp]
+            in do 
+              -- when (name ++ ".cub" /= f) $ 
+              --   error $ "module name mismatch " ++ show (f,name)
+              (notok1,loaded1,mods1) <-
+                foldM (imports prefix) (f:notok,loaded,mods) imp_cub 
+              putStrLn $ "Parsed " ++ show f ++ " successfully!"
+              return (notok,f:loaded1,mods1 ++ [mod])
 
-getConstrs :: [Def] -> [String]
-getConstrs []                  = []
-getConstrs (DefData _ _ ls:ds) = [ unIdent n | Sum n _ <- ls] ++ getConstrs ds
-getConstrs (DefMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
-getConstrs (_:ds)              = getConstrs ds
+-- getConstrs :: [Decl] -> [String]
+-- getConstrs []                  = []
+-- getConstrs (DeclData _ _ ls:ds) = [ unAIdent n | Label n _ <- ls] ++ getConstrs ds
+-- getConstrs (DeclMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
+-- getConstrs (_:ds)              = getConstrs ds
 
 namesEnv :: TC.TEnv -> [String]
-namesEnv (TC.TEnv _ env ctxt _ _) = namesCEnv env ++ map fst ctxt
-  where namesCEnv C.Empty          = []
-        namesCEnv (C.Pair e (b,_)) = namesCEnv e ++ [b]
-        namesCEnv (C.PDef xs e)    = map fst xs ++ namesCEnv e
+namesEnv (TC.TEnv _ env ctxt _ _) = namesCEnv env ++ [n | ((n,_),_) <- ctxt]
+  where namesCEnv C.Empty              = []
+        namesCEnv (C.Pair e ((x,_),_)) = namesCEnv e ++ [x]
+        namesCEnv (C.PDef xs e)        =  [n | ((n,_),_) <- ctxt] ++ namesCEnv e
 
 -- Initialize the main loop
 initLoop :: Bool -> FilePath -> IO ()
 initLoop debug f = do
   -- Parse and type-check files
-  (_,_,defs) <- imports ([],[],[]) f
-  -- Compute all constructors
-  let cs  = getConstrs defs
+  (_,_,mods) <- imports "" ([],[],[]) f
   -- Translate to CTT
-  let res = runResolver (local (insertConstrs cs) (resolveDefs defs))
+  let res = runResolver $ resolveModules mods
+  -- putStrLn $ show res
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
       runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
-    Right adefs -> do
-      (merr , tenv) <- TC.runDefs (TC.verboseEnv debug) adefs
+    Right (adefs,names) -> do
+      (merr , tenv) <- TC.runDeclss (TC.verboseEnv debug) adefs
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> return ()      
       putStrLn "File loaded."
       -- Compute names for auto completion
-      let ns = cs ++ namesEnv tenv
-      runInputT (settings ns) (loop f cs tenv)
+      runInputT (settings [n | ((n,_),_) <- names]) (loop f names tenv)
 
 -- The main loop
-loop :: FilePath -> [String] -> TC.TEnv -> Interpreter ()
-loop f cs tenv@(TC.TEnv _ rho _ _ debug) = do
+loop :: FilePath -> [(C.Binder,Bool)] -> TC.TEnv -> Interpreter ()
+loop f names tenv@(TC.TEnv _ rho _ _ debug) = do
   input <- getInputLine defaultPrompt
   case input of
-    Nothing    -> outputStrLn help >> loop f cs tenv
+    Nothing    -> outputStrLn help >> loop f names tenv
     Just ":q"  -> return ()
     Just ":r"  -> lift $ initLoop debug f
     Just (':':'l':' ':str)
       | ' ' `elem` str -> do outputStrLn "Only one file allowed after :l"
-                             loop f cs tenv
+                             loop f names tenv
       | otherwise      -> lift $ initLoop debug str
     Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
-                                     loop f cs tenv
-    Just ":h"  -> outputStrLn help >> loop f cs tenv
+                                     loop f names tenv
+    Just ":h"  -> outputStrLn help >> loop f names tenv
     Just str   -> case pExp (lexer str) of
-      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop f cs tenv
-      Ok  exp -> case runResolver (local (const (Env cs)) (resolveExp exp)) of
-        Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
-                         loop f cs tenv
-        Right body -> do
+      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop f names tenv
+      Ok  exp ->
+        case runResolver $ local (insertBinders names) $ resolveExp exp of
+          Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
+                           loop f names tenv
+          Right body -> do
           x <- liftIO $ TC.runInfer tenv body
           case x of
             Left err -> do outputStrLn ("Could not type-check: " ++ err)
-                           loop f cs tenv
+                           loop f names tenv
             Right _  -> do
               let e = E.evalTer debug rho body
               outputStrLn ("EVAL: " ++ show e)
-              loop f cs tenv
+              loop f names tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++

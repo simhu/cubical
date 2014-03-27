@@ -3,63 +3,56 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "of", "split", "mutual" ;
+layout "where", "let", "split", "mutual" ;
 layout stop "in" ;
 -- Do not use layout toplevel as it makes pExp fail!
 
-Module.   Module ::= "module" AIdent "where" "{" [Imp] [Def] "}" ;
+Module.   Module ::= "module" AIdent "where" "{" [Imp] [Decl] "}" ;
 
 Import.   Imp ::= "import" AIdent ;
 separator Imp ";" ;
 
-Def.       Def ::= AIdent [Arg] "=" ExpWhere ;
-DefTDecl.  Def ::= AIdent ":" Exp ;
-DefData.   Def ::= "data" AIdent [Arg] "=" [Sum] ;
-DefMutual. Def ::= "mutual" "{" [Def] "}" ;
-separator  Def ";" ;
+DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
+DeclType.   Decl ::= AIdent ":" Exp ;
+DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
+DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
+separator   Decl ";" ;
 
-Where.    ExpWhere ::= Exp "where" "{" [Def] "}" ;
+Where.    ExpWhere ::= Exp "where" "{" [Decl] "}" ;
 NoWhere.  ExpWhere ::= Exp ;
 
-Let.      Exp  ::= "let" "{" [Def] "}" "in" Exp ;
-Lam.      Exp  ::= "\\" [Binder] "->" Exp ;
+Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
+Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
-Pi.       Exp1 ::= [PiDecl] "->" Exp1 ;
-Sigma.    Exp1 ::= [PiDecl] "*" Exp1 ;
+Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
+Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
+-- Data.     Exp1 ::= "data" [VTDecl] "->" [Sum] ; -- Anonymous sum
 App.      Exp2 ::= Exp2 Exp3 ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
-Var.      Exp3 ::= Arg ;
+Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
-Undef.    Exp3 ::= "undefined" ;
-PN.       Exp3 ::= "PN" ;
+
 coercions Exp 3 ;
 
-Binder.   Binder ::= Arg ;
-separator nonempty Binder "" ;
-
--- Like Binder, but may be empty
-Arg.       Arg ::= AIdent ;
-NoArg.     Arg ::= "_" ;
-terminator Arg "" ;
-
 -- Branches
-Branch.   Branch ::= AIdent [Arg] "->" ExpWhere ;
+Branch.   Branch ::= AIdent [AIdent] "->" ExpWhere ;
 separator Branch ";" ;
 
 -- Labelled sum alternatives
-Sum.      Sum   ::= AIdent [VDecl] ;
-separator Sum "|" ;
+Label.    Label   ::= AIdent [VTDecl] ;
+separator Label "|" ;
 
 -- Telescopes
-VDecl.     VDecl ::= "(" [Binder] ":" Exp ")" ;
-terminator VDecl "" ;
+VTDecl.     VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;
+terminator VTDecl "" ;
 
 -- Nonempty telescopes with Exp:s, this is hack to avoid ambiguities in the
 -- grammar when parsing Pi
-PiDecl.   PiDecl ::= "(" Exp ":" Exp ")" ;
-terminator nonempty PiDecl "" ;
+PseudoTDecl.   PseudoTDecl ::= "(" Exp ":" Exp ")" ;
+terminator nonempty PseudoTDecl "" ;
 
-position token AIdent (letter(letter|digit|'\''|'_')*) ;
+position token AIdent ((letter|'\''|'_')(letter|digit|'\''|'_')*) ;
+terminator AIdent "" ;
