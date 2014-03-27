@@ -4,6 +4,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Error
 import Data.List
 import System.Directory
+import System.FilePath
 import System.Environment
 import System.Console.GetOpt
 import System.Console.Haskeline
@@ -67,13 +68,14 @@ main = do
               runInputT (settings []) (loop [] [] (TC.verboseEnv b))
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
-imports :: String -> ([String],[String],[Module]) -> String ->
+imports :: ([String],[String],[Module]) -> String ->
   IO ([String],[String],[Module])
-imports prefix st@(notok,loaded,mods) f
+imports st@(notok,loaded,mods) f
   | f `elem` notok  = putStrLn ("Looping imports in " ++ f) >> return ([],[],[])
   | f `elem` loaded = return st
   | otherwise       = do
-    b <- doesFileExist f
+    b      <- doesFileExist f
+    let prefix = dropFileName f
     if not b
       then putStrLn (f ++ " does not exist") >> return ([],[],[])
       else do
@@ -86,11 +88,11 @@ imports prefix st@(notok,loaded,mods) f
           Ok mod@(Module id imp decls) ->
             let name    = unAIdent id
                 imp_cub = [prefix ++ unAIdent i ++ ".cub" | Import i <- imp]
-            in do 
-              -- when (name ++ ".cub" /= f) $ 
+            in do
+              -- when (name ++ ".cub" /= f) $
               --   error $ "module name mismatch " ++ show (f,name)
               (notok1,loaded1,mods1) <-
-                foldM (imports prefix) (f:notok,loaded,mods) imp_cub 
+                foldM imports (f:notok,loaded,mods) imp_cub
               putStrLn $ "Parsed " ++ show f ++ " successfully!"
               return (notok,f:loaded1,mods1 ++ [mod])
 
@@ -110,7 +112,7 @@ namesEnv (TC.TEnv _ env ctxt _ _) = namesCEnv env ++ [n | ((n,_),_) <- ctxt]
 initLoop :: Bool -> FilePath -> IO ()
 initLoop debug f = do
   -- Parse and type-check files
-  (_,_,mods) <- imports "" ([],[],[]) f
+  (_,_,mods) <- imports ([],[],[]) f
   -- Translate to CTT
   let res = runResolver $ resolveModules mods
   -- putStrLn $ show res
@@ -122,7 +124,7 @@ initLoop debug f = do
       (merr , tenv) <- TC.runDeclss (TC.verboseEnv debug) adefs
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
-        Nothing  -> return ()      
+        Nothing  -> return ()
       putStrLn "File loaded."
       -- Compute names for auto completion
       runInputT (settings [n | ((n,_),_) <- names]) (loop f names tenv)
