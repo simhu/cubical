@@ -212,7 +212,7 @@ resolveMutuals decls = do
       throwError $ "Mismatching names in " ++ show decls
     rtdecls <- resolveTele tdecls
     return ([(x,t,d) | (x,t) <- rtdecls | (_,d) <- rddecls],
-                       zip cs (repeat False) ++ zip binders (repeat True))
+                       map (,False) cs ++ map (,True) binders)
   where
     idents = [x | DeclType x _ <- decls]
     names  = [unAIdent x | x <- idents]
