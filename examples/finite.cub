@@ -4,8 +4,8 @@ module finite where
 
 import description
 import function 
-import gradLemma1
-import oldswapDisc
+import gradLemma
+import swapDisc_old
 
 step : U -> U
 step X = or Unit X

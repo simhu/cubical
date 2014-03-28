@@ -2,19 +2,19 @@ module gradLemma where
 
 import equivProp
 import BoolEqBool
-import cong
 
 corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
-corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1) 
+corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1)
 
-corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) -> 
+corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) ->
             prop (fiber A A h a)
 corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
-  where 
+  where
   rem : Id (A -> A) h (id A)
-  rem = funExt A (\_ -> A) h (id A) ph 
+  rem = funExt A (\_ -> A) h (id A) ph
 
-gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+
+gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g ->
             isEquiv A B f
 gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
   where
@@ -22,124 +22,66 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
   injf = retractInj A B f g rfg
 
   rem : (b : B) -> prop (Sigma A (\a -> Id B (f a) b))
-  rem b = split
-    pair a0 e0 -> 
-      split
-       pair a1 e1 -> rem19
-        where
-         E : A -> U
-         E a = Id B (f a) b
-         F : A -> U
-         F a = Id A (g (f a)) (g b)
-         G : A -> U
-         G a = Id B (f (g (f a))) (f (g b))
+  rem b z0 z1 = rem5
+   where
+    E : A -> U
+    E a = Id B (f a) b
+    F : A -> U
+    F a = Id A (g (f a)) (g b)
+    G : A -> U
+    G a = Id B (f (g (f a))) (f (g b))
 
-         z0 : Sigma A E
-         z0 = pair a0 e0
-         z1 : Sigma A E
-         z1 = pair a1 e1
-        
-         cg : (a:A) -> E a -> F a
-         cg a = mapOnPath B A g (f a) b
+    cg : (a:A) -> E a -> F a
+    cg a = mapOnPath B A g (f a) b
 
-         cf : (a:A) -> F a -> G a
-         cf a = mapOnPath A B f (g (f a)) (g b)
+    cf : (a:A) -> F a -> G a
+    cf a = mapOnPath A B f (g (f a)) (g b)
 
-         cfg : (a:A) -> E a -> G a
-         cfg a = mapOnPath B B (\ x -> f (g x)) (f a) b
+    cfg : (a:A) -> E a -> G a
+    cfg a = mapOnPath B B (\ x -> f (g x)) (f a) b
 
-         pcg : Sigma A E -> Sigma A F
-         pcg = split
-                pair a e -> pair a (cg a e)
+    pcf : Sigma A F -> Sigma A G
+    pcf z = (z.1, cf z.1 z.2)
 
-         pcf : Sigma A F -> Sigma A G
-         pcf = split
-                pair a e -> pair a (cf a e)
+    pcg : Sigma A E -> Sigma A F
+    pcg z = (z.1, cg z.1 z.2)
 
-         fg : B -> B
-         fg y = f (g y)
+    fg : B -> B
+    fg y = f (g y)
 
-         pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
-         pc u = split
-                pair a e -> pair a (mapOnPath B B u (f a) b e)
+    pc : (u:B -> B) -> Sigma A E -> Sigma A (\ a -> Id B (u (f a)) (u b))
+    pc u z = (z.1, mapOnPath B B u (f z.1) b z.2)
 
-         rem1 : prop (Sigma A F)
-         rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)         
+    rem1 : prop (Sigma A F)
+    rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)
 
-         rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
-         rem2 = rem1 (pcg z0) (pcg z1)
+    rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
+    rem2 = rem1 (pcg z0) (pcg z1)
 
-         rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
-         rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
+    rem3 : Id (Sigma A G) (pcf (pcg z0)) (pcf (pcg z1))
+    rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
 
-         rem4 : Id (E a0 -> G a0) (cfg a0) (\ e -> cf a0 (cg a0 e))
-         rem4 = congComp B A B g f (f a0) b 
+    rem4 : Id (B -> B) fg (id B)
+    rem4 = funExt B (\ _ -> B)  fg (id B) sfg
 
-         rem5 : Id (G a0) (cfg a0 e0) (cf a0 (cg a0 e0))
-         rem5 = appId (E a0) (G a0) e0 (cfg a0) (\ e -> cf a0 (cg a0 e)) rem4
-
-         rem6 : Id (Sigma A G) (pc fg z0) (pcf (pcg z0))
-         rem6 = mapOnPath (G a0) (Sigma A G) (\ e -> pair a0 e)  (cfg a0 e0) (cf a0 (cg a0 e0)) rem5
-
-         rem7 : Id (E a1 -> G a1) (cfg a1) (\ e -> cf a1 (cg a1 e))
-         rem7 = congComp B A B g f (f a1) b 
-
-         rem8 : Id (G a1) (cfg a1 e1) (cf a1 (cg a1 e1))
-         rem8 = appId (E a1) (G a1) e1 (cfg a1) (\ e -> cf a1 (cg a1 e)) rem7
-
-         rem9 : Id (Sigma A G) (pc fg z1) (pcf (pcg z1))
-         rem9 = mapOnPath (G a1) (Sigma A G) (\ e -> pair a1 e)  (cfg a1 e1) (cf a1 (cg a1 e1)) rem8
-
-         rem10 : Id (Sigma A G) (pc fg z0) (pc fg z1)
-         rem10 = compDown (Sigma A G) (pc fg z0) (pcf (pcg z0)) (pc fg z1) (pcf (pcg z1)) rem6 rem9 rem3
-
-         rem11 : Id (B -> B) fg (id B)
-         rem11 = funExt B (\ _ -> B)  fg (id B) sfg
-
-         rem12 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
-         rem12 = subst (B->B) (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem11 rem10
-
-         c1 : (a:A) -> E a -> E a
-         c1 a = mapOnPath B B (id B) (f a) b
-
-         rem13 : Id (E a0 -> E a0) (id (E a0)) (c1 a0) 
-         rem13 = congId B (f a0) b
-
-         rem14 : Id (E a0) e0 (c1 a0 e0) 
-         rem14 = appId (E a0) (E a0) e0  (id (E a0)) (c1 a0) rem13
-
-         rem15 : Id (Sigma A E) z0 (pc (id B) z0)
-         rem15 = mapOnPath (E a0) (Sigma A E) (\ e -> pair a0 e) e0 (c1 a0 e0) rem14
-
-         rem16 : Id (E a1 -> E a1) (id (E a1)) (c1 a1) 
-         rem16 = congId B (f a1) b
-
-         rem17 : Id (E a1) e1 (c1 a1 e1) 
-         rem17 = appId (E a1) (E a1) e1  (id (E a1)) (c1 a1) rem16
-
-         rem18 : Id (Sigma A E) z1 (pc (id B) z1)
-         rem18 = mapOnPath (E a1) (Sigma A E) (\ e -> pair a1 e) e1 (c1 a1 e1) rem17
-
-         rem19 : Id (Sigma A E) z0 z1
-         rem19 = compDown (Sigma A E) z0 (pc (id B) z0) z1 (pc (id B) z1) rem15 rem18 rem12
+    rem5 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
+    rem5 = subst (B->B)
+             (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem4 rem3
 
 -- isomorphic types are equal
 
-isoId : (A B:U) ->  (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g -> 
+isoId : (A B:U) ->  (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g ->
             Id U A B
 isoId A B f g sfg rfg = isEquivEq A B f (gradLemma A B f g sfg rfg)
 
 -- some applications of the gradlemma
 
-propId : (A B:U) ->  prop A -> prop B ->  (f : A -> B) (g : B -> A) -> 
+propId : (A B:U) ->  prop A -> prop B ->  (f : A -> B) (g : B -> A) ->
             Id U A B
 propId A B pA pB f g = isEquivEq A B f (gradLemma A B f g sfg rfg)
  where
   sfg : (b:B) -> Id B (f (g b)) b
   sfg b = pB (f (g b)) b
- 
+
   rfg : (a:A) -> Id A (g (f a)) a
   rfg a = pA (g (f a)) a
-
-
-

@@ -1,6 +1,6 @@
 module integer where
 
-import gradLemma1
+import gradLemma
 
 Z : U 
 Z = or N N

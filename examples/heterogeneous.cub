@@ -2,7 +2,7 @@ module heterogeneous where
 
 import primitive
 import prelude
-import gradLemma1
+import gradLemma
 
 eqFst : (A : U) (B : A -> U) (u v : Sigma A B) ->
         Id (Sigma A B) u v -> Id A u.1 v.1

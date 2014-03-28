@@ -1,4 +1,4 @@
-module opacity where
+module opacity_fail where
 
 import primitive
 

@@ -90,8 +90,8 @@ imports st@(notok,loaded,mods) f
             let name    = unAIdent id
                 imp_cub = [prefix ++ unAIdent i ++ ".cub" | Import i <- imp]
             in do
-              -- when (name ++ ".cub" /= f) $
-              --   error $ "module name mismatch " ++ show (f,name)
+              when (name /= (dropExtension $ takeFileName $ f)) $
+                error $ "Module name mismatch " ++ show (f,name)
               (notok1,loaded1,mods1) <-
                 foldM imports (f:notok,loaded,mods) imp_cub
               putStrLn $ "Parsed " ++ show f ++ " successfully!"

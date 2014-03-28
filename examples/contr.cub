@@ -1,6 +1,6 @@
 module contr where
 
-import gradLemma1
+import gradLemma
 
 -- a product of contractibles is contractible
 
