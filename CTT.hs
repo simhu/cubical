@@ -640,10 +640,11 @@ oEmpty = OEnv Empty []
 oPair :: OEnv -> (Binder,Val) -> OEnv
 oPair (OEnv e o) u = OEnv (Pair e u) o
 
-oPDef :: ODecls -> OEnv -> OEnv
-oPDef (ODecls decls)  (OEnv e o) = OEnv (PDef [(x,d) | (x,_,d) <- decls] e) o
-oPDef (Opaque d)      (OEnv e o) = OEnv e (d:o)
-oPDef (Transparent d) (OEnv e o) = OEnv e (d `delete` o)
+oPDef :: Bool -> ODecls -> OEnv -> OEnv
+oPDef _    (ODecls decls)  (OEnv e o) = OEnv (PDef [(x,d) | (x,_,d) <- decls] e) o
+oPDef True (Opaque d)      (OEnv e o) = OEnv e (d:o)
+oPDef True (Transparent d) (OEnv e o) = OEnv e (d `delete` o)
+oPDef _ _ e = e
 
 instance Show OEnv where
   show (OEnv e s) = show e -- <+> parens ("with opaque:" <+> ccat s)

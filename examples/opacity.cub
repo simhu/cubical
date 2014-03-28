@@ -1,0 +1,12 @@
+module opacity where
+import prelude
+
+-- The effect ot opacity is local
+x : Unit
+x = y where
+  y : Unit
+  y = tt
+  opaque y
+
+test : Id Unit x tt
+test = refl Unit tt

@@ -116,11 +116,11 @@ addBranch nvs (tele,env) (TEnv k rho gam v d) = do
 
 addDecls :: ODecls -> TEnv -> Typing TEnv
 addDecls od@(ODecls d) (TEnv k rho gam v b) = do
-  let rho1 = oPDef od rho
+  let rho1 = oPDef True od rho
   es'  <- evals rho1 (declDefs d)
   gam' <- addC gam (declTele d,rho) es'
   return $ TEnv k rho1 gam' v b
-addDecls od tenv = return $ tenv {oenv = oPDef od (oenv tenv)}
+addDecls od tenv = return $ tenv {oenv = oPDef True od (oenv tenv)}
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
