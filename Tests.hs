@@ -24,17 +24,17 @@ import Main hiding (main)
 folder :: FilePath
 folder = "examples/"
 
-loadFile :: FilePath -> IO C.Env
+loadFile :: FilePath -> IO C.OEnv
 loadFile f = do
   (_,_,mods) <- imports ([],[],[]) f
   case runResolver (resolveModules mods) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
-                   return C.Empty
+                   return C.oEmpty
     Right (ds,_) -> TC.runDeclss TC.silentEnv ds >>= \(x , e) -> case x of
       Just err -> do assertFailure $ "Type checking failed:" <+>
                                       err <+> "on" <+> f
-                     return (TC.env e)
-      Nothing  -> return (TC.env e)
+                     return (TC.oenv e)
+      Nothing  -> return (TC.oenv e)
 
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do

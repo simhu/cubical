@@ -67,6 +67,7 @@ main = do
     _   -> do putStrLn $ "Exactly one file expected: " ++ show files
               runInputT (settings []) (loop [] [] (TC.verboseEnv b))
 
+
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
 imports :: ([String],[String],[Module]) -> String ->
   IO ([String],[String],[Module])
@@ -95,18 +96,6 @@ imports st@(notok,loaded,mods) f
                 foldM imports (f:notok,loaded,mods) imp_cub
               putStrLn $ "Parsed " ++ show f ++ " successfully!"
               return (notok,f:loaded1,mods1 ++ [mod])
-
--- getConstrs :: [Decl] -> [String]
--- getConstrs []                  = []
--- getConstrs (DeclData _ _ ls:ds) = [ unAIdent n | Label n _ <- ls] ++ getConstrs ds
--- getConstrs (DeclMutual ds:ds')  = getConstrs ds ++ getConstrs ds'
--- getConstrs (_:ds)              = getConstrs ds
-
-namesEnv :: TC.TEnv -> [String]
-namesEnv (TC.TEnv _ env ctxt _ _) = namesCEnv env ++ [n | ((n,_),_) <- ctxt]
-  where namesCEnv C.Empty              = []
-        namesCEnv (C.Pair e ((x,_),_)) = namesCEnv e ++ [x]
-        namesCEnv (C.PDef xs e)        =  [n | ((n,_),_) <- ctxt] ++ namesCEnv e
 
 -- Initialize the main loop
 initLoop :: Bool -> FilePath -> IO ()

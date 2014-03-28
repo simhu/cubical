@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Eval ( evalTer
             , evalTers
             , appVal
@@ -33,10 +35,10 @@ type Eval a = StateT EState Identity a
 runEval :: Bool -> Eval a -> a
 runEval debug e = runIdentity $ evalStateT e debug
 
-evalTer :: Bool -> Env -> Ter -> Val
+evalTer :: Bool -> OEnv -> Ter -> Val
 evalTer b env = runEval b . eval env
 
-evalTers :: Bool -> Env -> [(Binder,Ter)] -> [(Binder,Val)]
+evalTers :: Bool -> OEnv -> [(Binder,Ter)] -> [(Binder,Val)]
 evalTers b env bts = runEval b (evals env bts)
 
 appVal :: Bool -> Val -> Val -> Val
@@ -45,32 +47,35 @@ appVal b v1 v2 = runEval b $ app v1 v2
 convVal :: Bool -> Int -> Val -> Val -> Bool
 convVal b k v1 v2 = runEval b $ conv k v1 v2
 
-look :: Ident -> Env -> Eval Val
-look x (Pair s ((y,_),u)) | x == y    = return u
-                          | otherwise = look x s
-look x r@(PDef es r1)                 = case lookupIdent x es of
-  Just (_,t)  -> eval r t
-  Nothing     -> look x r1
+look :: Ident -> OEnv -> Eval (Binder, Val)
+look x (OEnv (Pair rho (n@(y,l),u)) opaques)
+  | x == y    = return $ (n, u)
+  | otherwise = look x (OEnv rho opaques)
+look x r@(OEnv (PDef es r1) o) = case lookupIdent x es of
+  Just (y,t)  -> (y,) <$> eval r t
+  Nothing     -> look x (OEnv r1 o)
 
-eval :: Env -> Ter -> Eval Val
+eval :: OEnv -> Ter -> Eval Val
 eval e U                 = return VU
 eval e (PN pn)           = evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
   (PN pn,us) -> evalAppPN e pn us
   _          -> appM (eval e r) (eval e s)
-eval e (Var i)           = look i e
+eval e (Var i)           = do
+  (x,v) <- look i e
+  return $ if x `elem` opaques e then VVar ("opaque_" ++ show x) $ support v else v
 eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
 eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
 eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
 eval e (SPair a b)       = VSPair <$> eval e a <*> eval e b
 eval e (Fst a)           = fstSVal <$> eval e a
 eval e (Snd a)           = sndSVal <$> eval e a
-eval e (Where t decl)     = eval (PDef (declDefs decl) e) t
+eval e (Where t decls)   = eval (oPDef decls e) t
 eval e (Con name ts)     = VCon name <$> mapM (eval e) ts
 eval e (Split pr alts)   = return $ Ter (Split pr alts) e
 eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
 
-evals :: Env -> [(Binder,Ter)] -> Eval [(Binder,Val)]
+evals :: OEnv -> [(Binder,Ter)] -> Eval [(Binder,Val)]
 evals env = sequenceSnd . map (second (eval env))
 
 fstSVal, sndSVal :: Val -> Val
@@ -83,7 +88,7 @@ sndSVal u | isNeutral u = VSnd u
 
 -- Application
 app :: Val -> Val -> Eval Val
-app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
+app (Ter (Lam x t) e) u                         = eval (oPair e (x,u)) t
 app (Kan Com (VPi a b) box@(Box dir x v nvs)) u = do
   traceb "Pi Com" $ do
   ufill <- fill a (Box (mirror dir) x u [])
@@ -153,7 +158,7 @@ appNameM v n = do
   appName v' n
 
 -- Apply a primitive notion
-evalAppPN :: Env -> PN -> [Ter] -> Eval Val
+evalAppPN :: OEnv -> PN -> [Ter] -> Eval Val
 evalAppPN e pn ts
   | length ts < arity pn =
       -- Eta expand primitive notions
@@ -232,8 +237,8 @@ appS1 f p x = do
   com tu newBox
 
 -- Compute the face of an environment
-faceEnv :: Env -> Side -> Eval Env
-faceEnv e xd = mapEnvM (`face` xd) e
+faceEnv :: OEnv -> Side -> Eval OEnv
+faceEnv e xd = mapOEnvM (`face` xd) e
 
 faceName :: Name -> Side -> Name
 faceName 0 _                 = 0
@@ -274,7 +279,7 @@ face u xdir@(x,dir) =
   VEquivSquare y z a s t | x == y                -> return a
                          | x == z && dir == down -> return a
                          | x == z && dir == up   -> do
-                           let idV = Ter (Lam (noLoc "x") (Var "x")) Empty
+                           let idV = Ter (Lam (noLoc "x") (Var "x")) oEmpty
                            return $ VEquivEq y a a idV s t
                          | otherwise             ->
                           VEquivSquare y z <$> fc a <*> fc s <*> fc t
@@ -484,11 +489,11 @@ fillM v b = do
   b' <- b
   fill v' b'
 
-fills :: [(Binder,Ter)] -> Env -> [Box Val] -> Eval [Val]
+fills :: [(Binder,Ter)] -> OEnv -> [Box Val] -> Eval [Val]
 fills []         _ []          = return []
 fills ((x,a):as) e (box:boxes) = do
   v  <- fillM (eval e a) (return box)
-  vs <- fills as (Pair e (x,v)) boxes
+  vs <- fills as (oPair e (x,v)) boxes
   return $ v : vs
 fills _ _ _ = error "fills: different lengths of types and values"
 
@@ -797,13 +802,13 @@ conv :: Int -> Val -> Val -> Eval Bool
 conv k VU VU                                  = return True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = do
   let v = mkVar k $ support (e, e')
-  convM (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+  convM (k+1) (eval (oPair e (x,v)) u) (eval (oPair e' (x',v)) u')
 conv k (Ter (Lam x u) e) u' = do
   let v = mkVar k $ support e
-  convM (k+1) (eval (Pair e (x,v)) u) (app u' v)
+  convM (k+1) (eval (oPair e (x,v)) u) (app u' v)
 conv k u' (Ter (Lam x u) e) = do
   let v = mkVar k $ support e
-  convM (k+1) (app u' v) (eval (Pair e (x,v)) u)
+  convM (k+1) (app u' v) (eval (oPair e (x,v)) u)
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
   liftM ((p == p') &&) $ convEnv k e e'
 conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
@@ -903,5 +908,5 @@ convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
   else return False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
-convEnv :: Int -> Env -> Env -> Eval Bool
-convEnv k e e' = liftM and $ zipWithM (conv k) (valOfEnv e) (valOfEnv e')
+convEnv :: Int -> OEnv -> OEnv -> Eval Bool
+convEnv k e e' = liftM and $ zipWithM (conv k) (valOfOEnv e) (valOfOEnv e')

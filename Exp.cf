@@ -16,6 +16,8 @@ DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
 DeclType.   Decl ::= AIdent ":" Exp ;
 DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
 DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
+DeclOpaque. Decl ::= "opaque" AIdent ;
+DeclTransp. Decl ::= "transparent" AIdent ;
 separator   Decl ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Decl] "}" ;
@@ -27,7 +29,6 @@ Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
--- Data.     Exp1 ::= "data" [VTDecl] "->" [Sum] ; -- Anonymous sum
 App.      Exp2 ::= Exp2 Exp3 ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;

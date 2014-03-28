@@ -11,7 +11,7 @@ import Pretty
 -- | Terms
 
 data Loc = Loc {locFile :: String, locPos :: (Int, Int)}
-  deriving (Eq, Show)
+  deriving (Eq)
 
 type Ident  = String
 type Label  = String
@@ -34,6 +34,10 @@ type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
 type Decls    = [(Binder,Ter,Ter)]
+data ODecls   = ODecls        Decls
+              | Opaque        Binder
+              | Transparent   Binder
+  deriving (Eq,Show)
 
 declIdents :: Decls -> [Ident]
 declIdents decl = [ x | ((x,_),_,_) <- decl]
@@ -58,7 +62,7 @@ data Ter = App Ter Ter
          | SPair Ter Ter
          | Fst Ter
          | Snd Ter
-         | Where Ter Decls
+         | Where Ter ODecls
          | Var Ident
          | U
          -- constructor c Ms
@@ -193,7 +197,7 @@ mkApps t ts          = foldl App t ts
 mkLams :: [String] -> Ter -> Ter
 mkLams bs t = foldr Lam t [noLoc b | b <- bs]
 
-mkWheres :: [Decls] -> Ter -> Ter
+mkWheres :: [ODecls] -> Ter -> Ter
 mkWheres []     e = e
 mkWheres (d:ds) e = Where (mkWheres ds e) d
 
@@ -392,7 +396,7 @@ data KanType = Fill | Com
   deriving (Show, Eq)
 
 data Val = VU
-         | Ter Ter Env
+         | Ter Ter OEnv
          | VPi Val Val
          | VId Val Val Val
 
@@ -626,9 +630,30 @@ instance Nominal Env where
   support (Pair e (_,v)) = support (e, v)
   support (PDef _ e)     = support e
 
+data OEnv = OEnv { env     :: Env,
+                   opaques :: [Binder] }
+  deriving Eq
 
-upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
+oEmpty :: OEnv
+oEmpty = OEnv Empty []
+
+oPair :: OEnv -> (Binder,Val) -> OEnv
+oPair (OEnv e o) u = OEnv (Pair e u) o
+
+oPDef :: ODecls -> OEnv -> OEnv
+oPDef (ODecls decls)  (OEnv e o) = OEnv (PDef [(x,d) | (x,_,d) <- decls] e) o
+oPDef (Opaque d)      (OEnv e o) = OEnv e (d:o)
+oPDef (Transparent d) (OEnv e o) = OEnv e (d `delete` o)
+
+instance Show OEnv where
+  show (OEnv e s) = show e -- <+> parens ("with opaque:" <+> ccat s)
+
+instance Nominal OEnv where
+  swap (OEnv e s) x y = OEnv (swap e x y) s
+  support (OEnv e s)  = support e
+
+upds :: OEnv -> [(Binder,Val)] -> OEnv
+upds = foldl oPair
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
@@ -649,13 +674,25 @@ mapEnvM _ Empty          = pure Empty
 mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
 mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
 
+mapOEnv :: (Val -> Val) -> OEnv -> OEnv
+mapOEnv f (OEnv e o) = (OEnv (mapEnv f e) o)
+
+mapOEnvM :: Applicative m => (Val -> m Val) -> OEnv -> m OEnv
+mapOEnvM f (OEnv e o) = flip OEnv o <$> (mapEnvM f e)
+
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
 valOfEnv (Pair env (_,v)) = v : valOfEnv env
 valOfEnv (PDef _ env)     = valOfEnv env
 
+valOfOEnv :: OEnv -> [Val]
+valOfOEnv (OEnv e o) = valOfEnv e
+
 --------------------------------------------------------------------------------
 -- | Pretty printing
+
+instance Show Loc where
+  show (Loc name (i,j)) = name ++ "_L" ++ show i ++ "_C" ++ show j
 
 instance Show Ter where
   show = showTer
@@ -669,7 +706,7 @@ showTer (Fst e)           = showTer e ++ ".1"
 showTer (Snd e)           = showTer e ++ ".2"
 showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
-showTer (Where e d)       = showTer e <+> "where" <+> showDecls d
+showTer (Where e d)       = showTer e <+> "where" <+> showODecls d
 showTer (Var x)           = x
 showTer (Con c es)        = c <+> showTers es
 showTer (Split l _)       = "split " ++ show l
@@ -697,6 +734,11 @@ showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
 
 showDecls :: Decls -> String
 showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
+
+showODecls :: ODecls -> String
+showODecls (ODecls defs)   = showDecls defs
+showODecls (Opaque x)      = "opaque"      ++ show x
+showODecls (Transparent x) = "transparent" ++ show x
 
 instance Show Val where
   show = showVal

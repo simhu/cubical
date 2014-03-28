@@ -1,0 +1,21 @@
+module opacity where
+
+import primitive
+
+Bool : U
+data Bool = true | false
+
+x : Bool
+x = false
+
+opaque x
+
+y : Bool
+y = x
+  where x : Bool
+        x = true
+
+failure : Id Bool x y
+failure = refl Bool x
+
+transparent x

@@ -35,9 +35,13 @@ Tmyst : inhI N -> U
 Tmyst x = (flifted x).1.1
 -- fst U (id U) (fst ptU (\ v -> Id ptU v (N,zero)) (flifted x))
 
+opaque homogeneous
+
 myst : (x: inhI N) -> Tmyst x
 myst x = (flifted x).1.2
 -- snd U (id U) (fst ptU (\ v -> Id ptU v (N,zero)) (flifted x))
+
+transparent homogeneous
 
 mystN : (n: N) -> Tmyst (incI N n)
 mystN n = myst (incI N n)
