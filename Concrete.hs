@@ -98,7 +98,7 @@ insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
 
 insertCon :: C.Binder -> Env -> Env
-insertCon x = insertBinder (x, True)
+insertCon x = insertBinder (x, False)
 
 insertCons :: [C.Binder] -> Env -> Env
 insertCons = flip $ foldr insertCon
