@@ -173,7 +173,7 @@ aZNIt = subst U aZero N (step (step N)) isoNOIt aZN
 zeroIt : step (step N)
 zeroIt = aZNIt.1
 
-sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N))) 
+sndaZNIt : Sigma ((step (step N)) -> (step (step N)) -> (step (step N)))
            (\ f -> (x:(step (step N))) -> Id (step (step N)) (f zeroIt x) x)
 sndaZNIt = aZNIt.2
 
@@ -204,7 +204,7 @@ aZNIt2 = subst U aZero N (step4 N) isoNOIt2 aZN
 zeroIt2 : step4 N
 zeroIt2 = aZNIt2.1
 
-sndaZNIt2 : Sigma ((step4 N) -> (step4 N) -> (step4 N)) 
+sndaZNIt2 : Sigma ((step4 N) -> (step4 N) -> (step4 N))
                                  (\ f -> (x:(step4 N)) -> Id (step4 N) (f zeroIt2 x) x)
 sndaZNIt2 = aZNIt2.2
 
@@ -228,5 +228,3 @@ testIt22 = zeroIt2
 
 testIt23 : step4 N
 testIt23 = addIt2 zeroIt2 zeroIt2
-
-
