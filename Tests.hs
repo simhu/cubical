@@ -73,8 +73,8 @@ curry = toTests "curry" [ ("test" ,"zero")
 finite :: Test
 finite = toTests "finite" [ ("test" ,"suc zero") ]
 
-guillaume :: Test
-guillaume = toTests "guillaume"
+heterogeneous :: Test
+heterogeneous = toTests "heterogeneous"
   [ ("test","\\A -> \\B -> \\a0 -> \\a1 -> \\b0 -> \\b1 -> " ++
              "\\p -> \\q -> refl (Id A a0 a1) p") ]
 
@@ -115,7 +115,7 @@ turn = toTests "turn" [ ("test", "inr (suc (suc zero))")
                       , ("test2", "inr (suc (suc (suc (suc (suc (suc zero))))))")]
 
 tests :: Test
-tests = TestList [boolEqBool,curry,finite,guillaume,hedberg,nIso,quotient,set,turn]
+tests = TestList [boolEqBool,curry,finite,heterogeneous,hedberg,nIso,quotient,set,turn]
 
 main :: IO ()
 main = void $ runTestTT tests
