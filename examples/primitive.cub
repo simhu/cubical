@@ -4,9 +4,6 @@ Id   : (A : U) (a b : A) -> U
 
 refl : (A : U) (a : A) -> Id A a a
 
-funExt : (A : U) (B : (a : A) -> U) (f g : (a : A) -> B a)
-         (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
-
 inh : U -> U
 
 inc : (A : U) -> A -> inh A
@@ -78,6 +75,9 @@ mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A) (p : Id A a0 
 mapOnPathS : (A:U)(F:A -> U) (C:U) (f: (x:A) -> F x -> C) (a0 a1 : A) (p:Id A a0 a1)
              (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
 
+funHExt : (A : U) (B : A -> U) (f g : (a : A) -> B a) ->
+          ((x y : A) -> (p : Id A x y) -> (IdS A B x y p (f x) (g y))) ->
+          Id ((y : A) -> B y) f g
 
 -- The circle.
 S1 : U

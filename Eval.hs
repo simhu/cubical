@@ -107,14 +107,18 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v = do
   nvs   <- sequenceSnd [ ((n,d),appM (return ws) (vfill `face` (n,d)))
                        | ((n,d),ws) <- nws ]
   comM (app b vfill) (return (Box up x vx (((i,mirror dir),vi0) : ((i,dir),vi1):nvs)))
-app vext@(VExt x bv fv gv pv) w = do
-  -- NB: there are various choices how to construct this
-  let y = fresh (vext, w)
-  w0    <- w `face` (x,down)
-  left  <- app fv w0
-  right <- app gv (swap w x y)
-  pvxw  <- appNameM (app pv w0) x
-  comM (app bv w) (return (Box up y pvxw [((x,down),left),((x,up),right)]))
+-- app vext@(VExt x bv fv gv pv) w = do
+--   -- NB: there are various choices how to construct this
+--   let y = fresh (vext, w)
+--   w0    <- w `face` (x,down)
+--   left  <- app fv w0
+--   right <- app gv (swap w x y)
+--   pvxw  <- appNameM (app pv w0) x
+--   comM (app bv w) (return (Box up y pvxw [((x,down),left),((x,up),right)]))
+app vhext@(VHExt x bv fv gv pv) w = do
+  a0    <- w `face` (x,down)
+  a1    <- w `face` (x,up)
+  appNameM (apps pv [a0, a1, Path x $ w]) x
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
@@ -191,7 +195,8 @@ evalPN (x:y:_) CSingl [a,u,v,p] = do
   theta <- fill a (Box up y u [((x,down),u),((x,up),pv)])
   omega <- theta `face` (y,up)
   return $ Path x (VSPair omega (Path y theta))
-evalPN (x:_)   Ext        [_,b,f,g,p]   = return $ Path x $ VExt x b f g p
+-- evalPN (x:_)   Ext        [_,b,f,g,p]   = return $ Path x $ VExt x b f g p
+evalPN (x:_)   HExt       [_,b,f,g,p]   = return $ Path x $ VHExt x b f g p
 evalPN _       Inh        [a]           = return $ VInh a
 evalPN _       Inc        [_,t]         = return $ VInc t
 evalPN (x:_)   Squash     [_,r,s]       = return $ Path x $ VSquash x r s
@@ -256,10 +261,14 @@ face u xdir@(x,dir) =
   VId a v0 v1 -> VId <$> fc a <*> fc v0 <*> fc v1
   Path y v | x == y    -> return u
            | otherwise -> Path y <$> fc v
-  VExt y b f g p | x == y && dir == down -> return f
-                 | x == y && dir == up   -> return g
-                 | otherwise             ->
-                   VExt y <$> fc b <*> fc f <*> fc g <*> fc p
+  -- VExt y b f g p | x == y && dir == down -> return f
+  --                | x == y && dir == up   -> return g
+  --                | otherwise             ->
+  --                  VExt y <$> fc b <*> fc f <*> fc g <*> fc p
+  VHExt y b f g p | x == y && dir == down -> return f
+                  | x == y && dir == up   -> return g
+                  | otherwise             ->
+                    VHExt y <$> fc b <*> fc f <*> fc g <*> fc p
   VPi a f    -> VPi <$> fc a <*> fc f
   VSigma a f -> VSigma <$> fc a <*> fc f
   VSPair a b -> VSPair <$> fc a <*> fc b
@@ -828,7 +837,9 @@ conv k (Path x u) p'              = convM k (return (swap u x z)) (appName p' z)
   where z = fresh u
 conv k p (Path x' u')             = convM k (appName p z) (return (swap u' x' z))
   where z = fresh u'
-conv k (VExt x b f g p) (VExt x' b' f' g' p') =
+-- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
+--   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
+conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
 conv k (VFst u) (VFst u')                     = conv k u u'
 conv k (VSnd u) (VSnd u')                     = conv k u u'

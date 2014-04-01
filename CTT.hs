@@ -112,7 +112,11 @@ data PN = Id | Refl
 
         -- Ext B f g p : Id (Pi A B) f g,
         -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
-        | Ext
+        -- | Ext
+
+        -- Ext B f g p : Id (Pi A B) f g,
+        -- (p : (Pi x y:A) IdS A (Bx) x y p fx gy)
+        | HExt
 
         -- EquivEq A B f s t where
         -- A, B are types, f : A -> B,
@@ -206,7 +210,8 @@ primHandle :: [(Ident,Int,PN)]
 primHandle =
   [("Id"            , 3,  Id           ),
    ("refl"          , 2,  Refl         ),
-   ("funExt"        , 5,  Ext          ),
+   -- ("funExt"        , 5,  Ext          ),
+   ("funHExt"       , 5,  HExt          ),
    ("inh"           , 1,  Inh          ),
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
@@ -406,7 +411,8 @@ data Val = VU
          -- tag values which are paths
          | Path Name Val
 
-         | VExt Name Val Val Val Val
+         -- | VExt Name Val Val Val Val
+         | VHExt Name Val Val Val Val
 
          -- inhabited
          | VInh Val
@@ -514,7 +520,8 @@ instance Nominal Val where
   support (VPi v1 v2)       = support [v1,v2]
   support (VCon _ vs)       = support vs
   support (VSquash x v0 v1) = support (x, [v0,v1])
-  support (VExt x b f g p)  = support (x, [b,f,g,p])
+  -- support (VExt x b f g p)  = support (x, [b,f,g,p])
+  support (VHExt x b f g p) = support (x, [b,f,g,p])
   support (Kan Fill a box)  = support (a, box)
   support (VFillN a box)    = support (a, box)
   support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
@@ -554,7 +561,8 @@ instance Nominal Val where
              | otherwise -> let z' = fresh ([x, y], v)
                                 v' = swap v z z'
                             in Path z' (sw v')
-    VExt z b f g p  -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
+    -- VExt z b f g p  -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
+    VHExt z b f g p -> VHExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
     VPi a f         -> VPi (sw a) (sw f)
     VInh v          -> VInh (sw v)
     VInc v          -> VInc (sw v)
@@ -749,7 +757,8 @@ showVal VU               = "U"
 showVal (Ter t env)      = show t <+> show env
 showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (Path n u)       = abrack (show n) <+> showVal u
-showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
+-- showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VHExt n b f g p) = "funHExt" <+> show n <+> showVals [b,f,g,p]
 showVal (VCon c us)      = c <+> showVals us
 showVal (VPi a f)        = "Pi" <+> showVals [a,f]
 showVal (VInh u)         = "inh" <+> showVal1 u

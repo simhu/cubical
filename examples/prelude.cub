@@ -143,6 +143,12 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
  where T : singl A a -> U
        T z = C (z.1) (z.2)
 
+funExt : (A : U) (B : A -> U) (f g : (a : A) -> B a)
+         (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
+funExt A B f g p = funHExt A B f g rem
+  where rem : (a x : A) -> (p : Id A a x) -> (IdS A B a x p (f a) (g x))
+        rem a = J A a (\ x p -> (IdS A B a x p (f a) (g x))) (p a)
+
 tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
 tId A a z = rem (z.1) a (z.2)
    where
@@ -294,4 +300,3 @@ IdDefCaser : (A X:U) (x0 x1 : X) (p : dec A)  -> (neg A) ->
 IdDefCaser A X x0 x1 = split
  inl u -> \ v -> efq (Id X (defCase A X x0 x1 (inl u)) x1) (v u)
  inr _ -> \ _ -> refl X x1
-
