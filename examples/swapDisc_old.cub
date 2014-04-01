@@ -1,7 +1,7 @@
 module swapDisc_old where
 
 import lemId
-import idempotent
+import involutive
 import contr
 import elimEquiv
 
@@ -27,7 +27,7 @@ IdDefCaser A X x0 x1 = split
  inl u -> \ v -> efq (Id X (defCase A X x0 x1 (inl u)) x1) (v u)
  inr _ -> \ _ -> refl X x1
 
--- defines the swap function over a discrete type and proves that this is an idempotent map
+-- defines the swap function over a discrete type and proves that this is an involutive map
 -- needed for Nicolai Kraus example
 
 -- intermediate function
@@ -71,7 +71,7 @@ idSwapDisc1 X dX x0 x1 neqx0x1 =
   rem2 : Id X (swapDisc X dX x0 x1 x1) (defCase (Id X x0 x1) X x1 x0 (dX x0 x1))
   rem2 = mapOnPath X X (\ y -> defCase (Id X x0 x1) X x1 y (dX x0 x1)) (defCase (Id X x1 x1) X x0 x1 (dX x1 x1)) x0 rem
 
--- can we show that swapDisc is idempotent??
+-- can we show that swapDisc is involutive??
 
 idemSwapDisc : (X:U) (dX: discrete X) -> (x0 x1 : X) -> neg (Id X x0 x1) -> (x:X) -> 
                Id X (swapDisc X dX x0 x1 (swapDisc X dX x0 x1 x)) x 

@@ -4,7 +4,7 @@ import lemId
 
 -- some general facts about functions
 
--- g is a section of f 
+-- g is a section of f
 section : (A B : U) (f : A -> B) (g : B -> A) -> U
 section A B f g = (b : B) -> Id B (f (g b)) b
 
@@ -14,7 +14,7 @@ injective A B f = (a0 a1 : A) -> Id B (f a0) (f a1) -> Id A a0 a1
 retract : (A B : U) (f : A -> B) (g : B -> A) -> U
 retract A B f g = section B A g f
 
-retractInj : (A B : U) (f : A -> B) (g : B -> A) -> 
+retractInj : (A B : U) (f : A -> B) (g : B -> A) ->
              retract A B f g -> injective A B f
 retractInj A B f g h a0 a1 h' = compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
   where
@@ -30,16 +30,16 @@ retractInj A B f g h a0 a1 h' = compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 r
 
 
 hasSection : (A B : U) -> (A -> B) -> U
-hasSection A B f = Sigma (B->A) (section A B f) 
+hasSection A B f = Sigma (B->A) (section A B f)
 
 -- an equivalence has a section
 
 equivSec : (A B :U) -> (f:A->B) -> isEquiv A B f -> hasSection A B f
 equivSec A B f st = (\y -> (st.1 y).1, \y -> (st.1 y).2)
 
-allSection : (A B : U) (f:A->B) -> hasSection A B f 
+allSection : (A B : U) (f:A->B) -> hasSection A B f
                 -> (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
-allSection A B f z = rem 
+allSection A B f z = rem
    where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
          rem Q h y = rem2
                 where rem1 : Q (f (z.1 y))
@@ -48,7 +48,7 @@ allSection A B f z = rem
                       rem2 = subst B Q (f (z.1 y)) y (z.2 y) rem1
 
 
-isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> 
+isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g ->
                  ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
 isEquivSection A B f g sfg h = (s, t)
   where
@@ -65,6 +65,5 @@ injId : (X : U) -> injective X X (id X)
 injId X a0 a1 h = h
 
 
-idempotent : (A:U) -> (A->A) -> U
-idempotent A f = section A A f f 
-
+involutive : (A:U) -> (A->A) -> U
+involutive A f = section A A f f

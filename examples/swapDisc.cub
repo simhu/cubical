@@ -1,11 +1,11 @@
 module swapDisc where
 
 import lemId
-import idempotent
+import involutive
 import contr
 import elimEquiv
 
--- defines the swap function over a discrete type and proves that this is an idempotent map
+-- defines the swap function over a discrete type and proves that this is an involutive map
 -- needed for Nicolai Kraus example
 -- we try another representation since the other one is too slow
 
