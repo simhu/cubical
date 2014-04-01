@@ -30,12 +30,10 @@ vect B = split
           suc n -> and (vect B n) (B n)
 
 head : (B:N->U) (n:N) -> vect B (suc n) -> B n
-head B n = split
-            pair v u ->  u
+head B n p = p.2
 
 tail : (B:N->U) (n:N) -> vect B (suc n) -> vect B n
-tail B n = split
-            pair v u ->  v
+tail B n p = p.1
 
 -- we follow the notation of the paper
 
@@ -54,19 +52,17 @@ get B n m p v = head B m (trim (suc m) n p (vect B) (tail B) v)
                     zero -> \ p P h v -> efq (P (suc n)) p
                     suc m -> \ p P h v -> trim n m p (\ x -> P (suc x)) (\ x -> h (suc x)) v
 
--- not working yet
 mutual
  Phi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
-        neg (neg (Pi N B)) -> (n:N) -> neg (vect B n)
+        neg (Pi N B) -> (n:N) -> neg (vect B n)
  Psi : (B:N->U) -> ((n:N) -> neg (neg (B n))) ->
-        neg (neg (Pi N B)) -> (n m:N) -> (or (leqN (suc m) n) (leqN n m)) -> B m
+        neg (Pi N B) -> (n:N) -> vect B n ->
+        (x : N) -> (or (leqN (suc x) n) (leqN n x)) -> B x
 
- Phi B H K n v = K (\x -> Psi B H K n v x (less x n))
- Psi B H K n x = split
+ Phi B H K n v = K (\x -> Psi B H K n v x (lessN x n))
+ Psi B H K n v x = split
   inl p -> get B n x p v
-  inr p -> efq (B x) (H n (\ y -> Phi B H K (suc n) (pair v y))
+  inr p -> efq (B x) (H n (\ y -> Phi B H K (suc n) (v, y)))
 
-
-
-spector : (B:N->U) -> ((n:N) -> neg (neg (B n))) -> neg (neg (Pi B N))
+spector : (B:N->U) -> ((n:N) -> neg (neg (B n))) -> neg (neg (Pi N B))
 spector B H K = Phi B H K zero tt

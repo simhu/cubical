@@ -1,5 +1,6 @@
 TODO:
 *High priority*
+- reinsert names of sums
 - review the code for the filling of the universe
 - find the right abstraction for Box manipulation
   (more functional, less association lists in the abstraction)
