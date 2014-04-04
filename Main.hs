@@ -69,9 +69,10 @@ main = do
 
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
-imports :: ([String],[String],[Module]) -> String ->
+-- the bool determines if it should be verbose or not
+imports :: Bool -> ([String],[String],[Module]) -> String ->
   IO ([String],[String],[Module])
-imports st@(notok,loaded,mods) f
+imports v st@(notok,loaded,mods) f
   | f `elem` notok  = putStrLn ("Looping imports in " ++ f) >> return ([],[],[])
   | f `elem` loaded = return st
   | otherwise       = do
@@ -93,15 +94,15 @@ imports st@(notok,loaded,mods) f
               when (name /= (dropExtension $ takeFileName $ f)) $
                 error $ "Module name mismatch " ++ show (f,name)
               (notok1,loaded1,mods1) <-
-                foldM imports (f:notok,loaded,mods) imp_cub
-              putStrLn $ "Parsed " ++ show f ++ " successfully!"
+                foldM (imports v) (f:notok,loaded,mods) imp_cub
+              when v $ putStrLn $ "Parsed " ++ show f ++ " successfully!"
               return (notok,f:loaded1,mods1 ++ [mod])
 
 -- Initialize the main loop
 initLoop :: Bool -> FilePath -> IO ()
 initLoop debug f = do
   -- Parse and type-check files
-  (_,_,mods) <- imports ([],[],[]) f
+  (_,_,mods) <- imports True ([],[],[]) f
   -- Translate to CTT
   let res = runResolver $ resolveModules mods
   -- putStrLn $ show res

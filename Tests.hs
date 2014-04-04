@@ -26,7 +26,7 @@ folder = "examples/"
 
 loadFile :: FilePath -> IO C.OEnv
 loadFile f = do
-  (_,_,mods) <- imports ([],[],[]) f
+  (_,_,mods) <- imports False ([],[],[]) f
   case runResolver (resolveModules mods) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.oEmpty
