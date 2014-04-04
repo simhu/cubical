@@ -12,8 +12,6 @@ import Control.Arrow (second)
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.State
--- nIso breaks if we use:
--- import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
@@ -479,16 +477,13 @@ isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) = do
       nL  = nJ \\ [y,z]
       aDs = if x `elem` [y,z] then allDirs nL else (x,mirror d) : allDirs nL
   return $ or [ isNeutral (lookBox yc box) | yc <- aDs ]
-isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x vx nxs) = do
-  -- This is the only monadic case as we use app...
-  b <- isNeutral <$> app s vx
-  if b && z == x && d == down
-     then return True
-     else do -- TODO: check
-             let nJ  = nonPrincipal box
-                 nL  = nJ \\ [z]
-                 aDs = if x == z then allDirs nL else (x,mirror d):allDirs nL
-             return $ or [ isNeutral (lookBox yc box) | yc <- aDs ]
+isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x vx nxs)
+  | d == down && z == x = isNeutral <$> app s vx
+  | otherwise           = do -- TODO: check
+    let nJ  = nonPrincipal box
+        nL  = nJ \\ [z]
+        aDs = if x == z then allDirs nL else (x,mirror d) : allDirs nL
+    return $ or [ isNeutral (lookBox yc box) | yc <- aDs ]
 isNeutralFill v box = return False
 
 -- Monadic version of fill
@@ -780,15 +775,16 @@ fill v b = return $ Kan Fill v b
 
 -- Composition (ie., the face of fill which is created)
 com :: Val -> Box Val -> Eval Val
--- TODO: Fix
-com u box | runEval False (isNeutralFill u box) = return $ VComN u box
-com vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
-com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
-com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
-com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `faceM` (i,dir)
-com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `faceM` (i,dir)
-com ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
-com v box                                 = return $ Kan Com v box
+com u box = do
+  b <- isNeutralFill u box
+  if b then return $ VComN u box else com' u box
+com' vid@VId{} box@(Box dir i _ _)         = fill vid box `faceM` (i,dir)
+com' vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `faceM` (i,dir)
+com' veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `faceM` (i,dir)
+com' u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `faceM` (i,dir)
+com' u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `faceM` (i,dir)
+com' ter@Ter{} box@(Box dir i _ _)         = fill ter box `faceM` (i,dir)
+com' v box                                 = return $ Kan Com v box
 
 -- Monadic version of com
 comM :: Eval Val -> Eval (Box Val) -> Eval Val
