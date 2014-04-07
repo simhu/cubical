@@ -16,7 +16,7 @@ main = do
   defaultMain
   where
     bnfc = do
-      ret <- system "bnfc -d Exp.cf"
+      ret <- system "bnfc --haskell -d Exp.cf"
       case ret of
         ExitSuccess   -> defaultMain
         ExitFailure n -> error $ "bnfc command not found or error" ++ show n
