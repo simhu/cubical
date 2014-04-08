@@ -5,6 +5,10 @@ module Eval ( evalTer
             , appVal
             , convVal
             , fstSVal
+            , runEval
+            , Eval
+            , faceEnv
+            , face
             ) where
 
 import Control.Applicative
@@ -59,7 +63,6 @@ eval e t@(App r s)       = appM (eval e r) (eval e s)
 eval e (Var i)           = do
   (x,v) <- look i e
   return $ if x `elem` opaques e then VVar ("opaque_" ++ show x) $ support v else v
-  -- FIXME: should we apply morphisms?
 eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
 eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
 eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b

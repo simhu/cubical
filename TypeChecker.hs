@@ -32,6 +32,9 @@ type Typing a = ReaderT TEnv (ErrorT String IO) a
 runTyping :: Typing a -> TEnv -> IO (Either String a)
 runTyping t env = runErrorT $ runReaderT t env
 
+liftEval :: Eval v -> Typing v
+liftEval e = do d <- debug <$> ask; return $ runEval d e
+
 -- Used in the interaction loop
 runDecls :: TEnv -> ODecls -> IO (Either String TEnv)
 runDecls tenv d = flip runTyping tenv $ do
@@ -53,6 +56,11 @@ eval :: OEnv -> Ter -> Typing Val
 eval env ter = do
   b <- getDebug
   return $ evalTer b env ter
+
+eval' :: Ter -> Typing Val
+eval' ter = do
+  e <- getOEnv
+  eval e ter
 
 app :: Val -> Val -> Typing Val
 app v1 v2 = do
@@ -108,6 +116,9 @@ addType :: (Binder,Ter) -> TEnv -> Typing TEnv
 addType (x,a) tenv@(TEnv _ rho _ _ _) = do
   v <- eval rho a
   return $ addTypeVal (x,v) tenv
+
+modEnv :: (OEnv -> Typing OEnv) -> TEnv -> Typing TEnv
+modEnv f tenv = do fenv <- f (oenv tenv); return tenv {oenv = fenv}
 
 addBranch :: [(Binder,Val)] -> (Tele,OEnv) -> TEnv -> Typing TEnv
 addBranch nvs (tele,env) (TEnv k rho gam v d) = do
@@ -175,6 +186,16 @@ checkTele ((x,a):xas) = do
   check VU a
   localM (addType (x,a)) $ checkTele xas
 
+checkFace :: Side -> Val -> Ter -> Typing Val
+checkFace s v t = do
+    t' <- localM (modEnv (liftEval . flip faceEnv s)) $ checkAndEval v t
+    liftEval $ face t' s
+
+checkAndEval :: Val -> Ter -> Typing Val
+checkAndEval a t = do
+  check a t
+  eval' t
+  
 check :: Val -> Ter -> Typing ()
 check a t = case (a,t) of
   (_,Con c es) -> do
@@ -186,6 +207,9 @@ check a t = case (a,t) of
   (VU,Sigma a (Lam x b)) -> do
     check VU a
     localM (addType (x,a)) $ check VU b
+  (VU,ColoredSigma i a (Lam x b)) -> do
+    a0 <- checkFace (i,0) VU a
+    local (addTypeVal (x,a0)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (VPi (Ter (Sum _ cas) nu) f,Split _ ces) ->
     if sort (map fst ces) == sort [n | ((n,_),_) <- cas]
@@ -200,10 +224,15 @@ check a t = case (a,t) of
     e <- getOEnv
     v <- eval e t1
     checkM (app f v) t2
+  (VCSigma x a f, ColoredPair y t1 t2) -> do
+    when (x /= y) $
+      throwError $ "The dimension of the pair and sigma differ: "
+                   ++ show x ++ " " ++ show y
+    v <- checkFace (x,0) a t1
+    checkM (app f v) t2
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
-  (_,PN _) -> return ()
   _ -> do
     v <- checkInfer t
     k <- getIndex
@@ -250,6 +279,16 @@ checkInfer e = case e of
         v <- eval e t
         app f (fstSVal v)
       _          -> throwError $ show c ++ " is not a sigma-type"
+  ColoredSnd x t -> do
+    c <- checkInfer t
+    case c of
+      VCSigma y _a f -> do
+        when (x /= y) $ 
+          throwError $ "The dimension of the pair and sigma differ: "
+                       ++ show x ++ " " ++ show y
+        v <- eval' t
+        vx0 <- liftEval $ face v (x,0)
+        app f vx0
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t
