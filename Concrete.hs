@@ -119,10 +119,7 @@ resolveBinder :: AIdent -> Resolver C.Binder
 resolveBinder (AIdent (l,x)) = do l <- getLoc l; return (x, l)
 
 resolveVar :: AIdent -> Resolver Ter
-resolveVar (AIdent (l,x)) =
-  if (x == "_") || (x == "undefined")
-  then C.PN <$> (C.Undef <$> getLoc l)
-  else do
+resolveVar (AIdent (l,x)) = do
     modName <- getModule
     vars    <- getVariables
     case C.getIdent x vars of
@@ -235,17 +232,12 @@ resolveDecls (DeclTransp n:ds) = do
     Just x  -> return $ (C.Transparent x : rest, names)
     Nothing -> throwError $ "Not in scope " ++ show n
 resolveDecls (td@(DeclType x t):ds) = do
-  case (C.mkPN (unAIdent x), ds) of
-    (Just pn, ds) -> do
-      b <- resolveBinder x
-      rt <- resolveExp t
-      (rds,names) <- local (insertVar b) $ resolveDecls ds
-      return $ (C.ODecls [(b, rt, C.PN pn)] : rds, names ++ [(b,True)])
-    (Nothing, d:ds) -> do
+  case ds of
+    (d:ds) -> do
         (rtd,names)  <- resolveMutuals [td,d]
         (rds,names') <- local (insertBinders names) $ resolveDecls ds
         return $ (C.ODecls rtd : rds, names' ++ names)
-    (Nothing, []) -> throwError $
+    ([]) -> throwError $
        "Missing definition for " ++ (unAIdent x) ++ " (not a primitive)"
 resolveDecls (DeclMutual defs : ds) = do
   (rdefs,names)  <- resolveMutuals defs
