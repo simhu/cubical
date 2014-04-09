@@ -66,7 +66,7 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
-data SymKind = Variable | Constructor
+data SymKind = Variable | Constructor | Color
          deriving (Eq, Show)
 -- local environment for constructors
 data Env = Env { envModule  :: String,
@@ -96,6 +96,9 @@ insertBinders = flip $ foldr insertBinder
 insertVar :: C.Binder -> Env -> Env
 insertVar x = insertBinder (x, Variable)
 
+insertCol :: C.Binder -> Env -> Env
+insertCol x = insertBinder (x, Color)
+
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
 
@@ -120,6 +123,16 @@ getLoc l = do m <- getModule; return $ C.Loc m l
 resolveBinder :: AIdent -> Resolver C.Binder
 resolveBinder (AIdent (l,x)) = do l <- getLoc l; return (x, l)
 
+resolveCol :: AIdent -> Resolver C.Color
+resolveCol (AIdent (l,x)) = do
+    modName <- getModule
+    vars    <- getVariables
+    case C.getIdent x vars of
+      Just Color    -> return $ C.N x
+      _    -> throwError $
+        "Cannot resolve color " ++ x ++ " at position " ++ show l
+        ++ " in module " ++ modName
+
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x)) = do
     modName <- getModule
@@ -127,8 +140,8 @@ resolveVar (AIdent (l,x)) = do
     case C.getIdent x vars of
       Just Variable    -> return $ C.Var x
       Just Constructor -> return $ C.Con x []
-      Nothing    -> throwError $
-        "Cannot resolve variable " ++ x ++ " at position " ++ show l 
+      _    -> throwError $
+        "Cannot resolve variable " ++ x ++ " at position " ++ show l
         ++ " in module " ++ modName
 
 lam :: AIdent -> Resolver Ter -> Resolver Ter
@@ -158,6 +171,15 @@ resolveExp (Fun a b)    = bind C.Pi (AIdent ((0,0),"_"), a) (resolveExp b)
 resolveExp (Lam x xs t) = lams (x:xs) (resolveExp t)
 resolveExp (Fst t)      = C.Fst <$> resolveExp t
 resolveExp (Snd t)      = C.Snd <$> resolveExp t
+resolveExp (CSnd t i)   = do
+  i' <- resolveBinder i
+  local (insertCol i') $ C.ColoredSnd <$> resolveCol i <*> resolveExp t
+resolveExp (CSigma i t b) = case pseudoTele [t] of
+  Just tele -> do
+    i' <- resolveCol i
+    binds (C.ColoredSigma i') tele (resolveExp b)
+  Nothing   -> throwError "telescope malformed in colored Sigma"
+resolveExp (CPair t0 i t1) = C.ColoredPair <$> resolveCol i <*> resolveExp t0 <*>resolveExp t1
 resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
 resolveExp (Split brs)  = do
     brs' <- mapM resolveBranch brs
@@ -178,7 +200,7 @@ resolveBranch (Branch lbl args e) = do
 
 resolveTele :: [(AIdent,Exp)] -> Resolver C.Tele
 resolveTele []        = return []
-resolveTele ((i,d):t) = do 
+resolveTele ((i,d):t) = do
   x <- resolveBinder i
   ((x,) <$> resolveExp d) <:> local (insertVar x) (resolveTele t)
 
@@ -217,7 +239,7 @@ resolveMutuals decls = do
     names  = [unAIdent x | x <- idents]
     tdecls = [(x,t) | DeclType x t <- decls]
     ddecls = [t | t <- decls, not $ isTDecl t]
-    isTDecl d = case d of DeclType {} -> True; _ -> False 
+    isTDecl d = case d of DeclType {} -> True; _ -> False
 
 resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveDecls []                  = return ([],[])
@@ -257,4 +279,3 @@ resolveModules (mod:mods) = do
   (rmod, names)  <- resolveModule mod
   (rmods,names') <- local (insertBinders names) $ resolveModules mods
   return $ (rmod ++ rmods, names' ++ names)
-  
