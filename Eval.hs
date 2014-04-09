@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections #-}
-
 module Eval ( evalTer
             , evalTers
             , appVal
@@ -115,17 +114,6 @@ appM t1 t2 = do
 apps :: Val -> [Val] -> Eval Val
 apps = foldM app
 
--- appName :: Val -> CVal -> Eval Val
--- appName p y          | y `elem` [0,1] = return $ VAppName p y
---                                         -- p has to be neutral
--- appName v y          = return $ VAppName v y
-
--- appNameM :: Eval Val -> Name -> Eval Val
--- appNameM v n = do
---   v' <- v
---   appName v' n
-
-
 -- Compute the face of an environment
 faceEnv :: OEnv -> Side -> Eval OEnv
 faceEnv e xd = mapOEnvM (`face` xd) e
@@ -143,10 +131,6 @@ face u xdir@(x,dir) =
   Ter t e -> do e' <- e `faceEnv` xdir
                 eval e' t
   VApp u v            -> appM (fc u) (fc v)
-  -- VAppName u n        -> do
-  --  traceb ("face " ++ "\nxdir " ++ show xdir ++
-  --         "\nu " ++ show u ++ "\nn " ++ show n) $ do
-  --  appNameM (fc u) (faceName n xdir)
   VSplit u v          -> appM (fc u) (fc v)
   VVar s d            -> return $ VVar s [ faceName n xdir | n <- d ]
   VFst p              -> fstSVal <$> fc p

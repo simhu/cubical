@@ -4,7 +4,6 @@
 module Concrete where
 
 import Exp.Abs
--- import qualified MTT as M
 import qualified CTT as C
 
 import Control.Arrow (first)
@@ -19,11 +18,9 @@ import Data.Functor.Identity
 import Data.List (union, delete, nub)
 
 type Tele = [(AIdent,Exp)]
-type Ter = C.Ter
+type Ter  = C.Ter
 
 -- | Useful auxiliary functions
-unions :: Eq a => [[a]] -> [a]
-unions = foldr union []
 
 -- Applicative cons
 (<:>) :: Applicative f => f a -> f [a] -> f [a]
@@ -68,6 +65,7 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 
 data SymKind = Variable | Constructor | Color
          deriving (Eq, Show)
+
 -- local environment for constructors
 data Env = Env { envModule  :: String,
                  variables  :: [(C.Binder,SymKind)] }

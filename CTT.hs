@@ -8,8 +8,9 @@ import Pretty
 --------------------------------------------------------------------------------
 -- | Terms
 
-data Loc = Loc {locFile :: String, locPos :: (Int, Int)}
-  deriving (Eq)
+data Loc = Loc { locFile :: String
+               , locPos :: (Int, Int) }
+  deriving Eq
 
 type Ident  = String
 type Label  = String
@@ -31,10 +32,10 @@ type LblSum = [(Binder,Tele)]
 type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
-type Decls    = [(Binder,Ter,Ter)]
-data ODecls   = ODecls        Decls
-              | Opaque        Binder
-              | Transparent   Binder
+type Decls  = [(Binder,Ter,Ter)]
+data ODecls = ODecls        Decls
+            | Opaque        Binder
+            | Transparent   Binder
   deriving (Eq,Show)
 
 declIdents :: Decls -> [Ident]
@@ -53,6 +54,7 @@ declDefs :: Decls -> [(Binder,Ter)]
 declDefs decl = [ (x,d) | (x,_,d) <- decl]
 
 type Color = Name
+
 -- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
@@ -73,9 +75,7 @@ data Ter = App Ter Ter
          | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Loc LblSum
-         
   deriving Eq
-
 
 -- For an expression t, returns (u,ts) where u is no application
 -- and t = u t
@@ -160,26 +160,8 @@ instance Nominal a => Nominal (Maybe a) where
   swap Nothing _ _ = Nothing
   swap (Just x) i j = Just $ swap x i j
 
---------------------------------------------------------------------------------
--- | Boxes
-
--- TODO: abstract the type of Intervals instead of exposing the encoding
 type Dir = Integer
-
-mirror :: Dir -> Dir
-mirror 0 = 1
-mirror 1 = 0
-mirror n = error $ "mirror: 0 or 1 expected but " ++ show n ++ " given"
-
-up, down :: Dir
-up   = 1
-down = 0
-
 type Side = (Name,Dir)
-
-allDirs :: [Name] -> [Side]
-allDirs []     = []
-allDirs (n:ns) = (n,down) : (n,up) : allDirs ns
 
 sequenceSnd :: Monad m => [(a,m b)] -> m [(a,b)]
 sequenceSnd []          = return []
@@ -190,9 +172,6 @@ sequenceSnd ((a,b):abs) = do
 
 --------------------------------------------------------------------------------
 -- | Values
-
-data KanType = Fill | Com
-  deriving (Show, Eq)
 
 data Val = VU
          | Ter Ter OEnv
@@ -220,74 +199,56 @@ mkVar :: Int -> [Name] -> Val
 mkVar k ns = VVar ('X' : show k) (map Just ns)
 
 isNeutral :: Val -> Bool
-isNeutral (VApp u _)           = isNeutral u
-isNeutral (VAppName u _)       = isNeutral u
-isNeutral (VSplit _ v)         = isNeutral v
-isNeutral (VVar _ _)           = True
-isNeutral (VFst v)             = isNeutral v
-isNeutral (VSnd v)             = isNeutral v
-isNeutral (VCSnd _i v)            = isNeutral v
-isNeutral _                    = False
-
--- fstVal, sndVal, unSquare :: Val -> Val
--- fstVal (VPair _ a _)     = a
--- fstVal x                 = error $ "error fstVal: " ++ show x
--- sndVal (VPair _ _ v)     = v
--- sndVal x                 = error $ "error sndVal: " ++ show x
--- unSquare (VSquare _ _ v) = v
--- unSquare v               = error $ "unSquare bad input: " ++ show v
-
-unCon :: Val -> [Val]
-unCon (VCon _ vs) = vs
-unCon v           = error $ "unCon: not a constructor: " ++ show v
+isNeutral (VApp u _)     = isNeutral u
+isNeutral (VAppName u _) = isNeutral u
+isNeutral (VSplit _ v)   = isNeutral v
+isNeutral (VVar _ _)     = True
+isNeutral (VFst v)       = isNeutral v
+isNeutral (VSnd v)       = isNeutral v
+isNeutral (VCSnd _i v)   = isNeutral v
+isNeutral _              = False
 
 unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
 
-unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
-unionsMap f = unions . map f
-
 instance Nominal Val where
-  support VU                = []
-  support (Ter _ e)         = support e
-  support (VPi v1 v2)       = support [v1,v2]
-  support (VCon _ vs)       = support vs
-  -- support (VExt x b f g p)  = support (x, [b,f,g,p])
-  support (VApp u v)           = support (u, v)
-  support (VAppName u n)       = support (u, n)
-  support (VSplit u v)         = support (u, v)
-  support (VVar _x d)           = support d
-  support (VSigma u v)         = support (u,v)
-  support (VSPair u v)         = support (u,v)
-  support (VCSigma i u v)         = support (i,u,v)
-  support (VCSPair i u v)         = support (i,u,v)
-  support (VFst u)             = support u
-  support (VSnd u)             = support u
-  support (VCSnd i u)            = delete i $ support u
-  support v                    = error ("support " ++ show v)
+  support VU              = []
+  support (Ter _ e)       = support e
+  support (VPi v1 v2)     = support [v1,v2]
+  support (VCon _ vs)     = support vs
+  support (VApp u v)      = support (u, v)
+  support (VAppName u n)  = support (u, n)
+  support (VSplit u v)    = support (u, v)
+  support (VVar _x d)     = support d
+  support (VSigma u v)    = support (u,v)
+  support (VSPair u v)    = support (u,v)
+  support (VCSigma i u v) = support (i,u,v)
+  support (VCSPair i u v) = support (i,u,v)
+  support (VFst u)        = support u
+  support (VSnd u)        = support u
+  support (VCSnd i u)     = delete i $ support u
+  support v               = error ("support " ++ show v)
 
   swap u x y = case u of
-    VU          -> VU
-    Ter t e     -> Ter t (swap e x y)
-    VPi a f         -> VPi (sw a) (sw f)
-    VCon c us       -> VCon c (map sw us)
-    VApp u v           -> VApp (sw u) (sw v)
-    VAppName u n       -> VAppName (sw u) (swap n x y)
-    VSplit u v         -> VSplit (sw u) (sw v)
-    VVar s d           -> VVar s (swap d x y)
-    VSigma u v         -> VSigma (sw u) (sw v)
-    VSPair u v         -> VSPair (sw u) (sw v)
-    VCSigma i u v         -> VCSigma (sw i) (sw u) (sw v)
-    VCSPair i u v         -> VCSPair (sw i) (sw u) (sw v)
-    VFst u             -> VFst (sw u)
-    VSnd u             -> VSnd (sw u)
-    VCSnd z u            
-     | z /= x && z /= y -> VCSnd z (sw u)
-     | otherwise -> let z' = fresh ([x, y], u)
-                        v = swap u z z'
-                    in VCSnd z' (sw v)
+    VU                           -> VU
+    Ter t e                      -> Ter t (swap e x y)
+    VPi a f                      -> VPi (sw a) (sw f)
+    VCon c us                    -> VCon c (map sw us)
+    VApp u v                     -> VApp (sw u) (sw v)
+    VAppName u n                 -> VAppName (sw u) (swap n x y)
+    VSplit u v                   -> VSplit (sw u) (sw v)
+    VVar s d                     -> VVar s (swap d x y)
+    VSigma u v                   -> VSigma (sw u) (sw v)
+    VSPair u v                   -> VSPair (sw u) (sw v)
+    VCSigma i u v                -> VCSigma (sw i) (sw u) (sw v)
+    VCSPair i u v                -> VCSPair (sw i) (sw u) (sw v)
+    VFst u                       -> VFst (sw u)
+    VSnd u                       -> VSnd (sw u)
+    VCSnd z u | z /= x && z /= y -> VCSnd z (sw u)
+              | otherwise        -> let z' = fresh ([x, y], u)
+                                        v  = swap u z z'
+                                    in VCSnd z' (sw v)
    where sw u = swap u x y
-
 
 
 --------------------------------------------------------------------------------
@@ -382,22 +343,22 @@ instance Show Ter where
   show = showTer
 
 showTer :: Ter -> String
-showTer U                 = "U"
-showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
-showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
-showTer (Lam (x,_) e)         = '\\' : x <+> "->" <+> showTer e
-showTer (Fst e)           = showTer e ++ ".1"
-showTer (Snd e)           = showTer e ++ ".2"
-showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
-showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
-showTer (ColoredSnd i e)           = showTer e ++ "." ++ show i
-showTer (ColoredSigma i e0 e1)     = ("CSigma" ++ show i) <+> showTers [e0,e1]
-showTer (ColoredPair i e0 e1)      = ("Cpair" ++ show i) <+> showTers [e0,e1]
-showTer (Where e d)       = showTer e <+> "where" <+> showODecls d
-showTer (Var x)           = x
-showTer (Con c es)        = c <+> showTers es
-showTer (Split l _)       = "split " ++ show l
-showTer (Sum l _)         = "sum " ++ show l
+showTer U                      = "U"
+showTer (App e0 e1)            = showTer e0 <+> showTer1 e1
+showTer (Pi e0 e1)             = "Pi" <+> showTers [e0,e1]
+showTer (Lam (x,_) e)          = '\\' : x <+> "->" <+> showTer e
+showTer (Fst e)                = showTer e ++ ".1"
+showTer (Snd e)                = showTer e ++ ".2"
+showTer (Sigma e0 e1)          = "Sigma" <+> showTers [e0,e1]
+showTer (SPair e0 e1)          = "pair" <+> showTers [e0,e1]
+showTer (ColoredSnd i e)       = showTer e ++ "." ++ show i
+showTer (ColoredSigma i e0 e1) = ("CSigma" ++ show i) <+> showTers [e0,e1]
+showTer (ColoredPair i e0 e1)  = ("Cpair" ++ show i) <+> showTers [e0,e1]
+showTer (Where e d)            = showTer e <+> "where" <+> showODecls d
+showTer (Var x)                = x
+showTer (Con c es)             = c <+> showTers es
+showTer (Split l _)            = "split " ++ show l
+showTer (Sum l _)              = "sum " ++ show l
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
@@ -422,19 +383,19 @@ instance Show Val where
   show = showVal
 
 showVal :: Val -> String
-showVal VU               = "U"
-showVal (Ter t env)      = show t <+> show env
-showVal (VApp u v)       = showVal u <+> showVal1 v
-showVal (VAppName u n)   = showVal u <+> "@" <+> show n
-showVal (VSplit u v)     = showVal u <+> showVal1 v
-showVal (VVar x d)       = x <+> showDim d
-showVal (VSPair u v)     = "pair" <+> showVals [u,v]
-showVal (VSigma u v)     = "Sigma"<+> showVals [u,v]
-showVal (VCSPair i u v)     = "Cpair" ++ show i  <+> showVals [u,v]
-showVal (VCSigma i u v)     = "CSigma"  ++ show i <+> showVals [u,v]
-showVal (VFst u)         = showVal u ++ ".1"
-showVal (VSnd u)         = showVal u ++ ".2"
-showVal (VCSnd i u)         = showVal u ++ "." ++ show i
+showVal VU              = "U"
+showVal (Ter t env)     = show t <+> show env
+showVal (VApp u v)      = showVal u <+> showVal1 v
+showVal (VAppName u n)  = showVal u <+> "@" <+> show n
+showVal (VSplit u v)    = showVal u <+> showVal1 v
+showVal (VVar x d)      = x <+> showDim d
+showVal (VSPair u v)    = "pair" <+> showVals [u,v]
+showVal (VSigma u v)    = "Sigma"<+> showVals [u,v]
+showVal (VCSPair i u v) = "Cpair" ++ show i  <+> showVals [u,v]
+showVal (VCSigma i u v) = "CSigma"  ++ show i <+> showVals [u,v]
+showVal (VFst u)        = showVal u ++ ".1"
+showVal (VSnd u)        = showVal u ++ ".2"
+showVal (VCSnd i u)     = showVal u ++ "." ++ show i
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
@@ -447,4 +408,3 @@ showVal1 VU           = "U"
 showVal1 (VCon c [])  = c
 showVal1 u@(VVar{})   = showVal u
 showVal1 u            = parens $ showVal u
-
