@@ -187,10 +187,8 @@ checkTele ((x,a):xas) = do
   localM (addType (x,a)) $ checkTele xas
 
 checkFace :: Side -> Val -> Ter -> Typing Val
-checkFace s v t = do
-    t' <- localM (modEnv (liftEval . flip faceEnv s)) $ checkAndEval v t
-    liftEval $ face t' s
-
+checkFace s v t = localM (modEnv (liftEval . flip faceEnv s)) $ checkAndEval v t
+    
 checkAndEval :: Val -> Ter -> Typing Val
 checkAndEval a t = do
   check a t
@@ -289,6 +287,7 @@ checkInfer e = case e of
         v <- eval' t
         vx0 <- liftEval $ face v (x,0)
         app f vx0
+      _          -> throwError $ show c ++ " is not a colored sigma-type"
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t

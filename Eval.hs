@@ -58,23 +58,24 @@ look x r@(OEnv (PDef es r1) o) = case lookupIdent x es of
   Nothing     -> look x (OEnv r1 o)
 
 eval :: OEnv -> Ter -> Eval Val
-eval e U                 = return VU
-eval e t@(App r s)       = appM (eval e r) (eval e s)
-eval e (Var i)           = do
+eval e U                    = return VU
+eval e t@(App r s)          = appM (eval e r) (eval e s)
+eval e (Var i)              = do
   (x,v) <- look i e
   return $ if x `elem` opaques e then VVar ("opaque_" ++ show x) $ map Just (support v) else v
-eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
-eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
-eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
-eval e (SPair a b)       = VSPair <$> eval e a <*> eval e b
-eval e (ColoredSigma i a b)       = VCSigma i <$> eval e a <*> eval e b
-eval e (ColoredPair i a b)       = VCSPair i <$> eval e a <*> eval e b
-eval e (Fst a)           = fstSVal <$> eval e a
-eval e (Snd a)           = sndSVal <$> eval e a
-eval e (Where t decls)   = eval (oPDef False decls e) t
-eval e (Con name ts)     = VCon name <$> mapM (eval e) ts
-eval e (Split pr alts)   = return $ Ter (Split pr alts) e
-eval e (Sum pr ntss)     = return $ Ter (Sum pr ntss) e
+eval e (Pi a b)             = VPi <$> eval e a <*> eval e b
+eval e (Lam x t)            = return $ Ter (Lam x t) e -- stop at lambdas
+eval e (Sigma a b)          = VSigma <$> eval e a <*> eval e b
+eval e (SPair a b)          = VSPair <$> eval e a <*> eval e b
+eval e (ColoredSigma i a b) = VCSigma i <$> eval e a <*> eval e b
+eval e (ColoredPair i a b)  = VCSPair i <$> eval e a <*> eval e b
+eval e (Fst a)              = fstSVal <$> eval e a
+eval e (Snd a)              = sndSVal <$> eval e a
+eval e (ColoredSnd i a)     = sndCSVal i <$> eval e a
+eval e (Where t decls)      = eval (oPDef False decls e) t
+eval e (Con name ts)        = VCon name <$> mapM (eval e) ts
+eval e (Split pr alts)      = return $ Ter (Split pr alts) e
+eval e (Sum pr ntss)        = return $ Ter (Sum pr ntss) e
 
 evals :: OEnv -> [(Binder,Ter)] -> Eval [(Binder,Val)]
 evals env = sequenceSnd . map (second (eval env))

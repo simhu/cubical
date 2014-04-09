@@ -107,6 +107,7 @@ newtype Name = N String
   deriving (Eq,Ord)
 
 instance Show Name where
+  show (N s) = s
 
 type Dim = [CVal]
 type CVal = Maybe Color
@@ -342,10 +343,10 @@ lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
 
 getIdent :: Ident -> [(Binder,a)] -> Maybe a
-getIdent x defs = do (_,t) <- lookupIdent x defs; return t
+getIdent x defs = snd <$> lookupIdent x defs
 
 getBinder :: Ident -> [(Binder,a)] -> Maybe Binder
-getBinder x defs = do (b,_) <- lookupIdent x defs; return b
+getBinder x defs = fst <$> lookupIdent x defs
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
