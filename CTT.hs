@@ -102,15 +102,26 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 --------------------------------------------------------------------------------
 -- | Names, dimension, and nominal type class
 
-type Name = Integer
-type Dim  = [Color]
+-- type Name = Integer
+newtype Name = N String
+  deriving (Eq,Ord)
 
-gensym :: Dim -> Name
-gensym [] = 2
-gensym xs = maximum xs + 1
+instance Show Name where
 
-gensyms :: Dim -> [Name]
-gensyms d = let x = gensym d in x : gensyms (x : d)
+type Dim = [CVal]
+type CVal = Maybe Color
+  
+allStrings :: [String]
+allStrings = [] : [x:s | s <- allStrings, x <- ['a'..'z']]
+
+allSyms :: [Name]
+allSyms = tail $ map N allStrings
+
+gensym :: [Name] -> Name
+gensym xs = head $ gensyms xs
+
+gensyms :: [Name] -> [Name]
+gensyms d = allSyms \\ d
 
 class Nominal a where
   swap :: a -> Name -> Name -> a
@@ -135,14 +146,18 @@ instance Nominal a => Nominal [a]  where
   swap vs x y = [swap v x y | v <- vs]
 
 -- Make Name an instance of Nominal
-instance Nominal Integer where
-  support 0 = []
-  support 1 = []
+instance Nominal Name where
   support n = [n]
 
   swap z x y | z == x    = y
              | z == y    = x
              | otherwise = z
+
+instance Nominal a => Nominal (Maybe a) where
+  support Nothing = []
+  support (Just x) = support x
+  swap Nothing _ _ = Nothing
+  swap (Just x) i j = Just $ swap x i j
 
 --------------------------------------------------------------------------------
 -- | Boxes
@@ -200,8 +215,8 @@ data Val = VU
          | VCSnd Color Val
   deriving Eq
 
-mkVar :: Int -> Dim -> Val
-mkVar k = VVar ('X' : show k)
+mkVar :: Int -> [Name] -> Val
+mkVar k ns = VVar ('X' : show k) (map Just ns)
 
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)           = isNeutral u

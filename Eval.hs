@@ -62,7 +62,7 @@ eval e U                 = return VU
 eval e t@(App r s)       = appM (eval e r) (eval e s)
 eval e (Var i)           = do
   (x,v) <- look i e
-  return $ if x `elem` opaques e then VVar ("opaque_" ++ show x) $ support v else v
+  return $ if x `elem` opaques e then VVar ("opaque_" ++ show x) $ map Just (support v) else v
 eval e (Pi a b)          = VPi <$> eval e a <*> eval e b
 eval e (Lam x t)         = return $ Ter (Lam x t) e -- stop at lambdas
 eval e (Sigma a b)       = VSigma <$> eval e a <*> eval e b
@@ -114,26 +114,25 @@ appM t1 t2 = do
 apps :: Val -> [Val] -> Eval Val
 apps = foldM app
 
-appName :: Val -> Name -> Eval Val
-appName p y          | y `elem` [0,1] = return $ VAppName p y
-                                        -- p has to be neutral
-appName v y          = return $ VAppName v y
+-- appName :: Val -> CVal -> Eval Val
+-- appName p y          | y `elem` [0,1] = return $ VAppName p y
+--                                         -- p has to be neutral
+-- appName v y          = return $ VAppName v y
 
-appNameM :: Eval Val -> Name -> Eval Val
-appNameM v n = do
-  v' <- v
-  appName v' n
+-- appNameM :: Eval Val -> Name -> Eval Val
+-- appNameM v n = do
+--   v' <- v
+--   appName v' n
 
 
 -- Compute the face of an environment
 faceEnv :: OEnv -> Side -> Eval OEnv
 faceEnv e xd = mapOEnvM (`face` xd) e
 
-faceName :: Name -> Side -> Name
-faceName 0 _                 = 0
-faceName 1 _                 = 1
-faceName x (y,d) | x == y    = d
-                 | otherwise = x
+faceName :: CVal -> Side -> CVal
+faceName Nothing _ = Nothing
+faceName (Just x) (y,d) | x == y    = Nothing
+                        | otherwise = Just x
 
 -- Compute the face of a value
 face :: Val -> Side -> Eval Val
@@ -143,10 +142,10 @@ face u xdir@(x,dir) =
   Ter t e -> do e' <- e `faceEnv` xdir
                 eval e' t
   VApp u v            -> appM (fc u) (fc v)
-  VAppName u n        -> do
-   traceb ("face " ++ "\nxdir " ++ show xdir ++
-          "\nu " ++ show u ++ "\nn " ++ show n) $ do
-   appNameM (fc u) (faceName n xdir)
+  -- VAppName u n        -> do
+  --  traceb ("face " ++ "\nxdir " ++ show xdir ++
+  --         "\nu " ++ show u ++ "\nn " ++ show n) $ do
+  --  appNameM (fc u) (faceName n xdir)
   VSplit u v          -> appM (fc u) (fc v)
   VVar s d            -> return $ VVar s [ faceName n xdir | n <- d ]
   VFst p              -> fstSVal <$> fc p
@@ -193,8 +192,10 @@ conv k (VPi u v) (VPi u' v') = do
 conv k (VSigma u v) (VSigma u' v') = do
   let w = mkVar k $ support [u,u',v,v']
   conv k u u' <&&> convM (k+1) (app v w) (app v' w)
+-- FIXME: comparison of VCSigma, VCPair
 conv k (VFst u) (VFst u')                     = conv k u u'
 conv k (VSnd u) (VSnd u')                     = conv k u u'
+conv k (VCSnd i u) (VCSnd i' u')              = pure (i == i') <&&> conv k u u'
 conv k (VCon c us) (VCon c' us') =
   liftM (\bs -> (c == c') && and bs) (zipWithM (conv k) us us')
 conv k (VSPair u v)   (VSPair u' v')   = conv k u u' <&&> conv k v v'
