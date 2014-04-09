@@ -86,9 +86,9 @@ fstSVal u | isNeutral u = VFst u
 sndSVal (VSPair a b)    = b
 sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ show u ++ " should be neutral"
-sndCSVal i (VCSPair _i a b)    = b
+sndCSVal i (VCSPair j a b) | i == j   = b
 sndCSVal i u | isNeutral u = VCSnd i u
-           | otherwise   = error $ show u ++ " should be neutral"
+             | otherwise   = error $ show u ++ " should be neutral"
 
 -- Application
 app :: Val -> Val -> Eval Val
@@ -177,7 +177,9 @@ conv k (VPi u v) (VPi u' v') = do
 conv k (VSigma u v) (VSigma u' v') = do
   let w = mkVar k $ support [u,u',v,v']
   conv k u u' <&&> convM (k+1) (app v w) (app v' w)
--- FIXME: comparison of VCSigma, VCPair
+conv k (VCSigma i u v) (VCSigma i' u' v') = do
+  let w = mkVar k $ support [u,u',v,v']
+  ((i == i') &&) <$> conv k u u' <&&> convM (k+1) (app v w) (app v' w)
 conv k (VFst u) (VFst u')                     = conv k u u'
 conv k (VSnd u) (VSnd u')                     = conv k u u'
 conv k (VCSnd i u) (VCSnd i' u')              = pure (i == i') <&&> conv k u u'
@@ -188,6 +190,11 @@ conv k (VSPair u v)   w                =
   conv k u (fstSVal w) <&&> conv k v (sndSVal w)
 conv k w              (VSPair u v)     =
   conv k (fstSVal w) u <&&> conv k (sndSVal w) v
+conv k (VCSPair i u v)   (VCSPair j u' v')   = conv k u u' <&&> conv k v v'
+conv k (VCSPair i u v)   w                =
+  (conv k u =<< (face w (i,0))) <&&> conv k v (sndCSVal i w)
+conv k w              (VCSPair i u v)     =
+  (conv k u =<< (face w (i,0))) <&&> conv k v (sndCSVal i w)
 conv k (VApp u v)     (VApp u' v')     = conv k u u' <&&> conv k v v'
 conv k (VAppName u x) (VAppName u' x') = conv k u u' <&&> (x <==> x')
 conv k (VSplit u v)   (VSplit u' v')   = conv k u u' <&&> conv k v v'

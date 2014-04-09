@@ -53,8 +53,6 @@ declTele decl = [ (x,t) | (x,t,_) <- decl]
 declDefs :: Decls -> [(Binder,Ter)]
 declDefs decl = [ (x,d) | (x,_,d) <- decl]
 
-type Color = Name
-
 -- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
@@ -105,6 +103,7 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 -- type Name = Integer
 newtype Name = N String
   deriving (Eq,Ord)
+type Color = Name
 
 instance Show Name where
   show (N s) = s
@@ -227,7 +226,7 @@ instance Nominal Val where
   support (VFst u)        = support u
   support (VSnd u)        = support u
   support (VCSnd i u)     = delete i $ support u
-  support v               = error ("support " ++ show v)
+  -- support v               = error ("support " ++ show v)
 
   swap u x y = case u of
     VU                           -> VU
