@@ -120,7 +120,7 @@ initLoop debug f = do
       runInputT (settings [n | ((n,_),_) <- names]) (loop f names tenv)
 
 -- The main loop
-loop :: FilePath -> [(C.Binder,Bool)] -> TC.TEnv -> Interpreter ()
+loop :: FilePath -> [(C.Binder,SymKind)] -> TC.TEnv -> Interpreter ()
 loop f names tenv@(TC.TEnv _ rho _ _ debug) = do
   input <- getInputLine defaultPrompt
   case input of
