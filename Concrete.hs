@@ -66,9 +66,11 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
+data SymKind = Variable | Constructor
+         deriving (Eq, Show)
 -- local environment for constructors
 data Env = Env { envModule  :: String,
-                 variables  :: [(C.Binder,Bool)] } -- true for Var, false for Con
+                 variables  :: [(C.Binder,SymKind)] }
          deriving (Eq, Show)
 
 type Resolver a = ReaderT Env (ErrorT String Identity) a
@@ -82,23 +84,23 @@ runResolver x = runIdentity $ runErrorT $ runReaderT x emptyEnv
 updateModule :: String -> Env -> Env
 updateModule mod e = e {envModule = mod}
 
-insertBinder :: (C.Binder,Bool) -> Env -> Env
+insertBinder :: (C.Binder,SymKind) -> Env -> Env
 insertBinder (x@(n,_),var) e | n == "_"         = e
                              | n == "undefined" = e
                              | otherwise        =
   e {variables    = (x, var) : variables e}
 
-insertBinders :: [(C.Binder,Bool)] -> Env -> Env
+insertBinders :: [(C.Binder,SymKind)] -> Env -> Env
 insertBinders = flip $ foldr insertBinder
 
 insertVar :: C.Binder -> Env -> Env
-insertVar x = insertBinder (x, True)
+insertVar x = insertBinder (x, Variable)
 
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
 
 insertCon :: C.Binder -> Env -> Env
-insertCon x = insertBinder (x, False)
+insertCon x = insertBinder (x, Constructor)
 
 insertCons :: [C.Binder] -> Env -> Env
 insertCons = flip $ foldr insertCon
@@ -109,7 +111,7 @@ getEnv = ask
 getModule :: Resolver String
 getModule = envModule <$> ask
 
-getVariables :: Resolver [(C.Binder,Bool)]
+getVariables :: Resolver [(C.Binder,SymKind)]
 getVariables = variables <$> ask
 
 getLoc :: (Int,Int) -> Resolver C.Loc
@@ -123,12 +125,12 @@ resolveVar (AIdent (l,x)) = do
     modName <- getModule
     vars    <- getVariables
     case C.getIdent x vars of
-      Just True  -> return $ C.Var x
-      Just False -> return $ C.Con x []
+      Just Variable    -> return $ C.Var x
+      Just Constructor -> return $ C.Con x []
       Nothing    -> throwError $
         "Cannot resolve variable " ++ x ++ " at position " ++ show l 
         ++ " in module " ++ modName
-  
+
 lam :: AIdent -> Resolver Ter -> Resolver Ter
 lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
 
@@ -196,7 +198,7 @@ resolveDDecl (DeclData (AIdent (l,n)) args sum) = do
 resolveDDecl d = throwError $ "Definition expected " ++ show d
 
 -- resolve mutual declarations (possibly one)
-resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,Bool)])
+resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,SymKind)])
 resolveMutuals decls = do
     binders <- mapM resolveBinder idents
     cs      <- declsLabels decls
@@ -205,11 +207,11 @@ resolveMutuals decls = do
       throwError $ "Duplicated constructor or ident: " ++ show cns
     rddecls <- flip mapM ddecls
       (local (insertVars binders . insertCons cs) . resolveDDecl)
-    when (names /= [n | (n,d) <- rddecls]) $
+    when (names /= [n | (n,_d) <- rddecls]) $
       throwError $ "Mismatching names in " ++ show decls
     rtdecls <- resolveTele tdecls
     return ([(x,t,d) | (x,t) <- rtdecls | (_,d) <- rddecls],
-                       map (,False) cs ++ map (,True) binders)
+                       map (,Constructor) cs ++ map (,Variable) binders)
   where
     idents = [x | DeclType x _ <- decls]
     names  = [unAIdent x | x <- idents]
@@ -217,7 +219,7 @@ resolveMutuals decls = do
     ddecls = [t | t <- decls, not $ isTDecl t]
     isTDecl d = case d of DeclType {} -> True; _ -> False 
 
-resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,Bool)])
+resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveDecls []                  = return ([],[])
 resolveDecls (DeclOpaque n:ds) = do
   vars          <- getVariables
@@ -245,11 +247,11 @@ resolveDecls (DeclMutual defs : ds) = do
   return $ (C.ODecls rdefs : rds, names' ++ names)
 resolveDecls (decl:_) = throwError $ "Invalid declaration " ++ show decl
 
-resolveModule :: Module -> Resolver ([C.ODecls],[(C.Binder,Bool)])
+resolveModule :: Module -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveModule (Module id imports decls) = do
   local (updateModule $ unAIdent id) $ resolveDecls decls
 
-resolveModules :: [Module] -> Resolver ([C.ODecls],[(C.Binder,Bool)])
+resolveModules :: [Module] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveModules []         = return ([],[])
 resolveModules (mod:mods) = do
   (rmod, names)  <- resolveModule mod
