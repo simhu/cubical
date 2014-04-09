@@ -34,7 +34,7 @@ runEval debug e = runReaderT (unEval e) debug
 
 look :: Ident -> OEnv -> Eval (Binder, Val)
 look x (OEnv (Pair rho (n@(y,l),u)) opaques)
-  | x == y    = return $ (n, u)
+  | x == y    = return (n, u)
   | otherwise = look x (OEnv rho opaques)
 look x r@(OEnv (PDef es r1) o) = case lookupIdent x es of
   Just (y,t)  -> (y,) <$> eval r t
@@ -103,7 +103,7 @@ app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v = do
 app vhext@(VHExt x bv fv gv pv) w = do
   a0    <- w `face` (x,down)
   a1    <- w `face` (x,up)
-  appNameM (apps pv [a0, a1, Path x $ w]) x
+  appNameM (apps pv [a0, a1, Path x w]) x
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
@@ -896,11 +896,10 @@ convM k v1 v2 = do
 
 convBox :: Int -> Box Val -> Box Val -> Eval Bool
 convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
-  if   and [d == d', pn == pn', sort np == sort np']
-  then do bs <- sequence [ conv k (lookBox s box) (lookBox s box')
-                         | s <- defBox box ]
-          return $ and bs
-  else return False
+  if (d == d') && (pn == pn') && (sort np == sort np')
+     then and <$> sequence [ conv k (lookBox s box) (lookBox s box')
+                           | s <- defBox box ]
+     else return False
   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
 convEnv :: Int -> OEnv -> OEnv -> Eval Bool

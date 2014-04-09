@@ -239,7 +239,7 @@ primHandle =
    ("intrec"        , 5,  IntRec       )]
 
 reservedNames :: [String]
-reservedNames = [s | (s,_,_) <- primHandle]
+reservedNames = [ s | (s,_,_) <- primHandle ]
 
 arity :: PN -> Int
 arity pn = fromMaybe 0 $ listToMaybe [n | (_,n,pn') <- primHandle, pn == pn']
@@ -684,10 +684,10 @@ mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
 mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
 
 mapOEnv :: (Val -> Val) -> OEnv -> OEnv
-mapOEnv f (OEnv e o) = (OEnv (mapEnv f e) o)
+mapOEnv f (OEnv e o) = OEnv (mapEnv f e) o
 
 mapOEnvM :: Applicative m => (Val -> m Val) -> OEnv -> m OEnv
-mapOEnvM f (OEnv e o) = flip OEnv o <$> (mapEnvM f e)
+mapOEnvM f (OEnv e o) = flip OEnv o <$> mapEnvM f e
 
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []

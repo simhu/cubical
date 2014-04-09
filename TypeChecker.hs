@@ -24,7 +24,7 @@ import Eval
 trace :: String -> Typing ()
 trace s = do
   b <- verbose <$> ask
-  if b then liftIO (putStrLn s) else return ()
+  when b $ liftIO (putStrLn s)
 
 -- Type checking monad
 type Typing a = ReaderT TEnv (ErrorT String Eval) a
@@ -39,7 +39,7 @@ runDecls debug tenv d = runTyping debug tenv $ do
   addDecls d tenv
 
 runDeclss :: Bool -> TEnv -> [ODecls] -> IO (Maybe String,TEnv)
-runDeclss _ tenv []         = return $ (Nothing, tenv)
+runDeclss _ tenv []         = return (Nothing, tenv)
 runDeclss debug tenv (d:ds) = do
   x <- runDecls debug tenv d
   case x of

@@ -90,7 +90,7 @@ imports v st@(notok,loaded,mods) f
             let name    = unAIdent id
                 imp_cub = [prefix ++ unAIdent i ++ ".cub" | Import i <- imp]
             in do
-              when (name /= (dropExtension $ takeFileName $ f)) $
+              when (name /= dropExtension (takeFileName f)) $
                 error $ "Module name mismatch " ++ show (f,name)
               (notok1,loaded1,mods1) <-
                 foldM (imports v) (f:notok,loaded,mods) imp_cub
@@ -119,7 +119,7 @@ initLoop debug f = do
       runInputT (settings [n | ((n,_),_) <- names]) (loop f names debug tenv)
 
 -- The main loop
-loop :: FilePath -> [(C.Binder,Bool)] -> Bool -> TC.TEnv -> Interpreter ()
+loop :: FilePath -> [(C.Binder,SymKind)] -> Bool -> TC.TEnv -> Interpreter ()
 loop f names debug tenv@(TC.TEnv _ rho _ _) = do
   input <- getInputLine defaultPrompt
   case input of
