@@ -30,7 +30,7 @@ loadFile f = do
   case runResolver (resolveModules mods) of
     Left err -> do assertFailure $ "Resolver failed:" <+> err <+> "on" <+> f
                    return C.oEmpty
-    Right (ds,_) -> TC.runDeclss TC.silentEnv ds >>= \(x , e) -> case x of
+    Right (ds,_) -> TC.runDeclss False TC.silentEnv ds >>= \(x,e) -> case x of
       Just err -> do assertFailure $ "Type checking failed:" <+>
                                       err <+> "on" <+> f
                      return (TC.oenv e)
@@ -39,7 +39,7 @@ loadFile f = do
 testFile :: FilePath -> [(String,String)] -> IO ()
 testFile f xs = do
   env <- loadFile f
-  sequence_ [ do x <- E.evalTer False env (C.Var n)
+  sequence_ [ do x <- E.runEval False $ E.eval env (C.Var n)
                  assertEqual ("for" <+> n) output (show x)
             | (n,output) <- xs ]
 

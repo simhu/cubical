@@ -1,16 +1,17 @@
-{-# LANGUAGE TupleSections #-}
-module Eval ( evalTer
-            , evalTers
-            , appVal
-            , convVal
+{-# LANGUAGE TupleSections, GeneralizedNewtypeDeriving #-}
+module Eval ( eval
+            , evals
+            , app
+            , conv
             , fstSVal
+            , Eval
+            , runEval
             ) where
 
 import Control.Applicative
 import Control.Arrow (second)
 import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Trans.Reader
+import Control.Monad.Reader
 import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
@@ -25,22 +26,11 @@ trace s = do
 -- For now only store the debugging boolean
 type EState = Bool
 
-type Eval a = ReaderT EState IO a
+newtype Eval a = Eval { unEval :: ReaderT Bool IO a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Bool)
 
 runEval :: Bool -> Eval a -> IO a
-runEval debug e = runReaderT e debug
-
-evalTer :: Bool -> OEnv -> Ter -> IO Val
-evalTer b env = runEval b . eval env
-
-evalTers :: Bool -> OEnv -> [(Binder,Ter)] -> IO [(Binder,Val)]
-evalTers b env bts = runEval b (evals env bts)
-
-appVal :: Bool -> Val -> Val -> IO Val
-appVal b v1 v2 = runEval b $ app v1 v2
-
-convVal :: Bool -> Int -> Val -> Val -> IO Bool
-convVal b k v1 v2 = runEval b $ conv k v1 v2
+runEval debug e = runReaderT (unEval e) debug
 
 look :: Ident -> OEnv -> Eval (Binder, Val)
 look x (OEnv (Pair rho (n@(y,l),u)) opaques)
@@ -322,7 +312,6 @@ face u xdir@(x,dir) =
       lookBox (x,dir) <$> mapBoxM (`face` (z,down)) b
     | x == y && dir == dir'                ->
         VComp <$> mapBoxM (`face` (z,up)) b
-  -- TODO: Is it ok to use join here?
   VInhRec b p h a     -> join $ inhrec <$> fc b <*> fc p <*> fc h <*> fc a
   VApp u v            -> appM (fc u) (fc v)
   VAppName u n        -> do

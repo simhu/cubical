@@ -61,12 +61,11 @@ main = do
   args <- getArgs
   (flags,files) <- parseOpts args
   -- Should it run in debugging mode?
-  let b = Debug `elem` flags
+  let debug = Debug `elem` flags
   case files of
-    [f] -> initLoop b f
+    [f] -> initLoop debug f
     _   -> do putStrLn $ "Exactly one file expected: " ++ show files
-              runInputT (settings []) (loop [] [] (TC.verboseEnv b))
-
+              runInputT (settings []) (loop [] [] debug TC.verboseEnv)
 
 -- (not ok,loaded,already loaded defs) -> to load -> (newnotok, newloaded, newdefs)
 -- the bool determines if it should be verbose or not
@@ -109,46 +108,46 @@ initLoop debug f = do
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
-      runInputT (settings []) (loop [] [] (TC.verboseEnv debug))
+      runInputT (settings []) (loop [] [] debug TC.verboseEnv)
     Right (adefs,names) -> do
-      (merr , tenv) <- TC.runDeclss (TC.verboseEnv debug) adefs
+      (merr , tenv) <- TC.runDeclss debug TC.verboseEnv adefs
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> return ()
       putStrLn "File loaded."
       -- Compute names for auto completion
-      runInputT (settings [n | ((n,_),_) <- names]) (loop f names tenv)
+      runInputT (settings [n | ((n,_),_) <- names]) (loop f names debug tenv)
 
 -- The main loop
-loop :: FilePath -> [(C.Binder,Bool)] -> TC.TEnv -> Interpreter ()
-loop f names tenv@(TC.TEnv _ rho _ _ debug) = do
+loop :: FilePath -> [(C.Binder,Bool)] -> Bool -> TC.TEnv -> Interpreter ()
+loop f names debug tenv@(TC.TEnv _ rho _ _) = do
   input <- getInputLine defaultPrompt
   case input of
-    Nothing    -> outputStrLn help >> loop f names tenv
+    Nothing    -> outputStrLn help >> loop f names debug tenv
     Just ":q"  -> return ()
     Just ":r"  -> lift $ initLoop debug f
     Just (':':'l':' ':str)
       | ' ' `elem` str -> do outputStrLn "Only one file allowed after :l"
-                             loop f names tenv
+                             loop f names debug tenv
       | otherwise      -> lift $ initLoop debug str
     Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
-                                     loop f names tenv
-    Just ":h"  -> outputStrLn help >> loop f names tenv
+                                     loop f names debug tenv
+    Just ":h"  -> outputStrLn help >> loop f names debug tenv
     Just str   -> case pExp (lexer str) of
-      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop f names tenv
+      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop f names debug tenv
       Ok  exp ->
         case runResolver $ local (insertBinders names) $ resolveExp exp of
           Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
-                           loop f names tenv
+                           loop f names debug tenv
           Right body -> do
-          x <- liftIO $ TC.runInfer tenv body
+          x <- liftIO $ TC.runInfer debug tenv body
           case x of
             Left err -> do outputStrLn ("Could not type-check: " ++ err)
-                           loop f names tenv
+                           loop f names debug tenv
             Right _  -> do
-              e <- liftIO $ E.evalTer debug rho body
+              e <- liftIO $ E.runEval debug $ E.eval rho body
               outputStrLn ("EVAL: " ++ show e)
-              loop f names tenv
+              loop f names debug tenv
 
 help :: String
 help = "\nAvailable commands:\n" ++
