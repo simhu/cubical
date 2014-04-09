@@ -2,7 +2,6 @@
 module CTT where
 
 import Control.Applicative
-import Control.Monad
 import Data.List
 import Data.Maybe
 import Pretty
@@ -10,8 +9,9 @@ import Pretty
 --------------------------------------------------------------------------------
 -- | Terms
 
-data Loc = Loc {locFile :: String, locPos :: (Int, Int)}
-  deriving (Eq)
+data Loc = Loc { locFile :: String
+               , locPos :: (Int, Int) }
+  deriving Eq
 
 type Ident  = String
 type Label  = String
@@ -33,10 +33,10 @@ type LblSum = [(Binder,Tele)]
 type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
-type Decls    = [(Binder,Ter,Ter)]
-data ODecls   = ODecls        Decls
-              | Opaque        Binder
-              | Transparent   Binder
+type Decls  = [(Binder,Ter,Ter)]
+data ODecls = ODecls        Decls
+            | Opaque        Binder
+            | Transparent   Binder
   deriving (Eq,Show)
 
 declIdents :: Decls -> [Ident]

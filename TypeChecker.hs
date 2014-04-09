@@ -52,22 +52,22 @@ runInfer lenv e = runTyping (checkInfer e) lenv
 eval :: OEnv -> Ter -> Typing Val
 eval env ter = do
   b <- getDebug
-  return $ evalTer b env ter
+  liftIO $ evalTer b env ter
 
 app :: Val -> Val -> Typing Val
 app v1 v2 = do
   b <- getDebug
-  return $ appVal b v1 v2
+  liftIO $ appVal b v1 v2
 
 evals :: OEnv -> [(Binder,Ter)] -> Typing [(Binder,Val)]
 evals rho t = do
   b <- getDebug
-  return $ evalTers b rho t
+  liftIO $ evalTers b rho t
 
 conv :: Int -> Val -> Val -> Typing Bool
 conv k v1 v2 = do
   b <- getDebug
-  return $ convVal b k v1 v2
+  liftIO $ convVal b k v1 v2
 
 addC :: Ctxt -> (Tele,OEnv) -> [(Binder,Val)] -> Typing Ctxt
 addC gam _             []          = return gam

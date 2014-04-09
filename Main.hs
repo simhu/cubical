@@ -146,7 +146,7 @@ loop f names tenv@(TC.TEnv _ rho _ _ debug) = do
             Left err -> do outputStrLn ("Could not type-check: " ++ err)
                            loop f names tenv
             Right _  -> do
-              let e = E.evalTer debug rho body
+              e <- liftIO $ E.evalTer debug rho body
               outputStrLn ("EVAL: " ++ show e)
               loop f names tenv
 
