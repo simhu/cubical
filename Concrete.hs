@@ -188,8 +188,8 @@ declsLabels decls = mapM resolveBinder [lbl | Label lbl _ <- sums]
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
 resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
   (n,) <$> lams args (resolveWhere body)
-resolveDDecl (DeclData (AIdent (l,n)) args sum) =
-  (n,) <$> lams args (C.Sum <$> getLoc l <*> mapM resolveLabel sum)
+resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
+  (n,) <$> lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
 resolveDDecl d = throwError $ "Definition expected " ++ show d
 
 -- resolve mutual declarations (possibly one)

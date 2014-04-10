@@ -70,7 +70,7 @@ data Ter = App Ter Ter
          -- branches c1 xs1  -> M1,..., cn xsn -> Mn
          | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
-         | Sum Loc LblSum
+         | Sum Binder LblSum
          | PN PN
   deriving Eq
 
