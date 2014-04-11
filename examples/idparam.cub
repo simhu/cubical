@@ -1,4 +1,4 @@
 module idparam where
 
 thm : (f : (B : U) -> B -> B) (A : U) (P : A -> U) (a : A) (p : P a) -> P (f A a)
-thm f A P a p = (f (Ch i ( x : A ) . (P x)) (a ,_ i p))._i
+thm f A P a p = (f (( x : A ) *_ i (P x)) (a ,_ i p))._i

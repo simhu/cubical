@@ -172,7 +172,7 @@ resolveExp (Snd t)      = C.Snd <$> resolveExp t
 resolveExp (CSnd t i)   = do
   i' <- resolveBinder i
   local (insertCol i') $ C.ColoredSnd <$> resolveCol i <*> resolveExp t
-resolveExp (CSigma i t b) = case pseudoTele [t] of
+resolveExp (CSigma t i b) = case pseudoTele [t] of
   Just tele -> do
     i' <- resolveCol i
     binds (C.ColoredSigma i') tele (resolveExp b)
