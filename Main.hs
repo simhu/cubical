@@ -108,7 +108,7 @@ initLoop debug f = do
   case res of
     Left err    -> do
       putStrLn $ "Resolver failed: " ++ err
-      runInputT (settings []) (loop [] [] debug TC.verboseEnv)
+      runInputT (settings []) (loop f [] debug TC.verboseEnv)
     Right (adefs,names) -> do
       (merr , tenv) <- TC.runDeclss debug TC.verboseEnv adefs
       case merr of
