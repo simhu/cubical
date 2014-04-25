@@ -125,7 +125,7 @@ getFresh = do
 checkDecls :: ODecls -> Typing ()
 checkDecls (ODecls d) = do
   let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
-  trace ("Checking definition: " ++ unwords idents)
+  trace ("Checking: " ++ unwords idents)
   checkTele tele
   rho <- oenv <$> ask
   localM (addTele tele) $ checks (tele,rho) ters
