@@ -64,10 +64,7 @@ boolAuto = (Bool,eqBoolBool)
 -- by transport we deduce another type and another equality
 
 boolAuto' : autoM
-boolAuto' = subst U (\ X -> X) autoM autoM eqAutoM boolAuto
+boolAuto' = subst U (\X -> X) autoM autoM eqAutoM boolAuto
 
-bool' : U
-bool' = fst U (\ X -> Id U X X) boolAuto'
-
-eqBool' : Id U bool' bool'
-eqBool' = snd  U (\ X -> Id U X X) boolAuto'
+eqBool' : Id U boolAuto'.1 boolAuto'.1
+eqBool' = boolAuto'.2

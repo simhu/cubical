@@ -1,9 +1,9 @@
 module finite where
 
--- definition of finite sets and cardinality 
+-- definition of finite sets and cardinality
 
 import description
-import function 
+import function
 import gradLemma
 import swapDisc_old
 
@@ -41,7 +41,7 @@ inrNotinl A B a b h = subst (or A B) T (inr b) (inl a) h tt
        inr _ -> Unit
 
 decSt : (X:U) -> discrete X -> discrete (step X)
-decSt X dX =  
+decSt X dX =
  split
   inl a -> split
             inl a1 -> inl (mapOnPath Unit (step X) (incUnSt X) a a1 (propUnit a a1))
@@ -78,7 +78,7 @@ lemN0 X = isEquivEq (or X N0) X f ef
   rfg : (x:X) -> Id X (f (g x)) x
   rfg x = refl X x
 
-  ef : isEquiv (or X N0) X f 
+  ef : isEquiv (or X N0) X f
   ef = gradLemma (or X N0) X f g rfg sfg
 
 N0Dec : discrete N0
@@ -151,8 +151,8 @@ eqTkA X = isEquivEq tS X f equivf
                    inl u -> \ h -> efq (Id tS (g (f (inl u,h))) (inl u,h)) (h (lem1 u))
                    inr z -> \ h -> eqPropFam stS T lem2
                                     (inr z,lem (faux (inr z) h)) (inr z,h) (refl stS (inr z))
-  
-   equivf : isEquiv tS X f 
+
+   equivf : isEquiv tS X f
    equivf = gradLemma tS X f g sfg rfg
 
 botEl : (n:N) -> stFin (suc n)
@@ -161,14 +161,14 @@ botEl n = inl tt
 ptBot : N -> ptU
 ptBot n = (stFin (suc n),botEl n)
 
-mkPtU : (n:N) (x:stFin (suc n)) -> ptU 
+mkPtU : (n:N) (x:stFin (suc n)) -> ptU
 mkPtU n x = (stFin (suc n),x)
 
 homogSt : (X:U) -> discrete X -> (x:step X) -> Id ptU (step X,x) (step X,inl tt)
 homogSt X dX x = homogDec (step X) (decSt X dX) x (inl tt)
 
 corHomogSt : (X:U) -> discrete X -> (x:step X) -> Id U (takeAway (step X) x) X
-corHomogSt X dX x = 
+corHomogSt X dX x =
  substInv ptU (\ z -> Id U (tAway z) X) (step X,x) (step X,inl tt)
     (homogSt X dX x) (eqTkA X)
 
@@ -178,10 +178,10 @@ homogSt' : (n:N) (x:stFin (suc n)) -> Id ptU (mkPtU n x) (ptBot n)
 homogSt' n = homogSt (stFin n) (finDec n)
 
 corEqTkA : (n:N) -> Id U (tAway (ptBot n)) (stFin n)
-corEqTkA n = eqTkA (stFin n) 
+corEqTkA n = eqTkA (stFin n)
 
 cor1EqTkA : (n:N) (x:stFin (suc n)) -> Id U (tAway (mkPtU n x)) (stFin n)
-cor1EqTkA n x = 
+cor1EqTkA n x =
  substInv ptU (\ z -> Id U (tAway z) (stFin n)) (mkPtU n x) (ptBot n) (homogSt' n x) (corEqTkA n)
 
 lemInjSt : (X Y:U) -> discrete X -> Id U (step X) (step Y) -> Id U X Y
@@ -209,10 +209,10 @@ lemInjSt X Y dX h = lem5
   lem5 = comp U X Am Y (inv U Am X lem4) lem3
 
 lem1InjSt : (n:N) -> neg (Id U N0 (stFin (suc n)))
-lem1InjSt n h = transportInv N0 (stFin (suc n)) h (botEl n) 
+lem1InjSt n h = transportInv N0 (stFin (suc n)) h (botEl n)
 
 lem2InjSt : (n:N) -> neg (Id U (stFin (suc n)) N0)
-lem2InjSt n h = transport (stFin (suc n)) N0 h (botEl n) 
+lem2InjSt n h = transport (stFin (suc n)) N0 h (botEl n)
 
 lemInj : injective N U stFin
 lemInj = split
@@ -221,7 +221,7 @@ lemInj = split
                     suc m -> \ h -> efq (Id N zero (suc m)) (lem1InjSt m h)
            suc n -> split
                      zero -> \ h -> efq (Id N (suc n) zero) (lem2InjSt n h)
-                     suc m -> \ h -> 
+                     suc m -> \ h ->
                        mapOnPath N N (\ x -> suc x) n m (lemInj n m (lemInjSt (stFin n) (stFin m) (finDec n) h))
 
 eqsT : U -> N -> U
@@ -234,7 +234,7 @@ lemEqsT : (X:U) (n m:N) -> eqsT X n -> eqsT X m -> Id N n m
 lemEqsT X n m = rem2
  where
   G : U
-  G = Id N n m 
+  G = Id N n m
 
   pG : prop G
   pG = NIsSet n m
@@ -243,10 +243,10 @@ lemEqsT X n m = rem2
   rem ln lm = lemInj n m (comp U (stFin n) X (stFin m) ln (inv U (stFin m) X lm))
 
   rem1 : Id U (stFin n) X -> eqsT X m -> G
-  rem1 ln = inhrec (Id U (stFin m) X) G pG (rem ln) 
+  rem1 ln = inhrec (Id U (stFin m) X) G pG (rem ln)
 
   rem2 : eqsT X n -> eqsT X m -> G
-  rem2 hn hm = inhrec (Id U (stFin n) X) G pG (\ l -> rem1 l hm) hn 
+  rem2 hn hm = inhrec (Id U (stFin n) X) G pG (\ l -> rem1 l hm) hn
 
 propEqsT : (X:U) -> prop (Sigma N (eqsT X))
 propEqsT X = propSig N (eqsT X) (\ n -> squash (Id U (stFin n) X)) rem
@@ -256,7 +256,7 @@ propEqsT X = propSig N (eqsT X) (\ n -> squash (Id U (stFin n) X)) rem
 cardFin : (X:U) -> finite X -> Sigma N (eqsT X)
 cardFin X = inhrec (Sigma N (eqsT X)) (Sigma N (eqsT X)) (propEqsT X) (\ h -> h)
 
--- Unit is finite 
+-- Unit is finite
 
 finUnit : finite Unit
 finUnit = inc (Sigma N (eqsT Unit)) rem
@@ -268,4 +268,3 @@ finUnit = inc (Sigma N (eqsT Unit)) rem
 
 test : N
 test = (cardFin Unit finUnit).1
-

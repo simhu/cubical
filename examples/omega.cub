@@ -12,7 +12,7 @@ Omega = Sigma U prop
 
 lemPInj1 :  (A : U) (B : A -> U) -> ((x:A) -> prop (B x)) -> (a0 a1:A) -> (p:Id A a0 a1) ->
             (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (a0,b0) (a1,b1)
-lemPInj1 A B pB a0 a1 p =  subst A C a0 a1 p rem
+lemPInj1 A B pB a0 a1 p = subst A C a0 a1 p rem
  where
   C : A -> U                                      -- (a1:A) -> Id A a0 a1 -> U
   C a1 = (b0:B a0) -> (b1:B a1) -> Id (Sigma A B) (a0,b0) (a1,b1)
@@ -29,7 +29,7 @@ lemPInj2 :  (A : U) (B : A -> U) -> (pB: (x:A) -> prop (B x)) -> (z:Sigma A B) -
 lemPInj2 A B pB z = rem
    where
     T : U
-    T = Sigma A B 
+    T = Sigma A B
 
     a:A
     a = z.1
@@ -41,14 +41,14 @@ lemPInj2 A B pB z = rem
     L = Id T z z
 
     C : A -> U
-    C a1 = (b0 : B a) ->  (b1:B a1) -> Id T (z.1,b0) (a1,b1) 
+    C a1 = (b0 : B a) ->  (b1:B a1) -> Id T (z.1,b0) (a1,b1)
 
     rem2 : C a
     rem2 b0 b1 = mapOnPath (B a) T (\ b -> (z.1,b)) b0 b1 (pB a b0 b1)
 
     rem1 : Id (C a) rem2 (lemPInj1 A B pB a a (refl A a))
     rem1 = substeq A C a rem2
-             
+
     Lb : U
     Lb = Id (B a) b b
 
@@ -57,12 +57,12 @@ lemPInj2 A B pB z = rem
 
     rem3 : Id L (mapOnPath (B a) T (\ b -> (a,b)) b b (refl (B a) b)) (rem2 b b)
     rem3 = mapOnPath Lb L (mapOnPath (B a) T (\ b -> (a,b)) b b) (refl (B a) b) (pB a b b) rem4
-        
+
     rem5 : Id ((b1 : B a) -> Id T (a,b) (a,b1)) (rem2 b) (lemPInj1 A B pB a a (refl A a) b)
     rem5 = appEq (B a) (\ b0 -> (b1 : B a) -> Id T (a,b0) (a,b1)) b rem2 (lemPInj1 A B pB a a (refl A a)) rem1
-     
+
     rem6 : Id L (rem2 b b) (lemPInj1 A B pB a a (refl A a) b b)
-    rem6 = appEq (B a) (\ b1 -> Id T (a,b) (a,b1)) b 
+    rem6 = appEq (B a) (\ b1 -> Id T (a,b) (a,b1)) b
                 (rem2 b) (lemPInj1 A B pB a a (refl A a) b) rem5
 
     rem : Id L (refl T (a,b)) (lemPInj1 A B pB a a (refl A a) b b)
@@ -75,24 +75,18 @@ isTrue z = z.1
 
 lemIsTrue : (x y : Omega) -> (isTrue x -> isTrue y) -> (isTrue y -> isTrue x) -> Id Omega x y
 lemIsTrue x y f g = injf x y rem
- where 
-   G : (x:Omega) -> prop (isTrue x)
-   G = snd U prop
-
+ where
    injf : injective Omega U isTrue
    injf = lemPropInj U prop propIsProp
 
    rem : Id U (isTrue x) (isTrue y)
-   rem = propId (isTrue x) (isTrue y) (G x) (G y) f g 
+   rem = propId (isTrue x) (isTrue y) x.2 y.2 f g
 
 lemInj : (A B : U) (f : A -> B) -> (injf : injective A B f)
               -> ((x:A) -> Id (Id A x x) (refl A x) (injf x x (refl B (f x))))
               -> (x y : A) -> (p:Id A x y) -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))
-lemInj A B f injf h x = 
+lemInj A B f injf h x =
  J A x (\ y p -> Id (Id A x y) p (injf x y (mapOnPath A B f x y p))) (h x)
---  where
---  rem1 : Id (Id A x x) (refl A x) (injf x x (refl B (f x)))
---  rem1 = h x
 
 omegaIsSet : set Omega
 omegaIsSet = rem4
@@ -104,12 +98,12 @@ omegaIsSet = rem4
    g x = x.2
 
    injf : injective Omega U isTrue
-   injf = lemPropInj U prop rem 
+   injf = lemPropInj U prop rem
 
    rem1 : (z:Omega) -> Id (Id Omega z z) (refl Omega z) (injf z z (refl U (isTrue z)))
    rem1 = lemPInj2 U prop rem
-   
-   rem2 : (x y : Omega) -> (p : Id Omega x y) 
+
+   rem2 : (x y : Omega) -> (p : Id Omega x y)
       -> Id (Id Omega x y) p (injf x y (mapOnPath Omega U isTrue x y p))
    rem2 = lemInj Omega U isTrue injf rem1
 
@@ -117,7 +111,7 @@ omegaIsSet = rem4
    rem3 x y = idPropIsProp (isTrue x) (isTrue y) (g x) (g y)
 
    rem4 : (x y : Omega) -> (p q : Id Omega x y) -> Id (Id Omega x y) p q
-   rem4 x y p q = compDown (Id Omega x y) p (injf x y (h p)) q (injf x y (h q)) 
+   rem4 x y p q = compDown (Id Omega x y) p (injf x y (h p)) q (injf x y (h q))
                        (rem2 x y p) (rem2 x y q) rem8
      where
         h : Id Omega x y -> Id U (isTrue x) (isTrue y)

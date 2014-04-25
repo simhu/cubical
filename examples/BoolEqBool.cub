@@ -12,15 +12,10 @@ notInj x y p = compUp Bool (not (not x)) x (not (not y)) y (notK x) (notK y) rem
 notFiber : Bool -> U
 notFiber b = fiber Bool Bool not b
 
-fstNotFiber : (b : Bool) -> notFiber b -> Bool
-fstNotFiber b = fst Bool (\x -> Id Bool (not x) b)
-
 eqNotFiber : (b : Bool) -> (v v' : notFiber b) ->
-  Id Bool (fstNotFiber b v) (fstNotFiber b v') -> Id (notFiber b) v v'
-eqNotFiber b = eqPropFam Bool (\x -> Id Bool (not x) b) rem
-  where
-  rem : propFam Bool (\x -> Id Bool (not x) b)
-  rem = \x -> boolIsSet (not x) b
+             Id Bool v.1 v'.1 -> Id (notFiber b) v v'
+eqNotFiber b = eqPropFam Bool (\x -> Id Bool (not x) b)
+                              (\x -> boolIsSet (not x) b)
 
 sNot : (b : Bool) -> notFiber b
 sNot b = (not b, notK b)
@@ -28,15 +23,12 @@ sNot b = (not b, notK b)
 tNot : (b : Bool) (v : notFiber b) -> Id (notFiber b) (sNot b) v
 tNot b v = eqNotFiber b (sNot b) v rem
   where
-  b' : Bool
-  b' = v.1
+  rem1 : Id Bool (not (not b)) (not v.1)
+  rem1 = comp Bool (not (not b)) b (not v.1) (notK b)
+         (inv Bool (not v.1) b v.2)
 
-  rem1 : Id Bool (not (not b)) (not b')
-  rem1 = comp Bool (not (not b)) b (not b') (notK b)
-         (inv Bool (not b') b (snd Bool (\x -> Id Bool (not x) b) v))
-
-  rem : Id Bool (not b) b'
-  rem = notInj (not b) b' rem1
+  rem : Id Bool (not b) v.1
+  rem = notInj (not b) v.1 rem1
 
 eqBoolBool : Id U Bool Bool
 eqBoolBool = equivEq Bool Bool not sNot tNot
@@ -48,7 +40,7 @@ notEqBool : Bool -> Bool
 notEqBool = transport Bool Bool eqBoolBool
 
 testBool : Bool
-testBool = notEqBool (true)
+testBool = notEqBool true
 
 compEqBool : Id U Bool Bool
 compEqBool = comp U Bool Bool Bool eqBoolBool eqBoolBool
@@ -78,7 +70,7 @@ opm : (A : U) (m : monoid A) -> (A -> A -> A)
 opm A m = m.2
 
 transm : (A B : U) -> Id U A B -> monoid A -> monoid B
-transm = subst U monoid 
+transm = subst U monoid
 
 transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
 transun = subst U (\X -> (X -> X))
@@ -143,5 +135,5 @@ orBool : Bool -> Bool -> Bool
 orBool = split true  -> \x -> true
                false -> \x -> x
 
-testTT4 : Id Bool (orBool false true) (opBool3 false true) 
+testTT4 : Id Bool (orBool false true) (opBool3 false true)
 testTT4 = refl Bool true

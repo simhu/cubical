@@ -6,11 +6,11 @@ import gradLemma
 
 eqFst : (A : U) (B : A -> U) (u v : Sigma A B) ->
         Id (Sigma A B) u v -> Id A u.1 v.1
-eqFst A B = mapOnPath (Sigma A B) A (fst A B)
+eqFst A B = mapOnPath (Sigma A B) A (\x -> x.1)
 
 eqSnd : (A : U) (B : A -> U) (u v : Sigma A B) (p : Id (Sigma A B) u v) ->
         IdS A B u.1 v.1 (eqFst A B u v p) u.2 v.2
-eqSnd A B = mapOnPathD (Sigma A B) (\x -> B x.1) (snd A B)
+eqSnd A B = mapOnPathD (Sigma A B) (\x -> B x.1) (\x -> x.2)
 
 eqPair1 : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
         Id (Sigma A B) (a0,b0) (a1,b1) -> Id A a0 a1
@@ -20,9 +20,6 @@ eqPair1 A B a0 a1 b0 b1 = eqFst A B (a0,b0) (a1,b1)
 --        (p : Id (Sigma A B) (pair a0 b0) (pair a1 b1)) ->
 --        IdS A B a0 a1 (eqPair1 A B a0 a1 b0 b1 p) b0 b1
 -- eqPair2 A B a0 a1 b0 b1 = eqSnd A B (pair a0 b0) (pair a1 b1)
-
--- expandedPair : (A : U) (B : A -> U) -> Sigma A B -> Sigma A B
--- expandedPair A B x = pair (fst A B x) (snd A B x)
 
 -- conversion test:
 reflIdIdP : (A:U) (a b : A) -> Id U (Id A a b) (IdP A A (refl U A) a b)
@@ -35,11 +32,11 @@ reflS A F a b = refl (F a) b
 -- conversion test:
 composeMapOnPath : (A : U) (B : A -> U) (u v : Sigma A B) ->
                    (p : Id (Sigma A B) u v) ->
-  Id (Id U (B (fst A B u)) (B (fst A B v)))
-    (mapOnPath (Sigma A B) U (\x -> B (fst A B x)) u v p)
-    (mapOnPath A U B (fst A B u) (fst A B v) (mapOnPath (Sigma A B) A (fst A B) u v p))
-composeMapOnPath A B u v p = refl (Id U (B (fst A B u)) (B (fst A B v)))
-          (mapOnPath (Sigma A B) U (\x -> B (fst A B x)) u v p)
+  Id (Id U (B u.1) (B v.1))
+    (mapOnPath (Sigma A B) U (\x -> B x.1) u v p)
+    (mapOnPath A U B u.1 v.1 (mapOnPath (Sigma A B) A (\x -> x.1) u v p))
+composeMapOnPath A B u v p = refl (Id U (B u.1) (B v.1))
+          (mapOnPath (Sigma A B) U (\x -> B x.1) u v p)
 
 eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
            Id U
@@ -85,6 +82,6 @@ pairEq A B a0 a1 b0 b1 p q =
 test : (A B:U) (a0 a1:A) (b0 b1:B) (p:Id A a0 a1) (q:Id B b0 b1) ->
          Id (Id A a0 a1)
             p
-            (mapOnPath (and A B) A (fst A (\ _ -> B)) (a0, b0) (a1, b1)
+            (mapOnPath (and A B) A (\x -> x.1) (a0, b0) (a1, b1)
                        (pairEq A B a0 a1 b0 b1 p q))
 test A B a0 a1 b0 b1 p q = refl (Id A a0 a1) p

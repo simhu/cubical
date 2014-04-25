@@ -23,7 +23,7 @@ sub21 : (A:U) -> subset2 A -> subset1 A
 sub21 A P = (Sigma A P,\ x -> x.1)
 
 retsub : (A:U) -> (P : subset2 A) -> Id (subset2 A) (sub12 A (sub21 A P)) P
-retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (fst A P)) P (lem1Sub A P)
+retsub A P = funExt A (\ _ -> U) (fiber (Sigma A P) A (\x -> x.1)) P (lem1Sub A P)
 
 -- in the other direction we use a corollary of equivalence
 

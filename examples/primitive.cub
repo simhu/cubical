@@ -17,13 +17,6 @@ inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 
 Sigma : (A : U) (B : A -> U) -> U
 Sigma A B = (x : A) * B x
--- data Sigma A B = pair (x : A) (y : B x)
-
-fst : (A : U) (B : A -> U) -> Sigma A B -> A
-fst A B z = z.1
-
-snd : (A : U) (B : A -> U) (z : Sigma A B) -> B (z.1)
-snd A B z = z.2
 
 fiber : (A B : U) (f : A -> B) (y : B) -> U
 fiber A B f y = Sigma A (\x -> Id B (f x) y)

@@ -30,10 +30,10 @@ hedberg A h a b p q = lemSimpl A a a b r p q rem5
     rem1 x y = decConst (Id A x y) (h x y)
 
     f : (x y : A) -> Id A x y -> Id A x y
-    f x y = fst (Id A x y -> Id A x y) (const (Id A x y)) (rem1 x y)
+    f x y = (rem1 x y).1
 
     fIsConst : (x y : A) -> const (Id A x y) (f x y)
-    fIsConst x y = snd (Id A x y -> Id A x y) (const (Id A x y)) (rem1 x y)
+    fIsConst x y = (rem1 x y).2
 
     r : Id A a a
     r = f a a (refl A a)
