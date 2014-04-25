@@ -81,7 +81,7 @@ loop : Id S1 base base
 
 S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) -> F x
 
-
+-- The interval.
 I : U
 
 I0 : I

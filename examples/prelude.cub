@@ -1,5 +1,4 @@
 -- some basic data types and functions
-
 module prelude where
 
 import primitive
@@ -135,8 +134,6 @@ appId A B a = mapOnPath (A->B) B (\ f -> f a)
 appEq : (A :U) (B : A -> U) (a : A) (f0 f1 : Pi A B) -> Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
 appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 
--- subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
-
 J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U) (d: C a (refl A a)) (x : A) (p : Id A a x)
       -> C x p
 J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
@@ -174,10 +171,6 @@ etaId A B f = funExt A B (\ x -> f x) f (\ x -> refl (B x) (f x))
 
 funSplit : (A:U) (B:A->U) (C: (Pi A B) -> U) -> ((f:Pi A B) -> C (\ x -> f x)) -> Pi (Pi A B) C
 funSplit A B C eC f = subst (Pi A B) C (\ x -> f x) f (etaId A B f) (eC f)
-
--- TODO: not needed anymore
-surjPair : (A:U) (B:A -> U) -> (s:Sigma A B) -> Id (Sigma A B) (s.1, s.2) s
-surjPair A B = refl (Sigma A B)
 
 lemProp1 : (A : U) -> (A -> prop A) -> prop A
 lemProp1 A h a0 = h a0 a0

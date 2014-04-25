@@ -10,22 +10,11 @@ comp A a b c p q = subst A (Id A a) b c q p
 compInvIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) p (comp A a b b p (refl A b))
 compInvIdr A a b p = substeq A (\x -> Id A a x) b p
 
--- test : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) p (comp A a b b p (refl A a))
--- test A a b p = refl (Id A a b) p
-
--- S1recId : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) 
---         -> Id (IdS S1 F base base loop b b)
---               (mapOnPathD S1 F (S1rec F b l) base base loop)
---               (comp l 
--- S1recId = PN
-
-
-
 inv : (A : U) -> (a b :A) -> Id A a b -> Id A b a
-inv A a b p = subst A (\ x -> Id A x a) a b p (refl A a)
+inv A a b p = subst A (\x -> Id A x a) a b p (refl A a)
 
 invRefl : (A:U) -> (a:A) -> Id (Id A a a) (refl A a) (inv A a a (refl A a))
-invRefl A a = substeq A  (\ x -> Id A x a) a (refl A a)
+invRefl A a = substeq A  (\x -> Id A x a) a (refl A a)
 
 compIdr : (A : U) -> (a b : A) -> (p : Id A a b) -> Id (Id A a b) (comp A a b b p (refl A b)) p
 compIdr A a b p = inv (Id A a b) p (comp A a b b p (refl A b)) (compInvIdr A a b p)
@@ -52,8 +41,6 @@ idEuclid : (A : U) -> euclidean A (Id A)
 idEuclid A a b c p q = transpInv (Id A a b) (Id A a c) rem p
  where rem : Id U (Id A a b) (Id A a c)
        rem = mapOnPath A U (Id A a) b c q
--- euclidean A R = (a b c : A) -> R a c -> R b c -> R a b
--- idEuclid A a b c p r = comp A a c b p (inv A b c r)
 
 -- similarity with ssreflect?? start to use equality on U
 
@@ -63,17 +50,9 @@ lemUpDown A a a' b b' p q =
 
 compUp : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a b -> Id A a' b'
 compUp A a a' b b' p q = transport (Id A a b) (Id A a' b') (lemUpDown A a a' b b' p q)
--- subst A (\ x -> Id A x b') a a' p rem
--- where
---  rem : Id A a b'
---  rem = comp A a b b' r q
 
 compDown : (A:U) -> (a a' b b':A) -> Id A a a' -> Id A b b' -> Id A a' b' -> Id A a b
 compDown A a a' b b' p q = transpInv (Id A a b) (Id A a' b') (lemUpDown A a a' b b' p q)
--- subst A (\ x -> Id A a x) b' b (inv A b b' q) rem
--- where
---  rem : Id A a b'
---  rem = comp A a a' b' p r
 
 lemInv : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
@@ -136,7 +115,3 @@ eqPropFam : (A : U) (B : A -> U) (h : propFam A B) (au bv : Sigma A B) ->
             Id A au.1 bv.1 -> Id (Sigma A B) au bv
 eqPropFam A B h au bv p =
   eqSigma A B au.1 bv.1 p au.2 bv.2 (h bv.1 (subst A B au.1 bv.1 p au.2) bv.2)
-
-
--- unCurry : (A B : U) (P :A -> U) (f : (x:A) -> P x -> B) -> (Sigma A P) -> B
--- unCurry A B P f z = f z.1 z.2
