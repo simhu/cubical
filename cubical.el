@@ -23,6 +23,15 @@
     (,cub-def-regexp . font-lock-function-name-face)
 ))
 
+;; command to comment/uncomment text
+(defun cub-comment-dwim (arg)
+  "Comment or uncomment current line or region in a smart way. For detail, see `comment-dwim'."
+  (interactive "*P")
+  (require 'newcomment)
+  (let ((comment-start "--") (comment-end ""))
+    (comment-dwim arg)))
+
+
 ;; syntax table for comments, same as for haskell-mode
 (defvar cub-syntax-table
   (let ((st (make-syntax-table)))
@@ -42,6 +51,9 @@
   ;; code for syntax highlighting
   (setq font-lock-defaults '(cub-font-lock-keywords))
   (setq mode-name "cub")
+
+  ;; modify the keymap
+  (define-key cub-mode-map [remap comment-dwim] 'cub-comment-dwim)
 
   ;; clear memory
   (setq cub-keywords-regexp nil)
