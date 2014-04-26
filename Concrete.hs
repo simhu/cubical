@@ -145,10 +145,10 @@ resolveExp (App t s)    = C.mkApps <$> resolveExp x <*> mapM resolveExp xs
   where (x, xs) = unApps t [s]
 resolveExp (Sigma t b)  = case pseudoTele t of
   Just tele -> binds C.Sigma tele (resolveExp b)
-  Nothing   -> throwError "telescope malformed in Sigma"
+  Nothing   -> throwError "Telescope malformed in Sigma"
 resolveExp (Pi t b)     =  case pseudoTele t of
   Just tele -> binds C.Pi tele (resolveExp b)
-  Nothing   -> throwError "telescope malformed in Pigma"
+  Nothing   -> throwError "Telescope malformed in Pigma"
 resolveExp (Fun a b)    = bind C.Pi (AIdent ((0,0),"_"), a) (resolveExp b)
 resolveExp (Lam x xs t) = lams (x:xs) (resolveExp t)
 resolveExp (Fst t)      = C.Fst <$> resolveExp t
@@ -184,15 +184,15 @@ declsLabels :: [Decl] -> Resolver [C.Binder]
 declsLabels decls = mapM resolveBinder [lbl | Label lbl _ <- sums]
   where sums = concat [sum | DeclData _ _ sum <- decls]
 
--- resolve Data or Def declaration
+-- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
 resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
   (n,) <$> lams args (resolveWhere body)
 resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
   (n,) <$> lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
-resolveDDecl d = throwError $ "Definition expected " ++ show d
+resolveDDecl d = throwError $ "Definition expected" <+> show d
 
--- resolve mutual declarations (possibly one)
+-- Resolve mutual declarations (possibly one)
 resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,SymKind)])
 resolveMutuals decls = do
     binders <- mapM resolveBinder idents
@@ -212,43 +212,43 @@ resolveMutuals decls = do
     names  = [ unAIdent x | x <- idents ]
     tdecls = [ (x,t) | DeclType x t <- decls ]
     ddecls = [ t | t <- decls, not $ isTDecl t ]
-    isTDecl d = case d of DeclType {} -> True; _ -> False
+    isTDecl d = case d of DeclType{} -> True; _ -> False
 
+-- Resolve opaque/transparent decls
+resolveOTDecl :: (C.Binder -> C.ODecls) -> AIdent -> [Decl] ->
+                 Resolver ([C.ODecls],[(C.Binder,SymKind)])
+resolveOTDecl c n ds = do
+  vars         <- getVariables
+  (rest,names) <- resolveDecls ds
+  case C.getBinder (unAIdent n) vars of
+    Just x  -> return (c x : rest, names)
+    Nothing -> throwError $ "Not in scope:" <+> show n
+
+-- Resolve declarations
 resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
-resolveDecls []                  = return ([],[])
-resolveDecls (DeclOpaque n:ds) = do
-  vars         <- getVariables
-  (rest,names) <- resolveDecls ds
-  case C.getBinder (unAIdent n) vars of
-    Just x  -> return (C.Opaque x : rest, names)
-    Nothing -> throwError $ "Not in scope " ++ show n
-resolveDecls (DeclTransp n:ds) = do
-  vars         <- getVariables
-  (rest,names) <- resolveDecls ds
-  case C.getBinder (unAIdent n) vars of
-    Just x  -> return (C.Transparent x : rest, names)
-    Nothing -> throwError $ "Not in scope" <+> show n
-resolveDecls (td@(DeclType x t):ds) = case (C.mkPN (unAIdent x), ds) of
-  (Just pn, ds) -> do
+resolveDecls []                   = return ([],[])
+resolveDecls (DeclOpaque n:ds)    = resolveOTDecl C.Opaque n ds
+resolveDecls (DeclTransp n:ds)    = resolveOTDecl C.Transp n ds
+resolveDecls (td@DeclType{}:d:ds) = do
+    (rtd,names)  <- resolveMutuals [td,d]
+    (rds,names') <- local (insertBinders names) $ resolveDecls ds
+    return (C.ODecls rtd : rds, names' ++ names)
+resolveDecls (DeclPrim x t:ds) = case C.mkPN (unAIdent x) of
+  Just pn -> do
     b  <- resolveBinder x
     rt <- resolveExp t
     (rds,names) <- local (insertVar b) $ resolveDecls ds
     return (C.ODecls [(b, rt, C.PN pn)] : rds, names ++ [(b,Variable)])
-  (Nothing, d:ds) -> do
-    (rtd,names)  <- resolveMutuals [td,d]
-    (rds,names') <- local (insertBinders names) $ resolveDecls ds
-    return (C.ODecls rtd : rds, names' ++ names)
-  (Nothing, []) -> throwError $
-    "Missing definition for" <+> unAIdent x <+> "(not a primitive)"
+  Nothing -> throwError $ "Primitive notion not defined:" <+> unAIdent x
 resolveDecls (DeclMutual defs : ds) = do
   (rdefs,names)  <- resolveMutuals defs
   (rds,  names') <- local (insertBinders names) $ resolveDecls ds
   return (C.ODecls rdefs : rds, names' ++ names)
-resolveDecls (decl:_) = throwError $ "Invalid declaration" <+> show decl
+resolveDecls (decl:_) = throwError $ "Invalid declaration:" <+> show decl
 
 resolveModule :: Module -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
-resolveModule (Module id imports decls) =
-  local (updateModule $ unAIdent id) $ resolveDecls decls
+resolveModule (Module n imports decls) =
+  local (updateModule $ unAIdent n) $ resolveDecls decls
 
 resolveModules :: [Module] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveModules []         = return ([],[])

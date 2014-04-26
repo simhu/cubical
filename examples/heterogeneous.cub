@@ -1,6 +1,6 @@
 module heterogeneous where
 
-import primitive
+import primitives
 import prelude
 import gradLemma
 

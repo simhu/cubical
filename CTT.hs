@@ -34,9 +34,9 @@ type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
 type Decls  = [(Binder,Ter,Ter)]
-data ODecls = ODecls        Decls
-            | Opaque        Binder
-            | Transparent   Binder
+data ODecls = ODecls Decls
+            | Opaque Binder
+            | Transp Binder
   deriving (Eq,Show)
 
 declIdents :: Decls -> [Ident]
@@ -651,7 +651,7 @@ oPair (OEnv e o) u = OEnv (Pair e u) o
 oPDef :: Bool -> ODecls -> OEnv -> OEnv
 oPDef _    (ODecls decls)  (OEnv e o) = OEnv (PDef [(x,d) | (x,_,d) <- decls] e) o
 oPDef True (Opaque d)      (OEnv e o) = OEnv e (d:o)
-oPDef True (Transparent d) (OEnv e o) = OEnv e (d `delete` o)
+oPDef True (Transp d)      (OEnv e o) = OEnv e (d `delete` o)
 oPDef _ _ e = e
 
 instance Show OEnv where
@@ -745,9 +745,9 @@ showDecls :: Decls -> String
 showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
 
 showODecls :: ODecls -> String
-showODecls (ODecls defs)   = showDecls defs
-showODecls (Opaque x)      = "opaque"      ++ show x
-showODecls (Transparent x) = "transparent" ++ show x
+showODecls (ODecls defs) = showDecls defs
+showODecls (Opaque x)    = "opaque"      <+> show x
+showODecls (Transp x)    = "transparent" <+> show x
 
 instance Show Val where
   show = showVal

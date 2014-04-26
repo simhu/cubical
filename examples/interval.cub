@@ -1,6 +1,6 @@
 module interval where
 
-import primitive
+import primitives
 
 funExt' : (A : U) (B : A -> U) (f g : (x : A) -> B x) ->
           ((x : A) -> Id (B x) (f x) (g x)) -> Id ((x : A) -> B x) f g

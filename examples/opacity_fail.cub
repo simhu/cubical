@@ -1,6 +1,6 @@
 module opacity_fail where
 
-import primitive
+import primitives
 
 Bool : U
 data Bool = true | false

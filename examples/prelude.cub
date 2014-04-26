@@ -1,7 +1,7 @@
 -- some basic data types and functions
 module prelude where
 
-import primitive
+import primitives
 
 rel : U -> U
 rel A = A -> A -> U
