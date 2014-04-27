@@ -36,7 +36,6 @@ Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
-
 coercions Exp 3 ;
 
 -- Branches
@@ -48,12 +47,12 @@ Label.    Label   ::= AIdent [VTDecl] ;
 separator Label "|" ;
 
 -- Telescopes
-VTDecl.     VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;
+VTDecl.    VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;
 terminator VTDecl "" ;
 
--- Nonempty telescopes with Exp:s, this is hack to avoid ambiguities in the
--- grammar when parsing Pi
-PseudoTDecl.   PseudoTDecl ::= "(" Exp ":" Exp ")" ;
+-- Nonempty telescopes with Exp:s, this is hack to avoid ambiguities
+-- in the grammar when parsing Pi
+PseudoTDecl. PseudoTDecl ::= "(" Exp ":" Exp ")" ;
 terminator nonempty PseudoTDecl "" ;
 
 position token AIdent ((letter|'\''|'_')(letter|digit|'\''|'_')*) ;
