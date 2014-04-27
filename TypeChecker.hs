@@ -7,6 +7,7 @@ module TypeChecker ( runDecls
                    ) where
 
 import Data.Either
+import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Monoid hiding (Sum)
@@ -149,10 +150,12 @@ check a t = case (a,t) of
     check VU a
     localM (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
-  (VPi (Ter (Sum _ cas) nu) f,Split _ ces) ->
-    if sort (map fst ces) == sort [n | ((n,_),_) <- cas]
+  (VPi (Ter (Sum _ cas) nu) f,Split _ ces) -> do
+    let cas' = sortBy (compare `on` fst . fst) cas
+        ces' = sortBy (compare `on` fst) ces
+    if map (fst . fst) cas' == map fst ces'
        then sequence_ [ checkBranch (as,nu) f brc
-                      | (brc, (_,as)) <- zip ces cas ]
+                      | (brc, (_,as)) <- zip ces' cas' ]
        else throwError "case branches does not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
