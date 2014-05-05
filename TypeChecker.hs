@@ -1,10 +1,4 @@
-module TypeChecker ( runDecls
-                   , runDeclss
-                   , runInfer
-                   , TEnv(..)
-                   , verboseEnv
-                   , silentEnv
-                   ) where
+module TypeChecker where
 
 import Data.Either
 import Data.Function
@@ -22,24 +16,66 @@ import Pretty
 import CTT
 import Eval
 
+-- Type checking monad
+type Typing a = ReaderT TEnv (ErrorT String IO) a
+
+-- Environment for type checker
+data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
+                 , env     :: Env
+                 , ctxt    :: Ctxt
+                 , verbose :: Bool  -- Should it be verbose and print
+                                    -- what it typechecks?
+                 }
+  deriving (Eq,Show)
+
+verboseEnv, silentEnv :: TEnv
+verboseEnv = TEnv 0 Empty [] True
+silentEnv  = TEnv 0 Empty [] False
+
+addTypeVal :: (Binder,Val) -> TEnv -> TEnv
+addTypeVal p@(x,_) (TEnv k rho gam v) =
+  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
+
+addType :: (Binder,Ter) -> TEnv -> Typing TEnv
+addType (x,a) tenv@(TEnv _ rho _ _) = do
+  return $ addTypeVal (x,eval rho a) tenv
+
+addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Typing Ctxt
+addC gam _             []          = return gam
+addC gam ((y,a):as,nu) ((x,u):xus) = 
+  addC ((x,eval nu a):gam) (as,Pair nu (y,u)) xus
+
+addBranch :: [(Binder,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
+addBranch nvs (tele,env) (TEnv k rho gam v) = do
+  e <- addC gam (tele,env) nvs
+  return $ TEnv (k + length nvs) (upds rho nvs) e v
+
+addDecls :: Decls -> TEnv -> Typing TEnv
+addDecls d (TEnv k rho gam v) = do
+  let rho1 = PDef [ (x,y) | (x,_,y) <- d ] rho
+      es' = evals rho1 (declDefs d)
+  gam' <- addC gam (declTele d,rho) es'
+  return $ TEnv k rho1 gam' v
+-- addDecls od tenv = return $ tenv {oenv = oPDef True od (oenv tenv)}
+
+addTele :: Tele -> TEnv -> Typing TEnv
+addTele xas lenv = foldM (flip addType) lenv xas
+
 trace :: String -> Typing ()
 trace s = do
   b <- verbose <$> ask
   when b $ liftIO (putStrLn s)
 
--- Type checking monad
-type Typing a = ReaderT TEnv (ErrorT String Eval) a
-
 runTyping :: Bool -> TEnv -> Typing a -> IO (Either String a)
-runTyping debug env t = runEval debug $ runErrorT $ runReaderT t env
+runTyping debug env t = runErrorT $ runReaderT t env
 
 -- Used in the interaction loop
-runDecls :: Bool -> TEnv -> ODecls -> IO (Either String TEnv)
+runDecls :: Bool -> TEnv -> Decls -> IO (Either String TEnv)
 runDecls debug tenv d = runTyping debug tenv $ do
   checkDecls d
   addDecls d tenv
 
-runDeclss :: Bool -> TEnv -> [ODecls] -> IO (Maybe String,TEnv)
+runDeclss :: Bool -> TEnv -> [Decls] -> IO (Maybe String,TEnv)
 runDeclss _ tenv []         = return (Nothing, tenv)
 runDeclss debug tenv (d:ds) = do
   x <- runDecls debug tenv d
@@ -50,60 +86,14 @@ runDeclss debug tenv (d:ds) = do
 runInfer :: Bool -> TEnv -> Ter -> IO (Either String Val)
 runInfer debug lenv e = runTyping debug lenv (checkInfer e)
 
-liftEval :: Eval a -> Typing a
-liftEval = lift . lift
-
-addC :: Ctxt -> (Tele,OEnv) -> [(Binder,Val)] -> Typing Ctxt
-addC gam _             []          = return gam
-addC gam ((y,a):as,nu) ((x,u):xus) = do
-  v <- liftEval $ eval nu a
-  addC ((x,v):gam) (as,oPair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
-getLblType :: String -> Val -> Typing (Tele, OEnv)
+getLblType :: String -> Val -> Typing (Tele, Env)
 getLblType c (Ter (Sum _ cas) r) = case getIdent c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
-
--- Environment for type checker
-data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
-                 , oenv     :: OEnv
-                 , ctxt    :: Ctxt
-                 , verbose :: Bool  -- Should it be verbose and print
-                                    -- what it typechecks?
-                 }
-  deriving (Eq,Show)
-
-verboseEnv, silentEnv :: TEnv
-verboseEnv = TEnv 0 oEmpty [] True
-silentEnv  = TEnv 0 oEmpty [] False
-
-addTypeVal :: (Binder,Val) -> TEnv -> TEnv
-addTypeVal p@(x,_) (TEnv k rho gam v) =
-  TEnv (k+1) (oPair rho (x,mkVar k (support rho))) (p:gam) v
-
-addType :: (Binder,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ rho _ _) = do
-  v <- liftEval $ eval rho a
-  return $ addTypeVal (x,v) tenv
-
-addBranch :: [(Binder,Val)] -> (Tele,OEnv) -> TEnv -> Typing TEnv
-addBranch nvs (tele,env) (TEnv k rho gam v) = do
-  e <- addC gam (tele,env) nvs
-  return $ TEnv (k + length nvs) (upds rho nvs) e v
-
-addDecls :: ODecls -> TEnv -> Typing TEnv
-addDecls od@(ODecls d) (TEnv k rho gam v) = do
-  let rho1 = oPDef True od rho
-  es'  <- liftEval $ evals rho1 (declDefs d)
-  gam' <- addC gam (declTele d,rho) es'
-  return $ TEnv k rho1 gam' v
-addDecls od tenv = return $ tenv {oenv = oPDef True od (oenv tenv)}
-
-addTele :: Tele -> TEnv -> Typing TEnv
-addTele xas lenv = foldM (flip addType) lenv xas
 
 -- Useful monadic versions of functions:
 checkM :: Typing Val -> Ter -> Typing ()
@@ -120,17 +110,16 @@ localM f r = do
 getFresh :: Typing Val
 getFresh = do
     k <- index <$> ask
-    e <- oenv <$> ask
+    e <- asks env
     return $ mkVar k (support e)
 
-checkDecls :: ODecls -> Typing ()
-checkDecls (ODecls d) = do
+checkDecls :: Decls -> Typing ()
+checkDecls d = do
   let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
   trace ("Checking: " ++ unwords idents)
   checkTele tele
-  rho <- oenv <$> ask
+  rho <- asks env
   localM (addTele tele) $ checks (tele,rho) ters
-checkDecls _ = return ()
 
 checkTele :: Tele -> Typing ()
 checkTele []          = return ()
@@ -159,32 +148,30 @@ check a t = case (a,t) of
        else throwError "case branches does not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
-    local (addTypeVal (x,a)) $ checkM (liftEval (app f var)) t
+    local (addTypeVal (x,a)) $ check (app f var) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
-    e <- oenv <$> ask
-    v <- liftEval $ eval e t1
-    checkM (liftEval (app f v)) t2
+    e <- asks env
+    let v = eval e t1
+    check (app f v) t2
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
-  (_,PN _) -> return ()
   _ -> do
     v <- checkInfer t
     k <- index <$> ask
-    b <- liftEval $ conv k v a
+    let b = conv k v a
     unless b $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
-checkBranch :: (Tele,OEnv) -> Val -> Brc -> Typing ()
+checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
-  k     <- index <$> ask
-  env   <- oenv <$> ask
+  k     <- asks index
+  env   <- asks env
   let d  = support env
       l  = length xas
       us = map (`mkVar` d) [k..k+l-1]
-  localM (addBranch (zip xs us) (xas,nu))
-    $ checkM (liftEval (app f (VCon c us))) e
+  localM (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
@@ -199,9 +186,9 @@ checkInfer e = case e of
     case c of
       VPi a f -> do
         check a u
-        rho <- oenv <$> ask
-        v   <- liftEval $ eval rho u
-        liftEval $ app f v
+        rho <- asks env
+        let v = eval rho u
+        return $ app f v
       _       -> throwError $ show c ++ " is not a product"
   Fst t -> do
     c <- checkInfer t
@@ -212,23 +199,23 @@ checkInfer e = case e of
     c <- checkInfer t
     case c of
       VSigma a f -> do
-        e <- oenv <$> ask
-        v <- liftEval $ eval e t
-        liftEval $ app f (fstSVal v)
+        e <- asks env
+        let v = eval e t
+        return $ app f (fstSVal v)
       _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t
   _ -> throwError ("checkInfer " ++ show e)
 
-checks :: (Tele,OEnv) -> [Ter] -> Typing ()
+checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  v   <- liftEval $ eval nu a
+  let v = eval nu a
   check v e
-  rho <- oenv <$> ask
-  v'  <- liftEval $ eval rho e
-  checks (xas,oPair nu (x,v')) es
+  rho <- asks env
+  let v' = eval rho e
+  checks (xas,Pair nu (x,v')) es
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U

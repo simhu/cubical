@@ -14,11 +14,8 @@ separator Imp ";" ;
 
 DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
 DeclType.   Decl ::= AIdent ":" Exp ;
-DeclPrim.   Decl ::= "primitive" AIdent ":" Exp ;
 DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
 DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
-DeclOpaque. Decl ::= "opaque" AIdent ;
-DeclTransp. Decl ::= "transparent" AIdent ;
 separator   Decl ";" ;
 
 Where.    ExpWhere ::= Exp "where" "{" [Decl] "}" ;

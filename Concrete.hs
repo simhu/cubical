@@ -115,7 +115,7 @@ resolveBinder (AIdent (l,x)) = do l <- getLoc l; return (x, l)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
-  | (x == "_") || (x == "undefined") = C.PN <$> C.Undef <$> getLoc l
+  | (x == "_") || (x == "undefined") = C.Undef <$> getLoc l
   | otherwise = do
     modName <- getModule
     vars    <- getVariables
@@ -214,43 +214,24 @@ resolveMutuals decls = do
     ddecls = [ t | t <- decls, not $ isTDecl t ]
     isTDecl d = case d of DeclType{} -> True; _ -> False
 
--- Resolve opaque/transparent decls
-resolveOTDecl :: (C.Binder -> C.ODecls) -> AIdent -> [Decl] ->
-                 Resolver ([C.ODecls],[(C.Binder,SymKind)])
-resolveOTDecl c n ds = do
-  vars         <- getVariables
-  (rest,names) <- resolveDecls ds
-  case C.getBinder (unAIdent n) vars of
-    Just x  -> return (c x : rest, names)
-    Nothing -> throwError $ "Not in scope:" <+> show n
-
 -- Resolve declarations
-resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
+resolveDecls :: [Decl] -> Resolver ([C.Decls],[(C.Binder,SymKind)])
 resolveDecls []                   = return ([],[])
-resolveDecls (DeclOpaque n:ds)    = resolveOTDecl C.Opaque n ds
-resolveDecls (DeclTransp n:ds)    = resolveOTDecl C.Transp n ds
 resolveDecls (td@DeclType{}:d:ds) = do
     (rtd,names)  <- resolveMutuals [td,d]
     (rds,names') <- local (insertBinders names) $ resolveDecls ds
-    return (C.ODecls rtd : rds, names' ++ names)
-resolveDecls (DeclPrim x t:ds) = case C.mkPN (unAIdent x) of
-  Just pn -> do
-    b  <- resolveBinder x
-    rt <- resolveExp t
-    (rds,names) <- local (insertVar b) $ resolveDecls ds
-    return (C.ODecls [(b, rt, C.PN pn)] : rds, names ++ [(b,Variable)])
-  Nothing -> throwError $ "Primitive notion not defined:" <+> unAIdent x
+    return (rtd : rds, names' ++ names)
 resolveDecls (DeclMutual defs : ds) = do
   (rdefs,names)  <- resolveMutuals defs
   (rds,  names') <- local (insertBinders names) $ resolveDecls ds
-  return (C.ODecls rdefs : rds, names' ++ names)
+  return (rdefs : rds, names' ++ names)
 resolveDecls (decl:_) = throwError $ "Invalid declaration:" <+> show decl
 
-resolveModule :: Module -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
+resolveModule :: Module -> Resolver ([C.Decls],[(C.Binder,SymKind)])
 resolveModule (Module n imports decls) =
   local (updateModule $ unAIdent n) $ resolveDecls decls
 
-resolveModules :: [Module] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
+resolveModules :: [Module] -> Resolver ([C.Decls],[(C.Binder,SymKind)])
 resolveModules []         = return ([],[])
 resolveModules (mod:mods) = do
   (rmod, names)  <- resolveModule mod

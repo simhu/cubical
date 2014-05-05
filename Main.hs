@@ -123,7 +123,7 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
             Left err -> do outputStrLn ("Could not type-check: " ++ err)
                            loop flags f names tenv
             Right _  -> do
-              e <- liftIO $ E.runEval (Debug `elem` flags) $ E.eval rho body
+              let e = E.eval rho body
               outputStrLn ("EVAL: " ++ show e)
               loop flags f names tenv
 
