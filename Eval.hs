@@ -20,20 +20,20 @@ look x r@(PDef es r1) = case lookupIdent x es of
   Nothing     -> look x r1
 
 eval :: Env -> Ter -> Val
-eval e U                 = VU
+eval e U               = VU
 eval e (App r s)       = app (eval e r) (eval e s)
-eval e (Var i)           = snd (look i e)
-eval e (Pi a b)          = VPi (eval e a) (eval e b)
-eval e (Lam x t)         = Ter (Lam x t) e -- stop at lambdas
-eval e (Sigma a b)       = VSigma (eval e a) (eval e b)
-eval e (SPair a b)       = VSPair (eval e a) (eval e b)
-eval e (Fst a)           = fstSVal (eval e a)
-eval e (Snd a)           = sndSVal (eval e a)
-eval e (Where t decls)   = eval (PDef [ (x,y) | (x,_,y) <- decls ] e) t
-eval e (Con name ts)     = VCon name (map (eval e) ts)
-eval e (Split pr alts)   = Ter (Split pr alts) e
-eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
-eval e (Undef _)         = error "undefined"
+eval e (Var i)         = snd (look i e)
+eval e (Pi a b)        = VPi (eval e a) (eval e b)
+eval e (Lam x t)       = Ter (Lam x t) e -- stop at lambdas
+eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
+eval e (SPair a b)     = VSPair (eval e a) (eval e b)
+eval e (Fst a)         = fstSVal (eval e a)
+eval e (Snd a)         = sndSVal (eval e a)
+eval e (Where t decls) = eval (PDef [ (x,y) | (x,_,y) <- decls ] e) t
+eval e (Con name ts)   = VCon name (map (eval e) ts)
+eval e (Split pr alts) = Ter (Split pr alts) e
+eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
+eval e (Undef _)       = error "undefined"
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))

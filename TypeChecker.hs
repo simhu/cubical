@@ -66,26 +66,25 @@ trace s = do
   b <- verbose <$> ask
   when b $ liftIO (putStrLn s)
 
-runTyping :: Bool -> TEnv -> Typing a -> IO (Either String a)
-runTyping debug env t = runErrorT $ runReaderT t env
+runTyping :: TEnv -> Typing a -> IO (Either String a)
+runTyping env t = runErrorT $ runReaderT t env
 
 -- Used in the interaction loop
-runDecls :: Bool -> TEnv -> Decls -> IO (Either String TEnv)
-runDecls debug tenv d = runTyping debug tenv $ do
+runDecls :: TEnv -> Decls -> IO (Either String TEnv)
+runDecls tenv d = runTyping tenv $ do
   checkDecls d
   addDecls d tenv
 
-runDeclss :: Bool -> TEnv -> [Decls] -> IO (Maybe String,TEnv)
-runDeclss _ tenv []         = return (Nothing, tenv)
-runDeclss debug tenv (d:ds) = do
-  x <- runDecls debug tenv d
+runDeclss :: TEnv -> [Decls] -> IO (Maybe String,TEnv)
+runDeclss tenv []         = return (Nothing, tenv)
+runDeclss tenv (d:ds) = do
+  x <- runDecls tenv d
   case x of
-    Right tenv' -> runDeclss debug tenv' ds
+    Right tenv' -> runDeclss tenv' ds
     Left s      -> return (Just s, tenv)
 
-runInfer :: Bool -> TEnv -> Ter -> IO (Either String Val)
-runInfer debug lenv e = runTyping debug lenv (checkInfer e)
-
+runInfer :: TEnv -> Ter -> IO (Either String Val)
+runInfer lenv e = runTyping lenv (checkInfer e)
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Val -> Typing (Tele, Env)
@@ -160,8 +159,7 @@ check a t = case (a,t) of
   _ -> do
     v <- checkInfer t
     k <- index <$> ask
-    let b = conv k v a
-    unless b $
+    unless (conv k v a) $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()

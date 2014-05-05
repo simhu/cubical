@@ -157,12 +157,12 @@ mkVar :: Int -> Dim -> Val
 mkVar k = VVar ('X' : show k)
 
 isNeutral :: Val -> Bool
-isNeutral (VApp u _)           = isNeutral u
-isNeutral (VSplit _ v)         = isNeutral v
-isNeutral (VVar _ _)           = True
-isNeutral (VFst v)             = isNeutral v
-isNeutral (VSnd v)             = isNeutral v
-isNeutral _                    = False
+isNeutral (VApp u _)   = isNeutral u
+isNeutral (VSplit _ v) = isNeutral v
+isNeutral (VVar _ _)   = True
+isNeutral (VFst v)     = isNeutral v
+isNeutral (VSnd v)     = isNeutral v
+isNeutral _            = False
 
 unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
@@ -172,18 +172,18 @@ unions :: Eq a => [[a]] -> [a]
 unions = foldr union []
 
 instance Nominal Val where
-  support VU                = []
-  support (Ter _ e)         = support e
-  support (VId a v0 v1)     = support [a,v0,v1]
-  support (VPi v1 v2)       = support [v1,v2]
-  support (VCon _ vs)       = support vs
-  support (VApp u v)           = support (u, v)
-  support (VSplit u v)         = support (u, v)
-  support (VVar x d)           = support d
-  support (VSigma u v)         = support (u,v)
-  support (VSPair u v)         = support (u,v)
-  support (VFst u)             = support u
-  support (VSnd u)             = support u
+  support VU            = []
+  support (Ter _ e)     = support e
+  support (VId a v0 v1) = support [a,v0,v1]
+  support (VPi v1 v2)   = support [v1,v2]
+  support (VCon _ vs)   = support vs
+  support (VApp u v)    = support (u, v)
+  support (VSplit u v)  = support (u, v)
+  support (VVar x d)    = support d
+  support (VSigma u v)  = support (u,v)
+  support (VSPair u v)  = support (u,v)
+  support (VFst u)      = support u
+  support (VSnd u)      = support u
 --  support v                    = error ("support " ++ show v)
 
   swap u x y =
@@ -191,15 +191,15 @@ instance Nominal Val where
     VU          -> VU
     Ter t e     -> Ter t (swap e x y)
     VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
-    VPi a f         -> VPi (sw a) (sw f)
-    VCon c us       -> VCon c (map sw us)
-    VApp u v           -> VApp (sw u) (sw v)
-    VSplit u v         -> VSplit (sw u) (sw v)
-    VVar s d           -> VVar s (swap d x y)
-    VSigma u v         -> VSigma (sw u) (sw v)
-    VSPair u v         -> VSPair (sw u) (sw v)
-    VFst u             -> VFst (sw u)
-    VSnd u             -> VSnd (sw u)
+    VPi a f     -> VPi (sw a) (sw f)
+    VCon c us   -> VCon c (map sw us)
+    VApp u v    -> VApp (sw u) (sw v)
+    VSplit u v  -> VSplit (sw u) (sw v)
+    VVar s d    -> VVar s (swap d x y)
+    VSigma u v  -> VSigma (sw u) (sw v)
+    VSPair u v  -> VSPair (sw u) (sw v)
+    VFst u      -> VFst (sw u)
+    VSnd u      -> VSnd (sw u)
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -241,11 +241,6 @@ mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
-mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
-mapEnvM _ Empty          = pure Empty
-mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
-mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
-
 valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
 valOfEnv (Pair env (_,v)) = v : valOfEnv env
@@ -261,20 +256,20 @@ instance Show Ter where
   show = showTer
 
 showTer :: Ter -> String
-showTer U                 = "U"
-showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
-showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
-showTer (Lam (x,_) e)         = '\\' : x <+> "->" <+> showTer e
-showTer (Fst e)           = showTer e ++ ".1"
-showTer (Snd e)           = showTer e ++ ".2"
-showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
-showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
-showTer (Where e d)       = showTer e <+> "where" <+> showDecls d
-showTer (Var x)           = x
-showTer (Con c es)        = c <+> showTers es
-showTer (Split l _)       = "split " ++ show l
-showTer (Sum l _)         = "sum " ++ show l
-showTer (Undef _)         = "undefined"
+showTer U             = "U"
+showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
+showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
+showTer (Lam (x,_) e) = '\\' : x <+> "->" <+> showTer e
+showTer (Fst e)       = showTer e ++ ".1"
+showTer (Snd e)       = showTer e ++ ".2"
+showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
+showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
+showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
+showTer (Var x)       = x
+showTer (Con c es)    = c <+> showTers es
+showTer (Split l _)   = "split " ++ show l
+showTer (Sum l _)     = "sum " ++ show l
+showTer (Undef _)     = "undefined"
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
@@ -294,18 +289,18 @@ instance Show Val where
   show = showVal
 
 showVal :: Val -> String
-showVal VU               = "U"
-showVal (Ter t env)      = show t <+> show env
-showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
-showVal (VCon c us)      = c <+> showVals us
-showVal (VPi a f)        = "Pi" <+> showVals [a,f]
-showVal (VApp u v)       = showVal u <+> showVal1 v
-showVal (VSplit u v)     = showVal u <+> showVal1 v
-showVal (VVar x d)       = x <+> showDim d
-showVal (VSPair u v)     = "pair" <+> showVals [u,v]
-showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
-showVal (VFst u)         = showVal u ++ ".1"
-showVal (VSnd u)         = showVal u ++ ".2"
+showVal VU           = "U"
+showVal (Ter t env)  = show t <+> show env
+showVal (VId a u v)  = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
+showVal (VCon c us)  = c <+> showVals us
+showVal (VPi a f)    = "Pi" <+> showVals [a,f]
+showVal (VApp u v)   = showVal u <+> showVal1 v
+showVal (VSplit u v) = showVal u <+> showVal1 v
+showVal (VVar x d)   = x <+> showDim d
+showVal (VSPair u v) = "pair" <+> showVals [u,v]
+showVal (VSigma u v) = "Sigma" <+> showVals [u,v]
+showVal (VFst u)     = showVal u ++ ".1"
+showVal (VSnd u)     = showVal u ++ ".2"
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
@@ -314,7 +309,7 @@ showVals :: [Val] -> String
 showVals = hcat . map showVal1
 
 showVal1 :: Val -> String
-showVal1 VU           = "U"
-showVal1 (VCon c [])  = c
-showVal1 u@(VVar{})   = showVal u
-showVal1 u            = parens $ showVal u
+showVal1 VU          = "U"
+showVal1 (VCon c []) = c
+showVal1 u@(VVar{})  = showVal u
+showVal1 u           = parens $ showVal u
