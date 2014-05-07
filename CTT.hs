@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 module CTT where
 
 import Control.Applicative
@@ -140,11 +139,9 @@ data Val = VU
          | Ter Ter Env
          | VPi Val Val
          | VId Val Val Val
-
          | VSigma Val Val
          | VSPair Val Val
          | VCon Ident [Val]
-
          -- neutral values
          | VApp Val Val            -- the first Val must be neutral
          | VSplit Val Val          -- the second Val must be neutral

@@ -37,8 +37,7 @@ addTypeVal p@(x,_) (TEnv k rho gam v) =
   TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
 
 addType :: (Binder,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ rho _ _) = do
-  return $ addTypeVal (x,eval rho a) tenv
+addType (x,a) tenv@(TEnv _ rho _ _) = return $ addTypeVal (x,eval rho a) tenv
 
 addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Typing Ctxt
 addC gam _             []          = return gam
@@ -56,7 +55,6 @@ addDecls d (TEnv k rho gam v) = do
       es' = evals rho1 (declDefs d)
   gam' <- addC gam (declTele d,rho) es'
   return $ TEnv k rho1 gam' v
--- addDecls od tenv = return $ tenv {oenv = oPDef True od (oenv tenv)}
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
@@ -95,11 +93,6 @@ getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
 -- Useful monadic versions of functions:
-checkM :: Typing Val -> Ter -> Typing ()
-checkM v t = do
-  v' <- v
-  check v' t
-
 localM :: (TEnv -> Typing TEnv) -> Typing a -> Typing a
 localM f r = do
   e <- ask
@@ -164,8 +157,8 @@ check a t = case (a,t) of
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
-  k     <- asks index
-  env   <- asks env
+  k   <- asks index
+  env <- asks env
   let d  = support env
       l  = length xas
       us = map (`mkVar` d) [k..k+l-1]

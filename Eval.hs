@@ -1,11 +1,5 @@
-{-# LANGUAGE TupleSections #-}
 module Eval where
 
-import Control.Applicative
-import Control.Arrow (second)
-import Control.Monad
-import Control.Monad.Reader
-import Data.Functor.Identity
 import Data.List
 import Data.Maybe (fromMaybe)
 
@@ -36,20 +30,19 @@ eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval e (Undef _)       = error "undefined"
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
-evals env = map (second (eval env))
+evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
 app :: Val -> Val -> Val
-app (Ter (Lam x t) e) u                         = eval (Pair e (x,u)) t
+app (Ter (Lam x t) e) u = eval (Pair e (x,u)) t
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
-app u@(Ter (Split _ _) _) v
-  | isNeutral v = VSplit u v -- v should be neutral
-  | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
-app r s
-  | isNeutral r = VApp r s -- r should be neutral
-  | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
+app u@(Ter (Split _ _) _) v | isNeutral v = VSplit u v -- v should be neutral
+                            | otherwise   = error $ "app: VSplit " ++ show v
+                                                  ++ " is not neutral"
+app r s | isNeutral r = VApp r s -- r should be neutral
+        | otherwise   = error $ "app: VApp " ++ show r ++ " is not neutral"
 
 
 fstSVal, sndSVal :: Val -> Val
@@ -206,19 +199,19 @@ conv k (VPi u v) (VPi u' v') = do
 conv k (VSigma u v) (VSigma u' v') = do
   let w = mkVar k $ support [u,u',v,v']
   conv k u u' && conv (k+1) (app v w) (app v' w)
-conv k (VFst u) (VFst u')                     = conv k u u'
-conv k (VSnd u) (VSnd u')                     = conv k u u'
+conv k (VFst u) (VFst u') = conv k u u'
+conv k (VSnd u) (VSnd u') = conv k u u'
 conv k (VCon c us) (VCon c' us') =
   (c == c') && and (zipWith (conv k) us us')
-conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
-conv k (VSPair u v)   w                =
+conv k (VSPair u v) (VSPair u' v')   = conv k u u' && conv k v v'
+conv k (VSPair u v) w                =
   conv k u (fstSVal w) && conv k v (sndSVal w)
-conv k w              (VSPair u v)     =
+conv k w            (VSPair u v)     =
   conv k (fstSVal w) u && conv k (sndSVal w) v
-conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
-conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
-conv k (VVar x d)     (VVar x' d')     = (x == x') && (d == d')
-conv k _              _                = False
+conv k (VApp u v)     (VApp u' v')   = conv k u u' && conv k v v'
+conv k (VSplit u v)   (VSplit u' v') = conv k u u' && conv k v v'
+conv k (VVar x d)     (VVar x' d')   = (x == x') && (d == d')
+conv k _              _              = False
 
 convEnv :: Int -> Env -> Env -> Bool
 convEnv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
