@@ -511,19 +511,19 @@ unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
 unionsMap f = unions . map f
 
 instance Nominal Val where
-  support VU                = []
-  support (Ter _ e)         = support e
-  support (VId a v0 v1)     = support [a,v0,v1]
-  support (Path x v)        = delete x $ support v
-  support (VInh v)          = support v
-  support (VInc v)          = support v
-  support (VPi v1 v2)       = support [v1,v2]
-  support (VCon _ vs)       = support vs
-  support (VSquash x v0 v1) = support (x, [v0,v1])
-  -- support (VExt x b f g p)  = support (x, [b,f,g,p])
-  support (VHExt x b f g p) = support (x, [b,f,g,p])
-  support (Kan Fill a box)  = support (a, box)
-  support (VFillN a box)    = support (a, box)
+  support VU                            = []
+  support (Ter _ e)                     = support e
+  support (VId a v0 v1)                 = support [a,v0,v1]
+  support (Path x v)                    = delete x $ support v
+  support (VInh v)                      = support v
+  support (VInc v)                      = support v
+  support (VPi v1 v2)                   = support [v1,v2]
+  support (VCon _ vs)                   = support vs
+  support (VSquash x v0 v1)             = support (x, [v0,v1])
+  -- support (VExt x b f g p)           = support (x, [b,f,g,p])
+  support (VHExt x b f g p)             = support (x, [b,f,g,p])
+  support (Kan Fill a box)              = support (a, box)
+  support (VFillN a box)                = support (a, box)
   support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
   support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
   support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
@@ -532,87 +532,69 @@ instance Nominal Val where
   support (VPair x a v)                 = support (x, [a,v])
   support (VComp box@(Box _ n _ _))     = delete n $ support box
   support (VFill x box)                 = delete x $ support box
-  support (VApp u v)           = support (u, v)
-  support (VAppName u n)       = support (u, n)
-  support (VSplit u v)         = support (u, v)
-  support (VVar x d)           = support d
-  support (VSigma u v)         = support (u,v)
-  support (VSPair u v)         = support (u,v)
-  support (VFst u)             = support u
-  support (VSnd u)             = support u
-  support (VInhRec b p h a)    = support [b,p,h,a]
-  support VCircle              = []
-  support VBase                = []
-  support (VLoop n)            = [n]
-  support (VCircleRec f b l s) = support [f,b,l,s]
-  support VI                   = []
-  support VI0                  = []
-  support VI1                  = []
-  support (VLine n)            = [n]
-  support (VIntRec f s e l u)  = support [f,s,e,l,u]
-  support v                    = error ("support " ++ show v)
+  support (VApp u v)                    = support (u, v)
+  support (VAppName u n)                = support (u, n)
+  support (VSplit u v)                  = support (u, v)
+  support (VVar x d)                    = support d
+  support (VSigma u v)                  = support (u,v)
+  support (VSPair u v)                  = support (u,v)
+  support (VFst u)                      = support u
+  support (VSnd u)                      = support u
+  support (VInhRec b p h a)             = support [b,p,h,a]
+  support VCircle                       = []
+  support VBase                         = []
+  support (VLoop n)                     = [n]
+  support (VCircleRec f b l s)          = support [f,b,l,s]
+  support VI                            = []
+  support VI0                           = []
+  support VI1                           = []
+  support (VLine n)                     = [n]
+  support (VIntRec f s e l u)           = support [f,s,e,l,u]
+  support v                             = error ("support " ++ show v)
 
   swap u x y =
     let sw u = swap u x y in case u of
-    VU          -> VU
-    Ter t e     -> Ter t (swap e x y)
-    VId a v0 v1 -> VId (sw a) (sw v0) (sw v1)
-    Path z v | z /= x && z /= y    -> Path z (sw v)
-             | otherwise -> let z' = fresh ([x, y], v)
-                                v' = swap v z z'
-                            in Path z' (sw v')
-    -- VExt z b f g p  -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
-    VHExt z b f g p -> VHExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
-    VPi a f         -> VPi (sw a) (sw f)
-    VInh v          -> VInh (sw v)
-    VInc v          -> VInc (sw v)
-    VSquash z v0 v1 -> VSquash (swap z x y) (sw v0) (sw v1)
-    VCon c us       -> VCon c (map sw us)
-    VEquivEq z a b f s t ->
-      VEquivEq (swap z x y) (sw a) (sw b) (sw f) (sw s) (sw t)
-    VPair z a v  -> VPair (swap z x y) (sw a) (sw v)
+    VU                     -> VU
+    Ter t e                -> Ter t (sw e)
+    VId a v0 v1            -> VId (sw a) (sw v0) (sw v1)
+    Path z v               -> Path (sw z) (sw v)
+    -- VExt z b f g p      -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
+    VHExt z b f g p        -> VHExt (sw z) (sw b) (sw f) (sw g) (sw p)
+    VPi a f                -> VPi (sw a) (sw f)
+    VInh v                 -> VInh (sw v)
+    VInc v                 -> VInc (sw v)
+    VSquash z v0 v1        -> VSquash (sw z) (sw v0) (sw v1)
+    VCon c us              -> VCon c (map sw us)
+    VEquivEq z a b f s t   ->
+      VEquivEq (sw z) (sw a) (sw b) (sw f) (sw s) (sw t)
+    VPair z a v            -> VPair (sw z) (sw a) (sw v)
     VEquivSquare z w a s t ->
-      VEquivSquare (swap z x y) (swap w x y) (sw a) (sw s) (sw t)
-    VSquare z w v -> VSquare (swap z x y) (swap w x y) (sw v)
-    Kan Fill a b  -> Kan Fill (sw a) (swap b x y)
-    VFillN a b    -> VFillN (sw a) (swap b x y)
-    Kan Com a b@(Box _ z _ _)
-      | z /= x && z /= y -> Kan Com (sw a) (swap b x y)
-      | otherwise -> let z' = fresh ([x, y], u)
-                         a' = swap a z z'
-                     in sw (Kan Com a' (swap b z z'))
-    VComN a b@(Box _ z _ _)
-      | z /= x && z /= y -> VComN (sw a) (swap b x y)
-      | otherwise -> let z' = fresh ([x, y], u)
-                         a' = swap a z z'
-                     in sw (VComN a' (swap b z z'))
-    VComp b@(Box _ z _ _)
-      | z /= x && z /= y -> VComp (swap b x y)
-      | otherwise -> let z' = fresh ([x, y], u)
-                     in sw (VComp (swap b z z'))
-    VFill z b@(Box dir n _ _)
-      | z /= x && z /= y -> VFill z (swap b x y)
-      | otherwise        -> let
-        z' = fresh ([x, y], b)
-        in sw (VFill z' (swap b z z'))
-    VApp u v           -> VApp (sw u) (sw v)
-    VAppName u n       -> VAppName (sw u) (swap n x y)
-    VSplit u v         -> VSplit (sw u) (sw v)
-    VVar s d           -> VVar s (swap d x y)
-    VSigma u v         -> VSigma (sw u) (sw v)
-    VSPair u v         -> VSPair (sw u) (sw v)
-    VFst u             -> VFst (sw u)
-    VSnd u             -> VSnd (sw u)
-    VInhRec b p h a    -> VInhRec (sw b) (sw p) (sw h) (sw a)
-    VCircle            -> VCircle
-    VBase              -> VBase
-    VLoop z            -> VLoop (swap z x y)
-    VCircleRec f b l a -> VCircleRec (sw f) (sw b) (sw l) (sw a)
-    VI                 -> VI
-    VI0                -> VI0
-    VI1                -> VI1
-    VLine z            -> VLine (swap z x y)
-    VIntRec f s e l u  -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
+      VEquivSquare (sw z) (sw w) (sw a) (sw s) (sw t)
+    VSquare z w v          -> VSquare (sw z) (sw w) (sw v)
+    Kan Fill a b           -> Kan Fill (sw a) (sw b)
+    VFillN a b             -> VFillN (sw a) (sw b)
+    Kan Com a b            -> Kan Com (sw a) (sw b)
+    VComN a b              -> VComN (sw a) (sw b)
+    VComp b                -> VComp (sw b)
+    VFill z b              -> VFill (sw z) (sw b)
+    VApp u v               -> VApp (sw u) (sw v)
+    VAppName u n           -> VAppName (sw u) (sw n)
+    VSplit u v             -> VSplit (sw u) (sw v)
+    VVar s d               -> VVar s (sw d)
+    VSigma u v             -> VSigma (sw u) (sw v)
+    VSPair u v             -> VSPair (sw u) (sw v)
+    VFst u                 -> VFst (sw u)
+    VSnd u                 -> VSnd (sw u)
+    VInhRec b p h a        -> VInhRec (sw b) (sw p) (sw h) (sw a)
+    VCircle                -> VCircle
+    VBase                  -> VBase
+    VLoop z                -> VLoop (sw z)
+    VCircleRec f b l a     -> VCircleRec (sw f) (sw b) (sw l) (sw a)
+    VI                     -> VI
+    VI0                    -> VI0
+    VI1                    -> VI1
+    VLine z                -> VLine (sw z)
+    VIntRec f s e l u      -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
 
 
 --------------------------------------------------------------------------------
