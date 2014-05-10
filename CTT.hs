@@ -106,7 +106,7 @@ data PN = Id | Refl
         -- TODO: remove?
         | MapOnPath
 
-        -- (A B : U) (f g : A -> B) (a b : A) ->  
+        -- (A B : U) (f g : A -> B) (a b : A) ->
         -- Id (A->B) f g -> Id A a b -> Id B (f a) (g b)
         | AppOnPath
 
@@ -277,6 +277,10 @@ instance (Nominal a, Nominal b) => Nominal (a, b) where
 instance Nominal a => Nominal [a]  where
   support vs  = unions (map support vs)
   swap vs x y = [swap v x y | v <- vs]
+
+instance Nominal a => Nominal (Maybe a)  where
+  support = maybe [] support
+  swap v x y = fmap (\u -> swap u x y) v
 
 -- Make Name an instance of Nominal
 instance Nominal Integer where
@@ -650,10 +654,10 @@ lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
 
 getIdent :: Ident -> [(Binder,a)] -> Maybe a
-getIdent x defs = do (_,t) <- lookupIdent x defs; return t
+getIdent x defs = snd <$> lookupIdent x defs
 
 getBinder :: Ident -> [(Binder,a)] -> Maybe Binder
-getBinder x defs = do (b,_) <- lookupIdent x defs; return b
+getBinder x defs = fst <$> lookupIdent x defs
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
@@ -689,20 +693,20 @@ instance Show Ter where
   show = showTer
 
 showTer :: Ter -> String
-showTer U                 = "U"
-showTer (App e0 e1)       = showTer e0 <+> showTer1 e1
-showTer (Pi e0 e1)        = "Pi" <+> showTers [e0,e1]
-showTer (Lam (x,_) e)         = '\\' : x <+> "->" <+> showTer e
-showTer (Fst e)           = showTer e ++ ".1"
-showTer (Snd e)           = showTer e ++ ".2"
-showTer (Sigma e0 e1)     = "Sigma" <+> showTers [e0,e1]
-showTer (SPair e0 e1)      = "pair" <+> showTers [e0,e1]
-showTer (Where e d)       = showTer e <+> "where" <+> showODecls d
-showTer (Var x)           = x
-showTer (Con c es)        = c <+> showTers es
-showTer (Split l _)       = "split " ++ show l
-showTer (Sum l _)         = "sum " ++ show l
-showTer (PN pn)           = showPN pn
+showTer U             = "U"
+showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
+showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
+showTer (Lam (x,_) e) = '\\' : x <+> "->" <+> showTer e
+showTer (Fst e)       = showTer e ++ ".1"
+showTer (Snd e)       = showTer e ++ ".2"
+showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
+showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
+showTer (Where e d)   = showTer e <+> "where" <+> showODecls d
+showTer (Var x)       = x
+showTer (Con c es)    = c <+> showTers es
+showTer (Split l _)   = "split " ++ show l
+showTer (Sum l _)     = "sum " ++ show l
+showTer (PN pn)       = showPN pn
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
@@ -735,46 +739,47 @@ instance Show Val where
   show = showVal
 
 showVal :: Val -> String
-showVal VU               = "U"
-showVal (Ter t env)      = show t <+> show env
-showVal (VId a u v)      = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
-showVal (Path n u)       = abrack (show n) <+> showVal u
--- showVal (VExt n b f g p) = "funExt" <+> show n <+> showVals [b,f,g,p]
-showVal (VHExt n b f g p) = "funHExt" <+> show n <+> showVals [b,f,g,p]
-showVal (VCon c us)      = c <+> showVals us
-showVal (VPi a f)        = "Pi" <+> showVals [a,f]
-showVal (VInh u)         = "inh" <+> showVal1 u
-showVal (VInc u)         = "inc" <+> showVal1 u
-showVal (VInhRec b p h a) = "inhrec" <+> showVals [b,p,h,a]
-showVal (VSquash n u v)  = "squash" <+> show n <+> showVals [u,v]
-showVal (Kan Fill v box) = "Fill" <+> showVal1 v <+> parens (show box)
-showVal (Kan Com v box)  = "Com" <+> showVal1 v <+> parens (show box)
-showVal (VFillN v box)   = "FillN" <+> showVal1 v <+> parens (show box)
-showVal (VComN v box)    = "ComN" <+> showVal1 v <+> parens (show box)
-showVal (VPair n u v)    = "vpair" <+> show n <+> showVals [u,v]
-showVal (VSquare x y u)  = "vsquare" <+> show x <+> show y <+> showVal1 u
-showVal (VComp box)      = "vcomp" <+> parens (show box)
-showVal (VFill n box)    = "vfill" <+> show n <+> parens (show box)
-showVal (VApp u v)       = showVal u <+> showVal1 v
-showVal (VAppName u n)   = showVal u <+> "@" <+> show n
-showVal (VSplit u v)     = showVal u <+> showVal1 v
-showVal (VVar x d)       = x <+> showDim d
+showVal VU                       = "U"
+showVal (Ter t env)              = show t <+> show env
+showVal (VId a u v)              =
+  "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
+showVal (Path n u)               = abrack (show n) <+> showVal u
+-- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VCon c us)              = c <+> showVals us
+showVal (VPi a f)                = "Pi" <+> showVals [a,f]
+showVal (VInh u)                 = "inh" <+> showVal1 u
+showVal (VInc u)                 = "inc" <+> showVal1 u
+showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
+showVal (VSquash n u v)          = "squash" <+> show n <+> showVals [u,v]
+showVal (Kan Fill v box)         = "Fill" <+> showVal1 v <+> parens (show box)
+showVal (Kan Com v box)          = "Com" <+> showVal1 v <+> parens (show box)
+showVal (VFillN v box)           = "FillN" <+> showVal1 v <+> parens (show box)
+showVal (VComN v box)            = "ComN" <+> showVal1 v <+> parens (show box)
+showVal (VPair n u v)            = "vpair" <+> show n <+> showVals [u,v]
+showVal (VSquare x y u)          = "vsquare" <+> show x <+> show y <+> showVal1 u
+showVal (VComp box)              = "vcomp" <+> parens (show box)
+showVal (VFill n box)            = "vfill" <+> show n <+> parens (show box)
+showVal (VApp u v)               = showVal u <+> showVal1 v
+showVal (VAppName u n)           = showVal u <+> "@" <+> show n
+showVal (VSplit u v)             = showVal u <+> showVal1 v
+showVal (VVar x d)               = x <+> showDim d
 showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 showVal (VEquivSquare x y a s t) =
   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
-showVal (VSPair u v)     = "pair" <+> showVals [u,v]
-showVal (VSigma u v)     = "Sigma" <+> showVals [u,v]
-showVal (VFst u)         = showVal u ++ ".1"
-showVal (VSnd u)         = showVal u ++ ".2"
-showVal VCircle          = "S1"
-showVal VBase            = "base"
-showVal (VLoop x)        = "loop" <+> show x
-showVal (VCircleRec f b l s) = "S1rec" <+> showVals [f,b,l,s]
-showVal VI               = "I"
-showVal VI0              = "I0"
-showVal VI1              = "I1"
-showVal (VLine n)        = "line" <+> show n
-showVal (VIntRec f s e l u) = "intrec" <+> showVals [f,s,e,l,u]
+showVal (VSPair u v)             = "pair" <+> showVals [u,v]
+showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
+showVal (VFst u)                 = showVal u ++ ".1"
+showVal (VSnd u)                 = showVal u ++ ".2"
+showVal VCircle                  = "S1"
+showVal VBase                    = "base"
+showVal (VLoop x)                = "loop" <+> show x
+showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
+showVal VI                       = "I"
+showVal VI0                      = "I0"
+showVal VI1                      = "I1"
+showVal (VLine n)                = "line" <+> show n
+showVal (VIntRec f s e l u)      = "intrec" <+> showVals [f,s,e,l,u]
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
@@ -783,8 +788,7 @@ showVals :: [Val] -> String
 showVals = hcat . map showVal1
 
 showVal1 :: Val -> String
-showVal1 VU           = "U"
-showVal1 (VCon c [])  = c
-showVal1 u@(VVar{})   = showVal u
-showVal1 u            = parens $ showVal u
-
+showVal1 VU          = "U"
+showVal1 (VCon c []) = c
+showVal1 u@(VVar{})  = showVal u
+showVal1 u           = parens $ showVal u
