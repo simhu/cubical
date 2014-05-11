@@ -18,8 +18,7 @@ cabal-version:       >=1.10
 executable cubical
   main-is:             Main.hs
   other-modules:       Exp.Lex, Exp.Par
-  other-extensions:    TupleSections, ParallelListComp, CPP, MagicHash,
-                       GeneralizedNewtypeDeriving
+  other-extensions:    TupleSections, ParallelListComp, CPP, MagicHash
   build-depends:       base >= 4.5 && < 5, transformers >= 0.3, mtl >= 2.1,
                        haskeline >= 0.7, directory >= 1.2, array >= 0.4,
                        BNFC >= 2.5, filepath >= 1.3

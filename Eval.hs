@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Eval ( eval
             , evals
             , app
@@ -13,7 +14,11 @@ import qualified Debug.Trace as DT
 import CTT
 
 debug :: Bool
+#ifdef debugmode
+debug = True
+#else
 debug = False
+#endif
 
 trace :: String -> a -> a
 trace s e = if debug then DT.trace s e else e
