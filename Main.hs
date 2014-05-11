@@ -23,12 +23,11 @@ import qualified Eval as E
 type Interpreter a = InputT IO a
 
 -- Flag handling
-data Flag = Debug | Help | Version
+data Flag = Help | Version
   deriving (Eq,Show)
 
 options :: [OptDescr Flag]
-options = [ Option "d" ["debug"]   (NoArg Debug)   "run in debugging mode"
-          , Option ""  ["help"]    (NoArg Help)    "print help"
+options = [ Option ""  ["help"]    (NoArg Help)    "print help"
           , Option ""  ["version"] (NoArg Version) "print version number" ]
 
 -- Version number, welcome message, usage and prompt strings
@@ -88,7 +87,7 @@ initLoop flags f = do
       putStrLn $ "Resolver failed: " ++ err
       runInputT (settings []) (loop flags f [] TC.verboseEnv)
     Right (adefs,names) -> do
-      (merr,tenv) <- TC.runDeclss (Debug `elem` flags) TC.verboseEnv adefs
+      (merr,tenv) <- TC.runDeclss TC.verboseEnv adefs
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> return ()
@@ -118,12 +117,12 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
           Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
                            loop flags f names tenv
           Right body -> do
-          x <- liftIO $ TC.runInfer (Debug `elem` flags) tenv body
+          x <- liftIO $ TC.runInfer tenv body
           case x of
             Left err -> do outputStrLn ("Could not type-check: " ++ err)
                            loop flags f names tenv
             Right _  -> do
-              e <- liftIO $ E.runEval (Debug `elem` flags) $ E.eval rho body
+              let e = E.eval rho body
               outputStrLn ("EVAL: " ++ show e)
               loop flags f names tenv
 
