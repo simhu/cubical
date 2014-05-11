@@ -13,4 +13,4 @@ clean:
                         ParExp.hs PrintExp.hs AbsExp.hs *.o *.hi
 
 tests:
-	runghc Tests.hs
+	ghc --make -O2 -main-is Tests.main Tests.hs
