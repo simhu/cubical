@@ -142,9 +142,8 @@ check a t = case (a,t) of
     local (addTypeVal (x,a)) $ check (app f var) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
-    e <- oenv <$> ask
-    let v = eval e t1
-    check (app f v) t2
+    e <- asks oenv
+    check (app f (eval e t1)) t2
   (_,Where e d) -> do
     checkDecls d
     local (addDecls d) $ check a e
@@ -157,11 +156,10 @@ check a t = case (a,t) of
 
 checkBranch :: (Tele,OEnv) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
-  k     <- asks index
-  env   <- asks oenv
+  k   <- asks index
+  env <- asks oenv
   let d  = support env
-      l  = length xas
-      us = map (`mkVar` d) [k..k+l-1]
+      us = map (`mkVar` d) [k..]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val
@@ -200,11 +198,9 @@ checkInfer e = case e of
 checks :: (Tele,OEnv) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  let v = eval nu a
-  check v e
+  check (eval nu a) e
   rho <- asks oenv
-  let v' = eval rho e
-  checks (xas,oPair nu (x,v')) es
+  checks (xas,oPair nu (x,eval rho e)) es
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U
