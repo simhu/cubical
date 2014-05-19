@@ -14,8 +14,8 @@ notFiber b = fiber Bool Bool not b
 
 eqNotFiber : (b : Bool) -> (v v' : notFiber b) ->
              Id Bool v.1 v'.1 -> Id (notFiber b) v v'
-eqNotFiber b = eqPropFam Bool (\x -> Id Bool (not x) b)
-                              (\x -> boolIsSet (not x) b)
+eqNotFiber b =
+  eqPropFam Bool (\x -> Id Bool (not x) b) (\x -> boolIsSet (not x) b)
 
 sNot : (b : Bool) -> notFiber b
 sNot b = (not b, notK b)
@@ -30,53 +30,100 @@ tNot b v = eqNotFiber b (sNot b) v rem
   rem : Id Bool (not b) v.1
   rem = notInj (not b) v.1 rem1
 
-eqBoolBool : Id U Bool Bool
-eqBoolBool = equivEq Bool Bool not sNot tNot
+-- Directly use equivEq
+eqBoolBool1 : Id U Bool Bool
+eqBoolBool1 = equivEq Bool Bool not sNot tNot
 
-transportInv : (A B : U) -> Id U A B -> B -> A
-transportInv = substInv U (\x -> x)
+Monoid : U -> U
+data Monoid A =
+  monoid (z : A)
+         (op : A -> A -> A)
+         (_ : (a b c : A) -> Id A (op a (op b c)) (op (op a b) c))
+         (_ : (a : A) -> Id A (op a z) a)
+         (_ : (a : A) -> Id A (op z a) a)
 
-notEqBool : Bool -> Bool
-notEqBool = transport Bool Bool eqBoolBool
+zm : (A : U) (m : Monoid A) -> A
+zm A = split monoid a -> a
 
-testBool : Bool
-testBool = notEqBool true
+opm : (A : U) (m : Monoid A) -> (A -> A -> A)
+opm A = split monoid _ op -> op
 
-compEqBool : Id U Bool Bool
-compEqBool = comp U Bool Bool Bool eqBoolBool eqBoolBool
+opmA : (A : U) (m : Monoid A) ->
+       ((a b c : A) -> Id A (opm A m a (opm A m b c)) (opm A m (opm A m a b) c))
+opmA A = split monoid _ _ assoc -> assoc
 
-transport' : (A B : U) -> Id U A B -> A -> B
-transport' = subst U (\x -> x)
+opm0 : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m a (zm A m)) a)
+opm0 A = split monoid _ _ _ p -> p
 
-funCompEqBool : Bool -> Bool
-funCompEqBool = transport' Bool Bool compEqBool
+op0m : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m (zm A m) a) a)
+op0m A = split monoid _ _ _ _ p -> p
 
-newTestBool : Bool
-newTestBool = funCompEqBool (true)
+transmonoid : (A B : U) -> Id U A B -> Monoid A -> Monoid B
+transmonoid = subst U Monoid
 
-newCompEqBool : Id U Bool Bool
-newCompEqBool = comp U Bool Bool Bool eqBoolBool (refl U Bool)
+monoidAndBool : Monoid Bool
+monoidAndBool = monoid true andBool andBoolA andBoolTrue andTrueBool
 
-test2Bool : Bool
-test2Bool = transport' Bool Bool newCompEqBool (true)
+monoidOrBool1 : Monoid Bool
+monoidOrBool1 = transmonoid Bool Bool eqBoolBool1 monoidAndBool
 
-monoid : U -> U
-monoid A = and A (A -> A -> A)
+zBool1 : Bool
+zBool1 = zm Bool monoidOrBool1
 
-zm : (A : U) (m : monoid A) -> A
-zm A m = m.1
+orBool1 : Bool -> Bool -> Bool
+orBool1 = opm Bool monoidOrBool1
 
-opm : (A : U) (m : monoid A) -> (A -> A -> A)
-opm A m = m.2
+-- It works to transfer proofs as well
+orBool1A :
+  (a b c : Bool) -> Id Bool (orBool1 a (orBool1 b c)) (orBool1 (orBool1 a b) c)
+orBool1A = opmA Bool monoidOrBool1
 
-transm : (A B : U) -> Id U A B -> monoid A -> monoid B
-transm = subst U monoid
+-- Check that we really get or
+testFF1 : Bool
+testFF1 = orBool1 false false
 
+testFT1: Bool
+testFT1 = orBool1 false true
+
+testTF1 : Bool
+testTF1 = orBool1 true false
+
+testTT1 : Bool
+testTT1 = orBool1 true true
+
+-- Use the necessary condition for sets instead
+eqBoolBool2 : Id U Bool Bool
+eqBoolBool2 = equivSet Bool Bool not not notK notInj boolIsSet
+
+monoidOrBool2 : Monoid Bool
+monoidOrBool2 = transmonoid Bool Bool eqBoolBool2 monoidAndBool
+
+orBool2 : Bool -> Bool -> Bool
+orBool2 = opm Bool monoidOrBool2
+
+-- Check that we get or again
+testFF2 : Bool
+testFF2 = orBool2 false false
+
+testFT2 : Bool
+testFT2 = orBool2 false true
+
+testTF2 : Bool
+testTF2 = orBool2 true false
+
+testTT2 : Bool
+testTT2 = orBool2 true true
+
+testTT2' : Id Bool (orBool false true) (orBool2 false true)
+testTT2' = refl Bool true
+
+
+-----------
 transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
 transun = subst U (\X -> (X -> X))
 
 transid : Bool -> Bool
-transid = transun Bool Bool eqBoolBool (\x -> x)
+transid = transun Bool Bool eqBoolBool1 (\x -> x)
 
 testT : Bool
 testT = transid true
@@ -87,53 +134,27 @@ testT' = transun Bool Bool (refl U Bool) (\x -> x) true
 testF : Bool
 testF = transid false
 
-monoidAndBool : monoid Bool
-monoidAndBool = (true, andBool)
 
-mBool2 : monoid Bool
-mBool2 = transm Bool Bool eqBoolBool monoidAndBool
+notEqBool : Bool -> Bool
+notEqBool = transport Bool Bool eqBoolBool1
 
-opBool2 : Bool -> Bool -> Bool
-opBool2 = opm Bool mBool2
+testBool : Bool
+testBool = notEqBool true
 
-testTF : Bool
-testTF = opBool2 true false
+compEqBool : Id U Bool Bool
+compEqBool = comp U Bool Bool Bool eqBoolBool1 eqBoolBool1
 
-testFT : Bool
-testFT = opBool2 false true
+transport' : (A B : U) -> Id U A B -> A -> B
+transport' = subst U (\x -> x)
 
-testFF : Bool
-testFF = opBool2 false false
+funCompEqBool : Bool -> Bool
+funCompEqBool = transport' Bool Bool compEqBool
 
-testTT : Bool
-testTT = opBool2 true true
+newTestBool : Bool
+newTestBool = funCompEqBool true
 
--- Bool tests:
+newCompEqBool : Id U Bool Bool
+newCompEqBool = comp U Bool Bool Bool eqBoolBool1 (refl U Bool)
 
-equivBool : Id U Bool Bool
-equivBool = equivSet Bool Bool not not notK notInj boolIsSet
-
-mBool3 : monoid Bool
-mBool3 = transm Bool Bool equivBool monoidAndBool
-
-opBool3 : Bool -> Bool -> Bool
-opBool3 = opm Bool mBool3
-
-testTF3 : Bool
-testTF3 = opBool3 true false
-
-testFT3 : Bool
-testFT3 = opBool3 false true
-
-testFF3 : Bool
-testFF3 = opBool3 false false
-
-testTT3 : Bool
-testTT3 = opBool3 true true
-
-orBool : Bool -> Bool -> Bool
-orBool = split true  -> \x -> true
-               false -> \x -> x
-
-testTT4 : Id Bool (orBool false true) (opBool3 false true)
-testTT4 = refl Bool true
+test2Bool : Bool
+test2Bool = transport' Bool Bool newCompEqBool true

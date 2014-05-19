@@ -22,9 +22,9 @@ canSurj A R h h' c = class (R c) un cp ex pr
         un a b p q = eqToInvEucl A R h a b c p q
 
         cp : (a b : A) -> R c a -> R a b -> R c b
-        cp a b p q = eqToEucl A R h c b a p (eqToSym A R h a b q)
+        cp a b p q = h.2 c b a p (eqToSym A R h a b q)
         ex : exists A (R c)
-        ex = inc (Sigma A (R c)) (c,eqToRefl A R h c)
+        ex = inc (Sigma A (R c)) (c,h.1 c)
         pr : propFam A (R c)
         pr a = h' c a
 

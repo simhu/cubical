@@ -19,9 +19,12 @@ decConst A = split
 hedbergLemma : (A: U) (f : (a b : A) -> Id A a b -> Id A a b) (a b : A)
             (p : Id A a b) ->
             Id (Id A a b) (comp A a a b (f a a (refl A a)) p) (f a b p)
-hedbergLemma A f a = J A a (\ b p -> Id (Id A a b) (comp A a a b (f a a (refl A a)) p) (f a b p)) rem
-  where rem : Id (Id A a a) (comp A a a a (f a a (refl A a)) (refl A a)) (f a a (refl A a))
-        rem = compIdr A a a (f a a (refl A a))
+hedbergLemma A f a =
+  J A a (\b p -> Id (Id A a b) (comp A a a b (f a a (refl A a)) p) (f a b p)) rem
+    where
+    rem : Id (Id A a a) (comp A a a a (f a a (refl A a)) (refl A a))
+          (f a a (refl A a))
+    rem = compIdr A a a (f a a (refl A a))
 
 hedberg : (A : U) -> discrete A -> set A
 hedberg A h a b p q = lemSimpl A a a b r p q rem5
@@ -48,7 +51,8 @@ hedberg A h a b p q = lemSimpl A a a b r p q rem5
     rem4 = fIsConst a b p q
 
     rem5 : Id (Id A a b) (comp A a a b r p) (comp A a a b r q)
-    rem5 = compDown (Id A a b) (comp A a a b r p) (f a b p) (comp A a a b r q) (f a b q) rem2 rem3 rem4
+    rem5 = compDown (Id A a b) (comp A a a b r p) (f a b p) (comp A a a b r q)
+                    (f a b q) rem2 rem3 rem4
 
 NIsSet : set N
 NIsSet = hedberg N natDec
@@ -64,4 +68,3 @@ unitIsSet = hedberg Unit unitDec
 
 N0IsSet : set N0
 N0IsSet = hedberg N0 N0Dec
-

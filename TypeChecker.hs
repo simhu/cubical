@@ -159,7 +159,8 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
   k   <- asks index
   env <- asks oenv
   let d  = support env
-      us = map (`mkVar` d) [k..]
+      l  = length xas
+      us = map (`mkVar` d) [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val

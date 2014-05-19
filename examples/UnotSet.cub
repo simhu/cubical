@@ -7,18 +7,18 @@ import BoolEqBool
 negUIP : neg (set U)
 negUIP uipU = tnotf lem5
   where
-  eqreflnot : Id (Id U Bool Bool) (refl U Bool) eqBoolBool
-  eqreflnot = uipU Bool Bool (refl U Bool) eqBoolBool
+  eqreflnot : Id (Id U Bool Bool) (refl U Bool) eqBoolBool1
+  eqreflnot = uipU Bool Bool (refl U Bool) eqBoolBool1
 
   frefl : Bool -> Bool
   frefl = transport Bool Bool (refl U Bool)
 
   fnot : Bool -> Bool
-  fnot = transport Bool Bool eqBoolBool
+  fnot = transport Bool Bool eqBoolBool1
 
   lem1 : Id (Bool -> Bool) frefl fnot
   lem1 = mapOnPath (Id U Bool Bool) (Bool -> Bool) (transport Bool Bool) 
-              (refl U Bool) eqBoolBool eqreflnot
+              (refl U Bool) eqBoolBool1 eqreflnot
 
   lem2 : Id Bool true (frefl true)
   lem2 = transportRef Bool true

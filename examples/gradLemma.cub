@@ -1,21 +1,21 @@
 module gradLemma where
 
-import equivProp
 import BoolEqBool
 
 corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
-corrstId A a v0 v1 = compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1)
+corrstId A a v0 v1 =
+  compInv (pathTo A a) (sId A a) v0 v1 (tId A a v0) (tId A a v1)
 
 corr2stId : (A : U) (h : A -> A) (ph : (x : A) -> Id A (h x) x) (a : A) ->
             prop (fiber A A h a)
-corr2stId A h ph a = substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
+corr2stId A h ph a =
+  substInv (A -> A) (\h -> prop (fiber A A h a)) h (id A) rem (corrstId A a)
   where
   rem : Id (A -> A) h (id A)
   rem = funExt A (\_ -> A) h (id A) ph
 
-
-gradLemma : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g ->
-            isEquiv A B f
+gradLemma : (A B : U) (f : A -> B) (g : B -> A) ->
+            section A B f g -> retract A B f g -> isEquiv A B f
 gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
   where
   injf : injective A B f
@@ -53,7 +53,7 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
     pc u z = (z.1, mapOnPath B B u (f z.1) b z.2)
 
     rem1 : prop (Sigma A F)
-    rem1 = corr2stId A (\ x -> g (f x)) rfg (g b)
+    rem1 = corr2stId A (\x -> g (f x)) rfg (g b)
 
     rem2 : Id (Sigma A F) (pcg z0) (pcg z1)
     rem2 = rem1 (pcg z0) (pcg z1)
@@ -62,22 +62,21 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
     rem3 = mapOnPath (Sigma A F) (Sigma A G) pcf (pcg z0) (pcg z1) rem2
 
     rem4 : Id (B -> B) fg (id B)
-    rem4 = funExt B (\ _ -> B)  fg (id B) sfg
+    rem4 = funExt B (\_ -> B)  fg (id B) sfg
 
     rem5 : Id (Sigma A E) (pc (id B) z0) (pc (id B) z1)
-    rem5 = subst (B->B)
-             (\ u -> Id (Sigma A (\ x -> Id B (u (f x)) (u b))) (pc u z0) (pc u z1)) fg (id B) rem4 rem3
+    rem5 = subst (B -> B)
+             (\u -> Id (Sigma A (\x -> Id B (u (f x)) (u b)))
+                       (pc u z0) (pc u z1)) fg (id B) rem4 rem3
 
 -- isomorphic types are equal
-
-isoId : (A B:U) ->  (f : A -> B) (g : B -> A) -> section A B f g -> retract A B f g ->
-            Id U A B
+isoId : (A B : U) -> (f : A -> B) (g : B -> A) ->
+        section A B f g -> retract A B f g -> Id U A B
 isoId A B f g sfg rfg = isEquivEq A B f (gradLemma A B f g sfg rfg)
 
 -- some applications of the gradlemma
-
-propId : (A B:U) ->  prop A -> prop B ->  (f : A -> B) (g : B -> A) ->
-            Id U A B
+propId : (A B : U) -> prop A -> prop B -> (f : A -> B) (g : B -> A) ->
+         Id U A B
 propId A B pA pB f g = isEquivEq A B f (gradLemma A B f g sfg rfg)
  where
   sfg : (b:B) -> Id B (f (g b)) b

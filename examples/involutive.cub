@@ -59,7 +59,7 @@ eqAutoM = eqInvALoop U
 -- a particular element of autoM
 
 boolAuto : autoM
-boolAuto = (Bool,eqBoolBool)
+boolAuto = (Bool,eqBoolBool1)
 
 -- by transport we deduce another type and another equality
 

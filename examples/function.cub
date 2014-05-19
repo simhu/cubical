@@ -16,7 +16,8 @@ retract A B f g = section B A g f
 
 retractInj : (A B : U) (f : A -> B) (g : B -> A) ->
              retract A B f g -> injective A B f
-retractInj A B f g h a0 a1 h' = compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
+retractInj A B f g h a0 a1 h' =
+  compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
   where
   rem1 : Id A (g (f a0)) a0
   rem1 = h a0
@@ -32,19 +33,12 @@ hasSection A B f = Sigma (B->A) (section A B f)
 
 -- an equivalence has a section
 
-equivSec : (A B :U) -> (f:A->B) -> isEquiv A B f -> hasSection A B f
+equivSec : (A B : U) -> (f : A -> B) -> isEquiv A B f -> hasSection A B f
 equivSec A B f st = (\y -> (st.1 y).1, \y -> (st.1 y).2)
 
-allSection : (A B : U) (f:A->B) -> hasSection A B f
-                -> (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
-allSection A B f z = rem
-   where rem : (Q : B->U) -> ((x:A) -> Q (f x)) -> Pi B Q
-         rem Q h y = rem2
-                where rem1 : Q (f (z.1 y))
-                      rem1 = h (z.1 y)
-                      rem2 : Q y
-                      rem2 = subst B Q (f (z.1 y)) y (z.2 y) rem1
-
+allSection : (A B : U) (f : A -> B) -> hasSection A B f ->
+             (Q : B -> U) -> ((x : A) -> Q (f x)) -> Pi B Q
+allSection A B f z Q h y = subst B Q (f (z.1 y)) y (z.2 y) (h (z.1 y))
 
 isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g ->
                  ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
@@ -62,6 +56,5 @@ injProp A B f injf pB a0 a1 = injf a0 a1 (pB (f a0) (f a1))
 injId : (X : U) -> injective X X (id X)
 injId X a0 a1 h = h
 
-
-involutive : (A:U) -> (A->A) -> U
+involutive : (A : U) -> (A -> A) -> U
 involutive A f = section A A f f

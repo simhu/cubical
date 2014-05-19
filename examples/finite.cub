@@ -209,7 +209,7 @@ lemInjSt X Y dX h = lem5
   lem5 = comp U X Am Y (inv U Am X lem4) lem3
 
 lem1InjSt : (n:N) -> neg (Id U N0 (stFin (suc n)))
-lem1InjSt n h = transportInv N0 (stFin (suc n)) h (botEl n)
+lem1InjSt n h = transpInv N0 (stFin (suc n)) h (botEl n)
 
 lem2InjSt : (n:N) -> neg (Id U (stFin (suc n)) N0)
 lem2InjSt n h = transport (stFin (suc n)) N0 h (botEl n)

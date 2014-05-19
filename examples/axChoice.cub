@@ -4,35 +4,33 @@ import contr
 
 -- an interesting isomorphism/equality
 
-idTelProp : (A:U) (B:A -> U) (C:(x:A) -> B x -> U) -> 
-              Id U ((x:A) -> Sigma (B x) (C x)) (Sigma ((x:A) -> B x) (\ f -> (x:A) -> C x (f x)))
-idTelProp A B C = isoId T0 T1 f g sfg rfg 
+idTelProp : (A : U) (B : A -> U) (C : (x : A) -> B x -> U) ->
+            Id U ((x : A) -> Sigma (B x) (C x))
+                 (Sigma ((x : A) -> B x) (\f -> (x : A) -> C x (f x)))
+idTelProp A B C = isoId T0 T1 f g (refl T1) (refl T0)
  where
-  T0 : U 
-  T0 = (x:A) -> Sigma (B x) (C x) 
+  T0 : U
+  T0 = (x : A) -> Sigma (B x) (C x)
 
-  T1 : U 
-  T1 = Sigma ((x:A) -> B x) (\ f -> (x:A) -> C x (f x))
+  T1 : U
+  T1 = Sigma ((x : A) -> B x) (\f -> (x : A) -> C x (f x))
 
   f : T0 -> T1
-  f s = (\ x -> (s x).1, \ x -> (s x).2)
+  f s = (\x -> (s x).1, \x -> (s x).2)
 
   g : T1 -> T0
-  g z = \ x -> (z.1 x, z.2 x)
-
-  sfg : (y:T1) -> Id T1 (f (g y)) y
-  sfg z = refl T1 z -- rem2 u v 
-
-  rfg : (s:T0) -> Id T0 (g (f s)) s
-  rfg s = refl T0 s
+  g z = \x -> (z.1 x, z.2 x)
 
 -- we deduce from this equality that isEquiv f is a proposition
 
 propIsEquiv : (A B : U) -> (f : A -> B) -> prop (isEquiv A B f)
-propIsEquiv A B f = subst U prop ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f) rem rem1
- where 
-   rem : Id U ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f) 
-   rem = idTelProp B (fiber A B f) (\ y -> \ s -> (v :fiber A B f y) -> Id (fiber A B f y) s v)
+propIsEquiv A B f = 
+  subst U prop ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f) rem rem1
+   where
+   rem : Id U ((y:B) -> contr' (fiber A B f y)) (isEquiv A B f)
+   rem = idTelProp B (fiber A B f) 
+                  (\y s -> (v : fiber A B f y) -> Id (fiber A B f y) s v)
 
    rem1 : prop ((y:B) -> contr' (fiber A B f y))
-   rem1 = isPropProd B (\ y -> contr' (fiber A B f y)) (\ y -> contr'IsProp (fiber A B f y))
+   rem1 = isPropProd B (\y -> contr' (fiber A B f y)) 
+                       (\y -> contr'IsProp (fiber A B f y))

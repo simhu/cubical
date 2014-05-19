@@ -1,6 +1,6 @@
 module nIso where
 
-import univalence
+import gradLemma
 
 -- an example with N and 1 + N isomorphic
 
