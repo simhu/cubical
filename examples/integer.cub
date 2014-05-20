@@ -28,22 +28,22 @@ predZ = split
       zero  -> inl zero
       suc n -> inr n
 
-sucpredZ : (x:Z) -> Id Z (sucZ (predZ x)) x
+sucpredZ : (x : Z) -> Id Z (sucZ (predZ x)) x
 sucpredZ = split
   inl u -> refl Z (inl u)
-  inr v -> lem2 v
+  inr v -> lem v
    where
-    lem2 : (u:N) -> Id Z (sucZ (predZ (inr u))) (inr u)
-    lem2 = split
+    lem : (u : N) -> Id Z (sucZ (predZ (inr u))) (inr u)
+    lem = split
       zero  -> refl Z (inr zero)
       suc n -> refl Z (inr (suc n))
 
-predsucZ : (x:Z) -> Id Z (predZ (sucZ x)) x
+predsucZ : (x : Z) -> Id Z (predZ (sucZ x)) x
 predsucZ = split
-  inl u -> lem1 u
+  inl u -> lem u
    where
-    lem1 : (u:N) -> Id Z (predZ (sucZ (inl u))) (inl u)
-    lem1 = split
+    lem : (u : N) -> Id Z (predZ (sucZ (inl u))) (inl u)
+    lem = split
       zero  -> refl Z (inl zero)
       suc n -> refl Z (inl (suc n))
   inr v -> refl Z (inr v)

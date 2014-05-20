@@ -34,38 +34,11 @@ tNot b v = eqNotFiber b (sNot b) v rem
 eqBoolBool1 : Id U Bool Bool
 eqBoolBool1 = equivEq Bool Bool not sNot tNot
 
-Monoid : U -> U
-data Monoid A =
-  monoid (z : A)
-         (op : A -> A -> A)
-         (_ : (a b c : A) -> Id A (op a (op b c)) (op (op a b) c))
-         (_ : (a : A) -> Id A (op a z) a)
-         (_ : (a : A) -> Id A (op z a) a)
-
-zm : (A : U) (m : Monoid A) -> A
-zm A = split monoid a -> a
-
-opm : (A : U) (m : Monoid A) -> (A -> A -> A)
-opm A = split monoid _ op -> op
-
-opmA : (A : U) (m : Monoid A) ->
-       ((a b c : A) -> Id A (opm A m a (opm A m b c)) (opm A m (opm A m a b) c))
-opmA A = split monoid _ _ assoc -> assoc
-
-opm0 : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m a (zm A m)) a)
-opm0 A = split monoid _ _ _ p -> p
-
-op0m : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m (zm A m) a) a)
-op0m A = split monoid _ _ _ _ p -> p
-
-transmonoid : (A B : U) -> Id U A B -> Monoid A -> Monoid B
-transmonoid = subst U Monoid
-
 monoidAndBool : Monoid Bool
 monoidAndBool = monoid true andBool andBoolA andBoolTrue andTrueBool
 
 monoidOrBool1 : Monoid Bool
-monoidOrBool1 = transmonoid Bool Bool eqBoolBool1 monoidAndBool
+monoidOrBool1 = transMonoid Bool Bool eqBoolBool1 monoidAndBool
 
 zBool1 : Bool
 zBool1 = zm Bool monoidOrBool1
@@ -96,7 +69,7 @@ eqBoolBool2 : Id U Bool Bool
 eqBoolBool2 = equivSet Bool Bool not not notK notInj boolIsSet
 
 monoidOrBool2 : Monoid Bool
-monoidOrBool2 = transmonoid Bool Bool eqBoolBool2 monoidAndBool
+monoidOrBool2 = transMonoid Bool Bool eqBoolBool2 monoidAndBool
 
 orBool2 : Bool -> Bool -> Bool
 orBool2 = opm Bool monoidOrBool2
@@ -117,7 +90,6 @@ testTT2 = orBool2 true true
 testTT2' : Id Bool (orBool false true) (orBool2 false true)
 testTT2' = refl Bool true
 
-
 -----------
 transun : (A B : U) -> Id U A B -> (A -> A) -> (B -> B)
 transun = subst U (\X -> (X -> X))
@@ -133,7 +105,6 @@ testT' = transun Bool Bool (refl U Bool) (\x -> x) true
 
 testF : Bool
 testF = transid false
-
 
 notEqBool : Bool -> Bool
 notEqBool = transport Bool Bool eqBoolBool1

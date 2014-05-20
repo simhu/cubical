@@ -29,7 +29,7 @@ retractInj A B f g h a0 a1 h' =
   rem3 = mapOnPath B A g (f a0) (f a1) h'
 
 hasSection : (A B : U) -> (A -> B) -> U
-hasSection A B f = Sigma (B->A) (section A B f)
+hasSection A B f = Sigma (B -> A) (section A B f)
 
 -- an equivalence has a section
 
