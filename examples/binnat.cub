@@ -1,0 +1,170 @@
+module binnat where
+
+import function
+import hedberg
+import gradLemma
+
+-- Positive binary numbers like in Coq
+pos : U
+data pos = x1 (p : pos) | x0 (p : pos) | pos1 
+
+sucPos : pos -> pos
+sucPos = split
+  x1 p -> x0 (sucPos p) 
+  x0 p -> x1 p
+  pos1 -> x0 pos1
+  
+sucNtoPos : N -> pos
+sucNtoPos = split
+  zero  -> pos1
+  suc x -> sucPos (sucNtoPos x)
+
+PosToN' : N -> pos -> N
+PosToN' a = split
+  pos1 -> a
+  x0 p -> PosToN' (addN a a) p
+  x1 p -> addN a (PosToN' (addN a a) p)
+
+PosToN : pos -> N
+PosToN = PosToN' (suc zero)
+
+posInd : (P : pos -> U) -> P pos1 -> ((p : pos) -> P p -> P (sucPos p)) -> ((p : pos) -> P p)
+posInd P h1 hS = split 
+  pos1 -> h1
+  x0 p -> 
+    let H : (p : pos) -> P (x0 p) -> P (x0 (sucPos p))
+        H p hx0p = hS (x1 p) (hS (x0 p) hx0p)
+    in posInd (\p -> P (x0 p)) (hS pos1 h1) H p
+  x1 p -> 
+    let H : (p : pos) -> P (x0 p) -> P (x0 (sucPos p))
+        H p hx0p = hS (x1 p) (hS (x0 p) hx0p)
+    in hS (x0 p) (posInd (\p -> P (x0 p)) (hS pos1 h1) H p)
+
+-- Generalize the N argument to PosToN'
+PosToN'add : (m : N) (p : pos) -> Id N (PosToN' m (sucPos p)) (addN m (PosToN' m p))
+PosToN'add m = split
+  pos1 -> refl N (addN m m)
+  x0 p -> refl N (addN m (PosToN' (addN m m) p))
+  x1 p -> comp N (PosToN' (addN m m) (sucPos p)) 
+                 (addN (addN m m) (PosToN' (addN m m) p)) 
+                 (addN m (addN m (PosToN' (addN m m) p))) ih rem
+   where
+    ih : Id N (PosToN' (addN m m) (sucPos p)) (addN (addN m m) (PosToN' (addN m m) p))
+    ih = PosToN'add (addN m m) p
+
+    -- Invert associativity
+    rem : Id N (addN (addN m m) (PosToN' (addN m m) p)) (addN m (addN m (PosToN' (addN m m) p)))
+    rem = inv N (addN m (addN m (PosToN' (addN m m) p))) (addN (addN m m) (PosToN' (addN m m) p)) 
+                (addNA m m (PosToN' (addN m m) p))
+
+sucPosSuc : (p : pos) -> Id N (PosToN (sucPos p)) (suc (PosToN p))
+sucPosSuc = split
+  pos1 -> refl N (suc (suc zero))
+  x0 p -> refl N (suc (PosToN' (suc (suc zero)) p))
+  x1 p -> PosToN'add (suc (suc zero)) p
+
+PosToNK : (m : N) -> Id N (PosToN (sucNtoPos m)) (suc m)
+PosToNK = split
+  zero  -> refl N (suc zero)
+  suc n -> comp N (PosToN (sucNtoPos (suc n))) (suc (PosToN (sucNtoPos n))) 
+                  (suc (suc n)) rem2 rem1
+   where
+    rem1 : Id N (suc (PosToN (sucNtoPos n))) (suc (suc n))
+    rem1 = mapOnPath N N (\x -> suc x) (PosToN (sucNtoPos n)) (suc n) (PosToNK n)
+
+    rem2 : Id N (PosToN (sucNtoPos (suc n))) (suc (PosToN (sucNtoPos n)))
+    rem2 = sucPosSuc (sucNtoPos n)
+
+zeronPosToN : (p : pos) -> neg (Id N zero (PosToN p))
+zeronPosToN p = posInd (\p -> neg (Id N zero (PosToN p))) (\prf -> znots zero prf) hS p
+  where
+  hS : (p : pos) -> neg (Id N zero (PosToN p)) -> neg (Id N zero (PosToN (sucPos p)))
+  hS p _ prf = znots (PosToN p) rem
+   where
+    rem : Id N zero (suc (PosToN p))
+    rem = comp N zero (PosToN (sucPos p)) (suc (PosToN p)) prf (sucPosSuc p) 
+
+-- Inverse of PosToN:
+NtoPos' : N -> pos 
+NtoPos' = split 
+  zero -> pos1
+  suc n -> sucPos (NtoPos' n)
+
+NtoPos : N -> pos
+NtoPos = split
+  zero  -> pos1
+  suc n -> NtoPos' n
+
+NtoPosSuc : (n : N) -> neg (Id N zero n) -> Id pos (NtoPos (suc n)) (sucPos (NtoPos n))
+NtoPosSuc = split
+  zero -> \p -> efq (Id pos (NtoPos (suc zero)) (sucPos (NtoPos zero))) (p (refl N zero))
+  suc n -> \_ -> refl pos (sucPos (NtoPos' n))
+
+NtoPosK : retract pos N PosToN NtoPos
+NtoPosK p = posInd (\p -> Id pos (NtoPos (PosToN p)) p) (refl pos pos1) hS p
+ where
+  hS : (p : pos) -> 
+       Id pos (NtoPos (PosToN p)) p -> 
+       Id pos (NtoPos (PosToN (sucPos p))) (sucPos p)
+  hS p hp = 
+    let H1 : Id pos (NtoPos (PosToN (sucPos p))) (NtoPos (suc (PosToN p)))
+        H1 = mapOnPath N pos NtoPos (PosToN (sucPos p)) (suc (PosToN p)) (sucPosSuc p)
+
+        H2 : Id pos (NtoPos (suc (PosToN p))) (sucPos (NtoPos (PosToN p)))
+        H2 = NtoPosSuc (PosToN p) (zeronPosToN p)
+
+        H3 : Id pos (sucPos (NtoPos (PosToN p))) (sucPos p)
+        H3 = mapOnPath pos pos sucPos (NtoPos (PosToN p)) p hp
+    in comp pos (NtoPos (PosToN (sucPos p))) (sucPos (NtoPos (PosToN p))) (sucPos p) 
+         (comp pos (NtoPos (PosToN (sucPos p))) (NtoPos (suc (PosToN p))) (sucPos (NtoPos (PosToN p))) H1 H2)
+         H3
+
+posToNinj : injective pos N PosToN 
+posToNinj = retractInj pos N PosToN NtoPos NtoPosK
+
+-- Binary natural numbers
+binN : U
+data binN = binN0 | binNpos (p : pos)
+
+NtoBinN : N -> binN
+NtoBinN = split 
+  zero  -> binN0
+  suc n -> binNpos (sucNtoPos n)
+
+BinNtoN : binN -> N
+BinNtoN = split
+  binN0     -> zero
+  binNpos p -> PosToN p
+
+NtoBinNK : section binN N BinNtoN NtoBinN
+NtoBinNK = split
+  zero  -> refl N zero
+  suc n -> PosToNK n 
+
+BinNtoNinj : injective binN N BinNtoN
+BinNtoNinj = split
+  binN0     -> split
+    binN0     -> \_   -> refl binN binN0
+    binNpos q -> \prf -> efq (Id binN binN0 (binNpos q)) (zeronPosToN q prf)
+  binNpos p -> split
+    binN0     -> \prf -> efq (Id binN (binNpos p) binN0) (zeronPosToN p (inv N (PosToN p) zero prf))
+    binNpos q -> \prf -> mapOnPath pos binN (\x -> binNpos x) p q (posToNinj p q prf)
+
+IdbinNN : Id U binN N
+IdbinNN = equivSet binN N BinNtoN NtoBinN NtoBinNK BinNtoNinj NIsSet
+
+binNMonoid : Monoid binN
+binNMonoid = transMonoidInv binN N IdbinNN monoidAddN
+
+zeroBinN : binN
+zeroBinN = zm binN binNMonoid
+
+addBinN : binN -> binN -> binN
+addBinN = opm binN binNMonoid
+
+addBinNA : (a b c : binN) -> 
+           Id binN (addBinN a (addBinN b c)) (addBinN (addBinN a b) c)
+addBinNA = opmA binN binNMonoid
+
+test : binN
+test = addBinN (binNpos (x1 (x1 (x0 pos1)))) (binNpos (x0 (x0 (x0 (x1 pos1)))))

@@ -107,7 +107,7 @@ data N = zero | suc (n : N)
 
 pred : N -> N
 pred = split
-  zero -> zero
+  zero  -> zero
   suc n -> n
 
 sucInj : (n m : N) -> Id N (suc n) (suc m) -> Id N n m
@@ -115,7 +115,7 @@ sucInj n m h = mapOnPath N N pred (suc n) (suc m) h
 
 addN : N -> N -> N
 addN = split
-  zero -> \n -> n
+  zero  -> \n -> n
   suc m -> \n -> suc (addN m n)
 
 add0N : (m : N) -> Id N (addN zero m) m
@@ -131,6 +131,23 @@ addNA = split
   zero   -> \n p -> refl N (addN n p)
   suc m' -> \n p -> mapOnPath N N (\x -> suc x) (addN m' (addN n p))
                                   (addN (addN m' n) p) (addNA m' n p)
+
+-- Subtract m from n
+subN : N -> N -> N
+subN = split
+  zero -> \n -> n
+  suc m -> split
+    zero -> zero
+    suc n -> subN m n
+
+-- This cannot be defined here because it relies on function...
+-- subNK : (m : N) -> retract N N (addN m) (subN m)
+-- subNK = split
+--   zero  -> \a -> refl N a
+--   suc m' -> \a -> subNK m' a
+
+-- addNinj : (m : N) -> injective N N (addN m)
+-- addNinj m = retractInj N N (addN m) (subN m) (subNK m)
 
 -- Additive monoid on N
 monoidAddN : Monoid N
