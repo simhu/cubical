@@ -1,5 +1,5 @@
 ;; define several class of keywords
-(setq cub-keywords '("data" "import" "mutual" "let" "in" "data" "split"
+(setq cub-keywords '("data" "import" "mutual" "let" "in" "split"
                      "module" "where" "U") )
 (setq cub-special '("undefined" "primitive"))
 
