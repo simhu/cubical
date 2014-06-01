@@ -12,10 +12,10 @@ allTransp A B = equivSec (Id U A B) (Equiv A B)  (IdToEquiv A B) (univAx A B)
 transpRef : (A : U) -> Id (A->A) (id A) (transport A A (refl U A))
 transpRef A = funExt A (\ _ -> A) (id A) (transport A A (refl U A)) (transportRef A)
 
-elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) -> 
+elimIsEquiv : (A:U) -> (P : (B:U) -> (A->B) -> U) -> P A (id A) ->
               (B :U) -> (f : A -> B) -> isEquiv A B f -> P B f
 elimIsEquiv A P d B f if = rem2 B (f,if)
- where 
+ where
   rem1 : P A (transport A A (refl U A))
   rem1 = subst (A->A) (P A) (id A) (transport A A (refl U A)) (transpRef A) d
 
@@ -25,3 +25,21 @@ elimIsEquiv A P d B f if = rem2 B (f,if)
   rem2 : (B:U) -> (p:Equiv A B) -> P B p.1
   rem2 B = allSection (Id U A B) (Equiv A B) (IdToEquiv A B) (allTransp A B) (\ p -> P B p.1) (rem B)
 
+
+-- a corollary
+
+elimIsIso : (A : U) -> (Q : (B : U) -> (A -> B) -> (B -> A) -> U) ->
+            Q A (id A) (id A) -> (B : U) -> (f : A -> B) -> (g : B-> A) ->
+            section A B f g -> retract A B f g -> Q B f g
+elimIsIso A Q d = rem1
+ where
+   P : (B : U) -> (A -> B) -> U
+   P B f =  (g : B-> A) -> section A B f g -> retract A B f g -> Q B f g
+
+   rem : P A (id A)
+   rem g sg rg = substInv (A -> A) (Q A (id A)) g (id A) rem1 d
+                   where rem1 : Id (A -> A) g (id A)
+                         rem1 = funExt A (\_ -> A) g (id A) sg
+
+   rem1 : (B : U) -> (f : A->B) -> P B f
+   rem1 B f g sg rg = elimIsEquiv A P rem B f (gradLemma A B f g sg rg) g sg rg
