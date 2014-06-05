@@ -8,6 +8,7 @@ import qualified CTT as C
 import Pretty
 
 import Control.Applicative
+import Control.Arrow (second)
 import Control.Monad.Trans
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
@@ -62,7 +63,9 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 -------------------------------------------------------------------------------
 -- | Resolver and environment
 
-data SymKind = Variable | Constructor
+type Arity = Int
+
+data SymKind = Variable | Constructor Arity
   deriving (Eq,Show)
 
 -- local environment for constructors
@@ -95,10 +98,10 @@ insertVar x = insertBinder (x,Variable)
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
 
-insertCon :: C.Binder -> Env -> Env
-insertCon x = insertBinder (x,Constructor)
+insertCon :: (C.Binder,Arity) -> Env -> Env
+insertCon (x,a) = insertBinder (x,Constructor a)
 
-insertCons :: [C.Binder] -> Env -> Env
+insertCons :: [(C.Binder,Arity)] -> Env -> Env
 insertCons = flip $ foldr insertCon
 
 getModule :: Resolver String
@@ -111,7 +114,16 @@ getLoc :: (Int,Int) -> Resolver C.Loc
 getLoc l = C.Loc <$> getModule <*> pure l
 
 resolveBinder :: AIdent -> Resolver C.Binder
-resolveBinder (AIdent (l,x)) = do l <- getLoc l; return (x, l)
+resolveBinder (AIdent (l,x)) = (x,) <$> getLoc l
+
+-- Eta expand constructors
+expandConstr :: Arity -> String -> [Exp] -> Resolver Ter
+expandConstr a x es = do
+  let r       = a - length es
+      binders = map (('_' :) . show) [1..r]
+      args    = map C.Var binders
+  ts <- mapM resolveExp es
+  return $ C.mkLams binders $ C.mkApps (C.Con x []) (ts ++ args)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
@@ -120,8 +132,8 @@ resolveVar (AIdent (l,x))
     modName <- getModule
     vars    <- getVariables
     case C.getIdent x vars of
-      Just Variable    -> return $ C.Var x
-      Just Constructor -> return $ C.Con x []
+      Just Variable        -> return $ C.Var x
+      Just (Constructor a) -> expandConstr a x []
       _ -> throwError $
         "Cannot resolve variable" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
@@ -141,8 +153,16 @@ binds f = flip $ foldr $ bind f
 resolveExp :: Exp -> Resolver Ter
 resolveExp U            = return C.U
 resolveExp (Var x)      = resolveVar x
-resolveExp (App t s)    = C.mkApps <$> resolveExp x <*> mapM resolveExp xs
-  where (x, xs) = unApps t [s]
+resolveExp (App t s)    = case unApps t [s] of
+  (x@(Var (AIdent (_,n))),xs) -> do
+    -- Special treatment in the case of a constructor in order not to
+    -- eta expand too much
+    vars    <- getVariables
+    case C.getIdent n vars of
+      Just (Constructor a) -> expandConstr a n xs
+      _ -> C.mkApps <$> resolveExp x <*> mapM resolveExp xs
+  (x,xs) -> C.mkApps <$> resolveExp x <*> mapM resolveExp xs
+
 resolveExp (Sigma t b)  = case pseudoTele t of
   Just tele -> binds C.Sigma tele (resolveExp b)
   Nothing   -> throwError "Telescope malformed in Sigma"
@@ -178,11 +198,13 @@ resolveTele ((i,d):t) = do
   ((x,) <$> resolveExp d) <:> local (insertVar x) (resolveTele t)
 
 resolveLabel :: Label -> Resolver (C.Binder, C.Tele)
-resolveLabel (Label n vdecl) = (,) <$> resolveBinder n <*> resolveTele (vTele vdecl)
+resolveLabel (Label n vdecl) =
+  (,) <$> resolveBinder n <*> resolveTele (vTele vdecl)
 
-declsLabels :: [Decl] -> Resolver [C.Binder]
-declsLabels decls = mapM resolveBinder [lbl | Label lbl _ <- sums]
-  where sums = concat [sum | DeclData _ _ sum <- decls]
+declsLabels :: [Decl] -> Resolver [(C.Binder,Arity)]
+declsLabels decls = do
+  let sums = concat [sum | DeclData _ _ sum <- decls]
+  sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
 
 -- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
@@ -197,7 +219,7 @@ resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,SymKind)])
 resolveMutuals decls = do
     binders <- mapM resolveBinder idents
     cs      <- declsLabels decls
-    let cns = map fst cs ++ names
+    let cns = map (fst . fst) cs ++ names
     when (nub cns /= cns) $
       throwError $ "Duplicated constructor or ident:" <+> show cns
     rddecls <-
@@ -206,12 +228,12 @@ resolveMutuals decls = do
       throwError $ "Mismatching names in" <+> show decls
     rtdecls <- resolveTele tdecls
     return ([ (x,t,d) | (x,t) <- rtdecls | (_,d) <- rddecls ],
-            map (,Constructor) cs ++ map (,Variable) binders)
+            map (second Constructor) cs ++ map (,Variable) binders)
   where
     idents = [ x | DeclType x _ <- decls ]
     names  = [ unAIdent x | x <- idents ]
     tdecls = [ (x,t) | DeclType x t <- decls ]
-    ddecls = [ t | t <- decls, not $ isTDecl t ]
+    ddecls = filter (not . isTDecl) decls
     isTDecl d = case d of DeclType{} -> True; _ -> False
 
 -- Resolve opaque/transparent decls

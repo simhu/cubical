@@ -66,7 +66,7 @@ PosToNK = split
   zero  -> refl N (suc zero)
   suc n ->
     let ih : Id N (suc (PosToN (NtoPos' n))) (suc (suc n))
-        ih = mapOnPath N N (\m -> suc m) (PosToN (NtoPos (suc n))) (suc n) (PosToNK n)
+        ih = mapOnPath N N suc (PosToN (NtoPos (suc n))) (suc n) (PosToNK n)
     in comp N (PosToN (NtoPos (suc (suc n)))) (suc (PosToN (NtoPos' n)))
               (suc (suc n)) (sucPosSuc (NtoPos' n)) ih
 
@@ -124,7 +124,7 @@ rem p = comp binN (NtoBinN (PosToN (sucPos p))) (binNpos (NtoPos (suc (PosToN p)
       rem1 = mapOnPath N binN NtoBinN (PosToN (sucPos p)) (suc (PosToN p)) (sucPosSuc p)
 
       rem2 : Id binN (binNpos (NtoPos (suc (PosToN p)))) (binNpos (sucPos p))
-      rem2 = mapOnPath pos binN (\x -> binNpos x) (NtoPos (suc (PosToN p))) (sucPos p)
+      rem2 = mapOnPath pos binN binNpos (NtoPos (suc (PosToN p))) (sucPos p)
                 (comp pos (NtoPos (suc (PosToN p))) (sucPos (NtoPos (PosToN p))) (sucPos p)
                 (NtoPosSuc (PosToN p) (zeronPosToN p))
                 (mapOnPath pos pos sucPos (NtoPos (PosToN p)) p (NtoPosK p)))
