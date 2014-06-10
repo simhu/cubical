@@ -65,11 +65,13 @@ sndSVal u | isNeutral u = VSnd u
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u                         = eval (oPair e (x,u)) t
-app (Kan Com (VPi a b) box@(Box dir x v nvs)) u =
+app u1@(Kan Com (VPi a b) box@(Box dir x v nvs)) u =
   trace "Pi Com" $
-  let ufill = fill a (Box (mirror dir) x u [])
-      bcu   = cubeToBox ufill (shapeOfBox box)
-  in com (app b ufill) (appBox box bcu)
+  let z     = fresh (u1,u)
+      box'  = swap box x z
+      ufill = fill (swap a x z) (Box (mirror dir) z u [])
+      bcu   = cubeToBox ufill (shapeOfBox box')
+  in com (app (swap b x z) ufill) (appBox box' bcu)
 app kf@(Kan Fill (VPi a b) box@(Box dir i w nws)) v =
   trace "Pi fill" $
   let x     = fresh (kf, v)
