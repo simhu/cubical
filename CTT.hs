@@ -70,6 +70,9 @@ mkApps :: Ter -> [Ter] -> Ter
 mkApps (Con l us) vs = Con l (us ++ vs)
 mkApps t ts          = foldl App t ts
 
+mkLams :: [String] -> Ter -> Ter
+mkLams bs t = foldr Lam t [ noLoc b | b <- bs ]
+
 mkWheres :: [Decls] -> Ter -> Ter
 mkWheres []     e = e
 mkWheres (d:ds) e = Where (mkWheres ds e) d
