@@ -56,7 +56,8 @@ data Ter = App Ter Ter
          | Snd Ter
          | Where Ter Decls
          | Var Ident
-         | U
+         | U Integer
+         | Plus Ter
          -- constructor c Ms
          | Con Label [Ter]
          -- branches c1 xs1  -> M1,..., cn xsn -> Mn
@@ -80,8 +81,8 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 --------------------------------------------------------------------------------
 -- | Values
 
-data Val = VU
-         | Ter Ter Env
+data Val = VU Integer
+         | Ter Ter Env'
          | VPi Val Val
          | VId Val Val Val
          | VSigma Val Val
@@ -113,6 +114,8 @@ data Env = Empty
          | PDef [(Binder,Ter)] Env
   deriving Eq
 
+type Env' = (Integer, Env)
+
 instance Show Env where
   show Empty            = ""
   show (PDef xas env)   = show env
@@ -121,8 +124,8 @@ instance Show Env where
       showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
       showEnv1 e                = show e
 
-upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
+upds :: Env' -> [(Binder,Val)] -> Env'
+upds (k,e) xs = (k,foldl Pair e xs)
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = lookup x [ (y,((y,l),t)) | ((y,l),t) <- defs]
@@ -145,7 +148,7 @@ instance Show Ter where
   show = showTer
 
 showTer :: Ter -> String
-showTer U             = "U"
+showTer (U n)            = "U_" ++ show n
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
 showTer (Lam (x,_) e) = '\\' : x <+> "->" <+> showTer e
@@ -159,12 +162,13 @@ showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (Undef _)     = "undefined"
+showTer (Plus e)      = showTer1 e ++ "^+"
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
 
 showTer1 :: Ter -> String
-showTer1 U           = "U"
+showTer1 (U n)       = "U_" ++ show n
 showTer1 (Con c [])  = c
 showTer1 (Var x)     = x
 showTer1 u@(Split{}) = showTer u
@@ -178,8 +182,8 @@ instance Show Val where
   show = showVal
 
 showVal :: Val -> String
-showVal VU           = "U"
-showVal (Ter t env)  = show t <+> show env
+showVal (VU n)         = "U_" ++ show n
+showVal (Ter t (k,env))  = show t <+> show k <+> show env
 showVal (VId a u v)  = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (VCon c us)  = c <+> showVals us
 showVal (VPi a f)    = "Pi" <+> showVals [a,f]
@@ -198,7 +202,7 @@ showVals :: [Val] -> String
 showVals = hcat . map showVal1
 
 showVal1 :: Val -> String
-showVal1 VU          = "U"
+showVal1 (VU n)      = "U_" ++ show n
 showVal1 (VCon c []) = c
 showVal1 u@(VVar{})  = showVal u
 showVal1 u           = parens $ showVal u

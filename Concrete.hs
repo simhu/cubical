@@ -151,7 +151,13 @@ binds :: (Ter -> Ter -> Ter) -> Tele -> Resolver Ter -> Resolver Ter
 binds f = flip $ foldr $ bind f
 
 resolveExp :: Exp -> Resolver Ter
-resolveExp U            = return C.U
+resolveExp (U n)        = return (C.U n)
+resolveExp (Plus t)     = do
+  e <- resolveExp t
+  return (C.Plus e)
+resolveExp (Expo t n)   = if n == 0 then resolveExp t else do
+  e <- resolveExp (Expo t (n-1))
+  return (C.Plus e)
 resolveExp (Var x)      = resolveVar x
 resolveExp (App t s)    = case unApps t [s] of
   (x@(Var (AIdent (_,n))),xs) -> do
