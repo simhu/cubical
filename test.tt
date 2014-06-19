@@ -1,0 +1,48 @@
+module test where 
+
+id : (X : U 0) -> (X -> X)
+id X x = x
+
+idP : (X : U 1) -> (X -> X)
+idP = (id)^+
+
+idN : (X : U 5) -> (X -> X)
+idN = id^5
+
+N : U 0
+data N = Zero | Succ (n : N)
+
+ZP : N^+
+ZP = Zero
+
+natrec : (C: N -> U 0) -> C Zero -> ((n:N) -> C n -> C (Succ n)) -> (n:N) -> C n
+natrec C C0 f = split
+       Zero -> C0
+       Succ n -> f n (natrec C C0 f n)
+
+natrecP : ((C: N -> U 0) -> C Zero -> ((n:N) -> C n -> C (Succ n)) -> (n:N) -> C n)^+
+natrecP = natrec^+
+
+natrecP' : (C: N -> U 1) -> C Zero -> ((n:N) -> C n -> C (Succ n)) -> (n:N) -> C n
+natrecP' = natrec^+
+
+list : U 0 -> U 0
+data list X = Nil | Cons (x : X) (l : list X)
+
+listP : U 1 -> U 1
+listP = list^+
+
+uListP : U 1
+uListP = listP (U 0)
+
+nListP : U 1
+nListP = listP N
+
+l : list^+ N
+l = Cons Zero (Cons (Succ Zero) Nil)
+
+n : list N
+n = (id (list N) Nil)^+
+
+t : (P : U 2 -> U 3) -> P (list N) -> P (list^+ N)
+t = \P -> \x -> x
