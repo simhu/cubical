@@ -46,3 +46,17 @@ n = (id (list N) Nil)^+
 
 t : (P : U 2 -> U 3) -> P (list N) -> P (list^+ N)
 t = \P -> \x -> x
+
+plus : N -> N -> N
+plus n = split
+     Zero -> n
+     Succ m -> plus (Succ n) m
+
+magma : U 1
+magma = (A : U 0)*(A -> A -> A)
+
+mag : magma
+mag = (N, plus)
+
+magP : magma^+
+magP = mag^+
