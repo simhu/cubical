@@ -149,6 +149,7 @@ check a t = case (a,t) of
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
+  (_,Undef _) -> return ()
   _ -> do
     v <- checkInfer t
     k <- index <$> ask
