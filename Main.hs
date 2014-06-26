@@ -12,10 +12,10 @@ import System.Console.Haskeline
 import Exp.Lex
 import Exp.Par
 import Exp.Print
-import Exp.Abs hiding (NoArg)
+import Exp.Abs
 import Exp.Layout
 import Exp.ErrM
-import Concrete hiding (getConstrs)
+import Concrete
 import qualified TypeChecker as TC
 import qualified CTT as C
 import qualified Eval as E
