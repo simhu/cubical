@@ -83,7 +83,6 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 data Val = VU
          | Ter Ter Env
          | VPi Val Val
-         | VId Val Val Val
          | VSigma Val Val
          | VSPair Val Val
          | VCon Ident [Val]
@@ -180,7 +179,6 @@ instance Show Val where
 showVal :: Val -> String
 showVal VU           = "U"
 showVal (Ter t env)  = show t <+> show env
-showVal (VId a u v)  = "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (VCon c us)  = c <+> showVals us
 showVal (VPi a f)    = "Pi" <+> showVals [a,f]
 showVal (VApp u v)   = showVal u <+> showVal1 v
