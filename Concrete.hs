@@ -158,9 +158,12 @@ resolveExp (Plus t)     = do
 resolveExp (Minus t)    = do
   e <- resolveExp t
   return (C.Minus e)
-resolveExp (Expo t n)   = if n == 0 then resolveExp t else do
-  e <- resolveExp (Expo t (n-1))
+resolveExp (PExpo t n)  = if n == 0 then resolveExp t else do
+  e <- resolveExp (PExpo t (n-1))
   return (C.Plus e)
+resolveExp (NExpo t n)  = if n == 0 then resolveExp t else do
+  e <- resolveExp (NExpo t (n-1))
+  return (C.Minus e)
 resolveExp (Var x)      = resolveVar x
 resolveExp (App t s)    = case unApps t [s] of
   (x@(Var (AIdent (_,n))),xs) -> do
