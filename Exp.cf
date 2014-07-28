@@ -31,6 +31,7 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Plus.	  Exp3 ::= Exp3 "^+" ;
+Minus.    Exp3 ::= Exp3 "^-" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" Integer ;

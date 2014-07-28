@@ -16,7 +16,8 @@ look x (k, e) = look' e
       Nothing     -> look' r1
 
 eval :: Env' -> Ter -> Val
-eval (k,e) (U n)           = VU (n+k)
+eval (k,e) (U n)           = if n+k >= 0 then VU (n+k) else
+                               error "negative universe"
 eval (k,e) (App r s)       = app (eval (k,e) r) (eval (k,e) s)
 eval (k,e) (Var i)         = snd (look i (k,e))
 eval (k,e) (Pi a b)        = VPi (eval (k,e) a) (eval (k,e) b)
@@ -31,25 +32,33 @@ eval (k,e) (Split pr alts) = Ter (Split pr alts) (k,e)
 eval (k,e) (Sum pr ntss)   = Ter (Sum pr ntss) (k,e)
 eval (k,e) (Undef _)       = error "undefined"
 eval (k,e) (Plus t)        = eval (k+1,e) t
+eval (k,e) (Minus t)       = eval (k-1,e) t
+
+vShift :: Integer -> Val -> Val
+vShift k (VU n)         = if k+n >= 0 then VU (n+k) else
+                            error "negative universe"
+vShift k (Ter t (k',e))  = Ter t (k+k', envShift k e)
+vShift k (VPi u v)      = VPi (vShift k u) (vShift k v)
+vShift k (VId u v w)    = VId (vShift k u) (vShift k v) (vShift k w)
+vShift k (VSigma u v)   = VSigma (vShift k u) (vShift k v)
+vShift k (VSPair u v)   = VSPair (vShift k u) (vShift k v)
+vShift k (VCon name vs) = VCon name (map (vShift k) vs)
+vShift k (VApp u v)     = VApp (vShift k u) (vShift k v)
+vShift k (VSplit u v)   = VSplit (vShift k u) (vShift k v)
+vShift k (VVar x)       = VVar x
+vShift k (VFst u)       = VFst (vShift k u)
+vShift k (VSnd u)       = VSnd (vShift k u)
+
+envShift :: Integer -> Env -> Env
+envShift k Empty             = Empty
+envShift k (Pair e (x, u))   = Pair (envShift k e) (x, vShift k u)
+envShift k (PDef bts e)      = PDef bts (envShift k e)
 
 vPlus :: Val -> Val
-vPlus (VU n)         = VU (n+1)
-vPlus (Ter t (k,e))  = Ter t (k+1, envPlus e)
-vPlus (VPi u v)      = VPi (vPlus u) (vPlus v)
-vPlus (VId u v w)    = VId (vPlus u) (vPlus v) (vPlus w)
-vPlus (VSigma u v)   = VSigma (vPlus u) (vPlus v)
-vPlus (VSPair u v)   = VSPair (vPlus u) (vPlus v)
-vPlus (VCon name vs) = VCon name (map vPlus vs)
-vPlus (VApp u v)     = VApp (vPlus u) (vPlus v)
-vPlus (VSplit u v)   = VSplit (vPlus u) (vPlus v)
-vPlus (VVar x)       = VVar x
-vPlus (VFst u)       = VFst (vPlus u)
-vPlus (VSnd u)       = VSnd (vPlus u)
+vPlus = vShift 1
 
-envPlus :: Env -> Env
-envPlus Empty             = Empty
-envPlus (Pair e (x, u))   = Pair (envPlus e) (x, vPlus u)
-envPlus (PDef bts e)      = PDef bts (envPlus e)
+vMinus :: Val -> Val
+vMinus = vShift (-1)
 
 evals :: Env' -> [(Binder,Ter)] -> [(Binder,Val)]
 evals (k,env) bts = [ (b,eval (k,env) t) | (b,t) <- bts ]

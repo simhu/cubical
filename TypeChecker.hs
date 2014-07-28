@@ -212,6 +212,9 @@ checkInfer e = case e of
   Plus t -> do
     a <- checkInfer t
     return (vPlus a)
+  Minus t -> do
+    a <- checkInfer t
+    return (vMinus a)
   _ -> throwError ("checkInfer " ++ show e)
 
 checks :: (Tele,Env') -> [Ter] -> Typing ()

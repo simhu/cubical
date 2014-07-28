@@ -155,6 +155,9 @@ resolveExp (U n)        = return (C.U n)
 resolveExp (Plus t)     = do
   e <- resolveExp t
   return (C.Plus e)
+resolveExp (Minus t)    = do
+  e <- resolveExp t
+  return (C.Minus e)
 resolveExp (Expo t n)   = if n == 0 then resolveExp t else do
   e <- resolveExp (Expo t (n-1))
   return (C.Plus e)

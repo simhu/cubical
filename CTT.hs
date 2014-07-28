@@ -58,6 +58,7 @@ data Ter = App Ter Ter
          | Var Ident
          | U Integer
          | Plus Ter
+         | Minus Ter
          -- constructor c Ms
          | Con Label [Ter]
          -- branches c1 xs1  -> M1,..., cn xsn -> Mn
@@ -163,6 +164,7 @@ showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (Undef _)     = "undefined"
 showTer (Plus e)      = showTer1 e ++ "^+"
+showTer (Minus e)     = showTer1 e ++ "^-"
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
