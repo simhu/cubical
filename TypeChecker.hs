@@ -118,6 +118,10 @@ checkType t = case t of
     localM (addType (x,a)) (checkType b)
   Plus t -> do
     checkType t
+  Minus t -> do
+    rho <- asks env
+    (eval rho (Minus t)) `seq` checkType t
+    return ()
   _ -> do
     e <- checkInfer t
     case e of
@@ -213,7 +217,8 @@ checkInfer e = case e of
     a <- checkInfer t
     return (vPlus a)
   Minus t -> do
-    a <- checkInfer t
+    rho <- asks env
+    a <- (eval rho (Minus t)) `seq` checkInfer t
     return (vMinus a)
   _ -> throwError ("checkInfer " ++ show e)
 
