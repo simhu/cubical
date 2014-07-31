@@ -22,41 +22,42 @@ type Typing a = ReaderT TEnv (ErrorT String IO) a
 
 -- Environment for type checker
 data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
-                 , env     :: Env'
-                 , ctxt    :: Ctxt
+                 , env'    :: Env'
                  , verbose :: Bool  -- Should it be verbose and print
                                     -- what it typechecks?
                  }
   deriving (Eq,Show)
 
-verboseEnv, silentEnv :: TEnv
-verboseEnv = TEnv 0 (0,Empty) [] True
-silentEnv  = TEnv 0 (0,Empty) [] False
+env :: TEnv -> Env
+env = snd . env'
 
+shift :: TEnv -> Integer
+shift = fst . env'
+
+verboseEnv, silentEnv :: TEnv
+verboseEnv = TEnv 0 (0,Empty) True
+silentEnv  = TEnv 0 (0,Empty) False
+
+addVal :: (Binder,Val) -> TEnv -> TEnv
+addVal (x,v) (TEnv k (n,rho) verb) =
+  TEnv k (n,Pair rho (x,v)) verb
+
+addValk :: (Binder,Val) -> TEnv -> TEnv
+addValk (x,v) (TEnv k (n,rho) verb) =
+  TEnv (k+1) (n,Pair rho (x,v)) verb
+  
 addTypeVal :: (Binder,Val) -> TEnv -> TEnv
-addTypeVal p@(x,_) (TEnv k (n,rho) gam v) =
-  TEnv (k+1) (n,Pair rho (x,mkVar k)) (p:gam) v
+addTypeVal (x,t) (TEnv k (n,rho) v) =
+  TEnv (k+1) (n,Pair rho (x,mkVar k t)) v
+
+-- todo : factorize addVal/addTypeVal
 
 addType :: (Binder,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ (n,rho) _ _) =
+addType (x,a) tenv@(TEnv _ (n,rho) _) =
   return $ addTypeVal (x,eval (n,rho) a) tenv
 
-addC :: Ctxt -> (Tele,Env') -> [(Binder,Val)] -> Typing Ctxt
-addC gam _             []          = return gam
-addC gam ((y,a):as,(n,nu)) ((x,u):xus) =
-  addC ((x,eval (n,nu) a):gam) (as,(n,Pair nu (y,u))) xus
-
-addBranch :: [(Binder,Val)] -> (Tele,Env') -> TEnv -> Typing TEnv
-addBranch nvs (tele,env) (TEnv k rho gam v) = do
-  e <- addC gam (tele,env) nvs
-  return $ TEnv (k + length nvs) (upds rho nvs) e v
-
-addDecls :: Decls -> TEnv -> Typing TEnv
-addDecls d (TEnv k (n,rho) gam v) = do
-  let rho1 = PDef [ (x,y) | (x,_,y) <- d ] rho
-      es' = evals (n,rho1) (declDefs d)
-  gam' <- addC gam (declTele d,(n,rho)) es'
-  return $ TEnv k (n,rho1) gam' v
+addDecls :: Decls -> TEnv -> TEnv
+addDecls d (TEnv k (n,rho) v) = TEnv k (n,PDef [(x,(y,z)) | (x,y,z) <- d] rho) v
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
@@ -73,7 +74,7 @@ runTyping env t = runErrorT $ runReaderT t env
 runDecls :: TEnv -> Decls -> IO (Either String TEnv)
 runDecls tenv d = runTyping tenv $ do
   checkDecls d
-  addDecls d tenv
+  return $ addDecls d tenv
 
 runDeclss :: TEnv -> [Decls] -> IO (Maybe String,TEnv)
 runDeclss tenv []         = return (Nothing, tenv)
@@ -101,8 +102,8 @@ localM f r = do
   a <- f e
   local (const a) r
 
-getFresh :: Typing Val
-getFresh = mkVar <$> index <$> ask
+getFresh :: Val -> Typing Val
+getFresh a = mkVar <$> asks index <*> pure a
 
 checkTele :: Tele -> Typing ()
 checkTele [] = return ()
@@ -117,11 +118,11 @@ checkType t = case t of
     checkType a
     localM (addType (x,a)) (checkType b)
   Plus t -> do
-    checkType t
-  Minus t -> do
-    rho <- asks env
-    (eval rho (Minus t)) `seq` checkType t
-    return ()
+    local (shiftTEnv 1) $ checkType t
+  -- Minus t -> do
+  --   rho <- asks env'
+  --   (eval rho (Minus t)) `seq` checkType t
+  --   return ()
   _ -> do
     e <- checkInfer t
     case e of
@@ -133,7 +134,7 @@ checkDecls d = do
   let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
   trace ("Checking: " ++ unwords idents)
   checkTele tele
-  rho <- asks env
+  rho <- asks env'
   localM (addTele tele) $ checks (tele,rho) ters
 
 check :: Val -> Ter -> Typing ()
@@ -156,44 +157,68 @@ check a t = case (a,t) of
                       | (brc, (_,as)) <- zip ces' cas' ]
        else throwError "case branches does not match the data type"
   (VPi a f,Lam x t)  -> do
-    var <- getFresh
+    var <- getFresh a
     local (addTypeVal (x,a)) $ check (app f var) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
-    e <- asks env
+    e <- asks env'
     let v = eval e t1
     check (app f v) t2
   (_,Where e d) -> do
     checkDecls d
-    localM (addDecls d) $ check a e
+    local (addDecls d) $ check a e
   (_,Undef _) -> return ()
   _ -> do
     v <- checkInfer t
     k <- index <$> ask
     unless (subt k v a) $
       throwError $ "check subt: " ++ show v ++ " </= " ++ show a
+  
+addBranch :: [Binder] -> (Tele,Env') -> Typing [(Binder,Val)]
+addBranch []      _                = return []
+addBranch (x:xs) ((y,a):as,(n,nu)) = do
+  k <- asks index
+  let z = mkVar k (eval (n,nu) a)
+  vs <- local (addValk (x,z)) $ addBranch xs (as,(n,Pair nu (y,z)))
+  return $ (x,z):vs
+  
+-- todo: get rid of monads?
 
 checkBranch :: (Tele,Env') -> Val -> Brc -> Typing ()
 checkBranch (xas,(n,nu)) f (c,(xs,e)) = do
-  k   <- asks index
-  let l  = length xas
-      us = map mkVar [k..k+l-1]
-  localM (addBranch (zip xs us) (xas,(n,nu))) $ check (app f (VCon c us)) e
+  vs <- addBranch xs (xas,(n,nu))
+  local (\tenv -> foldr addVal tenv vs) $ check (app f (VCon c (map snd vs))) e
+
+lookType :: Ident -> Env' -> Val
+lookType x (k, e) = look' e
+  where
+    look' (Pair rho (n@(y,l),u))
+      | x == y    = case u of
+        VVar _ _ v -> v
+        _          -> error "lookType: should be a VVar"
+      | otherwise = look' rho
+    look' r@(PDef es r1) = case lookupIdent x es of
+      Just (y,(t,v))  -> eval (k,r) t
+      Nothing       -> look' r1
+    look' Empty   = error "lookType: unbound variable at type checking"
+
+shiftTEnv :: Integer -> TEnv -> TEnv
+shiftTEnv n (TEnv k (m,rho) verb) = TEnv k (n+m,rho) verb
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
-  U n -> return (VU (n+1))                -- U_n : U_n+1
+  U n -> do
+    l <- asks shift
+    return (VU (n+l+1))
   Var n -> do
-    gam <- ctxt <$> ask
-    case getIdent n gam of
-      Just v  -> return v
-      Nothing -> throwError $ show n ++ " is not declared!"
+    rho' <- asks env'
+    return $ lookType n rho'
   App t u -> do
     c <- checkInfer t
     case c of
       VPi a f -> do
         check a u
-        rho <- asks env
+        rho <- asks env'
         let v = eval rho u
         return $ app f v
       _       -> throwError $ show c ++ " is not a product"
@@ -206,20 +231,19 @@ checkInfer e = case e of
     c <- checkInfer t
     case c of
       VSigma a f -> do
-        e <- asks env
+        e <- asks env'
         let v = eval e t
         return $ app f (fstSVal v)
       _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDecls d
-    localM (addDecls d) $ checkInfer t
+    local (addDecls d) $ checkInfer t
   Plus t -> do
-    a <- checkInfer t
-    return (vPlus a)
-  Minus t -> do
-    rho <- asks env
-    a <- (eval rho (Minus t)) `seq` checkInfer t
-    return (vMinus a)
+    local (shiftTEnv 1) $ checkInfer t
+  -- Minus t -> do
+  --   rho <- asks env'
+  --   a <- (eval rho (Minus t)) `seq` checkInfer t
+  --   return (vMinus a)
   _ -> throwError ("checkInfer " ++ show e)
 
 checks :: (Tele,Env') -> [Ter] -> Typing ()
@@ -227,7 +251,7 @@ checks _              []     = return ()
 checks ((x,a):xas,(n,nu)) (e:es) = do
   let v = eval (n,nu) a
   check v e
-  rho <- asks env
+  rho <- asks env'
   let v' = eval rho e
   checks (xas,(n,Pair nu (x,v'))) es
 checks _              _      = throwError "checks"

@@ -1,5 +1,17 @@
 module test where 
 
+test : (R : U 1 -> U 1 -> U 1) -> ((y : U 1) -> R y y) -> (x : U 0) -> R x (x^+)
+test R h x = h x
+
+f : (x : U 0) -> U 1
+f x = x^+
+
+dsk : U 2
+dsk = f^+ (U 0)
+
+g : U 1 -> U 2
+g = f^+
+
 id : (X : U 0) -> (X -> X)
 id X x = x
 

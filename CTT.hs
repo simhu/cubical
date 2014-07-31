@@ -91,18 +91,18 @@ data Val = VU Integer
          | VCon Ident [Val]
          | VApp Val Val            -- the first Val must be neutral
          | VSplit Val Val          -- the second Val must be neutral
-         | VVar String
+         | VVar String Integer Val
          | VFst Val
          | VSnd Val
   deriving Eq
 
-mkVar :: Int -> Val
-mkVar k = VVar ('X' : show k)
+mkVar :: Int -> Val -> Val
+mkVar k v = VVar ('X' : show k) 0 v
 
 isNeutral :: Val -> Bool
 isNeutral (VApp u _)   = isNeutral u
 isNeutral (VSplit _ v) = isNeutral v
-isNeutral (VVar _)     = True
+isNeutral (VVar _ _ _) = True
 isNeutral (VFst v)     = isNeutral v
 isNeutral (VSnd v)     = isNeutral v
 isNeutral _            = False
@@ -112,7 +112,7 @@ isNeutral _            = False
 
 data Env = Empty
          | Pair Env (Binder,Val)
-         | PDef [(Binder,Ter)] Env
+         | PDef [(Binder,(Ter,Ter))] Env -- (binder,(type,definition))
   deriving Eq
 
 type Env' = (Integer, Env)
@@ -191,7 +191,7 @@ showVal (VCon c us)  = c <+> showVals us
 showVal (VPi a f)    = "Pi" <+> showVals [a,f]
 showVal (VApp u v)   = showVal u <+> showVal1 v
 showVal (VSplit u v) = showVal u <+> showVal1 v
-showVal (VVar x)     = x
+showVal (VVar x n v) = x ++ show n
 showVal (VSPair u v) = "pair" <+> showVals [u,v]
 showVal (VSigma u v) = "Sigma" <+> showVals [u,v]
 showVal (VFst u)     = showVal u ++ ".1"

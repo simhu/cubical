@@ -12,8 +12,8 @@ look x (k, e) = look' e
       | x == y    = (n, u)
       | otherwise = look' rho
     look' r@(PDef es r1) = case lookupIdent x es of
-      Just (y,t)  -> (y,eval (k,r) t)
-      Nothing     -> look' r1
+      Just (y,(_,t))  -> (y,eval (k,r) t)
+      Nothing       -> look' r1
 
 eval :: Env' -> Ter -> Val
 eval (k,e) (U n)           = if n+k >= 0 then VU (n+k) else
@@ -26,39 +26,13 @@ eval (k,e) (Sigma a b)     = VSigma (eval (k,e) a) (eval (k,e) b)
 eval (k,e) (SPair a b)     = VSPair (eval (k,e) a) (eval (k,e) b)
 eval (k,e) (Fst a)         = fstSVal (eval (k,e) a)
 eval (k,e) (Snd a)         = sndSVal (eval (k,e) a)
-eval (k,e) (Where t decls) = eval (k,PDef [ (x,y) | (x,_,y) <- decls ] e) t
+eval (k,e) (Where t decls) = eval (k,PDef [(x,(y,z)) | (x,y,z) <- decls] e) t
 eval (k,e) (Con name ts)   = VCon name (map (eval (k,e)) ts)
 eval (k,e) (Split pr alts) = Ter (Split pr alts) (k,e)
 eval (k,e) (Sum pr ntss)   = Ter (Sum pr ntss) (k,e)
 eval (k,e) (Undef _)       = error "undefined"
 eval (k,e) (Plus t)        = eval (k+1,e) t
 eval (k,e) (Minus t)       = eval (k-1,e) t
-
-vShift :: Integer -> Val -> Val
-vShift k (VU n)         = if k+n >= 0 then VU (n+k) else
-                            error "negative universe"
-vShift k (Ter t (k',e))  = Ter t (k+k', envShift k e)
-vShift k (VPi u v)      = VPi (vShift k u) (vShift k v)
-vShift k (VId u v w)    = VId (vShift k u) (vShift k v) (vShift k w)
-vShift k (VSigma u v)   = VSigma (vShift k u) (vShift k v)
-vShift k (VSPair u v)   = VSPair (vShift k u) (vShift k v)
-vShift k (VCon name vs) = VCon name (map (vShift k) vs)
-vShift k (VApp u v)     = VApp (vShift k u) (vShift k v)
-vShift k (VSplit u v)   = VSplit (vShift k u) (vShift k v)
-vShift k (VVar x)       = VVar x
-vShift k (VFst u)       = VFst (vShift k u)
-vShift k (VSnd u)       = VSnd (vShift k u)
-
-envShift :: Integer -> Env -> Env
-envShift k Empty             = Empty
-envShift k (Pair e (x, u))   = Pair (envShift k e) (x, vShift k u)
-envShift k (PDef bts e)      = PDef bts (envShift k e)
-
-vPlus :: Val -> Val
-vPlus = vShift 1
-
-vMinus :: Val -> Val
-vMinus = vShift (-1)
 
 evals :: Env' -> [(Binder,Ter)] -> [(Binder,Val)]
 evals (k,env) bts = [ (b,eval (k,env) t) | (b,t) <- bts ]
@@ -87,13 +61,13 @@ sndSVal u | isNeutral u = VSnd u
 subt :: Int -> Val -> Val -> Bool
 subt k (VU n) (VU m)                            = n <= m
 subt k (Ter (Lam x u) (n,e)) (Ter (Lam x' u') (m,e')) = do
-  let v = mkVar k
+  let v = mkVar k (VU 0) -- dummy value for the type which shouldn't be used in the conversion
   subt (k+1) (eval (n,Pair e (x,v)) u) (eval (m,Pair e' (x',v)) u')
 subt k (Ter (Lam x u) (n,e)) u' = do
-  let v = mkVar k
+  let v = mkVar k (VU 0)
   subt (k+1) (eval (n,Pair e (x,v)) u) (app u' v)
 subt k u' (Ter (Lam x u) (n,e)) = do
-  let v = mkVar k
+  let v = mkVar k (VU 0)
   subt (k+1) (app u' v) (eval (n,Pair e (x,v)) u)
 subt k (Ter (Split p _) (n,e)) (Ter (Split p' _) (m,e')) =
   (p == p') && subtEnv k e e' -- && (n <= m)
@@ -102,10 +76,10 @@ subt k (Ter (Sum p _) (n,e))   (Ter (Sum p' _) (m,e')) =
 subt k (Ter (Undef p) (n,e)) (Ter (Undef p') (m,e')) =
   (p == p') && subtEnv k e e' -- && (n <= m)
 subt k (VPi u v) (VPi u' v') = do
-  let w = mkVar k
+  let w = mkVar k u'
   subt k u' u && subt (k+1) (app v w) (app v' w)
 subt k (VSigma u v) (VSigma u' v') = do
-  let w = mkVar k
+  let w = mkVar k u
   subt k u u' && subt (k+1) (app v w) (app v' w)
 subt k (VFst u) (VFst u') = subt k u u'
 subt k (VSnd u) (VSnd u') = subt k u u'
@@ -118,7 +92,7 @@ subt k w            (VSPair u v)   =
   subt k (fstSVal w) u && subt k (sndSVal w) v
 subt k (VApp u v)   (VApp u' v')   = subt k u u' && subt k v v'
 subt k (VSplit u v) (VSplit u' v') = subt k u u' && subt k v v'
-subt k (VVar x)     (VVar x')      = x == x'
+subt k (VVar x n _) (VVar x' n' _) = x == x' && n == n'
 subt k _             _             = False
 
 subtEnv :: Int -> Env -> Env -> Bool

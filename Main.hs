@@ -98,7 +98,7 @@ initLoop flags f = do
 
 -- The main loop
 loop :: [Flag] -> FilePath -> [(C.Binder,SymKind)] -> TC.TEnv -> Interpreter ()
-loop flags f names tenv@(TC.TEnv _ rho _ _) = do
+loop flags f names tenv@(TC.TEnv _ rho _) = do
   input <- getInputLine prompt
   case input of
     Nothing    -> outputStrLn help >> loop flags f names tenv
