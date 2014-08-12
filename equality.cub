@@ -170,14 +170,14 @@ id_equiv s A = (id A, id_is_equiv s A)
 id_equivP : (s : IdSP) -> (A : U 1) -> EquivP s A A
 id_equivP = id_equiv^+
 
-id_to_equiv : (s : IdS) -> (A B : U 0) -> IdP (s^+) (U 0) A B -> Equiv s A B
-id_to_equiv s A B p = elimP s^+ (U 0) P (id_equiv s) A B p
+id_to_equiv : (s : IdS) -> (A B : U 0) -> IdP s (U 0) A B -> Equiv s A B
+id_to_equiv s A B p = elimP s (U 0) P (id_equiv s) A B p
 	    where
-	    P : (A B : U 0) -> IdP s^+ (U 0) A B -> U 1
+	    P : (A B : U 0) -> IdP s (U 0) A B -> U 1
 	    P A B _ = Equiv s A B
 
 -- Univalence axiom
 
 univ : (s : IdS) -> (A B : U 0) ->
-     is_equivP s^+ (IdP (s^+) (U 0) A B) (Equiv s A B) (id_to_equiv s A B)
+     is_equivP s (IdP s (U 0) A B) (Equiv s A B) (id_to_equiv s A B)
 univ = undefined
