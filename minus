@@ -1,0 +1,31 @@
+module minus where
+
+u : U 1
+u = (U 1)^-
+
+v : (U 2)^-
+v = (U 1)^-
+
+id : (X : U 1) -> X -> X
+id X x = x
+
+idM : (X : U 0) -> X -> X
+idM = id^-
+
+f : U 1 -> U 1
+f x = x
+
+fM : U 0 -> U 1
+fM = f^-
+
+N : U 1
+data N = Zero | Succ (n : N)
+
+NM : U 0
+NM = N^-
+
+ZM : N^-
+ZM = Zero
+
+w : U 1
+w = (U 5)^-5

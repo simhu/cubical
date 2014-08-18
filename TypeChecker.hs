@@ -119,10 +119,9 @@ checkType t = case t of
     localM (addType (x,a)) (checkType b)
   Plus t -> do
     local (shiftTEnv 1) $ checkType t
-  -- Minus t -> do
-  --   rho <- asks env'
-  --   (eval rho (Minus t)) `seq` checkType t
-  --   return ()
+  Minus t -> do
+    rho <- asks env'
+    (eval rho (Minus t)) `seq` local (shiftTEnv (-1)) $ checkType t
   _ -> do
     e <- checkInfer t
     case e of
@@ -240,10 +239,9 @@ checkInfer e = case e of
     local (addDecls d) $ checkInfer t
   Plus t -> do
     local (shiftTEnv 1) $ checkInfer t
-  -- Minus t -> do
-  --   rho <- asks env'
-  --   a <- (eval rho (Minus t)) `seq` checkInfer t
-  --   return (vMinus a)
+  Minus t -> do
+    rho <- asks env'
+    (eval rho (Minus t)) `seq` local (shiftTEnv (-1)) $ checkInfer t
   _ -> throwError ("checkInfer " ++ show e)
 
 checks :: (Tele,Env') -> [Ter] -> Typing ()
