@@ -1,7 +1,7 @@
 module equality where
 
 -- Axiomatization of equality
-IdS : U 1
+IdS : U 0
 data IdS = I (Id : (A : U 0) (a b : A) -> U 0)
      (refl : (A : U 0) (a : A) -> Id A a a)
      (elim : (A : U 0) (P : (x y : A) -> Id A x y -> U 0) ->
@@ -13,24 +13,15 @@ data IdS = I (Id : (A : U 0) (a b : A) -> U 0)
 	    (x : A) ->
 	    Id (P x x (refl A x)) (elim A P r x x (refl A x)) (r x))
 
--- We define projections and liftings
-
-IdSP : U 2
-IdSP = IdS^+
+-- We define projections
 
 Id : IdS -> ((A : U 0) (a b : A) -> U 0)
 Id = split 
      I a b c d -> a
 
-IdP : IdSP -> ((A : U 1) (a b : A) -> U 1)
-IdP = Id^+
-
 refl : (s : IdS) -> (A : U 0) (a : A) -> Id s A a a
 refl = split
      I a b c d -> b
-
-reflP : (s : IdSP) -> (A : U 1) (a : A) -> IdP s A a a
-reflP = refl^+
 
 elim : (s : IdS) -> (A : U 0) (P : (x y : A) -> Id s A x y -> U 0) ->
       	   (r : (x : A) -> P x x (refl s A x)) ->
@@ -39,12 +30,6 @@ elim : (s : IdS) -> (A : U 0) (P : (x y : A) -> Id s A x y -> U 0) ->
 elim = split
      I a b c d -> c
 
-elimP : (s : IdSP) -> (A : U 1) (P : (x y : A) -> IdP s A x y -> U 1) ->
-      	   (r : (x : A) -> P x x (reflP s A x)) ->
-	   (x y : A) (p : IdP s A x y) ->
-	   P x y p
-elimP = elim^+
-
 elim_refl : (s : IdS) -> (A : U 0) (P : (x y : A) -> Id s A x y -> U 0) ->
      	    (r : (x : A) -> P x x (refl s A x)) ->
 	    (x : A) ->
@@ -52,23 +37,13 @@ elim_refl : (s : IdS) -> (A : U 0) (P : (x y : A) -> Id s A x y -> U 0) ->
 elim_refl = split
       I a b c d -> d
 
-elim_reflP : (s : IdSP) -> (A : U 1) (P : (x y : A) -> IdP s A x y -> U 1) ->
-     	    (r : (x : A) -> P x x (reflP s A x)) ->
-	    (x : A) ->
-	    IdP s (P x x (reflP s A x)) (elimP s A P r x x (reflP s A x)) (r x)
-elim_reflP = elim_refl^+
-
--- Some properties and their lifting
+-- Some properties
 
   -- congruence
 cong : (s : IdS) -> (A B : U 0) (f : A -> B) (x y : A) -> Id s A x y ->
      Id s B (f x) (f y)
 cong s A B f = elim s A (\x -> \y -> \_ -> Id s B (f x) (f y))
      (\x -> refl s B (f x))
-
-congP : (s : IdSP) -> (A B : U 1) (f : A -> B) (x y : A) -> IdP s A x y ->
-      IdP s B (f x) (f y)
-congP = cong^+
 
   -- evaluation for congruence
 cong_refl : (s : IdS) -> (A B : U 0) (f : A -> B) (x : A) ->
@@ -77,19 +52,10 @@ cong_refl : (s : IdS) -> (A B : U 0) (f : A -> B) (x : A) ->
 cong_refl s A B f = elim_refl s A (\x -> \y -> \_ -> Id s B (f x) (f y))
 	  (\x -> refl s B (f x))
 
-cong_reflP : (s : IdSP) -> (A B : U 1) (f : A -> B) (x : A) ->
-	  IdP s (IdP s B (f x) (f x)) (congP s A B f x x (reflP s A x))
-	  (reflP s B (f x))
-cong_reflP = cong_refl^+
-
   -- substitutivity
 subst : (s : IdS) -> (A : U 0) (P : A -> U 0) (x y : A) ->
       Id s A x y -> P x -> P y
 subst s A P = elim s A (\x -> \y -> \_ -> P x -> P y) (\_ -> \p -> p)
-
-substP : (s : IdSP) -> (A : U 1) (P : A -> U 1) (x y : A) ->
-      IdP s A x y -> P x -> P y
-substP = subst^+
 
   -- evaluation for substitutivity
 subst_refl : (s : IdS) -> (A : U 0) (P : A -> U 0) (x : A) (p : P x) ->
@@ -98,26 +64,16 @@ subst_refl s A P x p = cong s (P x -> P x) (P x) (\h -> h p)
 	   (elim s A (\x y _ -> P x -> P y) (\_ p -> p) x x (refl s A x))
 	   (\p -> p) (elim_refl s A (\x y _ -> P x -> P y) (\_ p -> p) x)
 
-subst_reflP : (s : IdSP) -> (A : U 1) (P : A -> U 1) (x : A) (p : P x) ->
-	   IdP s (P x) (substP s A P x x (reflP s A x) p) p
-subst_reflP = subst_refl^+
-
 -- Definitions
 
   -- singleton
 singl : IdS -> (A : U 0) -> A -> U 0
 singl s A x = (y : A) * (Id s A y x)
 
-singlP : IdSP -> (A : U 1) -> A -> U 1
-singlP = singl^+
-
   -- Contractibility
 
 contr : IdS -> U 0 -> U 0
 contr s A = (x : A) * ((y : A) -> Id s A x y)
-
-contrP : IdSP -> U 1 -> U 1
-contrP = contr^+
 
   -- singletons are contractible
 contr_singl : (s : IdS) -> (A : U 0) -> (x : A) -> contr s (singl s A x)
@@ -127,57 +83,40 @@ contr_singl s A x = ((x, refl s A x), irr)
 	    irr y = elim s A (\y x p -> Id s (singl s A x) (x, refl s A x)
 	    	(y, p)) (\x -> refl s (singl s A x) (x, refl s A x)) y.1 x y.2
 
-contr_singlP : (s : IdSP) -> (A : U 1) -> (x : A) -> contrP s (singlP s A x)
-contr_singlP = contr_singl^+
-
   -- Fibers
 fiber : IdS -> (A B : U 0) -> (A -> B) -> B -> U 0
 fiber s A B f b = (a : A) * (Id s B (f a) b)
-
-fiberP : IdSP -> (A B : U 1) -> (A -> B) -> B -> U 1
-fiberP = fiber^+
 
   -- Equivalence
 is_equiv : IdS -> (A B : U 0) -> (A -> B) -> U 0
 is_equiv s A B f = (b : B) -> contr s (fiber s A B f b)
 
-is_equivP : IdSP -> (A B : U 1) -> (A -> B) -> U 1
-is_equivP = is_equiv^+
-
 Equiv : IdS -> U 0 -> U 0 -> U 0
 Equiv s A B = (f : A -> B) * (is_equiv s A B f)
-
-EquivP : IdSP -> U 1 -> U 1 -> U 1
-EquivP = Equiv^+
 
   -- Identity function
 id : (A : U 0) -> A -> A
 id A a = a
 
-idP : (A : U 1) -> A -> A
-idP = id^+
-
   -- Id to Equiv
 id_is_equiv : (s : IdS) -> (A : U 0) -> is_equiv s A A (id A)
 id_is_equiv s A a = contr_singl s A a
 
-id_is_equivP : (s : IdSP) -> (A : U 1) -> is_equivP s A A (idP A)
-id_is_equivP = id_is_equiv^+
-
 id_equiv : (s : IdS) -> (A : U 0) -> Equiv s A A
 id_equiv s A = (id A, id_is_equiv s A)
 
-id_equivP : (s : IdSP) -> (A : U 1) -> EquivP s A A
-id_equivP = id_equiv^+
-
-id_to_equiv : (s : IdS) -> (A B : U 0) -> IdP s (U 0) A B -> Equiv s A B
-id_to_equiv s A B p = elimP s (U 0) P (id_equiv s) A B p
+id_to_equiv : (s : IdS) -> (A B : U 0) -> Id^+ s (U 0) A B -> Equiv s A B
+id_to_equiv s A B p = elim^+ s (U 0) P (id_equiv s) A B p
 	    where
-	    P : (A B : U 0) -> IdP s (U 0) A B -> U 1
+	    P : (A B : U 0) -> Id^+ s (U 0) A B -> U 1
 	    P A B _ = Equiv s A B
 
 -- Univalence axiom
 
 univ : (s : IdS) -> (A B : U 0) ->
-     is_equivP s (IdP s (U 0) A B) (Equiv s A B) (id_to_equiv s A B)
+     is_equiv^+ s (Id^+ s (U 0) A B) (Equiv s A B) (id_to_equiv s A B)
 univ = undefined
+
+univP : (s : IdS) -> (A B : U 1) ->
+      is_equiv^2 s (Id^2 s (U 1) A B) (Equiv^+ s A B) (id_to_equiv^+ s A B)
+univP = univ^+
