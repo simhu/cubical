@@ -642,14 +642,14 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                          (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
         nonprincipal = [ let yup  = lookBox yc xaux
                              fyup = yup `face` (x,tdir)
-                             fpyc = principal `face` yc
                              np   = [ ((z,up),yup), ((z,down),lookBox yc box)
-                                    , ((y,c), fyup) -- deg along z!
-                                    , ((y,mirror c), fpyc) ] ++ auxsides yc
+                                    , ((x,tdir), fyup) -- deg along z!
+                                    , ((x,tdir'), principal `face` yc) ]
+                                    ++ auxsides yc
                              fb   = fill (lookBox yc tbox)
                                          (Box dir x' (lookBox yc boxprinc) np)
                          in (yc, fb)
-                       | yc@(y,c) <- allDirs nK]
+                       | yc <- allDirs nK]
     in VFill z (Box tdir x principal nonprincipal)
   | x' `elem` nK =
     -- assumes x,K subset x',J
