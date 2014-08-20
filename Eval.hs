@@ -584,11 +584,10 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   -- 1) W.l.o.g. K subset x', J
   -- 2) x' = x &  dir = tdir
   -- 3) x' = x &  dir = mirror tdir
-  -- 4) x `notElem` J (maybe combine with 1?)
-  -- 5) x' `notElem` K
-  -- 6) x' `elem` K
+  -- 4) x' `notElem` K
+  -- 5) x' `elem` K
   | toAdd /= [] =
-    -- W.l.o.g. nK subset x':nJ
+    -- W.l.o.g. x,nK subset x':nJ
     trace "Kan Fill VU Case 1" $
     let add :: Side -> Val
         add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
@@ -630,18 +629,9 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                              (Box up z (lookBox (x,tdir') upperbox)
                                        (nonprincipalfaces ++ auxsides (x,tdir')))
     in VFill z (Box tdir x principal nonprincipal)
-  | x `notElem` nJ =
-    -- assume x /= x' and K subset x', J
-    trace "Kan Fill VU Case 4" $
-    let comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
-        fcbox  = mapBox (`face` (x,tdir)) box
-        fcbox' = mapBox (`face` (x,tdir')) box
-        xsides = [ ((x,tdir), fill comU fcbox),
-                   ((x,tdir'), fill (lookBox (x,tdir') tbox) fcbox') ]
-    in fill v (xsides `appendSides` box)
   | x' `notElem` nK =
     -- assumes x,K subset x',J
-    trace "Kan Fill VU Case 5" $
+    trace "Kan Fill VU Case 4" $
     let -- TODO: Do we need a fresh name? (Probably not: doesn't depend on x!)
         xaux      = unCompAs (lookBox (x,tdir) box) x
         boxprinc  = unFillAs (lookBox (x',dir') box) z
@@ -663,7 +653,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     in VFill z (Box tdir x principal nonprincipal)
   | x' `elem` nK =
     -- assumes x,K subset x',J
-    trace "Kan Fill VU Case 6" $
+    trace "Kan Fill VU Case 5" $
     -- surprisingly close to the last case of the Kan-Com-VU filling
     let upperbox = unCompAs (lookBox (x,dir') box) x
         npintbox = modBox (\zc downside ->
@@ -693,7 +683,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     where z     = fresh (v, box)
           nK    = nonPrincipal tbox
           nJ    = nonPrincipal box
-          toAdd = nK \\ (x' : nJ)
+          toAdd = (x:nK) \\ (x' : nJ)
           nL    = nJ \\ (x : nK)
           dir'  = mirror dir
           tdir' = mirror tdir
