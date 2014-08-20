@@ -635,8 +635,9 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     trace "Kan Fill VU Case 4" $
     let comU   = v `face` (x,tdir) -- Kan Com VU (tbox (z=up))
         fcbox  = mapBox (`face` (x,tdir)) box
+        fcbox' = mapBox (`face` (x,tdir')) box
         xsides = [ ((x,tdir), fill comU fcbox),
-                   ((x,tdir'), fill (lookBox (x,tdir') tbox) fcbox) ]
+                   ((x,tdir'), fill (lookBox (x,tdir') tbox) fcbox') ]
     in fill v (xsides `appendSides` box)
   | x' `notElem` nK =
     -- assumes x,K subset x',J
