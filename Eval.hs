@@ -632,8 +632,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
   | x' `notElem` nK =
     -- assumes x,K subset x',J
     trace "Kan Fill VU Case 4" $
-    let -- TODO: Do we need a fresh name? (Probably not: doesn't depend on x!)
-        xaux      = unCompAs (lookBox (x,tdir) box) x
+    let xaux      = unCompAs (lookBox (x,tdir) box) x
         boxprinc  = unFillAs (lookBox (x',dir') box) z
         princnp   = [((z,up),lookBox (x,tdir') xaux),
                      ((z,down),lookBox (x,tdir') box)]
@@ -665,17 +664,17 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
                                 sides  = [((z,down),bottom),((z,up),top)]
                             in fill (lookBox zc tbox)
                                     (Box tdir' x princ (sides ++ auxsides zc)))
-                   (subBox (nK `intersect` nJ) box)
+                   (subBox (nK `intersect` nJ) box)  -- intersection is nK - x'
         npint = fromBox npintbox
-        npintfacebox = mapBox (`face` (x,tdir)) npintbox
+        npintfacebox = mapBox (`face` (x,tdir')) npintbox
         principalbox = ([ ((z,down),lookBox (x,tdir') box)
                         , ((z,up)  ,lookBox (x,tdir') upperbox)]
                         ++ auxsides (x,tdir'))
                        `appendSides` npintfacebox
         principal = fill tx principalbox
         nplp      = lookBox (x',dir) upperbox
-        nplnp = [ ((x',dir), nplp `face` (x',dir)) -- deg along z!
-                , ((x', dir'),principal `face` (x',dir)) ]
+        nplnp = [ ((x,tdir), nplp `face` (x',dir)) -- deg along z!
+                , ((x,tdir'),principal `face` (x',dir)) ]
                 ++ auxsides (x',dir)
                 ++ [ (zc,u `face` (x',dir)) | (zc,u) <- sides npintbox ]
         fb = fill (lookBox (x',dir) tbox) (Box down z nplp nplnp)
