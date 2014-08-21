@@ -590,7 +590,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     -- W.l.o.g. x,nK subset x':nJ
     trace "Kan Fill VU Case 1" $
     let add :: Side -> Val
-        add zc = fill (lookBox zc tbox) (mapBox (`face` zc) box)
+        add zc = fill (v `face` zc) (mapBox (`face` zc) box)
 
         newSides = [ (zc,add zc) | zc <- allDirs toAdd ]
     in fill v (newSides `appendSides` box)
