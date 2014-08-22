@@ -525,8 +525,7 @@ fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
                   -- the non-principal sides of tbox.
     trace "Kan Com 1" $
-    let -- TODO: Is this correct? Do we have to consider the auxsides?
-        add :: Side -> Val
+    let add :: Side -> Val
         add yc = let box' = mapBox (`face` yc) box
                  in fill (lookBox yc tbox `face` (x,tdir)) box'
 
