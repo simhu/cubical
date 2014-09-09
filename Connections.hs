@@ -27,7 +27,7 @@ instance Num Dir where
   Zero * _ = Zero
   _ * Zero = Zero
   One * x  = x
-  
+
   abs    = id
   signum _ = One
 
@@ -49,29 +49,21 @@ instance Arbitrary Dir where
 
 -- Formulas
 data Formula = Dir Dir | Name Name
-             | Neg Formula 
+             | Neg Formula
              | Formula :/\: Formula
              | Formula :\/: Formula
   deriving (Eq,Show)
 
 instance Arbitrary Formula where
-  arbitrary = sized gen_of where
-    gen_of 0 = oneof [fmap Dir arbitrary, fmap Name arbitrary]
-    gen_of n = frequency [(1, Neg <$> (gen_of (n - 1)))
-                         ,(2, do con <- elements [(:/\:), (:\/:)]
-                                 con <$> gen_of (n - 1) <*> gen_of (n - 1))]
-
-
---  [genNeg, genAndOr True, genAndOr False]
-
---     genNeg 
-    
--- do
---       i <- elements [0,1,2]
---       phi <- gen_of (n - 1)
---       if i == 0 then return (Neg phi)
---       else do psi <- gen_of (n - 1)
---               return $ (if i == 1 then (:/\:) else (:\/:)) phi psi
+  arbitrary = sized arbFormula where
+    arbFormula s =
+      frequency [ (1, Dir <$> arbitrary)
+                , (1, Name <$> arbitrary)
+                , (s, Neg <$> arbFormula s')
+                , (s, do op <- elements [(:/\:), (:\/:)]
+                         op <$> arbFormula s' <*> arbFormula s')
+                ]
+      where s' = s `div` 2
 
 -- TODO: FINISH!
 -- instance Show a => Show (Formula a) where
@@ -125,14 +117,14 @@ l = 'l'
 f1,f2 :: Face
 f1 = Map.fromList [(i,0),(j,1),(k,0)]
 f2 = Map.fromList [(i,0),(j,1),(l,1)]
-     
+
 -- Check if two faces are compatible
 compatible :: Face -> Face -> Bool
 compatible xs ys = notElem False (Map.elems (Map.intersectionWith (==) xs ys))
 
 compatibles :: [Face] -> Bool
 compatibles []     = True
-compatibles (x:xs) = all (x `compatible`) xs && compatibles xs 
+compatibles (x:xs) = all (x `compatible`) xs && compatibles xs
 
 -- Partial composition operation
 comp :: Face -> Face -> Face
@@ -164,12 +156,16 @@ negFormula (Dir b) = Dir (- b)
 negFormula phi     = Neg phi
 
 andFormula :: Formula -> Formula -> Formula
+andFormula (Dir Zero) _ = Dir Zero
+andFormula _ (Dir Zero) = Dir Zero
 andFormula (Dir b) (Dir b') = Dir $ b * b'
 andFormula phi psi          = phi :/\: psi
 
 orFormula :: Formula -> Formula -> Formula
+orFormula (Dir One) _ = Dir One
+orFormula _ (Dir One) = Dir One
 orFormula (Dir b) (Dir b') = Dir $ b `orDir` b'
-orFormula phi psi          = phi :\/: psi
+orFormula phi psi     = phi :\/: psi
 
 evalFormula :: Formula -> Face -> Formula
 evalFormula (Dir b) alpha  = Dir b
@@ -189,23 +185,23 @@ orthFaces (Dir b') b = if b == b' then [Map.empty] else []
 orthFaces (Name i) b = [Map.fromList [(i, b)]]
 orthFaces (Neg phi) b = orthFaces phi (- b)
 orthFaces (phi :/\: psi) Zero = nub (orthFaces phi Zero ++ orthFaces psi Zero)
-orthFaces (phi :/\: psi) One = nub $ comps (orthFaces phi One) (orthFaces psi One)
+orthFaces (phi :/\: psi) One  =
+  nub $ comps (orthFaces phi One) (orthFaces psi One)
 orthFaces (phi :\/: psi) b = orthFaces (Neg phi :/\: Neg psi) (- b)
 
-orthFacesProp :: Face -> Formula -> Dir -> Bool
-orthFacesProp alpha phi b =
+prop_orthFaces :: Formula -> Dir -> Bool
+prop_orthFaces phi b =
  all (\alpha -> phi `evalFormula` alpha == Dir b) (orthFaces phi b)
 
 -- the faces should be incomparable
 type System a = Map Face a
 
 instance Nominal a => Nominal (System a) where
-  support s = unions (map Map.keys $ Map.keys s) 
+  support s = unions (map Map.keys $ Map.keys s)
               `union` support (Map.elems s)
 
   act s (i, phi) = s
 
-           
 
 
 
