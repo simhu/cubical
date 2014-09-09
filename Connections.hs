@@ -4,7 +4,9 @@ module Connections where
 import Control.Applicative
 import Data.List
 import Data.Map (Map)
+import Data.Set (Set)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Maybe
 import Test.QuickCheck
 
@@ -27,12 +29,18 @@ instance Num Dir where
   One * x  = x
   
   abs    = id
-  signum = id -- ?
-  negate = id
+  signum _ = One
+
+  negate Zero = One
+  negate One = Zero
 
   fromInteger 0 = Zero
   fromInteger 1 = One
   fromInteger _ = error "fromInteger Dir"
+
+orDir :: Dir -> Dir -> Dir
+orDir Zero Zero = Zero
+orDir _ _       = One
 
 instance Arbitrary Dir where
   arbitrary = do
@@ -40,10 +48,30 @@ instance Arbitrary Dir where
     return $ if b then Zero else One
 
 -- Formulas
-data Formula = Dir Dir | Neg Name | Name Name
+data Formula = Dir Dir | Name Name
+             | Neg Formula 
              | Formula :/\: Formula
              | Formula :\/: Formula
   deriving (Eq,Show)
+
+instance Arbitrary Formula where
+  arbitrary = sized gen_of where
+    gen_of 0 = oneof [fmap Dir arbitrary, fmap Name arbitrary]
+    gen_of n = frequency [(1, Neg <$> (gen_of (n - 1)))
+                         ,(2, do con <- elements [(:/\:), (:\/:)]
+                                 con <$> gen_of (n - 1) <*> gen_of (n - 1))]
+
+
+--  [genNeg, genAndOr True, genAndOr False]
+
+--     genNeg 
+    
+-- do
+--       i <- elements [0,1,2]
+--       phi <- gen_of (n - 1)
+--       if i == 0 then return (Neg phi)
+--       else do psi <- gen_of (n - 1)
+--               return $ (if i == 1 then (:/\:) else (:\/:)) phi psi
 
 -- TODO: FINISH!
 -- instance Show a => Show (Formula a) where
@@ -109,7 +137,11 @@ compatibles (x:xs) = all (x `compatible`) xs && compatibles xs
 -- Partial composition operation
 comp :: Face -> Face -> Face
 comp xs ys = Map.unionWith f xs ys
-  where f d1 d2 = if d1 == d2 then d1 else error "comp: Not compatible faces"
+  where f d1 d2 = if d1 == d2 then d1 else error "comp: incompatible faces"
+
+-- TODO: make this primitive?
+-- compMaybe :: Face -> Face -> Maybe Face
+-- compMaybe x y = if compatible x y then Just $ comp x y else Nothing
 
 compCom :: Face -> Face -> Property
 compCom xs ys = compatible xs ys ==> xs `comp` ys == ys `comp` xs
@@ -117,6 +149,65 @@ compCom xs ys = compatible xs ys ==> xs `comp` ys == ys `comp` xs
 compAssoc :: Face -> Face -> Face -> Property
 compAssoc xs ys zs = compatibles [xs,ys,zs] ==>
                      xs `comp` (ys `comp` zs) == (xs `comp` ys) `comp` zs
+
+-- data Faces = Faces (Set Face)
+
+-- instance Nominal Faces where
+--   support (Faces f)      = 
+--   act (Faces f) (i, phi) = Faces f
+
+comps :: [Face] -> [Face] -> [Face]
+comps xs ys = [comp x y | x <- xs, y <- ys, compatible x y]
+
+negFormula :: Formula -> Formula
+negFormula (Dir b) = Dir (- b)
+negFormula phi     = Neg phi
+
+andFormula :: Formula -> Formula -> Formula
+andFormula (Dir b) (Dir b') = Dir $ b * b'
+andFormula phi psi          = phi :/\: psi
+
+orFormula :: Formula -> Formula -> Formula
+orFormula (Dir b) (Dir b') = Dir $ b `orDir` b'
+orFormula phi psi          = phi :\/: psi
+
+evalFormula :: Formula -> Face -> Formula
+evalFormula (Dir b) alpha  = Dir b
+evalFormula (Name i) alpha = case Map.lookup i alpha of
+                               Just b -> Dir b
+                               Nothing -> Name i
+evalFormula (Neg phi) alpha = negFormula (evalFormula phi alpha)
+evalFormula (phi :/\: psi) alpha =
+  andFormula (evalFormula phi alpha) (evalFormula psi alpha)
+evalFormula (phi :\/: psi) alpha =
+  orFormula (evalFormula phi alpha) (evalFormula psi alpha)
+
+-- find a better name?
+-- phi b = max {alpha : Face | phi alpha = b}
+orthFaces :: Formula -> Dir -> [Face]
+orthFaces (Dir b') b = if b == b' then [Map.empty] else []
+orthFaces (Name i) b = [Map.fromList [(i, b)]]
+orthFaces (Neg phi) b = orthFaces phi (- b)
+orthFaces (phi :/\: psi) Zero = nub (orthFaces phi Zero ++ orthFaces psi Zero)
+orthFaces (phi :/\: psi) One = nub $ comps (orthFaces phi One) (orthFaces psi One)
+orthFaces (phi :\/: psi) b = orthFaces (Neg phi :/\: Neg psi) (- b)
+
+orthFacesProp :: Face -> Formula -> Dir -> Bool
+orthFacesProp alpha phi b =
+ all (\alpha -> phi `evalFormula` alpha == Dir b) (orthFaces phi b)
+
+-- the faces should be incomparable
+type System a = Map Face a
+
+instance Nominal a => Nominal (System a) where
+  support s = unions (map Map.keys $ Map.keys s) 
+              `union` support (Map.elems s)
+
+  act s (i, phi) = s
+
+           
+
+
 
 -- Faces of the form: [(i,0),(j,1),(k,0)]
 -- Should be sorted wrt Name
