@@ -746,11 +746,13 @@ conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
 conv k (Kan Fill v box) (Kan Fill v' box')    =
   conv k v v' && convBox k box box'
 conv k (Kan Com v box) (Kan Com v' box')      =
-  and [conv k v v', convBox k (swap box x y) (swap box' x' y)]
+  and [conv k (swap v x y) (swap v' x' y),
+       convBox k (swap box x y) (swap box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VComN v box) (VComN v' box')      =
-  and [conv k v v', convBox k (swap box x y) (swap box' x' y)]
+  and [conv k (swap v x y) (swap v' x' y),
+       convBox k (swap box x y) (swap box' x' y)]
   where y      = fresh ((v,v'),(box,box'))
         (x,x') = (pname box, pname box')
 conv k (VFillN v box) (VFillN v' box')      =
