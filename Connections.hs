@@ -14,13 +14,13 @@ newtype Name = Name Integer
   deriving (Eq,Ord)
 
 instance Show Name where
-    show (Name i) = "i" ++ show i
+  show (Name i) = 'i' : show i
 
 instance Arbitrary Name where
-    arbitrary = Name <$> arbitrary
+  arbitrary = Name <$> arbitrary
 
 -- | Directions
-data Dir  = Zero | One
+data Dir = Zero | One
   deriving (Eq,Ord)
 
 instance Show Dir where
@@ -69,7 +69,7 @@ instance Arbitrary Face where
 
 -- Check if two faces are compatible
 compatible :: Face -> Face -> Bool
-compatible xs ys = notElem False (Map.elems (Map.intersectionWith (==) xs ys))
+compatible xs ys = and (Map.elems (Map.intersectionWith (==) xs ys))
 
 compatibles :: [Face] -> Bool
 compatibles []     = True
@@ -77,7 +77,7 @@ compatibles (x:xs) = all (x `compatible`) xs && compatibles xs
 
 -- Partial composition operation
 join :: Face -> Face -> Face
-join xs ys = Map.unionWith f xs ys
+join = Map.unionWith f
   where f d1 d2 = if d1 == d2 then d1 else error "join: incompatible faces"
 
 -- TODO: make this primitive?
@@ -100,8 +100,7 @@ joins xs ys = nub [ join x y | x <- xs, y <- ys, compatible x y ]
 -- instance Ord Face where
 
 leq :: Face -> Face -> Bool
-alpha `leq` beta | compatible alpha beta = join alpha beta == alpha
-                 | otherwise             = False
+alpha `leq` beta = compatible alpha beta && join alpha beta == alpha
 
 incomparable :: Face -> Face -> Bool
 incomparable alpha beta = not (alpha `leq` beta || beta `leq` alpha)
@@ -186,7 +185,7 @@ evalFormula phi alpha =
 -- find a better name?
 -- phi b = max {alpha : Face | phi alpha = b}
 invFormula :: Formula -> Dir -> [Face]
-invFormula (Dir b') b          = if b == b' then [Map.empty] else []
+invFormula (Dir b') b          = [ Map.empty | b == b' ]
 invFormula (Atom i) b          = [ Map.singleton i b ]
 invFormula (Not phi) b         = invFormula phi (- b)
 invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
@@ -237,9 +236,24 @@ instance (Nominal a, Nominal b) => Nominal (a, b) where
   support (a, b)  = support a `union` support b
   act (a,b) f = (act a f,act b f)
 
+instance (Nominal a, Nominal b, Nominal c) => Nominal (a, b, c) where
+  support (a,b,c) = unions [support a, support b, support c]
+  act (a,b,c) f   = (act a f,act b f,act c f)
+
+instance (Nominal a, Nominal b, Nominal c, Nominal d) =>
+         Nominal (a, b, c, d) where
+  support (a,b,c,d) = unions [support a, support b, support c, support d]
+  act (a,b,c,d) f   = (act a f,act b f,act c f,act d f)
+
+instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e) =>
+         Nominal (a, b, c, d, e) where
+  support (a,b,c,d,e) =
+    unions [support a, support b, support c, support d, support e]
+  act (a,b,c,d,e) f   = (act a f,act b f,act c f,act d f, act e f)
+
 instance Nominal a => Nominal [a]  where
-  support xs  = unions (map support xs)
-  act xs f    = [ act x f | x <- xs ]
+  support xs = unions (map support xs)
+  act xs f   = [ act x f | x <- xs ]
 
 instance Nominal a => Nominal (Maybe a)  where
   support = maybe [] support

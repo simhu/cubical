@@ -70,15 +70,15 @@ data Sign = Pos | Neg
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
-app (Kan i b@(VPi a f) ts li0) ui1 = 
-    let j   = fresh ([b, u], ts)
-        ((aj, fj), tsj) = ((a, f), ts) `act` (i, Atom j)
+app (Kan i b@(VPi a f) ts li0) ui1 =
+    let j   = fresh (b,u,ts)
+        (aj,fj,tsj) = (a,f,ts) `rename` (i,j)
         u   = fill Neg j aj Map.empty ui1
         ui0 = act u (j, Dir 0)
     in comp Pos j (app fj u)
            (Map.intersectionWith app tsj (border u tsj))
            (app li0 ui0)
-                                 
+
 
 -- app vext@(VExt x bv fv gv pv) w = do
 --   -- NB: there are various choices how to construct this
@@ -437,8 +437,8 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
 fill Neg i a ts u = (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
-fill Pos i a ts u = comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u 
-  where j   = fresh ([a, u], ts) 
+fill Pos i a ts u = comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
+  where j = fresh (a,u,ts)
 
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp Neg i a ts u = comp Pos i (a `sym` i) (ts `sym` i) u
