@@ -3,6 +3,7 @@ module Eval ( eval
             , evals
             , app
             , conv
+            , fstSVal
             ) where
 
 import Control.Arrow (second)
@@ -46,25 +47,28 @@ eval e t@(App r s)       = case unApps t of
 eval e (Var i)           = snd $ look i e
 eval e (Pi a b)          = VPi (eval e a) (eval e b)
 eval e (Lam x t)         = Ter (Lam x t) e -- stop at lambdas
--- eval e (Sigma a b)       = VSigma (eval e a) (eval e b)
--- eval e (SPair a b)       = VSPair (eval e a) (eval e b)
--- eval e (Fst a)           = fstSVal $ eval e a
--- eval e (Snd a)           = sndSVal $ eval e a
 eval e (Where t decls)   = eval (PDef (declDefs decls) e) t
--- eval e (Con name ts)     = VCon name $ map (eval e) ts
--- eval e (Split pr alts)   = Ter (Split pr alts) e
--- eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
+
+eval e (Sigma a b)       = VSigma (eval e a) (eval e b)
+eval e (SPair a b)       = VSPair (eval e a) (eval e b)
+eval e (Fst a)           = fstSVal $ eval e a
+eval e (Snd a)           = sndSVal $ eval e a
+
+eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
+eval e (Con name ts)     = VCon name $ map (eval e) ts
+eval e (Split pr alts)   = Ter (Split pr alts) e
+
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
 
--- fstSVal, sndSVal :: Val -> Val
--- fstSVal (VSPair a b)    = a
--- fstSVal u | isNeutral u = VFst u
---           | otherwise   = error $ show u ++ " should be neutral"
--- sndSVal (VSPair a b)    = b
--- sndSVal u | isNeutral u = VSnd u
---           | otherwise   = error $ show u ++ " should be neutral"
+fstSVal, sndSVal :: Val -> Val
+fstSVal (VSPair a b)    = a
+fstSVal u | isNeutral u = VFst u
+          | otherwise   = error $ show u ++ " should be neutral"
+sndSVal (VSPair a b)    = b
+sndSVal u | isNeutral u = VSnd u
+          | otherwise   = error $ show u ++ " should be neutral"
 
 
 instance Nominal Val where
@@ -75,13 +79,20 @@ instance Nominal Val where
   support (VId a v0 v1)                 = support [a,v0,v1]
   support (Path i v)                    = i `delete` support v
 
+  support (VSigma u v)                  = support (u,v)
+  support (VSPair u v)                  = support (u,v)
+  support (VFst u)                      = support u
+  support (VSnd u)                      = support u
+
+  support (VCon _ vs)                   = support vs
+
   support (VVar i)                      = []
   support (VApp u v)                    = support (u, v)
   support (VAppFormula u phi)           = support (u, phi)
+  support (VSplit u v)                  = support (u, v)
 
   -- support (VInh v)                      = support v
   -- support (VInc v)                      = support v
-  -- support (VCon _ vs)                   = support vs
   -- support (VSquash x v0 v1)             = support (x, [v0,v1])
   -- -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
@@ -95,11 +106,6 @@ instance Nominal Val where
   -- support (VPair x a v)                 = support (x, [a,v])
   -- support (VComp box@(Box _ n _ _))     = delete n $ support box
   -- support (VFill x box)                 = delete x $ support box
-  -- support (VSplit u v)                  = support (u, v)
-  -- support (VSigma u v)                  = support (u,v)
-  -- support (VSPair u v)                  = support (u,v)
-  -- support (VFst u)                      = support u
-  -- support (VSnd u)                      = support u
   -- support (VInhRec b p h a)             = support [b,p,h,a]
   -- support VCircle                       = []
   -- support VBase                         = []
@@ -112,49 +118,6 @@ instance Nominal Val where
   -- support (VIntRec f s e l u)           = support [f,s,e,l,u]
   -- support v                             = error ("support " ++ show v)
 
-  -- swap u x y =
-  --   let sw u = swap u x y in case u of
-  --   VU                     -> VU
-  --   Ter t e                -> Ter t (sw e)
-  --   VId a v0 v1            -> VId (sw a) (sw v0) (sw v1)
-  --   Path z v               -> Path (sw z) (sw v)
-  --   -- VExt z b f g p      -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
-  --   VHExt z b f g p        -> VHExt (sw z) (sw b) (sw f) (sw g) (sw p)
-  --   VPi a f                -> VPi (sw a) (sw f)
-  --   VInh v                 -> VInh (sw v)
-  --   VInc v                 -> VInc (sw v)
-  --   VSquash z v0 v1        -> VSquash (sw z) (sw v0) (sw v1)
-  --   VCon c us              -> VCon c (map sw us)
-  --   VEquivEq z a b f s t   ->
-  --     VEquivEq (sw z) (sw a) (sw b) (sw f) (sw s) (sw t)
-  --   VPair z a v            -> VPair (sw z) (sw a) (sw v)
-  --   VEquivSquare z w a s t ->
-  --     VEquivSquare (sw z) (sw w) (sw a) (sw s) (sw t)
-  --   VSquare z w v          -> VSquare (sw z) (sw w) (sw v)
-  --   Kan Fill a b           -> Kan Fill (sw a) (sw b)
-  --   VFillN a b             -> VFillN (sw a) (sw b)
-  --   Kan Com a b            -> Kan Com (sw a) (sw b)
-  --   VComN a b              -> VComN (sw a) (sw b)
-  --   VComp b                -> VComp (sw b)
-  --   VFill z b              -> VFill (sw z) (sw b)
-  --   VApp u v               -> VApp (sw u) (sw v)
-  --   VAppFormula u n           -> VAppFormula (sw u) (sw n)
-  --   VSplit u v             -> VSplit (sw u) (sw v)
-  --   VVar s d               -> VVar s (sw d)
-  --   VSigma u v             -> VSigma (sw u) (sw v)
-  --   VSPair u v             -> VSPair (sw u) (sw v)
-  --   VFst u                 -> VFst (sw u)
-  --   VSnd u                 -> VSnd (sw u)
-  --   VInhRec b p h a        -> VInhRec (sw b) (sw p) (sw h) (sw a)
-  --   VCircle                -> VCircle
-  --   VBase                  -> VBase
-  --   VLoop z                -> VLoop (sw z)
-  --   VCircleRec f b l a     -> VCircleRec (sw f) (sw b) (sw l) (sw a)
-  --   VI                     -> VI
-  --   VI0                    -> VI0
-  --   VI1                    -> VI1
-  --   VLine z                -> VLine (sw z)
-  --   VIntRec f s e l u      -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
 
   act u (i, phi) = trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
     let acti :: Nominal a => a -> a
@@ -172,9 +135,17 @@ instance Nominal Val where
          Path j v -> Path k (acti (v `rename` (j,k)))
               where k = fresh (v, Atom i, phi)
 
+         VSigma a f -> VSigma (acti a) (acti f)
+         VSPair u v -> VSPair (acti u) (acti v)
+         VFst u     -> VFst (acti u)
+         VSnd u     -> VSnd (acti u)
+
+         VCon c vs  -> VCon c (acti vs)
+
          VVar x            -> VVar x
          VAppFormula u psi -> acti u @@ acti psi
          VApp u v          -> app (acti u) (acti v)
+         VSplit u v        -> app (acti u) (acti v)
 
 
 
@@ -196,6 +167,16 @@ app (Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
     in comp Pos j (app fj u)
            (Map.intersectionWith app tsj (border u tsj))
            (app li0 ui0)
+app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
+    Just (xs,t)  -> eval (upds e (zip xs us)) t
+    Nothing -> error $ "app: Split with insufficient arguments; " ++
+                        "missing case for " ++ name
+app u@(Ter (Split _ _) _) v
+  | isNeutral v = VSplit u v -- v should be neutral
+  | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
+app r s
+  | isNeutral r = VApp r s -- r should be neutral
+  | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
 
 -- app vext@(VExt x bv fv gv pv) w = do
 --   -- NB: there are various choices how to construct this
@@ -209,13 +190,6 @@ app (Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
 --   let a0 = w `face` (x,down)
 --       a1 = w `face` (x,up)
 --   in appFormula (apps pv [a0, a1, Path x w]) x
--- app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
---     Just (xs,t)  -> eval (upds e (zip xs us)) t
---     Nothing -> error $ "app: Split with insufficient arguments; " ++
---                         "missing case for " ++ name
--- app u@(Ter (Split _ _) _) v
---   | isNeutral v = VSplit u v -- v should be neutral
---   | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
 -- app r s
 --   | isNeutral r = VApp r s -- r should be neutral
 --   | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
@@ -225,10 +199,10 @@ apps = foldl app
 
 (@@) :: Val -> Formula -> Val
 (Path i u) @@ phi = u `act` (i, phi)
-_ @@ _ = error "@@: not a path"
+v @@ phi          = VAppFormula v phi
 
 (@@@) :: Val -> Name -> Val
-p @@@ i = p @@@ i
+p @@@ i = p @@ Atom i
 
 -- where j = fresh (u, Atom i, phi)
 -- | y `elem` [0,1] = u `face` (x,y)
@@ -260,10 +234,10 @@ evalPN :: [Name] -> PN -> [Val] -> Val
 evalPN (i:_) Id            [a,a0,a1]     = VId (Path i a) a0 a1
 evalPN (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
 evalPN (i:_) Refl          [_,a]         = Path i a
-evalPN (i:_) TransU        [_,_,p,t]     = comp Pos i (p @@@ i) Map.empty t
+evalPN (i:_) TransU        [_,_,p,t]     = trace "evalPN TransU" $ comp Pos i (p @@@ i) Map.empty t
 evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@@ i) Map.empty t
--- evalPN (x:_) TransInvU     [_,_,p,t]     = com (appFormula p x) (Box down x t [])
--- evalPN (x:_) TransURef     [a,t]         = Path x $ fill a (Box up x t [])
+-- figure out how to turn TransURef into a definitional equality (pb for neutral terms)
+evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 -- evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] =
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
 -- evalPN (x:y:_) CSingl [a,u,v,p] =
@@ -280,12 +254,11 @@ evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@@ i) Map.empty t
 -- evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
--- evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appFormula p x)
--- evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    = Path x $ app f (appFormula p x)
--- evalPN (x:_)   AppOnPath [_,_,_,_,_,_,p,q] =
---   Path x $ app (appFormula p x) (appFormula q x)
--- evalPN (x:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
---   Path x $ app (app f (appFormula p x)) (appFormula q x)
+evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
+evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
+evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@@ i) (q @@@ i)
+evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] = 
+  Path i $ app (app f (p @@@ i)) (q @@@ i)
 -- evalPN _       Circle     []               = VCircle
 -- evalPN _       Base       []               = VBase
 -- evalPN (x:_)   Loop       []               = Path x $ VLoop x
@@ -534,13 +507,13 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- isNeutralFill v box = False
 
 -- TODO: Simplify?
--- fills :: [(Binder,Ter)] -> OEnv -> [Box Val] -> [Val]
--- fills []         _ []          = []
--- fills ((x,a):as) e (box:boxes) =
---   let v  = fill (eval e a) box
---       vs = fills as (oPair e (x,v)) boxes
---   in v : vs
--- fills _ _ _ = error "fills: different lengths of types and values"
+comps :: Name -> [(Binder,Ter)] -> Env -> [System Val] -> [Val] -> [Val]
+comps i []         _ []         []      = []
+comps i ((x,a):as) e (ts:tss)   (u:us) =
+  let v  = comp Pos i (eval e a) ts u
+      vs = comps i as (Pair e (x,v)) tss us
+  in v : vs
+comps _ _ _ _ _ = error "comps: different lengths of types and values"
 
 -- unPack :: Name -> Name -> (Name,Dir) -> Val -> Val
 -- unPack x y (z,c) v | z /= x && z /= y  = unSquare v
@@ -559,28 +532,45 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 -- com v box                                 = Kan Com v box
 
+isNeutralSystem :: System Val -> Bool 
+isNeutralSystem = undefined -- TODO implement!!
+
 data Sign = Pos | Neg
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
-fill Neg i a ts u = (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
-fill Pos i a ts u = comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
+fill Neg i a ts u =  trace "fill Neg" $ (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
+fill Pos i a ts u =  trace "fill Pos" $ comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
   where j = fresh (a,u,ts)
 
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
-comp Neg i a ts u = comp Pos i (a `sym` i) (ts `sym` i) u
+comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | Map.empty `Map.member` ts = trace "comp 1" $ (ts ! Map.empty) `act` (i,Dir 1)
+comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
   Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
   where j   = fresh (Atom i, vid, ts, w)
         ts' = insertSystem (Map.fromList [(j,0)]) u $
               insertSystem (Map.fromList [(j,1)]) v $
               Map.map (@@@ j) ts
--- comp Pos i a@VPi{} ts u   = Kan i a ts u
+comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
+  where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
+        (u1,  u2)  = (fstSVal u, sndSVal u)
+        fill_u1    = fill Pos i a t1s u1
+        comp_u2    = comp Pos i (app f fill_u1) t2s u2
+
+comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
+  Just as -> VCon n $ comps i as env tss' us
+    where tss' = transposeSystem $ Map.map unCon tss
+  Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
+
+comp Pos i a@VPi{} ts u   = Kan i a ts u
 comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
--- comp Pos i a ts u | isNeutral a = Kan i a ts u
-comp Pos i a ts u = error $ "comp _: not implemented"
+comp Pos i VU ts u = Kan i VU ts u
+
+comp Pos i a ts u = error $
+  "comp _: not implemented for " <+> show a <+> show ts <+> parens (show u)
 
 
 
@@ -851,9 +841,6 @@ conv k (VPi u v) (VPi u' v') =
   let w = mkVar k
   in conv k u u' && conv (k+1) (app v w) (app v' w)
 conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
--- conv k (VSigma u v) (VSigma u' v') =
---   let w = mkVar k $ support [u,u',v,v']
---   in conv k u u' && conv (k+1) (app v w) (app v' w)
 conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
                                     conv k (u `rename` (i,j)) (u' `rename` (i',j))
   where j = fresh (u,u')
@@ -863,17 +850,18 @@ conv k (Path i u) p'              = trace "conv Path p" $
 conv k p (Path i' u')             = trace "conv p Path" $
                                     conv k (p @@@ j) (u' `rename` (i',j))
   where j = fresh u'
--- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
---   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
--- conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
---   and [x == x', conv k b b', conv k f f', conv k g g', conv k p p']
--- conv k (VFst u) (VFst u')                     = conv k u u'
--- conv k (VSnd u) (VSnd u')                     = conv k u u'
--- conv k (VInh u) (VInh u')                     = conv k u u'
--- conv k (VInc u) (VInc u')                     = conv k u u'
--- conv k (VSquash x u v) (VSquash x' u' v')     =
---   and [x == x', conv k u u', conv k v v']
--- conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
+
+conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
+  where w = mkVar k
+conv k (VFst u) (VFst u')              = conv k u u'
+conv k (VSnd u) (VSnd u')              = conv k u u'
+conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
+conv k (VSPair u v)   w                =
+  conv k u (fstSVal w) && conv k v (sndSVal w)
+conv k w              (VSPair u v)     =
+  conv k (fstSVal w) u && conv k (sndSVal w) v
+
+conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
 conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
    let j    = fresh (v, v')
        tsj  = ts  `rename` (i,j)
@@ -883,6 +871,15 @@ conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
        , Map.keysSet tsj == Map.keysSet tsj'
        , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
        , conv k (u `rename` (i,j)) (u' `rename` (i',j))]
+
+-- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
+--   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
+-- conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
+--   and [x == x', conv k b b', conv k f f', conv k g g', conv k p p']
+-- conv k (VInh u) (VInh u')                     = conv k u u'
+-- conv k (VInc u) (VInc u')                     = conv k u u'
+-- conv k (VSquash x u v) (VSquash x' u' v')     =
+--   and [x == x', conv k u u', conv k v v']
 
 -- conv k (Kan Fill v box) (Kan Fill v' box')    =
 --   conv k v v' && convBox k box box'
@@ -914,15 +911,11 @@ conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
 -- conv k (VFill x box) (VFill x' box')      =
 --   convBox k (swap box x y) (swap box' x' y)
 --   where y      = fresh (box,box')
--- conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
--- conv k (VSPair u v)   w                =
---   conv k u (fstSVal w) && conv k v (sndSVal w)
--- conv k w              (VSPair u v)     =
---   conv k (fstSVal w) u && conv k (sndSVal w) v
+
 conv k (VVar x)       (VVar x')        = (x == x')
 conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
 conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
--- conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
+conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
 -- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
 --   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
 -- conv k VCircle        VCircle          = True

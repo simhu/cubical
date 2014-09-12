@@ -129,20 +129,20 @@ check a t = case (a,t) of
     check VU a
     local (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
-  -- (VPi (Ter (Sum _ cas) nu) f,Split _ ces) -> do
-  --   let cas' = sortBy (compare `on` fst . fst) cas
-  --       ces' = sortBy (compare `on` fst) ces
-  --   if map (fst . fst) cas' == map fst ces'
-  --      then sequence_ [ checkBranch (as,nu) f brc
-  --                     | (brc, (_,as)) <- zip ces' cas' ]
-  --      else throwError "case branches does not match the data type"
+  (VPi (Ter (Sum _ cas) nu) f,Split _ ces) -> do
+    let cas' = sortBy (compare `on` fst . fst) cas
+        ces' = sortBy (compare `on` fst) ces
+    if map (fst . fst) cas' == map fst ces'
+       then sequence_ [ checkBranch (as,nu) f brc
+                      | (brc, (_,as)) <- zip ces' cas' ]
+       else throwError "case branches does not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
     local (addTypeVal (x,a)) $ check (app f var) t
-  -- (VSigma a f, SPair t1 t2) -> do
-  --   check a t1
-  --   e <- asks oenv
-  --   check (app f (eval e t1)) t2
+  (VSigma a f, SPair t1 t2) -> do
+    check a t1
+    e <- asks env
+    check (app f (eval e t1)) t2
   (_,Where e d) -> do
     checkDecls d
     local (addDecls d) $ check a e
@@ -153,14 +153,14 @@ check a t = case (a,t) of
     unless (conv k v a) $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
--- checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
--- checkBranch (xas,nu) f (c,(xs,e)) = do
---   k   <- asks index
---   env <- asks oenv
---   let d  = support env
---       l  = length xas
---       us = map (`mkVar` d) [k..k+l-1]
---   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
+checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
+checkBranch (xas,nu) f (c,(xs,e)) = do
+  k   <- asks index
+  env <- asks env
+  let d  = support env
+      l  = length xas
+      us = map mkVar [k..k+l-1]
+  local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
@@ -178,18 +178,18 @@ checkInfer e = case e of
         rho <- asks env
         return $ app f (eval rho u)
       _       -> throwError $ show c ++ " is not a product"
-  -- Fst t -> do
-  --   c <- checkInfer t
-  --   case c of
-  --     VSigma a f -> return a
-  --     _          -> throwError $ show c ++ " is not a sigma-type"
-  -- Snd t -> do
-  --   c <- checkInfer t
-  --   case c of
-  --     VSigma a f -> do
-  --       e <- asks oenv
-  --       return $ app f (fstSVal (eval e t))
-  --     _          -> throwError $ show c ++ " is not a sigma-type"
+  Fst t -> do
+    c <- checkInfer t
+    case c of
+      VSigma a f -> return a
+      _          -> throwError $ show c ++ " is not a sigma-type"
+  Snd t -> do
+    c <- checkInfer t
+    case c of
+      VSigma a f -> do
+        e <- asks env
+        return $ app f (fstSVal (eval e t))
+      _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDecls d
     local (addDecls d) $ checkInfer t

@@ -286,6 +286,21 @@ insertSystem alpha v ts =
               | otherwise        -> Map.insert alpha v (Map.delete beta ts)
     Nothing -> Map.insert alpha v ts
 
+-- could something like that work??
+-- transposeSystem :: System [a] -> [System a]
+-- transposeSystem as = Map.tranverseWithKey (const . id) as
+
+
+transposeSystem :: System [a] -> [System a]
+transposeSystem ts = map Map.fromList $
+                     transpose [[(k, v) | v <- vs] | (k,vs) <- Map.toList ts]
+
+
+-- transposeSystem :: System [a] -> [System a]
+-- transposeSystem ts =
+--   Map.map (\as -> head a) ts : transposeSystem (Map.map (\as -> tail as) ts)
+
+
 -- Quickcheck this:
 -- (i = phi) * beta = (beta - i) * (i = phi beta)
 

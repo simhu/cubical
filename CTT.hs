@@ -96,6 +96,9 @@ data PN = Id | Refl
         -- For TransU we only need the eqproof and the element in A is needed
         | TransInvU
 
+        -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
+        | TransURef
+
         -- (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
         | CSingl
 
@@ -219,6 +222,7 @@ primHandle =
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
    ("contrSingl"    , 4,  CSingl       ),
+   ("transportRef"  , 2,  TransURef    ),
    ("equivEqRef"    , 3,  EquivEqRef   ),
    ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
@@ -263,8 +267,10 @@ data Val = VU
          -- tag values which are paths
          | Path Name Val
 
-         -- | VSigma Val Val
-         -- | VSPair Val Val
+         | VSigma Val Val
+         | VSPair Val Val
+
+         | VCon Ident [Val]
 
 
          -- | VExt Name Val Val Val Val
@@ -278,8 +284,6 @@ data Val = VU
 
          -- squash type - connects the two values along the name
          -- | VSquash Name Val Val
-
-         -- | VCon Ident [Val]
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
@@ -316,14 +320,14 @@ data Val = VU
          | VVar String
          | VApp Val Val            -- the first Val must be neutral
          | VAppFormula Val Formula
-         -- | VSplit Val Val          -- the second Val must be neutral
+         | VFst Val
+         | VSnd Val
+         | VSplit Val Val          -- the second Val must be neutral
          -- | VInhRec Val Val Val Val     -- the last Val must be neutral
          -- | VCircleRec Val Val Val Val  -- the last Val must be neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
          -- | VFillN Val (Box Val)
          -- | VComN Val (Box Val)
-         -- | VFst Val
-         -- | VSnd Val
   deriving Eq
 
 -- vepair :: Name -> Val -> Val -> Val
@@ -336,14 +340,14 @@ isNeutral :: Val -> Bool
 isNeutral (VVar _)             = True
 isNeutral (VApp u _)           = isNeutral u
 isNeutral (VAppFormula u _)       = isNeutral u
--- isNeutral (VSplit _ v)         = isNeutral v
+isNeutral (VFst v)             = isNeutral v
+isNeutral (VSnd v)             = isNeutral v
+isNeutral (VSplit _ v)         = isNeutral v
 -- isNeutral (VInhRec _ _ _ v)    = isNeutral v
 -- isNeutral (VCircleRec _ _ _ v) = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
 -- isNeutral (VFillN _ _)         = True
 -- isNeutral (VComN _ _)          = True
--- isNeutral (VFst v)             = isNeutral v
--- isNeutral (VSnd v)             = isNeutral v
 isNeutral _                    = False
 
 -- fstVal, sndVal, unSquare :: Val -> Val
@@ -354,9 +358,9 @@ isNeutral _                    = False
 -- unSquare (VSquare _ _ v) = v
 -- unSquare v               = error $ "unSquare bad input: " ++ show v
 
--- unCon :: Val -> [Val]
--- unCon (VCon _ vs) = vs
--- unCon v           = error $ "unCon: not a constructor: " ++ show v
+unCon :: Val -> [Val]
+unCon (VCon _ vs) = vs
+unCon v           = error $ "unCon: not a constructor: " ++ show v
 
      
 
@@ -476,14 +480,20 @@ showVal (VId a u v)              =
   "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (Path n u)               = abrack (show n) <+> showVal u
 
+showVal (VSPair u v)             = "pair" <+> showVals [u,v]
+showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
+showVal (VFst u)                 = showVal u ++ ".1"
+showVal (VSnd u)                 = showVal u ++ ".2"
+
 showVal (VVar x)                 = x
 showVal (VApp u v)               = showVal u <+> showVal1 v
-showVal (VAppFormula u n)           = showVal u <+> "@" <+> show n
+showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 
+showVal (VCon c us)              = c <+> showVals us
+showVal (VSplit u v)             = showVal u <+> showVal1 v
 
 -- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
--- showVal (VCon c us)              = c <+> showVals us
 -- showVal (VInh u)                 = "inh" <+> showVal1 u
 -- showVal (VInc u)                 = "inc" <+> showVal1 u
 -- showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
@@ -496,14 +506,9 @@ showVal (VAppFormula u n)           = showVal u <+> "@" <+> show n
 -- showVal (VSquare x y u)          = "vsquare" <+> show x <+> show y <+> showVal1 u
 -- showVal (VComp box)              = "vcomp" <+> parens (show box)
 -- showVal (VFill n box)            = "vfill" <+> show n <+> parens (show box)
--- showVal (VSplit u v)             = showVal u <+> showVal1 v
 -- showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 -- showVal (VEquivSquare x y a s t) =
 --   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
--- showVal (VSPair u v)             = "pair" <+> showVals [u,v]
--- showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
--- showVal (VFst u)                 = showVal u ++ ".1"
--- showVal (VSnd u)                 = showVal u ++ ".2"
 -- showVal VCircle                  = "S1"
 -- showVal VBase                    = "base"
 -- showVal (VLoop x)                = "loop" <+> show x

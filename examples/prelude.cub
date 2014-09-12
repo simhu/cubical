@@ -258,120 +258,120 @@ appEq : (A : U) (B : A -> U) (a : A) (f0 f1 : Pi A B) ->
         Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
 appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 
-J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U)
-    (d : C a (refl A a)) (x : A) (p : Id A a x) -> C x p
-J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
- where T : singl A a -> U
-       T z = C (z.1) (z.2)
+-- J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U)
+--     (d : C a (refl A a)) (x : A) (p : Id A a x) -> C x p
+-- J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
+--  where T : singl A a -> U
+--        T z = C (z.1) (z.2)
 
-funExt : (A : U) (B : A -> U) (f g : (a : A) -> B a)
-         (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
-funExt A B f g p = funHExt A B f g rem
-  where rem : (a x : A) -> (p : Id A a x) -> (IdS A B a x p (f a) (g x))
-        rem a = J A a (\x p -> (IdS A B a x p (f a) (g x))) (p a)
+-- funExt : (A : U) (B : A -> U) (f g : (a : A) -> B a)
+--          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
+-- funExt A B f g p = funHExt A B f g rem
+--   where rem : (a x : A) -> (p : Id A a x) -> (IdS A B a x p (f a) (g x))
+--         rem a = J A a (\x p -> (IdS A B a x p (f a) (g x))) (p a)
 
-tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
-tId A a z = rem (z.1) a (z.2)
-   where
-    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
-    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p))
-                  (refl (pathTo A x) (sId A x))
+-- tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
+-- tId A a z = rem (z.1) a (z.2)
+--    where
+--     rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
+--     rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p))
+--                   (refl (pathTo A x) (sId A x))
 
-typEquivS : (A B : U) -> (f : A -> B) -> U
-typEquivS A B f = (y : B) -> fiber A B f y
+-- typEquivS : (A B : U) -> (f : A -> B) -> U
+-- typEquivS A B f = (y : B) -> fiber A B f y
 
-typEquivT : (A B : U) -> (f : A -> B) -> typEquivS A B f -> U
-typEquivT A B f s = (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
+-- typEquivT : (A B : U) -> (f : A -> B) -> typEquivS A B f -> U
+-- typEquivT A B f s = (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
 
-isEquiv : (A B : U) (f : A -> B) -> U
-isEquiv A B f = Sigma (typEquivS A B f) (typEquivT A B f)
+-- isEquiv : (A B : U) (f : A -> B) -> U
+-- isEquiv A B f = Sigma (typEquivS A B f) (typEquivT A B f)
 
-isEquivEq : (A B : U) (f : A -> B) -> isEquiv A B f -> Id U A B
-isEquivEq A B f z = equivEq A B f z.1 z.2
+-- isEquivEq : (A B : U) (f : A -> B) -> isEquiv A B f -> Id U A B
+-- isEquivEq A B f z = equivEq A B f z.1 z.2
 
--- not needed if we have eta
+-- -- not needed if we have eta
 
-etaId : (A : U) (B : A -> U) -> (f : Pi A B) -> Id (Pi A B) (\x -> f x) f
-etaId A B f = funExt A B (\x -> f x) f (\x -> refl (B x) (f x))
+-- etaId : (A : U) (B : A -> U) -> (f : Pi A B) -> Id (Pi A B) (\x -> f x) f
+-- etaId A B f = funExt A B (\x -> f x) f (\x -> refl (B x) (f x))
 
-funSplit : (A : U) (B : A -> U) (C : Pi A B -> U) ->
-           ((f : Pi A B) -> C (\x -> f x)) -> Pi (Pi A B) C
-funSplit A B C eC f = subst (Pi A B) C (\x -> f x) f (etaId A B f) (eC f)
+-- funSplit : (A : U) (B : A -> U) (C : Pi A B -> U) ->
+--            ((f : Pi A B) -> C (\x -> f x)) -> Pi (Pi A B) C
+-- funSplit A B C eC f = subst (Pi A B) C (\x -> f x) f (etaId A B f) (eC f)
 
-lemProp1 : (A : U) -> (A -> prop A) -> prop A
-lemProp1 A h a0 = h a0 a0
+-- lemProp1 : (A : U) -> (A -> prop A) -> prop A
+-- lemProp1 A h a0 = h a0 a0
 
-propN0 : prop N0
-propN0 a b = efq (Id N0 a b) a
+-- propN0 : prop N0
+-- propN0 a b = efq (Id N0 a b) a
 
--- a product of propositions is a proposition
+-- -- a product of propositions is a proposition
 
-isPropProd : (A : U) (B : A -> U) (pB : (x : A) -> prop (B x)) -> prop (Pi A B)
-isPropProd A B pB f0 f1 = funExt A B f0 f1 (\x -> pB x (f0 x) (f1 x))
+-- isPropProd : (A : U) (B : A -> U) (pB : (x : A) -> prop (B x)) -> prop (Pi A B)
+-- isPropProd A B pB f0 f1 = funExt A B f0 f1 (\x -> pB x (f0 x) (f1 x))
 
-propNeg : (A : U) -> prop (neg A)
-propNeg A = isPropProd A (\_ -> N0) (\_ -> propN0)
+-- propNeg : (A : U) -> prop (neg A)
+-- propNeg A = isPropProd A (\_ -> N0) (\_ -> propN0)
 
-lemProp2 : (A : U) -> prop A -> prop (dec A)
-lemProp2 A pA  = split
- inl a -> split
-   inl b -> mapOnPath A (dec A) (\x -> inl x) a b (pA a b)
-   inr nb -> efq (Id (dec A) (inl a) (inr nb)) (nb a)
- inr na -> split
-   inl b -> efq (Id (dec A) (inr na) (inl b)) (na b)
-   inr nb -> mapOnPath (neg A) (dec A) (\x -> inr x) na nb (propNeg A na nb)
+-- lemProp2 : (A : U) -> prop A -> prop (dec A)
+-- lemProp2 A pA  = split
+--  inl a -> split
+--    inl b -> mapOnPath A (dec A) (\x -> inl x) a b (pA a b)
+--    inr nb -> efq (Id (dec A) (inl a) (inr nb)) (nb a)
+--  inr na -> split
+--    inl b -> efq (Id (dec A) (inr na) (inl b)) (na b)
+--    inr nb -> mapOnPath (neg A) (dec A) (\x -> inr x) na nb (propNeg A na nb)
 
-singl : (A : U) -> A -> U
-singl = pathTo
+-- singl : (A : U) -> A -> U
+-- singl = pathTo
 
-idIsEquiv : (A : U) -> isEquiv A A (id A)
-idIsEquiv A = (sId A, tId A)
+-- idIsEquiv : (A : U) -> isEquiv A A (id A)
+-- idIsEquiv A = (sId A, tId A)
 
-propUnit : prop Unit
-propUnit = split tt -> split tt -> refl Unit tt
+-- propUnit : prop Unit
+-- propUnit = split tt -> split tt -> refl Unit tt
 
-propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
-propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
+-- propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+-- propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
 
-propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
-propImply A B h = propPi A (\_ -> B) h
+-- propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
+-- propImply A B h = propPi A (\_ -> B) h
 
-propFam : (A : U) (B : A -> U) -> U
-propFam A B = (a : A) -> prop (B a)
+-- propFam : (A : U) (B : A -> U) -> U
+-- propFam A B = (a : A) -> prop (B a)
 
-reflexive : (A : U) -> rel A -> U
-reflexive A R = (a : A) -> R a a
+-- reflexive : (A : U) -> rel A -> U
+-- reflexive A R = (a : A) -> R a a
 
-symmetry : (A : U) -> rel A -> U
-symmetry A R = (a b : A) -> R a b -> R b a
+-- symmetry : (A : U) -> rel A -> U
+-- symmetry A R = (a b : A) -> R a b -> R b a
 
-equivalence : (A : U) -> rel A -> U
-equivalence A R = and (reflexive A R) (euclidean A R)
+-- equivalence : (A : U) -> rel A -> U
+-- equivalence A R = and (reflexive A R) (euclidean A R)
 
-eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
-eqToSym A R z a b = (z.2) b a b (z.1 b)
+-- eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
+-- eqToSym A R z a b = (z.2) b a b (z.1 b)
 
-eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
-              (a b c : A) -> R c a -> R c b -> R a b
-eqToInvEucl A R eq a b c p q =
-  eq.2 a b c (eqToSym A R eq c a p) (eqToSym A R eq c b q)
+-- eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
+--               (a b c : A) -> R c a -> R c b -> R a b
+-- eqToInvEucl A R eq a b c p q =
+--   eq.2 a b c (eqToSym A R eq c a p) (eqToSym A R eq c b q)
 
--- definition by case on a decidable equality
--- needed for Nicolai Kraus example
+-- -- definition by case on a decidable equality
+-- -- needed for Nicolai Kraus example
 
-defCase : (A X : U) -> X -> X -> dec A -> X
-defCase A X x0 x1 = split
-  inl _ -> x0
-  inr _ -> x1
+-- defCase : (A X : U) -> X -> X -> dec A -> X
+-- defCase A X x0 x1 = split
+--   inl _ -> x0
+--   inr _ -> x1
 
-IdDefCasel : (A X : U) (x0 x1 : X) (p : dec A) -> A ->
-             Id X (defCase A X x0 x1 p) x0
-IdDefCasel A X x0 x1 = split
- inl _ -> \_ -> refl X x0
- inr v -> \u -> efq (Id X (defCase A X x0 x1 (inr v)) x0) (v u)
+-- IdDefCasel : (A X : U) (x0 x1 : X) (p : dec A) -> A ->
+--              Id X (defCase A X x0 x1 p) x0
+-- IdDefCasel A X x0 x1 = split
+--  inl _ -> \_ -> refl X x0
+--  inr v -> \u -> efq (Id X (defCase A X x0 x1 (inr v)) x0) (v u)
 
-IdDefCaser : (A X : U) (x0 x1 : X) (p : dec A) -> neg A ->
-             Id X (defCase A X x0 x1 p) x1
-IdDefCaser A X x0 x1 = split
- inl u -> \v -> efq (Id X (defCase A X x0 x1 (inl u)) x1) (v u)
- inr _ -> \_ -> refl X x1
+-- IdDefCaser : (A X : U) (x0 x1 : X) (p : dec A) -> neg A ->
+--              Id X (defCase A X x0 x1 p) x1
+-- IdDefCaser A X x0 x1 = split
+--  inl u -> \v -> efq (Id X (defCase A X x0 x1 (inl u)) x1) (v u)
+--  inr _ -> \_ -> refl X x1

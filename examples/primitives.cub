@@ -4,29 +4,49 @@ primitive Id : (A : U) (a b : A) -> U
 
 primitive refl : (A : U) (a : A) -> Id A a a
 
+Sigma : (A : U) (B : A -> U) -> U
+Sigma A B = (x : A) * B x
+
+fiber : (A B : U) (f : A -> B) (y : B) -> U
+fiber A B f y = Sigma A (\x -> Id B (f x) y)
+
 prop : U -> U
 prop A = (a b : A) -> Id A a b
 
 id : (A : U) -> A -> A
 id A a = a
 
+pathTo : (A:U) -> A -> U
+pathTo A = fiber A A (id A)
+
+sId : (A : U) (a : A) -> pathTo A a
+sId A a = (a, refl A a)
+
+singl : (A : U) -> A -> U
+singl A a = Sigma A (Id A a)
+
 primitive transport : (A B : U) -> Id U A B -> A -> B
 
 primitive transpInv : (A B : U) -> Id U A B -> B -> A
 
-transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
-transportRef = refl
+primitive transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
 
 
--- primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
---                       (p : Id A a b) -> Id B (f a) (f b)
+primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
+                      (p : Id A a b) -> Id B (f a) (f b)
 
--- primitive appOnPath : (A B : U) (f g : A -> B) (a b : A)
---                       (q : Id (A -> B) f g) (p : Id A a b) -> Id B (f a) (g b)
+primitive appOnPath : (A B : U) (f g : A -> B) (a b : A)
+                      (q : Id (A -> B) f g) (p : Id A a b) -> Id B (f a) (g b)
 
 primitive IdP : (A B : U) -> Id U A B -> A -> B -> U
 
 
--- IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
--- IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
+IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
+IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
 
+primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
+                       (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (f a1)
+
+primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
+                       (a0 a1 : A) (p : Id A a0 a1) (b0 : F a0) (b1 : F a1)
+                       (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
