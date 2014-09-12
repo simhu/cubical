@@ -87,7 +87,7 @@ initLoop flags f = do
       putStrLn $ "Resolver failed: " ++ err
       runInputT (settings []) (loop flags f [] TC.verboseEnv)
     Right (adefs,names) -> do
-      (merr,tenv) <- TC.runDeclss TC.verboseEnv adefs
+      (merr,tenv) <- TC.runDeclss TC.verboseEnv [adef | C.ODecls adef <- adefs]
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> return ()

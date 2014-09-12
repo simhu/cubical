@@ -76,38 +76,38 @@ compatibles []     = True
 compatibles (x:xs) = all (x `compatible`) xs && compatibles xs
 
 -- Partial composition operation
-join :: Face -> Face -> Face
-join = Map.unionWith f
-  where f d1 d2 = if d1 == d2 then d1 else error "join: incompatible faces"
+meet :: Face -> Face -> Face
+meet = Map.unionWith f
+  where f d1 d2 = if d1 == d2 then d1 else error "meet: incompatible faces"
 
 -- TODO: make this primitive?
--- joinMaybe :: Face -> Face -> Maybe Face
--- joinMaybe x y = if compatible x y then Just $ join x y else Nothing
+meetMaybe :: Face -> Face -> Maybe Face
+meetMaybe x y = if compatible x y then Just $ meet x y else Nothing
 
-joinCom :: Face -> Face -> Property
-joinCom xs ys = compatible xs ys ==> xs `join` ys == ys `join` xs
+meetCom :: Face -> Face -> Property
+meetCom xs ys = compatible xs ys ==> xs `meet` ys == ys `meet` xs
 
-joinAssoc :: Face -> Face -> Face -> Property
-joinAssoc xs ys zs = compatibles [xs,ys,zs] ==>
-                     xs `join` (ys `join` zs) == (xs `join` ys) `join` zs
+meetAssoc :: Face -> Face -> Face -> Property
+meetAssoc xs ys zs = compatibles [xs,ys,zs] ==>
+                     xs `meet` (ys `meet` zs) == (xs `meet` ys) `meet` zs
 
-joinId :: Face -> Bool
-joinId xs = xs `join` xs == xs
+meetId :: Face -> Bool
+meetId xs = xs `meet` xs == xs
 
-joins :: [Face] -> [Face] -> [Face]
-joins xs ys = nub [ join x y | x <- xs, y <- ys, compatible x y ]
+meets :: [Face] -> [Face] -> [Face]
+meets xs ys = nub [ meet x y | x <- xs, y <- ys, compatible x y ]
 
 -- instance Ord Face where
 
 leq :: Face -> Face -> Bool
-alpha `leq` beta = compatible alpha beta && join alpha beta == alpha
+alpha `leq` beta = meetMaybe alpha beta == Just alpha
 
-incomparable :: Face -> Face -> Bool
-incomparable alpha beta = not (alpha `leq` beta || beta `leq` alpha)
+comparable :: Face -> Face -> Bool
+comparable alpha beta = (alpha `leq` beta || beta `leq` alpha)
 
 incomparables :: [Face] -> Bool
 incomparables []     = True
-incomparables (x:xs) = all (x `incomparable`) xs && incomparables xs
+incomparables (x:xs) = all (not . (x `comparable`)) xs && incomparables xs
 
 -- Compute the witness of A <= B, ie compute C s.t. B = CA
 -- leqW :: Face -> Face -> Face
@@ -190,7 +190,7 @@ invFormula (Atom i) b          = [ Map.singleton i b ]
 invFormula (Not phi) b         = invFormula phi (- b)
 invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
 invFormula (phi :/\: psi) One  =
-  joins (invFormula phi 1) (invFormula psi 1)
+  meets (invFormula phi 1) (invFormula psi 1)
 invFormula (phi :\/: psi) b    = invFormula (Not phi :/\: Not psi) (- b)
 
 propInvFormulaIncomp :: Formula -> Dir -> Bool
@@ -279,9 +279,17 @@ face = Map.foldWithKey (\i d a -> act a (i,Dir d))
 -- the faces should be incomparable
 type System a = Map Face a
 
+insertSystem :: Face -> a -> System a -> System a
+insertSystem alpha v ts =
+  case find (comparable alpha) (Map.keys ts) of
+    Just beta | alpha `leq` beta -> ts
+              | otherwise        -> Map.insert alpha v (Map.delete beta ts)
+    Nothing -> Map.insert alpha v ts
+
 -- Quickcheck this:
 -- (i = phi) * beta = (beta - i) * (i = phi beta)
 
+-- Now we ensure that the keys are incomparable
 instance Nominal a => Nominal (System a) where
   support s = unions (map Map.keys $ Map.keys s)
               `union` support (Map.elems s)
@@ -297,11 +305,11 @@ instance Nominal a => Nominal (System a) where
         --   and delta in phi^-1 d
         --   and gamma = alpha - i
         Just d -> foldr (\delta s'' ->
-                             Map.insert (join delta (Map.delete i alpha))
-                                        (face u (Map.delete i delta)) s'')
+                             insertSystem (meet delta (Map.delete i alpha))
+                                          (face u (Map.delete i delta)) s'')
                   s' (invFormula phi d)
         -- t'_alpha = t_alpha (i = phi alpha)
-        Nothing -> Map.insert alpha (act u (i,face phi alpha)) s'
+        Nothing -> insertSystem alpha (act u (i,face phi alpha)) s'
 
 -- carve a using the same shape as the system b
 border :: Nominal a => a -> System b -> System a
@@ -328,5 +336,4 @@ connect a (i, j) = a `act` (i, Atom i :/\: Atom j)
 
 -- actSystemCom :: Formula -> Name -> Formula -> Bool
 -- actSystemCom psi i phi = border phi
-
 

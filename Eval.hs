@@ -10,8 +10,9 @@ import Data.List
 import Data.Maybe (fromMaybe)
 import qualified Debug.Trace as DT
 import Connections
+import Pretty
 
-import Data.Map (Map)
+import Data.Map (Map,(!))
 import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -38,9 +39,9 @@ look x r@(PDef es r1) = case lookupIdent x es of
 
 eval :: Env -> Ter -> Val
 eval e U                 = VU
--- eval e (PN pn)           = evalAppPN e pn []
+eval e (PN pn)           = evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
-  -- (PN pn,us) -> evalAppPN e pn us
+  (PN pn,us) -> evalAppPN e pn us
   _          -> app (eval e r) (eval e s)
 eval e (Var i)           = snd $ look i e
 eval e (Pi a b)          = VPi (eval e a) (eval e b)
@@ -49,7 +50,7 @@ eval e (Lam x t)         = Ter (Lam x t) e -- stop at lambdas
 -- eval e (SPair a b)       = VSPair (eval e a) (eval e b)
 -- eval e (Fst a)           = fstSVal $ eval e a
 -- eval e (Snd a)           = sndSVal $ eval e a
--- eval e (Where t decls)   = eval (oPDef False decls e) t
+eval e (Where t decls)   = eval (PDef (declDefs decls) e) t
 -- eval e (Con name ts)     = VCon name $ map (eval e) ts
 -- eval e (Split pr alts)   = Ter (Split pr alts) e
 -- eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
@@ -65,12 +66,129 @@ evals env = map (second (eval env))
 -- sndSVal u | isNeutral u = VSnd u
 --           | otherwise   = error $ show u ++ " should be neutral"
 
-data Sign = Pos | Neg
+
+instance Nominal Val where
+  support VU                            = []
+  support (Ter _ e)                     = support e
+  support (VPi v1 v2)                   = support [v1,v2]
+  support (Kan i a ts u)                = i `delete` support (a,ts,u)
+  support (VId a v0 v1)                 = support [a,v0,v1]
+  support (Path i v)                    = i `delete` support v
+
+  support (VVar i)                      = []
+  support (VApp u v)                    = support (u, v)
+  support (VAppFormula u phi)           = support (u, phi)
+
+  -- support (VInh v)                      = support v
+  -- support (VInc v)                      = support v
+  -- support (VCon _ vs)                   = support vs
+  -- support (VSquash x v0 v1)             = support (x, [v0,v1])
+  -- -- support (VExt x b f g p)           = support (x, [b,f,g,p])
+  -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
+  -- support (Kan Fill a box)              = support (a, box)
+  -- support (VFillN a box)                = support (a, box)
+  -- support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
+  -- support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
+  -- support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
+  --          -- names x, y and values a, s, t
+  -- support (VEquivSquare x y a s t)      = support ((x,y), [a,s,t])
+  -- support (VPair x a v)                 = support (x, [a,v])
+  -- support (VComp box@(Box _ n _ _))     = delete n $ support box
+  -- support (VFill x box)                 = delete x $ support box
+  -- support (VSplit u v)                  = support (u, v)
+  -- support (VSigma u v)                  = support (u,v)
+  -- support (VSPair u v)                  = support (u,v)
+  -- support (VFst u)                      = support u
+  -- support (VSnd u)                      = support u
+  -- support (VInhRec b p h a)             = support [b,p,h,a]
+  -- support VCircle                       = []
+  -- support VBase                         = []
+  -- support (VLoop n)                     = [n]
+  -- support (VCircleRec f b l s)          = support [f,b,l,s]
+  -- support VI                            = []
+  -- support VI0                           = []
+  -- support VI1                           = []
+  -- support (VLine n)                     = [n]
+  -- support (VIntRec f s e l u)           = support [f,s,e,l,u]
+  -- support v                             = error ("support " ++ show v)
+
+  -- swap u x y =
+  --   let sw u = swap u x y in case u of
+  --   VU                     -> VU
+  --   Ter t e                -> Ter t (sw e)
+  --   VId a v0 v1            -> VId (sw a) (sw v0) (sw v1)
+  --   Path z v               -> Path (sw z) (sw v)
+  --   -- VExt z b f g p      -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
+  --   VHExt z b f g p        -> VHExt (sw z) (sw b) (sw f) (sw g) (sw p)
+  --   VPi a f                -> VPi (sw a) (sw f)
+  --   VInh v                 -> VInh (sw v)
+  --   VInc v                 -> VInc (sw v)
+  --   VSquash z v0 v1        -> VSquash (sw z) (sw v0) (sw v1)
+  --   VCon c us              -> VCon c (map sw us)
+  --   VEquivEq z a b f s t   ->
+  --     VEquivEq (sw z) (sw a) (sw b) (sw f) (sw s) (sw t)
+  --   VPair z a v            -> VPair (sw z) (sw a) (sw v)
+  --   VEquivSquare z w a s t ->
+  --     VEquivSquare (sw z) (sw w) (sw a) (sw s) (sw t)
+  --   VSquare z w v          -> VSquare (sw z) (sw w) (sw v)
+  --   Kan Fill a b           -> Kan Fill (sw a) (sw b)
+  --   VFillN a b             -> VFillN (sw a) (sw b)
+  --   Kan Com a b            -> Kan Com (sw a) (sw b)
+  --   VComN a b              -> VComN (sw a) (sw b)
+  --   VComp b                -> VComp (sw b)
+  --   VFill z b              -> VFill (sw z) (sw b)
+  --   VApp u v               -> VApp (sw u) (sw v)
+  --   VAppFormula u n           -> VAppFormula (sw u) (sw n)
+  --   VSplit u v             -> VSplit (sw u) (sw v)
+  --   VVar s d               -> VVar s (sw d)
+  --   VSigma u v             -> VSigma (sw u) (sw v)
+  --   VSPair u v             -> VSPair (sw u) (sw v)
+  --   VFst u                 -> VFst (sw u)
+  --   VSnd u                 -> VSnd (sw u)
+  --   VInhRec b p h a        -> VInhRec (sw b) (sw p) (sw h) (sw a)
+  --   VCircle                -> VCircle
+  --   VBase                  -> VBase
+  --   VLoop z                -> VLoop (sw z)
+  --   VCircleRec f b l a     -> VCircleRec (sw f) (sw b) (sw l) (sw a)
+  --   VI                     -> VI
+  --   VI0                    -> VI0
+  --   VI1                    -> VI1
+  --   VLine z                -> VLine (sw z)
+  --   VIntRec f s e l u      -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
+
+  act u (i, phi) = trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
+    let acti :: Nominal a => a -> a
+        acti u = act u (i, phi)
+    in case u of
+         VU      -> VU
+         Ter t e -> Ter t (acti e)
+         VPi a f -> VPi (acti a) (acti f)
+         Kan j a ts u -> comp Pos k (ar a) (ar ts) (ar u)
+              where k   = fresh (u, Atom i, phi)
+                    ar :: Nominal a => a -> a
+                    ar = acti . (`rename` (j,k))
+
+         VId a u v -> VId (acti a) (acti u) (acti v)
+         Path j v -> Path k (acti (v `rename` (j,k)))
+              where k = fresh (v, Atom i, phi)
+
+         VVar x            -> VVar x
+         VAppFormula u psi -> acti u @@ acti psi
+         VApp u v          -> app (acti u) (acti v)
+
+
+
+instance Nominal Env where
+  act e iphi = mapEnv (\u -> act u iphi) e
+
+  support Empty          = []
+  support (Pair e (_,v)) = support (e, v)
+  support (PDef _ e)     = support e
 
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
-app (Kan i b@(VPi a f) ts li0) ui1 =
+app (Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
     let j   = fresh (b,u,ts)
         (aj,fj,tsj) = (a,f,ts) `rename` (i,j)
         u   = fill Neg j aj Map.empty ui1
@@ -79,19 +197,18 @@ app (Kan i b@(VPi a f) ts li0) ui1 =
            (Map.intersectionWith app tsj (border u tsj))
            (app li0 ui0)
 
-
 -- app vext@(VExt x bv fv gv pv) w = do
 --   -- NB: there are various choices how to construct this
 --   let y = fresh (vext, w)
 --   w0    <- w `face` (x,down)
 --   left  <- app fv w0
 --   right <- app gv (swap w x y)
---   pvxw  <- appNameM (app pv w0) x
+--   pvxw  <- appFormulaM (app pv w0) x
 --   comM (app bv w) (return (Box up y pvxw [((x,down),left),((x,up),right)]))
 -- app vhext@(VHExt x bv fv gv pv) w =
 --   let a0 = w `face` (x,down)
 --       a1 = w `face` (x,up)
---   in appName (apps pv [a0, a1, Path x w]) x
+--   in appFormula (apps pv [a0, a1, Path x w]) x
 -- app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
 --     Just (xs,t)  -> eval (upds e (zip xs us)) t
 --     Nothing -> error $ "app: Split with insufficient arguments; " ++
@@ -106,44 +223,51 @@ app (Kan i b@(VPi a f) ts li0) ui1 =
 apps :: Val -> [Val] -> Val
 apps = foldl app
 
+(@@) :: Val -> Formula -> Val
+(Path i u) @@ phi = u `act` (i, phi)
+_ @@ _ = error "@@: not a path"
 
--- appName :: Val -> Name -> Val
--- appName (Path x u) y | y `elem` [0,1] = u `face` (x,y)
--- appName p y          | y `elem` [0,1] = VAppName p y -- p has to be neutral
--- appName (Path x u) y | x == y             = u
---                      | y `elem` support u = error ("appName " ++ "\nu = " ++
+(@@@) :: Val -> Name -> Val
+p @@@ i = p @@@ i
+
+-- where j = fresh (u, Atom i, phi)
+-- | y `elem` [0,1] = u `face` (x,y)
+-- appFormula p y          | y `elem` [0,1] = VAppFormula p y -- p has to be neutral
+-- appFormula (Path x u) y | x == y             = u
+--                      | y `elem` support u = error ("appFormula " ++ "\nu = " ++
 --                                                    show u ++ "\ny = " ++ show y)
 --                      | otherwise          = swap u x y
--- appName v y          = VAppName v y
+-- appFormula v y          = VAppFormula v y
 
--- -- Apply a primitive notion
--- evalAppPN :: OEnv -> PN -> [Ter] -> Val
--- evalAppPN e pn ts
---   | length ts < arity pn =
---       -- Eta expand primitive notions
---       let r       = arity pn - length ts
---           binders = map (\n -> '_' : show n) [1..r]
---           vars    = map Var binders
---       in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) e
---   | otherwise =
---       let (args,rest) = splitAt (arity pn) ts
---           vas = map (eval e) args
---           p   = evalPN (freshs e) pn vas
---           r   = map (eval e) rest
---       in apps p r
+-- Apply a primitive notion
+evalAppPN :: Env -> PN -> [Ter] -> Val
+evalAppPN e pn ts
+  | length ts < arity pn =
+      -- Eta expand primitive notions
+      let r       = arity pn - length ts
+          binders = map (\n -> '_' : show n) [1..r]
+          vars    = map Var binders
+      in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) e
+  | otherwise =
+      let (args,rest) = splitAt (arity pn) ts
+          vas = map (eval e) args
+          p   = evalPN (freshs e) pn vas
+          r   = map (eval e) rest
+      in apps p r
 
 -- Evaluate primitive notions
--- evalPN :: [Name] -> PN -> [Val] -> Val
--- evalPN (x:_) Id            [a,a0,a1]     = VId (Path x a) a0 a1
--- evalPN (x:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
--- evalPN (x:_) Refl          [_,a]         = Path x a
--- evalPN (x:_) TransU        [_,_,p,t]     = com (appName p x) (Box up x t [])
--- evalPN (x:_) TransInvU     [_,_,p,t]     = com (appName p x) (Box down x t [])
+evalPN :: [Name] -> PN -> [Val] -> Val
+evalPN (i:_) Id            [a,a0,a1]     = VId (Path i a) a0 a1
+evalPN (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
+evalPN (i:_) Refl          [_,a]         = Path i a
+evalPN (i:_) TransU        [_,_,p,t]     = comp Pos i (p @@@ i) Map.empty t
+evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@@ i) Map.empty t
+-- evalPN (x:_) TransInvU     [_,_,p,t]     = com (appFormula p x) (Box down x t [])
 -- evalPN (x:_) TransURef     [a,t]         = Path x $ fill a (Box up x t [])
 -- evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] =
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
 -- evalPN (x:y:_) CSingl [a,u,v,p] =
---   let pv    = appName p y
+--   let pv    = appFormula p y
 --       theta = fill a (Box up y u [((x,down),u),((x,up),pv)])
 --       omega = theta `face` (y,up)
 --   in Path x (VSPair omega (Path y theta))
@@ -156,12 +280,12 @@ apps = foldl app
 -- evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
--- evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appName p x)
--- evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    = Path x $ app f (appName p x)
+-- evalPN (x:_)   MapOnPath  [_,_,f,_,_,p]    = Path x $ app f (appFormula p x)
+-- evalPN (x:_)   MapOnPathD [_,_,f,_,_,p]    = Path x $ app f (appFormula p x)
 -- evalPN (x:_)   AppOnPath [_,_,_,_,_,_,p,q] =
---   Path x $ app (appName p x) (appName q x)
+--   Path x $ app (appFormula p x) (appFormula q x)
 -- evalPN (x:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
---   Path x $ app (app f (appName p x)) (appName q x)
+--   Path x $ app (app f (appFormula p x)) (appFormula q x)
 -- evalPN _       Circle     []               = VCircle
 -- evalPN _       Base       []               = VBase
 -- evalPN (x:_)   Loop       []               = Path x $ VLoop x
@@ -171,15 +295,15 @@ apps = foldl app
 -- evalPN _       I1         []               = VI1
 -- evalPN (x:_)   Line       []               = Path x $ VLine x
 -- evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
--- evalPN _       u          _                = error ("evalPN " ++ show u)
+evalPN _       u          _                = error ("evalPN " ++ show u)
 
 -- appS1 :: Val -> Val -> Name -> Eval Val
--- appS1 f p x | x `elem` [0,1] = appName p x
+-- appS1 f p x | x `elem` [0,1] = appFormula p x
 -- appS1 f p x = do
 --   let y = fresh (p,(f,x))
---   q <- appName p y
---   a <- appName p 0
---   b <- appName p 1
+--   q <- appFormula p y
+--   a <- appFormula p 0
+--   b <- appFormula p 1
 --   newBox <- Box down y b <$>
 --             sequenceSnd  [ ((x,down),q `face` (x,down))
 --                          , ((x,up),b `face` (x,up))]
@@ -276,7 +400,7 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 --         VComp (mapBox (`face` (z,up)) b)
 --   VInhRec b p h a     -> inhrec (fc b) (fc p) (fc h) (fc a)
 --   VApp u v            -> app (fc u) (fc v)
---   VAppName u n        -> appName (fc u) (faceName n xdir)
+--   VAppFormula u n        -> appFormula (fc u) (faceName n xdir)
 --   VSplit u v          -> app (fc u) (fc v)
 --   VVar s d            -> VVar s [ faceName n xdir | n <- d ]
 --   VFst p              -> fstSVal $ fc p
@@ -308,16 +432,16 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- q(0,y) connects a(0) and b(0)
 -- we connect q(0,0) to q(1,1)
 -- appDiag :: Val -> Val -> Name -> Val
--- appDiag tu p x | x `elem` [0,1] = appName p x
+-- appDiag tu p x | x `elem` [0,1] = appFormula p x
 -- appDiag tu p x =
 -- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
 -- --                       ++ show x ++ " " ++ show y
 -- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox)
 --  com tu newBox
 --    where y = fresh (p,(tu,x))
---          q = appName p y
---          a = appName p 0
---          b = appName p 1
+--          q = appFormula p y
+--          a = appFormula p 0
+--          b = appFormula p 1
 --          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
 
 -- inhrec :: Val -> Val -> Val -> Val -> Val
@@ -329,7 +453,7 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 --       z        = fresh [b,p,phi,b0,b1]
 --       b0fill   = fill b (Box up x b0 [])
 --       b0fillx1 = b0fill `face` (x, up)
---       right    = appName (app (app (fc p up) b0fillx1) b1) z
+--       right    = appFormula (app (app (fc p up) b0fillx1) b1) z
 --   in com b (Box up z b0fill [((x,down),b0),((x,up),right)])
 -- inhrec b p phi (Kan ktype (VInh a) box) =
 --   let irec (j,dir) v = let fc v = v `face` (j,dir)
@@ -342,7 +466,7 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- circlerec _ b _ VBase       = b
 -- circlerec f b l v@(VLoop x) =
 --   let y     = fresh [f,b,l,v]
---       pxy   = appName l y
+--       pxy   = appFormula l y
 --       theta = connection VCircle x y v
 --       a     = app f theta
 --       px1   = pxy `face` (y,up)
@@ -363,7 +487,7 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- intrec _ _ e _ VI1         = e
 -- intrec f s e l v@(VLine x) =
 --   let y     = fresh [f,s,e,l,v]
---       pxy   = appName l y
+--       pxy   = appFormula l y
 --       theta = connection VI x y v
 --       a     = app f theta
 --       px1   = pxy `face` (y,up)
@@ -435,6 +559,8 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 -- com v box                                 = Kan Com v box
 
+data Sign = Pos | Neg
+
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
 fill Neg i a ts u = (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
 fill Pos i a ts u = comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
@@ -442,7 +568,21 @@ fill Pos i a ts u = comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
 
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp Neg i a ts u = comp Pos i (a `sym` i) (ts `sym` i) u
-comp Pos i a ts u = Kan i a ts u
+-- If 1 is a key of ts, then it means all the information is already there.
+-- This is used to take (k = 0) of a comp when k \in L
+comp Pos i a ts u | Map.empty `Map.member` ts = trace "comp 1" $ (ts ! Map.empty) `act` (i,Dir 1)
+comp Pos i vid@(VId a u v) ts w = trace "comp VId"
+  Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
+  where j   = fresh (Atom i, vid, ts, w)
+        ts' = insertSystem (Map.fromList [(j,0)]) u $
+              insertSystem (Map.fromList [(j,1)]) v $
+              Map.map (@@@ j) ts
+-- comp Pos i a@VPi{} ts u   = Kan i a ts u
+comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
+-- comp Pos i a ts u | isNeutral a = Kan i a ts u
+comp Pos i a ts u = error $ "comp _: not implemented"
+
+
 
 
 -- -- -- Kan filling
@@ -450,8 +590,8 @@ comp Pos i a ts u = Kan i a ts u
 -- fill v box | isNeutralFill v box = VFillN v box
 -- fill vid@(VId a v0 v1) box@(Box dir i v nvs) =
 --   let x = fresh (vid, box)
---       box' = consBox (x,(v0,v1)) (mapBox (`appName` x) box)
---   in Path x $ fill (a `appName` x) box'
+--       box' = consBox (x,(v0,v1)) (mapBox (`appFormula` x) box)
+--   in Path x $ fill (a `appFormula` x) box'
 -- fill (VSigma a f) box@(Box dir x v nvs) =
 --   let u = fill a (mapBox fstSVal box)
 --   in VSPair u $ fill (app f u) (mapBox sndSVal box)
@@ -496,16 +636,16 @@ comp Pos i a ts u = Kan i a ts u
 --     let gbsb    = app s vz
 --         (gb,sb) = (fstSVal gbsb, sndSVal gbsb)
 --         y       = fresh (veq, box)
---         vy      = appName sb x
+--         vy      = appFormula sb x
 
 --         vpTSq :: Name -> Dir -> Val -> (Val,Val)
 --         vpTSq nz dz (VPair z a0 v0) =
 --           let vp       = VSPair a0 (Path z v0)
 --               t0       = t `face` (nz,dz)
 --               b0       = vz `face` (nz,dz)
---               l0sq0    = appName (app (app t0 b0) vp) y
+--               l0sq0    = appFormula (app (app t0 b0) vp) y
 --               (l0,sq0) = (fstSVal l0sq0, sndSVal l0sq0)
---               sq0x     = appName sq0 x
+--               sq0x     = appFormula sq0 x
 --           in (l0,sq0x)  -- TODO: check the correctness of the square s0
 
 --         -- TODO: Use modBox!
@@ -692,34 +832,37 @@ comp Pos i a ts u = Kan i a ts u
 
 conv :: Int -> Val -> Val -> Bool
 conv k VU VU                                  = True
--- conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
---   let v = mkVar k $ support (e, e')
---   in conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
--- conv k (Ter (Lam x u) e) u' =
---   let v = mkVar k $ support e
---   in conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
--- conv k u' (Ter (Lam x u) e) =
---   let v = mkVar k $ support e
---   in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
--- conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
---   (p == p') && convEnv k e e'
--- conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
---   (p == p') && convEnv k e e'
--- conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
---   (p == p') && convEnv k e e'
--- conv k (VPi u v) (VPi u' v') =
---   let w = mkVar k $ support [u,u',v,v']
---   in conv k u u' && conv (k+1) (app v w) (app v' w)
+conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
+  let v = mkVar k
+  in conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+conv k (Ter (Lam x u) e) u' =
+  let v = mkVar k
+  in conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
+conv k u' (Ter (Lam x u) e) =
+  let v = mkVar k
+  in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
+conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
+  (p == p') && convEnv k e e'
+conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
+  (p == p') && convEnv k e e'
+conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
+  (p == p') && convEnv k e e'
+conv k (VPi u v) (VPi u' v') =
+  let w = mkVar k
+  in conv k u u' && conv (k+1) (app v w) (app v' w)
+conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
 -- conv k (VSigma u v) (VSigma u' v') =
 --   let w = mkVar k $ support [u,u',v,v']
 --   in conv k u u' && conv (k+1) (app v w) (app v' w)
--- conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
--- conv k (Path x u) (Path x' u')    = conv k (swap u x z) (swap u' x' z)
---   where z = fresh (u,u')
--- conv k (Path x u) p'              = conv k (swap u x z) (appName p' z)
---   where z = fresh u
--- conv k p (Path x' u')             = conv k (appName p z) (swap u' x' z)
---   where z = fresh u'
+conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
+                                    conv k (u `rename` (i,j)) (u' `rename` (i',j))
+  where j = fresh (u,u')
+conv k (Path i u) p'              = trace "conv Path p" $
+                                    conv k (u `rename` (i,j)) (p' @@@ j)
+  where j = fresh u
+conv k p (Path i' u')             = trace "conv p Path" $
+                                    conv k (p @@@ j) (u' `rename` (i',j))
+  where j = fresh u'
 -- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
 --   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
 -- conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
@@ -731,6 +874,16 @@ conv k VU VU                                  = True
 -- conv k (VSquash x u v) (VSquash x' u' v')     =
 --   and [x == x', conv k u u', conv k v v']
 -- conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
+conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
+   let j    = fresh (v, v')
+       tsj  = ts  `rename` (i,j)
+       tsj' = ts' `rename` (i',j)
+   in
+   and [ conv k (a `rename` (i,j)) (a' `rename` (i',j))
+       , Map.keysSet tsj == Map.keysSet tsj'
+       , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
+       , conv k (u `rename` (i,j)) (u' `rename` (i',j))]
+
 -- conv k (Kan Fill v box) (Kan Fill v' box')    =
 --   conv k v v' && convBox k box box'
 -- conv k (Kan Com v box) (Kan Com v' box')      =
@@ -766,10 +919,10 @@ conv k VU VU                                  = True
 --   conv k u (fstSVal w) && conv k v (sndSVal w)
 -- conv k w              (VSPair u v)     =
 --   conv k (fstSVal w) u && conv k (sndSVal w) v
--- conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
--- conv k (VAppName u x) (VAppName u' x') = conv k u u' && (x == x')
+conv k (VVar x)       (VVar x')        = (x == x')
+conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
+conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
 -- conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
--- conv k (VVar x d)     (VVar x' d')     = (x == x') && (d == d')
 -- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
 --   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
 -- conv k VCircle        VCircle          = True

@@ -34,11 +34,11 @@ type LblSum = [(Binder,Tele)]
 type Ctxt   = [(Binder,Val)]
 
 -- Mutual recursive definitions: (x1 : A1) .. (xn : An) and x1 = e1 .. xn = en
+-- (x, type, value)
 type Decls  = [(Binder,Ter,Ter)]
 data ODecls = ODecls Decls
             | Opaque Binder
-            | Transp Binder
-  deriving (Eq,Show)
+            | Transp Binder  deriving (Eq,Show)
 
 declIdents :: Decls -> [Ident]
 declIdents decl = [ x | ((x,_),_,_) <- decl]
@@ -63,7 +63,7 @@ data Ter = App Ter Ter
          | SPair Ter Ter
          | Fst Ter
          | Snd Ter
-         | Where Ter ODecls
+         | Where Ter Decls
          | Var Ident
          | U
          -- constructor c Ms
@@ -95,9 +95,6 @@ data PN = Id | Refl
         -- (A B : U) -> Id U A B -> B -> A
         -- For TransU we only need the eqproof and the element in A is needed
         | TransInvU
-
-        -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
-        | TransURef
 
         -- (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
         | CSingl
@@ -204,7 +201,8 @@ mkLams bs t = foldr Lam t [noLoc b | b <- bs]
 
 mkWheres :: [ODecls] -> Ter -> Ter
 mkWheres []     e = e
-mkWheres (d:ds) e = Where (mkWheres ds e) d
+mkWheres (ODecls d:ds) e = Where (mkWheres ds e) d
+mkWheres _      _  = error "mkWhere: opaque is broken, fix it!"
 
 -- Primitive notions
 primHandle :: [(Ident,Int,PN)]
@@ -221,7 +219,6 @@ primHandle =
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
    ("contrSingl"    , 4,  CSingl       ),
-   ("transportRef"  , 2,  TransURef    ),
    ("equivEqRef"    , 3,  EquivEqRef   ),
    ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
@@ -257,13 +254,18 @@ data KanType = Fill | Com
 data Val = VU
          | Ter Ter Env
          | VPi Val Val
-         -- | VId Val Val Val
+
+         -- comp ^i _{ A, ts } (a)
+         | Kan Name Val (System Val) Val
+
+         | VId Val Val Val
+
+         -- tag values which are paths
+         | Path Name Val
 
          -- | VSigma Val Val
          -- | VSPair Val Val
 
-         -- tag values which are paths
-         -- | Path Name Val
 
          -- | VExt Name Val Val Val Val
          -- | VHExt Name Val Val Val Val
@@ -278,9 +280,6 @@ data Val = VU
          -- | VSquash Name Val Val
 
          -- | VCon Ident [Val]
-
-         -- comp ^i _{ A, ts } (a)
-         | Kan Name Val (System Val) Val
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
@@ -314,10 +313,10 @@ data Val = VU
          -- | VLine Name           -- connects start and end point along name
 
          -- neutral values
-         -- | VApp Val Val            -- the first Val must be neutral
-         -- | VAppName Val Name
+         | VVar String
+         | VApp Val Val            -- the first Val must be neutral
+         | VAppFormula Val Formula
          -- | VSplit Val Val          -- the second Val must be neutral
-         -- | VVar String Dim
          -- | VInhRec Val Val Val Val     -- the last Val must be neutral
          -- | VCircleRec Val Val Val Val  -- the last Val must be neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
@@ -330,14 +329,14 @@ data Val = VU
 -- vepair :: Name -> Val -> Val -> Val
 -- vepair x a b = VSPair a (Path x b)
 
--- mkVar :: Int -> Dim -> Val
--- mkVar k = VVar ('X' : show k)
+mkVar :: Int -> Val
+mkVar k = VVar ('X' : show k)
 
--- isNeutral :: Val -> Bool
--- isNeutral (VApp u _)           = isNeutral u
--- isNeutral (VAppName u _)       = isNeutral u
+isNeutral :: Val -> Bool
+isNeutral (VVar _)             = True
+isNeutral (VApp u _)           = isNeutral u
+isNeutral (VAppFormula u _)       = isNeutral u
 -- isNeutral (VSplit _ v)         = isNeutral v
--- isNeutral (VVar _ _)           = True
 -- isNeutral (VInhRec _ _ _ v)    = isNeutral v
 -- isNeutral (VCircleRec _ _ _ v) = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
@@ -345,7 +344,7 @@ data Val = VU
 -- isNeutral (VComN _ _)          = True
 -- isNeutral (VFst v)             = isNeutral v
 -- isNeutral (VSnd v)             = isNeutral v
--- isNeutral _                    = False
+isNeutral _                    = False
 
 -- fstVal, sndVal, unSquare :: Val -> Val
 -- fstVal (VPair _ a _)     = a
@@ -359,98 +358,7 @@ data Val = VU
 -- unCon (VCon _ vs) = vs
 -- unCon v           = error $ "unCon: not a constructor: " ++ show v
 
-
-instance Nominal Val where
-  support VU                            = []
-  support (Ter _ e)                     = support e
-  -- support (VId a v0 v1)                 = support [a,v0,v1]
-  -- support (Path x v)                    = delete x $ support v
-  -- support (VInh v)                      = support v
-  -- support (VInc v)                      = support v
-  support (VPi v1 v2)                   = support [v1,v2]
-  -- support (VCon _ vs)                   = support vs
-  -- support (VSquash x v0 v1)             = support (x, [v0,v1])
-  -- -- support (VExt x b f g p)           = support (x, [b,f,g,p])
-  -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
-  -- support (Kan Fill a box)              = support (a, box)
-  -- support (VFillN a box)                = support (a, box)
-  -- support (VComN   a box@(Box _ n _ _)) = delete n (support (a, box))
-  -- support (Kan Com a box@(Box _ n _ _)) = delete n (support (a, box))
-  -- support (VEquivEq x a b f s t)        = support (x, [a,b,f,s,t])
-  --          -- names x, y and values a, s, t
-  -- support (VEquivSquare x y a s t)      = support ((x,y), [a,s,t])
-  -- support (VPair x a v)                 = support (x, [a,v])
-  -- support (VComp box@(Box _ n _ _))     = delete n $ support box
-  -- support (VFill x box)                 = delete x $ support box
-  -- support (VApp u v)                    = support (u, v)
-  -- support (VAppName u n)                = support (u, n)
-  -- support (VSplit u v)                  = support (u, v)
-  -- support (VVar x d)                    = support d
-  -- support (VSigma u v)                  = support (u,v)
-  -- support (VSPair u v)                  = support (u,v)
-  -- support (VFst u)                      = support u
-  -- support (VSnd u)                      = support u
-  -- support (VInhRec b p h a)             = support [b,p,h,a]
-  -- support VCircle                       = []
-  -- support VBase                         = []
-  -- support (VLoop n)                     = [n]
-  -- support (VCircleRec f b l s)          = support [f,b,l,s]
-  -- support VI                            = []
-  -- support VI0                           = []
-  -- support VI1                           = []
-  -- support (VLine n)                     = [n]
-  -- support (VIntRec f s e l u)           = support [f,s,e,l,u]
-  -- support v                             = error ("support " ++ show v)
-
-  -- swap u x y =
-  --   let sw u = swap u x y in case u of
-  --   VU                     -> VU
-  --   Ter t e                -> Ter t (sw e)
-  --   VId a v0 v1            -> VId (sw a) (sw v0) (sw v1)
-  --   Path z v               -> Path (sw z) (sw v)
-  --   -- VExt z b f g p      -> VExt (swap z x y) (sw b) (sw f) (sw g) (sw p)
-  --   VHExt z b f g p        -> VHExt (sw z) (sw b) (sw f) (sw g) (sw p)
-  --   VPi a f                -> VPi (sw a) (sw f)
-  --   VInh v                 -> VInh (sw v)
-  --   VInc v                 -> VInc (sw v)
-  --   VSquash z v0 v1        -> VSquash (sw z) (sw v0) (sw v1)
-  --   VCon c us              -> VCon c (map sw us)
-  --   VEquivEq z a b f s t   ->
-  --     VEquivEq (sw z) (sw a) (sw b) (sw f) (sw s) (sw t)
-  --   VPair z a v            -> VPair (sw z) (sw a) (sw v)
-  --   VEquivSquare z w a s t ->
-  --     VEquivSquare (sw z) (sw w) (sw a) (sw s) (sw t)
-  --   VSquare z w v          -> VSquare (sw z) (sw w) (sw v)
-  --   Kan Fill a b           -> Kan Fill (sw a) (sw b)
-  --   VFillN a b             -> VFillN (sw a) (sw b)
-  --   Kan Com a b            -> Kan Com (sw a) (sw b)
-  --   VComN a b              -> VComN (sw a) (sw b)
-  --   VComp b                -> VComp (sw b)
-  --   VFill z b              -> VFill (sw z) (sw b)
-  --   VApp u v               -> VApp (sw u) (sw v)
-  --   VAppName u n           -> VAppName (sw u) (sw n)
-  --   VSplit u v             -> VSplit (sw u) (sw v)
-  --   VVar s d               -> VVar s (sw d)
-  --   VSigma u v             -> VSigma (sw u) (sw v)
-  --   VSPair u v             -> VSPair (sw u) (sw v)
-  --   VFst u                 -> VFst (sw u)
-  --   VSnd u                 -> VSnd (sw u)
-  --   VInhRec b p h a        -> VInhRec (sw b) (sw p) (sw h) (sw a)
-  --   VCircle                -> VCircle
-  --   VBase                  -> VBase
-  --   VLoop z                -> VLoop (sw z)
-  --   VCircleRec f b l a     -> VCircleRec (sw f) (sw b) (sw l) (sw a)
-  --   VI                     -> VI
-  --   VI0                    -> VI0
-  --   VI1                    -> VI1
-  --   VLine z                -> VLine (sw z)
-  --   VIntRec f s e l u      -> VIntRec (sw f) (sw s) (sw e) (sw l) (sw u)
-
-  act u (i, phi) = let acti u = act u (i, phi) in case u of
-     VU      -> VU
-     Ter t e -> Ter t (acti e)
-     VPi a f -> VPi (acti a) (acti f)
-      
+     
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -467,13 +375,6 @@ instance Show Env where
     where
       showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
       showEnv1 e                = show e
-
-instance Nominal Env where
-  act e iphi = mapEnv (\u -> act u iphi) e
-
-  support Empty          = []
-  support (Pair e (_,v)) = support (e, v)
-  support (PDef _ e)     = support e
 
 upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
@@ -529,7 +430,7 @@ showTer (Fst e)       = showTer e ++ ".1"
 showTer (Snd e)       = showTer e ++ ".2"
 showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
-showTer (Where e d)   = showTer e <+> "where" <+> showODecls d
+showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
 showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
@@ -569,18 +470,24 @@ instance Show Val where
 showVal :: Val -> String
 showVal VU                       = "U"
 showVal (Ter t env)              = show t <+> show env
--- showVal (VId a u v)              =
---   "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
--- showVal (Path n u)               = abrack (show n) <+> showVal u
--- -- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VPi a f)                = "Pi" <+> showVals [a,f]
+showVal (Kan i aType ts a)          = "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal a
+showVal (VId a u v)              =
+  "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
+showVal (Path n u)               = abrack (show n) <+> showVal u
+
+showVal (VVar x)                 = x
+showVal (VApp u v)               = showVal u <+> showVal1 v
+showVal (VAppFormula u n)           = showVal u <+> "@" <+> show n
+
+
+-- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VCon c us)              = c <+> showVals us
-showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 -- showVal (VInh u)                 = "inh" <+> showVal1 u
 -- showVal (VInc u)                 = "inc" <+> showVal1 u
 -- showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
 -- showVal (VSquash n u v)          = "squash" <+> show n <+> showVals [u,v]
-showVal (Kan i aType ts a)          = "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal a
 -- showVal (Kan Fill v box)         = "Fill" <+> showVal1 v <+> parens (show box)
 -- showVal (Kan Com v box)          = "Com" <+> showVal1 v <+> parens (show box)
 -- showVal (VFillN v box)           = "FillN" <+> showVal1 v <+> parens (show box)
@@ -589,10 +496,7 @@ showVal (Kan i aType ts a)          = "Kan" <+> show i <+> showVal1 aType <+> pa
 -- showVal (VSquare x y u)          = "vsquare" <+> show x <+> show y <+> showVal1 u
 -- showVal (VComp box)              = "vcomp" <+> parens (show box)
 -- showVal (VFill n box)            = "vfill" <+> show n <+> parens (show box)
--- showVal (VApp u v)               = showVal u <+> showVal1 v
--- showVal (VAppName u n)           = showVal u <+> "@" <+> show n
 -- showVal (VSplit u v)             = showVal u <+> showVal1 v
--- showVal (VVar x d)               = x <+> showDim d
 -- showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 -- showVal (VEquivSquare x y a s t) =
 --   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
