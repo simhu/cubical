@@ -70,7 +70,6 @@ sndSVal (VSPair a b)    = b
 sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ show u ++ " should be neutral"
 
-
 instance Nominal Val where
   support VU                            = []
   support (Ter _ e)                     = support e
@@ -146,8 +145,6 @@ instance Nominal Val where
          VAppFormula u psi -> acti u @@ acti psi
          VApp u v          -> app (acti u) (acti v)
          VSplit u v        -> app (acti u) (acti v)
-
-
 
 instance Nominal Env where
   act e iphi = mapEnv (\u -> act u iphi) e

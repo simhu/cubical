@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances,
+             GeneralizedNewtypeDeriving #-}
 module Connections where
 
 import Control.Applicative
@@ -11,13 +12,10 @@ import Data.Maybe
 import Test.QuickCheck
 
 newtype Name = Name Integer
-  deriving (Eq,Ord)
+  deriving (Arbitrary,Eq,Num,Ord)
 
 instance Show Name where
   show (Name i) = 'i' : show i
-
-instance Arbitrary Name where
-  arbitrary = Name <$> arbitrary
 
 -- | Directions
 data Dir = Zero | One
@@ -80,7 +78,6 @@ meet :: Face -> Face -> Face
 meet = Map.unionWith f
   where f d1 d2 = if d1 == d2 then d1 else error "meet: incompatible faces"
 
--- TODO: make this primitive?
 meetMaybe :: Face -> Face -> Maybe Face
 meetMaybe x y = if compatible x y then Just $ meet x y else Nothing
 
@@ -103,7 +100,7 @@ leq :: Face -> Face -> Bool
 alpha `leq` beta = meetMaybe alpha beta == Just alpha
 
 comparable :: Face -> Face -> Bool
-comparable alpha beta = (alpha `leq` beta || beta `leq` alpha)
+comparable alpha beta = alpha `leq` beta || beta `leq` alpha
 
 incomparables :: [Face] -> Bool
 incomparables []     = True
@@ -116,11 +113,12 @@ incomparables (x:xs) = all (not . (x `comparable`)) xs && incomparables xs
 -- data Faces = Faces (Set Face)
 
 -- instance Nominal Faces where
---   support (Faces f)      = 
+--   support (Faces f)      =
 --   act (Faces f) (i, phi) = Faces f
 
 -- | Formulas
-data Formula = Dir Dir | Atom Name
+data Formula = Dir Dir
+             | Atom Name
              | Not Formula
              | Formula :/\: Formula
              | Formula :\/: Formula
@@ -170,7 +168,7 @@ orFormula phi psi        = phi :\/: psi
 
 evalFormula :: Formula -> Face -> Formula
 evalFormula phi alpha =
-  Map.foldWithKey (\i d psi -> act psi (i,Dir d)) phi alpha 
+  Map.foldWithKey (\i d psi -> act psi (i,Dir d)) phi alpha
 
   -- (Dir b) alpha  = Dir b
 -- evalFormula (Atom i) alpha = case Map.lookup i alpha of
@@ -205,8 +203,8 @@ testInvFormula = invFormula (Atom (Name 0) :/\: Atom (Name 1)) 1
 
 -- | Nominal
 gensym :: [Name] -> Name
-gensym [] = Name 0
-gensym xs = Name $ maximum (map (\(Name n) -> n) xs) + 1
+gensym [] = 0
+gensym xs = maximum xs + 1
 
 gensyms :: [Name] -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
@@ -266,10 +264,10 @@ instance Nominal Formula where
   support (phi :/\: psi) = support phi `union` support psi
   support (phi :\/: psi) = support phi `union` support psi
 
-  act (Dir b) (i,phi) = Dir b
-  act (Atom j) (i,phi) | i == j = phi
+  act (Dir b) (i,phi)  = Dir b
+  act (Atom j) (i,phi) | i == j    = phi
                        | otherwise = Atom j
-  act (Not psi) (i,phi) = notFormula (act psi (i,phi))
+  act (Not psi) (i,phi)        = notFormula (act psi (i,phi))
   act (psi1 :/\: psi2) (i,phi) = act psi1 (i,phi) `andFormula` act psi2 (i,phi)
   act (psi1 :\/: psi2) (i,phi) = act psi1 (i,phi) `orFormula` act psi2 (i,phi)
 
@@ -290,16 +288,13 @@ insertSystem alpha v ts =
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem as = Map.tranverseWithKey (const . id) as
 
-
 transposeSystem :: System [a] -> [System a]
 transposeSystem ts = map Map.fromList $
                      transpose [[(k, v) | v <- vs] | (k,vs) <- Map.toList ts]
 
-
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem ts =
 --   Map.map (\as -> head a) ts : transposeSystem (Map.map (\as -> tail as) ts)
-
 
 -- Quickcheck this:
 -- (i = phi) * beta = (beta - i) * (i = phi beta)
@@ -351,4 +346,3 @@ connect a (i, j) = a `act` (i, Atom i :/\: Atom j)
 
 -- actSystemCom :: Formula -> Name -> Formula -> Bool
 -- actSystemCom psi i phi = border phi
-
