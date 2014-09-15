@@ -530,7 +530,7 @@ comps _ _ _ _ _ = error "comps: different lengths of types and values"
 -- com v box                                 = Kan Com v box
 
 isNeutralSystem :: System Val -> Bool 
-isNeutralSystem = undefined -- TODO implement!!
+isNeutralSystem = any isNeutral . Map.elems
 
 data Sign = Pos | Neg
 
