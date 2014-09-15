@@ -106,6 +106,12 @@ incomparables :: [Face] -> Bool
 incomparables []     = True
 incomparables (x:xs) = all (not . (x `comparable`)) xs && incomparables xs
 
+(~>) :: Name -> Dir -> Face
+i ~> d = Map.fromList [(i, d)]
+
+eps :: Face
+eps = Map.empty
+
 -- Compute the witness of A <= B, ie compute C s.t. B = CA
 -- leqW :: Face -> Face -> Face
 -- leqW = undefined
@@ -183,7 +189,7 @@ evalFormula phi alpha =
 -- find a better name?
 -- phi b = max {alpha : Face | phi alpha = b}
 invFormula :: Formula -> Dir -> [Face]
-invFormula (Dir b') b          = [ Map.empty | b == b' ]
+invFormula (Dir b') b          = [ eps | b == b' ]
 invFormula (Atom i) b          = [ Map.singleton i b ]
 invFormula (Not phi) b         = invFormula phi (- b)
 invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
@@ -248,6 +254,12 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e) =>
   support (a,b,c,d,e) =
     unions [support a, support b, support c, support d, support e]
   act (a,b,c,d,e) f   = (act a f,act b f,act c f,act d f, act e f)
+
+instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e, Nominal h) =>
+         Nominal (a, b, c, d, e, h) where
+  support (a,b,c,d,e,h) =
+    unions [support a, support b, support c, support d, support e, support h]
+  act (a,b,c,d,e,h) f   = (act a f,act b f,act c f,act d f, act e f, act h f)
 
 instance Nominal a => Nominal [a]  where
   support xs = unions (map support xs)

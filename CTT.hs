@@ -252,7 +252,12 @@ mkPN s = listToMaybe [pn | (s',_,pn) <- primHandle, s == s']
 --------------------------------------------------------------------------------
 -- | Values
 
-data KanType = Fill | Com
+data Sign = Pos | Neg
+  deriving (Eq, Show)
+
+data HisoProj = HisoSign Sign -- Pos is f, Neg is g
+              | IsSection     -- f o g = 1
+              | IsRetraction  -- g o f = 1
   deriving (Show, Eq)
 
 data Val = VU
@@ -272,6 +277,8 @@ data Val = VU
 
          | VCon Ident [Val]
 
+         | Glue (System Hiso) Val
+         | HisoProj HisoProj Val
 
          -- | VExt Name Val Val Val Val
          -- | VHExt Name Val Val Val Val
@@ -362,6 +369,16 @@ unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
 unCon v           = error $ "unCon: not a constructor: " ++ show v
 
+--------------------------------------------------------------------------------
+-- | Homotopy Isomorphisms
+
+data Hiso = Hiso { hisoA :: Val
+                 , hisoB :: Val
+                 , hisoF :: Val
+                 , hisoG :: Val
+                 , hisoS :: Val
+                 , hisoT :: Val }
+  deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
 -- | Environments
@@ -491,6 +508,9 @@ showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 
 showVal (VCon c us)              = c <+> showVals us
 showVal (VSplit u v)             = showVal u <+> showVal1 v
+
+showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
+showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
 -- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]

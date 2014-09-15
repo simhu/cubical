@@ -90,6 +90,9 @@ instance Nominal Val where
   support (VAppFormula u phi)           = support (u, phi)
   support (VSplit u v)                  = support (u, v)
 
+  support (Glue ts u)                   = support (ts, u)
+  support (HisoProj _ e)                = support e
+
   -- support (VInh v)                      = support v
   -- support (VInc v)                      = support v
   -- support (VSquash x v0 v1)             = support (x, [v0,v1])
@@ -146,12 +149,25 @@ instance Nominal Val where
          VApp u v          -> app (acti u) (acti v)
          VSplit u v        -> app (acti u) (acti v)
 
+         Glue ts u         -> glue (acti ts) (acti u)
+         HisoProj n e      -> HisoProj n (acti e)
+
+instance Nominal Hiso where
+  support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
+  act (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
+    where (a', b', f', g', s', t') = act (a,b,f,g,s,t) iphi
+
 instance Nominal Env where
   act e iphi = mapEnv (\u -> act u iphi) e
 
   support Empty          = []
   support (Pair e (_,v)) = support (e, v)
   support (PDef _ e)     = support e
+
+-- Glueing
+glue :: System Hiso -> Val -> Val
+glue ts a | eps `Map.member` ts =
+  let Hiso a _ _ _ _ _ = ts ! eps in a
 
 -- Application
 app :: Val -> Val -> Val
@@ -168,6 +184,18 @@ app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
+
+app (HisoProj hisoProj e) u = case hisoProj of
+    HisoSign sign -> comp sign i (e @@@ i) Map.empty u
+    -- f (g x) -> x
+    IsSection     ->
+      let ts = Map.fromList [(i ~> 0, gline j), (i ~> 1, u)]
+      in  Path i $ comp Pos j (e @@ (Atom i :\/: Atom j)) ts (gline i)
+    IsRetraction -> undefined
+  where i:j:_ = freshs (e, u)
+        gline j = fill Pos j (e @@@ j) Map.empty
+                  (app (HisoProj (HisoSign Neg) e) u)
+
 app u@(Ter (Split _ _) _) v
   | isNeutral v = VSplit u v -- v should be neutral
   | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
@@ -532,8 +560,6 @@ comps _ _ _ _ _ = error "comps: different lengths of types and values"
 isNeutralSystem :: System Val -> Bool 
 isNeutralSystem = any isNeutral . Map.elems
 
-data Sign = Pos | Neg
-
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
 fill Neg i a ts u =  trace "fill Neg" $ (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
 fill Pos i a ts u =  trace "fill Pos" $ comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
@@ -543,7 +569,7 @@ comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
-comp Pos i a ts u | Map.empty `Map.member` ts = trace "comp 1" $ (ts ! Map.empty) `act` (i,Dir 1)
+comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
   Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
