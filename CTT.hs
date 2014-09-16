@@ -278,6 +278,8 @@ data Val = VU
          | VCon Ident [Val]
 
          | Glue (System Hiso) Val
+         | UnGlue (System Hiso) Val
+         | GlueElem (System Val) Val
          | HisoProj HisoProj Val
 
          -- | VExt Name Val Val Val Val
@@ -374,10 +376,11 @@ unCon v           = error $ "unCon: not a constructor: " ++ show v
 
 data Hiso = Hiso { hisoA :: Val
                  , hisoB :: Val
-                 , hisoF :: Val
-                 , hisoG :: Val
-                 , hisoS :: Val
-                 , hisoT :: Val }
+                 , hisoF :: Val -- forward
+                 , hisoG :: Val -- backward
+                 , hisoS :: Val -- f has a Section: f (g y) = y
+                 , hisoT :: Val -- f has a reTraction: g (f x) = x
+                 }
   deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
@@ -510,6 +513,8 @@ showVal (VCon c us)              = c <+> showVals us
 showVal (VSplit u v)             = showVal u <+> showVal1 v
 
 showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
+showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
+showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
 -- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]

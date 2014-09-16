@@ -91,6 +91,8 @@ instance Nominal Val where
   support (VSplit u v)                  = support (u, v)
 
   support (Glue ts u)                   = support (ts, u)
+  support (UnGlue ts u)                 = support (ts, u)
+  support (GlueElem ts u)               = support (ts, u)
   support (HisoProj _ e)                = support e
 
   -- support (VInh v)                      = support v
@@ -150,6 +152,8 @@ instance Nominal Val where
          VSplit u v        -> app (acti u) (acti v)
 
          Glue ts u         -> glue (acti ts) (acti u)
+         UnGlue ts u       -> UnGlue (acti ts) (acti u)
+         GlueElem ts u     -> glueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
 
 instance Nominal Hiso where
@@ -166,8 +170,14 @@ instance Nominal Env where
 
 -- Glueing
 glue :: System Hiso -> Val -> Val
-glue ts a | eps `Map.member` ts =
-  let Hiso a _ _ _ _ _ = ts ! eps in a
+glue hisos b | Map.null hisos         = b
+glue hisos b | eps `Map.member` hisos = let Hiso a _ _ _ _ _ = hisos ! eps in a
+glue hisos b = Glue hisos b
+
+glueElem :: System Val -> Val -> Val
+glueElem us v | Map.null us         = v
+glueElem us v | eps `Map.member` us = us ! eps
+glueElem us v = GlueElem us v
 
 -- Application
 app :: Val -> Val -> Val
@@ -185,16 +195,27 @@ app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
 
+app g@(UnGlue hisos b) w
+    | Map.null hisos         = w
+    | eps `Map.member` hisos = let Hiso _ _ f _ _ _ = hisos ! eps in app f w
+    | otherwise              = case w of
+       GlueElem us v -> v
+       _             -> VApp g w
+
+-- TODO: recheck at least 2 more times (please decrease the counter if you checked)
 app (HisoProj hisoProj e) u = case hisoProj of
     HisoSign sign -> comp sign i (e @@@ i) Map.empty u
-    -- f (g x) -> x
+    -- f (g y) -> y
     IsSection     ->
-      let ts = Map.fromList [(i ~> 0, gline j), (i ~> 1, u)]
-      in  Path i $ comp Pos j (e @@ (Atom i :\/: Atom j)) ts (gline i)
-    IsRetraction -> undefined
+      let ts = Map.fromList [(i ~> 0, line Pos j (appiso Neg u)), (i ~> 1, u)]
+      in  Path i $ comp Pos j (e @@ (Atom i :\/: Atom j)) ts (line Neg i u)
+    -- g (f x) -> x
+    IsRetraction ->
+      let ts = Map.fromList [(i ~> 0, u), (i ~> 1, line Neg j (appiso Pos u))]
+      in Path i $ (comp Neg j (e @@ (Atom i :/\: Atom j)) ts (line Pos i u)) `sym` i
   where i:j:_ = freshs (e, u)
-        gline j = fill Pos j (e @@@ j) Map.empty
-                  (app (HisoProj (HisoSign Neg) e) u)
+        appiso sign v = app (HisoProj (HisoSign sign) e) v
+        line sign k v = fill sign k (e @@@ k) Map.empty v
 
 app u@(Ter (Split _ _) _) v
   | isNeutral v = VSplit u v -- v should be neutral
@@ -237,6 +258,24 @@ p @@@ i = p @@ Atom i
 --                                                    show u ++ "\ny = " ++ show y)
 --                      | otherwise          = swap u x y
 -- appFormula v y          = VAppFormula v y
+
+-- Grad Lemma, takes a iso an L-system ts a value v s.t. sigma us = border v
+-- outputs u s.t. border u = us and an L-path between v and sigma u
+-- an theta is a L path if L-border theta is constant
+gradLemma :: Hiso -> System Val -> Val -> (Val, Val)
+gradLemma hiso@(Hiso a b f g s t) us v = (u, Path i theta'')
+  where i:j:_   = freshs (hiso, us, v)
+        us'     = Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@@ i) us
+        theta   = fill Pos i a us' (app g v)
+        u       = theta `face` (i ~> 1)
+        ws      =  insertSystem (i ~> 0) (app g v) $
+                  insertSystem (i ~> 1) (app t u @@@ j) $
+                  Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@ (Atom i :/\: Atom j)) us
+        theta'  = comp Neg j a ws theta
+        xs      = insertSystem (i ~> 0) (app s v @@@ j) $
+                  insertSystem (i ~> 1) (app s (app f u) @@@ j) $
+                  Map.mapWithKey (\alpha uAlpha -> app (s `face` alpha) (app (f `face` alpha) uAlpha) @@@ j) us
+        theta'' = comp Pos j b xs (app f theta')
 
 -- Apply a primitive notion
 evalAppPN :: Env -> PN -> [Ter] -> Val
@@ -282,7 +321,7 @@ evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
 evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
 evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@@ i) (q @@@ i)
-evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] = 
+evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
   Path i $ app (app f (p @@@ i)) (q @@@ i)
 -- evalPN _       Circle     []               = VCircle
 -- evalPN _       Base       []               = VBase
@@ -557,7 +596,7 @@ comps _ _ _ _ _ = error "comps: different lengths of types and values"
 -- com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
 -- com v box                                 = Kan Com v box
 
-isNeutralSystem :: System Val -> Bool 
+isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
@@ -570,7 +609,6 @@ comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
-comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
   Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
   where j   = fresh (Atom i, vid, ts, w)
@@ -583,14 +621,24 @@ comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
         fill_u1    = fill Pos i a t1s u1
         comp_u2    = comp Pos i (app f fill_u1) t2s u2
 
+comp Pos i a@VPi{} ts u   = Kan i a ts u
+
+comp Pos i (Glue hisos b) gs gi0 =
+    let hiso = UnGlue hisos b
+        vs   = Map.mapWithKey (\alpha gAlpha -> app (hiso `face` alpha) gAlpha) gs
+        vi0  = app (hiso `face` (i ~> 0)) gi0 -- in b(i0)
+        vi1  = comp Pos i b vs vi0           -- in b(i1)
+    in undefined
+
+
+comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
+comp Pos i VU ts u = Kan i VU ts u
+
+comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
   Just as -> VCon n $ comps i as env tss' us
     where tss' = transposeSystem $ Map.map unCon tss
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
-
-comp Pos i a@VPi{} ts u   = Kan i a ts u
-comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
-comp Pos i VU ts u = Kan i VU ts u
 
 comp Pos i a ts u = error $
   "comp _: not implemented for " <+> show a <+> show ts <+> parens (show u)
