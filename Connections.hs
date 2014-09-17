@@ -4,7 +4,7 @@ module Connections where
 
 import Control.Applicative
 import Data.List
-import Data.Map (Map)
+import Data.Map (Map,(!))
 import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -362,6 +362,9 @@ rename a (i, j) = a `act` (i, Atom j)
 
 connect :: Nominal a => a -> (Name, Name) -> a
 connect a (i, j) = a `act` (i, Atom i :/\: Atom j)
+
+proj :: Nominal a => System a -> Face -> a
+proj us alpha = (us `face` alpha) ! eps
 
 -- actSystemCom :: Formula -> Name -> Formula -> Bool
 -- actSystemCom psi i phi = border phi

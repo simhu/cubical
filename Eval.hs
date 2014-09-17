@@ -635,10 +635,10 @@ comp Pos i g@(Glue hisos b) ws wi0 =
         (hisos', hisos'') = Map.partitionWithKey
                             (\alpha _ -> alpha `Map.member` hisos) hisosI1
 
-        us'   = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+        us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
                 hisos'
-        usi1' = Map.map (\u -> u `face` (i ~> 1)) us'
+        usi1'  = Map.map (\u -> u `face` (i ~> 1)) us'
 
         ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
                   pathComp Pos i bGamma (vs `face` gamma)
@@ -647,22 +647,23 @@ comp Pos i g@(Glue hisos b) ws wi0 =
 
         vi1'  = compLine (b `face` (i ~> 1)) ls' vi1
 
-        uls''     = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
+        uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
                      let shgamma :: System ()
                          shgamma = Map.union (shape hisos') (shape ws) `face` gamma
                          usgamma = Map.mapWithKey (\beta _ ->
                                      let delta = gamma `meet` beta
                                      in if delta `Map.member` ws
-                                        then (ws ! delta) `face` (i ~> 1)
-                                        else usi1' ! gamma)
+                                        then ws `proj` (delta `meet` (i ~> 1))
+                                        else usi1' `proj` delta)
                                    shgamma
                      in gradLemma hisoGamma usgamma (vi1' `face` gamma))
                    hisos''
 
-        vi1'' = compLine (b `face` (i ~> 1)) (Map.map snd uls'') vi1'
+        vi1''   = compLine (b `face` (i ~> 1)) (Map.map snd uls'') vi1'
 
         usi1    = Map.mapWithKey (\gamma _ ->
-                    if gamma `Map.member` usi1' then usi1' ! gamma else fst (uls'' ! gamma))
+                    if gamma `Map.member` usi1' then usi1' ! gamma
+                    else fst (uls'' ! gamma))
                   hisosI1
 
     in glueElem usi1 vi1''
