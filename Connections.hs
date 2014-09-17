@@ -296,6 +296,10 @@ insertSystem alpha v ts =
               | otherwise        -> Map.insert alpha v (Map.delete beta ts)
     Nothing -> Map.insert alpha v ts
 
+insertsSystem :: [(Face, a)] -> System a -> System a
+insertsSystem faces us =
+  foldr (\(alpha, ualpha) -> insertSystem alpha ualpha) us faces
+
 -- could something like that work??
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem as = Map.tranverseWithKey (const . id) as
@@ -336,6 +340,9 @@ instance Nominal a => Nominal (System a) where
 -- carve a using the same shape as the system b
 border :: Nominal a => a -> System b -> System a
 border v = Map.mapWithKey (const . face v)
+
+shape :: System a -> System ()
+shape ts = border () ts
 
 instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
   arbitrary = do

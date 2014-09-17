@@ -623,12 +623,49 @@ comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
 
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
-comp Pos i (Glue hisos b) gs gi0 =
+comp Pos i g@(Glue hisos b) ws wi0 =
     let hiso = UnGlue hisos b
-        vs   = Map.mapWithKey (\alpha gAlpha -> app (hiso `face` alpha) gAlpha) gs
-        vi0  = app (hiso `face` (i ~> 0)) gi0 -- in b(i0)
-        vi1  = comp Pos i b vs vi0           -- in b(i1)
-    in undefined
+        vs   = Map.mapWithKey (\alpha wAlpha -> app (hiso `face` alpha) wAlpha) ws
+        vi0  = app (hiso `face` (i ~> 0)) wi0 -- in b(i0)
+
+        v    = fill Pos i b vs vi0           -- in b
+        vi1  = v `face` (i ~> 1)
+
+        hisosI1 = hisos `face` (i ~> 1)
+        (hisos', hisos'') = Map.partitionWithKey
+                            (\alpha _ -> alpha `Map.member` hisos) hisosI1
+
+        us'   = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
+                hisos'
+        usi1' = Map.map (\u -> u `face` (i ~> 1)) us'
+
+        ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
+                  pathComp Pos i bGamma (vs `face` gamma)
+                    (fGamma `app` (us' ! gamma)) (v `face` gamma))
+                 hisos'
+
+        vi1'  = compLine (b `face` (i ~> 1)) ls' vi1
+
+        uls''     = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
+                     let shgamma :: System ()
+                         shgamma = Map.union (shape hisos') (shape ws) `face` gamma
+                         usgamma = Map.mapWithKey (\beta _ ->
+                                     let delta = gamma `meet` beta
+                                     in if delta `Map.member` ws
+                                        then (ws ! delta) `face` (i ~> 1)
+                                        else usi1' ! gamma)
+                                   shgamma
+                     in gradLemma hisoGamma usgamma (vi1' `face` gamma))
+                   hisos''
+
+        vi1'' = compLine (b `face` (i ~> 1)) (Map.map snd uls'') vi1'
+
+        usi1    = Map.mapWithKey (\gamma _ ->
+                    if gamma `Map.member` usi1' then usi1' ! gamma else fst (uls'' ! gamma))
+                  hisosI1
+
+    in glueElem usi1 vi1''
 
 
 comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
@@ -643,8 +680,24 @@ comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
 comp Pos i a ts u = error $
   "comp _: not implemented for " <+> show a <+> show ts <+> parens (show u)
 
+-- Lemma 2.1
+-- assumes u and u' : A are solutions of us + (i0 -> u(i0)) and u(i0) = u'(i1)
+-- (in the Pos case, otherwise we symmetrize)
+-- The output is an L-path in A(i1) between u(i1) and u'(i1)
+pathComp :: Sign -> Name -> Val -> System Val -> (Val -> Val -> Val)
+pathComp Neg i a us u u' =
+ pathComp Pos i (a `sym` i) (us `sym` i) (u `sym` i) (u' `sym` i)
+pathComp Pos i a us u u' = Path j $ comp Pos i a us' (u `face` (i ~> 0))
+  where j   = fresh (Atom i, a, us, u, u')
+        us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
 
-
+-- Lemma 2.2
+-- takes a type A, an L-system of lines ls and a value u
+-- s.t. ls alpha @@@ 0 = u alpha
+-- and returns u' s.t. ls alpha @@@ 1 = u' alpha
+compLine :: Val -> System Val -> Val -> Val
+compLine a ls u = comp Neg i a (Map.map (@@@ i) ls) u
+  where i  = fresh(a, ls, u)
 
 -- -- -- Kan filling
 -- fill :: Val -> Box Val -> Val
