@@ -75,6 +75,9 @@ instance Nominal Val where
   support (Ter _ e)                     = support e
   support (VPi v1 v2)                   = support [v1,v2]
   support (Kan i a ts u)                = i `delete` support (a,ts,u)
+  support (KanUElem ts u)               = support (ts, u)
+  support (UnKan ts u)                  = support (ts, u)
+
   support (VId a v0 v1)                 = support [a,v0,v1]
   support (Path i v)                    = i `delete` support v
 
@@ -135,6 +138,9 @@ instance Nominal Val where
                     ar :: Nominal a => a -> a
                     ar = acti . (`rename` (j,k))
 
+         KanUElem ts u  -> kanUElem (acti ts) (acti u)
+         UnKan ts u     -> UnKan (acti ts) (acti u)
+
          VId a u v -> VId (acti a) (acti u) (acti v)
          Path j v -> Path k (acti (v `rename` (j,k)))
               where k = fresh (v, Atom i, phi)
@@ -179,6 +185,11 @@ glueElem us v | Map.null us         = v
 glueElem us v | eps `Map.member` us = us ! eps
 glueElem us v = GlueElem us v
 
+kanUElem :: System Val -> Val -> Val
+kanUElem us v | Map.null us         = v
+kanUElem us v | eps `Map.member` us = us ! eps
+kanUElem us v = KanUElem us v
+
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
@@ -200,6 +211,13 @@ app g@(UnGlue hisos b) w
     | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
     | otherwise              = case w of
        GlueElem us v -> v
+       _             -> VApp g w
+
+app g@(UnKan hisos b) w
+    | Map.null hisos         = w
+    | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
+    | otherwise              = case w of
+       KanUElem us v -> v
        _             -> VApp g w
 
 -- TODO: recheck at least 2 more times (please decrease the counter if
@@ -277,6 +295,11 @@ gradLemma hiso@(Hiso a b f g s t) us v = (u, Path i theta'')
                   insertSystem (i ~> 1) (app s (app f u) @@@ j) $
                   Map.mapWithKey (\alpha uAlpha -> app (s `face` alpha) (app (f `face` alpha) uAlpha) @@@ j) us
         theta'' = comp Pos j b xs (app f theta')
+
+eqHiso :: Val -> Hiso
+eqHiso e = Hiso (e @@@ 0) (e @@@ 1)
+                (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
+                (HisoProj IsSection e) (HisoProj IsRetraction e)
 
 -- Apply a primitive notion
 evalAppPN :: Env -> PN -> [Ter] -> Val
@@ -356,193 +379,6 @@ evalPN _       u          _                = error ("evalPN " ++ show u)
 faceEnv :: Env -> Face -> Env
 faceEnv e alpha = mapEnv (`face` alpha) e
 
--- faceName :: Name -> Face -> Name
--- faceName 0 _                 = 0
--- faceName 1 _                 = 1
--- faceName x (y,d) | x == y    = d
---                  | otherwise = x
-
--- -- Compute the face of a value
--- face :: Val -> Side -> Val
--- face u xdir@(x,dir) =
---   let fc v = v `face` xdir in case u of
---   VU      -> VU
---   Ter t e -> eval (e `faceEnv` xdir) t
---   VId a v0 v1 -> VId (fc a) (fc v0) (fc v1)
---   Path y v | x == y    -> u
---            | otherwise -> Path y (fc v)
---   -- VExt y b f g p | x == y && dir == down -> f
---   --                | x == y && dir == up   -> g
---   --                | otherwise             ->
---   --                  VExt y <$> fc b <*> fc f <*> fc g <*> fc p
---   VHExt y b f g p | x == y && dir == down -> f
---                   | x == y && dir == up   -> g
---                   | otherwise             -> VHExt y (fc b) (fc f) (fc g) (fc p)
---   VPi a f    -> VPi (fc a) (fc f)
---   VSigma a f -> VSigma (fc a) (fc f)
---   VSPair a b -> VSPair (fc a) (fc b)
---   VInh v     -> VInh (fc v)
---   VInc v     -> VInc (fc v)
---   VSquash y v0 v1 | x == y && dir == down -> v0
---                   | x == y && dir == up   -> v1
---                   | otherwise             -> VSquash y (fc v0) (fc v1)
---   VCon c us -> VCon c $ map fc us
---   VEquivEq y a b f s t | x == y && dir == down -> a
---                        | x == y && dir == up   -> b
---                        | otherwise             ->
---                          VEquivEq y (fc a) (fc b) (fc f) (fc s) (fc t)
---   VPair y a v | x == y && dir == down -> a
---               | x == y && dir == up   -> fc v
---               | otherwise             -> VPair y (fc a) (fc v)
---   VEquivSquare y z a s t | x == y                -> a
---                          | x == z && dir == down -> a
---                          | x == z && dir == up   ->
---                            let idV = Ter (Lam (noLoc "x") (Var "x")) oEmpty
---                            in VEquivEq y a a idV s t
---                          | otherwise             ->
---                           VEquivSquare y z (fc a) (fc s) (fc t)
---   VSquare y z v | x == y                -> fc v
---                 | x == z && dir == down -> fc v
---                 | x == z && dir == up   ->
---                   let v' = fc v
---                   in VPair y (v' `face` (y,down)) v'
---                 | otherwise             -> VSquare y z $ fc v
---   Kan Fill a b@(Box dir' y v nvs)
---     | x /= y && x `notElem` nonPrincipal b -> fill (fc a) (mapBox fc b)
---     | x `elem` nonPrincipal b              -> lookBox (x,dir) b
---     | x == y && dir == mirror dir'         -> v
---     | otherwise                            -> com a b
---   VFillN a b@(Box dir' y v nvs)
---     | x /= y && x `notElem` nonPrincipal b -> fill (fc a) (mapBox fc b)
---     | x `elem` nonPrincipal b              -> lookBox (x,dir) b
---     | x == y && dir == mirror dir'         -> v
---     | otherwise                            -> com a b
---   Kan Com a b@(Box dir' y v nvs)
---     | x == y                     -> u
---     | x `notElem` nonPrincipal b -> com (fc a) (mapBox fc b)
---     | x `elem` nonPrincipal b    -> lookBox (x,dir) b `face` (y,dir')
---   VComN a b@(Box dir' y v nvs)
---     | x == y                     -> u
---     | x `notElem` nonPrincipal b -> com (fc a) (mapBox fc b)
---     | x `elem` nonPrincipal b    -> lookBox (x,dir) b `face` (y,dir')
---   VComp b@(Box dir' y _ _)
---     | x == y                     -> u
---     | x `notElem` nonPrincipal b -> VComp $ mapBox fc b
---     | x `elem` nonPrincipal b    -> lookBox (x,dir) b `face` (y,dir')
---   VFill z b@(Box dir' y v nvs)
---     | x == z                               -> u
---     | x /= y && x `notElem` nonPrincipal b -> VFill z $ mapBox fc b
---     | (x,dir) `elem` defBox b              ->
---       lookBox (x,dir) (mapBox (`face` (z,down)) b)
---     | x == y && dir == dir'                ->
---         VComp (mapBox (`face` (z,up)) b)
---   VInhRec b p h a     -> inhrec (fc b) (fc p) (fc h) (fc a)
---   VApp u v            -> app (fc u) (fc v)
---   VAppFormula u n        -> appFormula (fc u) (faceName n xdir)
---   VSplit u v          -> app (fc u) (fc v)
---   VVar s d            -> VVar s [ faceName n xdir | n <- d ]
---   VFst p              -> fstSVal $ fc p
---   VSnd p              -> sndSVal $ fc p
---   VCircle             -> VCircle
---   VBase               -> VBase
---   VLoop y | x == y    -> VBase
---           | otherwise -> VLoop y
---   VCircleRec f b l s  -> circlerec (fc f) (fc b) (fc l) (fc s)
---   VI  -> VI
---   VI0 -> VI0
---   VI1 -> VI1
---   VLine y
---     | x == y && dir == down -> VI0
---     | x == y && dir == up   -> VI1
---     | otherwise             -> VLine y
---   VIntRec f s e l u -> intrec (fc f) (fc s) (fc e) (fc l) (fc u)
-
--- unCompAs :: Val -> Name -> Box Val
--- unCompAs (VComp box) y = swap box (pname box) y
--- unCompAs v           _ = error $ "unCompAs: " ++ show v ++ " is not a VComp"
-
--- unFillAs :: Val -> Name -> Box Val
--- unFillAs (VFill x box) y = swap box x y
--- unFillAs v             _ = error $ "unFillAs: " ++ show v ++ " is not a VFill"
-
--- p(x) = <z>q(x,z)
--- a(x) = q(x,0)     b(x) = q(x,1)
--- q(0,y) connects a(0) and b(0)
--- we connect q(0,0) to q(1,1)
--- appDiag :: Val -> Val -> Name -> Val
--- appDiag tu p x | x `elem` [0,1] = appFormula p x
--- appDiag tu p x =
--- traceb ("appDiag " ++ "\ntu = " ++ show tu ++ "\np = " ++ show p ++ "\nx = "
--- --                       ++ show x ++ " " ++ show y
--- --                       ++ "\nq = " ++ show q) -- "\nnewBox =" ++ show newBox)
---  com tu newBox
---    where y = fresh (p,(tu,x))
---          q = appFormula p y
---          a = appFormula p 0
---          b = appFormula p 1
---          newBox = Box down y b [((x,down),q `face` (x,down)),((x,up),b `face` (x,up))]
-
--- inhrec :: Val -> Val -> Val -> Val -> Val
--- inhrec _ _ phi (VInc a)          = app phi a
--- inhrec b p phi (VSquash x a0 a1) =
---   let fc w d   = w `face` (x,d)
---       b0       = inhrec (fc b down) (fc p down) (fc phi down) a0
---       b1       = inhrec (fc b up) (fc p up) (fc phi up) a1
---       z        = fresh [b,p,phi,b0,b1]
---       b0fill   = fill b (Box up x b0 [])
---       b0fillx1 = b0fill `face` (x, up)
---       right    = appFormula (app (app (fc p up) b0fillx1) b1) z
---   in com b (Box up z b0fill [((x,down),b0),((x,up),right)])
--- inhrec b p phi (Kan ktype (VInh a) box) =
---   let irec (j,dir) v = let fc v = v `face` (j,dir)
---                        in inhrec (fc b) (fc p) (fc phi) v
---       box' = modBox irec box
---   in kan ktype b box'
--- inhrec b p phi v = VInhRec b p phi v -- v should be neutral
-
--- circlerec :: Val -> Val -> Val -> Val -> Val
--- circlerec _ b _ VBase       = b
--- circlerec f b l v@(VLoop x) =
---   let y     = fresh [f,b,l,v]
---       pxy   = appFormula l y
---       theta = connection VCircle x y v
---       a     = app f theta
---       px1   = pxy `face` (y,up)
---       p11   = px1 `face` (x,up)
---       p0y   = pxy `face` (x,down)
---   in com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
--- circlerec f b l v@(Kan ktype VCircle box) =
---   let crec side u = let fc w = w `face` side
---                     in circlerec (fc f) (fc b) (fc l) u
---       fv   = app f v
---       box' = modBox crec box
---   in kan ktype fv box'
--- circlerec f b l v = VCircleRec f b l v -- v should be neutral
-
-
--- intrec :: Val -> Val -> Val -> Val -> Val -> Val
--- intrec _ s _ _ VI0         = s
--- intrec _ _ e _ VI1         = e
--- intrec f s e l v@(VLine x) =
---   let y     = fresh [f,s,e,l,v]
---       pxy   = appFormula l y
---       theta = connection VI x y v
---       a     = app f theta
---       px1   = pxy `face` (y,up)
---       p11   = px1 `face` (x,up)
---       p0y   = pxy `face` (x,down)
---   in com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
--- intrec f s e l v@(Kan ktype VCircle box) =
---   let irec side u = let fc w = w `face` side
---                     in intrec (fc f) (fc s) (fc e) (fc l) u
---       fv   = app f v
---       box' = modBox irec box
---   in kan ktype fv box'
--- intrec f s e l v = VIntRec f s e l v -- v should be neutral
-
--- kan :: KanType -> Val -> Box Val -> Val
--- kan Fill = fill
--- kan Com  = com
 
 -- isNeutralFill :: Val -> Box Val -> Bool
 -- isNeutralFill v box | isNeutral v               = True
@@ -580,23 +416,6 @@ comps i ((x,a):as) e (ts:tss)   (u:us) =
   in v : vs
 comps _ _ _ _ _ = error "comps: different lengths of types and values"
 
--- unPack :: Name -> Name -> (Name,Dir) -> Val -> Val
--- unPack x y (z,c) v | z /= x && z /= y  = unSquare v
---                    | z == y && c == up = sndVal v
---                    | otherwise         = v
-
-
--- -- Composition (ie., the face of fill which is created)
--- com :: Val -> Box Val -> Val
--- com u box | isNeutralFill u box = VComN u box
--- com vid@VId{} box@(Box dir i _ _)         = fill vid box `face` (i,dir)
--- com vsigma@VSigma{} box@(Box dir i _ _)   = fill vsigma box `face` (i,dir)
--- com veq@VEquivEq{} box@(Box dir i _ _)    = fill veq box `face` (i,dir)
--- com u@(Kan Com VU _) box@(Box dir i _ _)  = fill u box `face` (i,dir)
--- com u@(Kan Fill VU _) box@(Box dir i _ _) = fill u box `face` (i,dir)
--- com ter@Ter{} box@(Box dir i _ _)         = fill ter box `face` (i,dir)
--- com v box                                 = Kan Com v box
-
 isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
 
@@ -625,9 +444,9 @@ comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
 comp Pos i g@(Glue hisos b) ws wi0 =
-    let hiso = UnGlue hisos b
-        vs   = Map.mapWithKey (\alpha wAlpha -> app (hiso `face` alpha) wAlpha) ws
-        vi0  = app (hiso `face` (i ~> 0)) wi0 -- in b(i0)
+    let unglue = UnGlue hisos b
+        vs   = Map.mapWithKey (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
+        vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
 
         v    = fill Pos i b vs vi0           -- in b
         vi1  = v `face` (i ~> 1)
@@ -669,8 +488,51 @@ comp Pos i g@(Glue hisos b) ws wi0 =
 
     in glueElem usi1 vi1''
 
+comp Pos i (Kan j VU ejs b) ws wi0 =
+    let es    = Map.map (Path j . (`sym` j)) ejs
+        hisos = Map.map eqHiso es
+        unkan = UnKan hisos b
 
-comp Pos i (Kan _ VU _ _) _ _ = error $ "comp Kan: not implemented"
+        vs    = Map.mapWithKey (\alpha wAlpha -> app (unkan `face` alpha) wAlpha) ws
+        vi0   = app (unkan `face` (i ~> 0)) wi0 -- in b(i0)
+
+        vi1     = comp Pos i b vs vi0           -- in b
+
+        hisosI1 = hisos `face` (i ~> 1)
+        (hisos', hisos'') = Map.partitionWithKey
+                            (\alpha _ -> alpha `Map.member` hisos) hisosI1
+
+        usi1'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                     comp Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
+                   hisos'
+
+        ls'    = Map.mapWithKey (\gamma _ ->
+                   pathUniv i (es `proj` gamma) (ws `face` gamma) (wi0 `face` gamma))
+                 hisos'
+
+        vi1'  = compLine (b `face` (i ~> 1)) ls' vi1
+
+        uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
+                     let shgamma :: System ()
+                         shgamma = Map.union (shape hisos') (shape ws) `face` gamma
+                         usgamma = Map.mapWithKey (\beta _ ->
+                                     let delta = gamma `meet` beta
+                                     in if delta `Map.member` ws
+                                        then ws `proj` (delta `meet` (i ~> 1))
+                                        else usi1' `proj` delta)
+                                   shgamma
+                     in gradLemma hisoGamma usgamma (vi1' `face` gamma))
+                   hisos''
+
+        vi1''   = compLine (b `face` (i ~> 1)) (Map.map snd uls'') vi1'
+
+        usi1    = Map.mapWithKey (\gamma _ ->
+                    if gamma `Map.member` usi1' then usi1' ! gamma
+                    else fst (uls'' ! gamma))
+                  hisosI1
+
+    in kanUElem usi1 vi1''
+
 comp Pos i VU ts u = Kan i VU ts u
 
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
@@ -693,6 +555,29 @@ pathComp Pos i a us u u' = Path j $ comp Pos i a us' (u `face` (i ~> 0))
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
 
+-- Lemma 6.1
+-- given e (an equality in U), an L-system us (in e0) and ui0 (in e0 (i0))
+-- The output is an L-path in e1(i1) between sigma (i1) ui1 and vi1
+-- where sigma = HisoProj (ProjSign Pos) e
+--       ui1   = comp Pos i (e 1) us ui0
+--       vi1   = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
+-- Moreover, if e is constant, so is the output.
+pathUniv :: Name -> Val -> System Val -> Val -> Val
+pathUniv i e us ui0 = Path k xi1
+  where j:k:_ = freshs (Atom i, e, us, ui0)
+        f     = HisoProj (HisoSign Pos) e
+        ej    = e @@@ j
+        ui1   = comp Pos i (e @@@ 0) us ui0
+        ws    = Map.mapWithKey (\alpha uAlpha ->
+                  fill Pos j (ej `face` alpha) Map.empty uAlpha)
+                us
+        wi0   = fill Pos j (ej `face` (i ~> 0)) Map.empty ui0
+        wi1   = comp Pos i ej ws wi0
+        wi1'  = fill Pos j (ej `face` (i ~> 1)) Map.empty ui1
+        xi1   = comp Pos j (ej `face` (i ~> 1))
+                  (insertsSystem [(k ~> 0, wi1'), (k ~> 1, wi1)] Map.empty) ui1
+
+
 -- Lemma 2.2
 -- takes a type A, an L-system of lines ls and a value u
 -- s.t. ls alpha @@@ 0 = u alpha
@@ -701,303 +586,76 @@ compLine :: Val -> System Val -> Val -> Val
 compLine a ls u = comp Neg i a (Map.map (@@@ i) ls) u
   where i  = fresh(a, ls, u)
 
--- -- -- Kan filling
--- fill :: Val -> Box Val -> Val
--- fill v box | isNeutralFill v box = VFillN v box
--- fill vid@(VId a v0 v1) box@(Box dir i v nvs) =
---   let x = fresh (vid, box)
---       box' = consBox (x,(v0,v1)) (mapBox (`appFormula` x) box)
---   in Path x $ fill (a `appFormula` x) box'
--- fill (VSigma a f) box@(Box dir x v nvs) =
---   let u = fill a (mapBox fstSVal box)
---   in VSPair u $ fill (app f u) (mapBox sndSVal box)
--- -- assumes cvs are constructor vals
--- fill v@(Ter (Sum _ nass) env) box@(Box _ _ (VCon n _) _) = case getIdent n nass of
---   Just as ->
---     let boxes = transposeBox $ mapBox unCon box
---     -- fill boxes for each argument position of the constructor
---     in VCon n $ fills as env boxes
---   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
--- fill (VEquivSquare x y a s t) box@(Box dir x' vx' nvs) =
---   VSquare x y $ fill a (modBox (unPack x y) box)
--- fill veq@(VEquivEq x a b f s t) box@(Box dir z vz nvs)
---   | x /= z && x `notElem` nonPrincipal box =
---     trace "VEquivEq case 1" $
---     let ax0 = fill a (mapBox fstVal box)
---         bx0 = app f ax0
---         bx  = mapBox sndVal box
---         bx' = mapBox (`face` (x,up)) bx
---         bx1 = fill b bx'        --- independent of x
---         v   = fill b $ (x,(bx0,bx1)) `consBox` bx
---     in VPair x ax0 v
---   | x /= z && x `elem` nonPrincipal box =
---     trace "VEquivEq case 2" $
---     let ax0 = lookBox (x,down) box
+class Convertible a where
+  conv :: Int -> a -> a -> Bool
 
---         -- modification function
---         mf (ny,dy) vy | x /= ny    = sndVal vy
---                       | dy == down = app f ax0
---                       | otherwise  = vy
+instance Convertible Val where
+  conv k VU VU                                  = True
+  conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
+    let v = mkVar k
+    in conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+  conv k (Ter (Lam x u) e) u' =
+    let v = mkVar k
+    in conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
+  conv k u' (Ter (Lam x u) e) =
+    let v = mkVar k
+    in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
+  conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
+    (p == p') && conv k e e'
+  conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
+    (p == p') && conv k e e'
+  conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
+    (p == p') && conv k e e'
+  conv k (VPi u v) (VPi u' v') =
+    let w = mkVar k
+    in conv k u u' && conv (k+1) (app v w) (app v' w)
+  conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
+  conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
+                                      conv k (u `rename` (i,j)) (u' `rename` (i',j))
+    where j = fresh (u,u')
+  conv k (Path i u) p'              = trace "conv Path p" $
+                                      conv k (u `rename` (i,j)) (p' @@@ j)
+    where j = fresh u
+  conv k p (Path i' u')             = trace "conv p Path" $
+                                      conv k (p @@@ j) (u' `rename` (i',j))
+    where j = fresh u'
 
---         bx  = modBox mf box
---     in VPair x ax0 (fill b bx)
---   | x == z && dir == up =
---     trace "VEquivEq case 3" $
---     let ax0 = vz
---         bx0 = app f ax0
---         v   = fill b $ Box dir z bx0 [ (nnd,sndVal v) | (nnd,v) <- nvs ]
---     in VPair x ax0 v
---   | x == z && dir == down =
---     trace "VEquivEq case 4" $
---     let gbsb    = app s vz
---         (gb,sb) = (fstSVal gbsb, sndSVal gbsb)
---         y       = fresh (veq, box)
---         vy      = appFormula sb x
+  conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
+    where w = mkVar k
+  conv k (VFst u) (VFst u')              = conv k u u'
+  conv k (VSnd u) (VSnd u')              = conv k u u'
+  conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
+  conv k (VSPair u v)   w                =
+    conv k u (fstSVal w) && conv k v (sndSVal w)
+  conv k w              (VSPair u v)     =
+    conv k (fstSVal w) u && conv k (sndSVal w) v
 
---         vpTSq :: Name -> Dir -> Val -> (Val,Val)
---         vpTSq nz dz (VPair z a0 v0) =
---           let vp       = VSPair a0 (Path z v0)
---               t0       = t `face` (nz,dz)
---               b0       = vz `face` (nz,dz)
---               l0sq0    = appFormula (app (app t0 b0) vp) y
---               (l0,sq0) = (fstSVal l0sq0, sndSVal l0sq0)
---               sq0x     = appFormula sq0 x
---           in (l0,sq0x)  -- TODO: check the correctness of the square s0
+  conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
+  conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
+     let j    = fresh (v, v')
+         tsj  = ts  `rename` (i,j)
+         tsj' = ts' `rename` (i',j)
+     in
+     and [ conv k (a `rename` (i,j)) (a' `rename` (i',j))
+         , Map.keysSet tsj == Map.keysSet tsj'
+         , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
+         , conv k (u `rename` (i,j)) (u' `rename` (i',j))]
 
---         -- TODO: Use modBox!
---         vsqs   = [ ((n,d),vpTSq n d v) | ((n,d),v) <- nvs]
---         box1   = Box up y gb [ (nnd,v) | (nnd,(v,_)) <- vsqs ]
---         afill  = fill a box1
---         acom   = afill `face` (y,up)
---         fafill = app f afill
---         box2   = Box up y vy (((x,down),fafill) : ((x,up),vz) :
---                             [ (nnd,v) | (nnd,(_,v)) <- vsqs ])
---         bcom   = com b box2
---     in VPair x acom bcom
---   | otherwise = error "fill EqEquiv"
--- fill v@(Kan Com VU tbox') box@(Box dir x' vx' nvs')
---   | toAdd /= [] = -- W.l.o.g. assume that box contains faces for
---                   -- the non-principal sides of tbox.
---     trace "Kan Com 1" $
---     let -- TODO: Is this correct? Do we have to consider the auxsides?
---         add :: Side -> Val
---         add yc = let box' = mapBox (`face` yc) box
---                  in fill (lookBox yc tbox `face` (x,tdir)) box'
+  conv k (Glue hisos v) (Glue hisos' v') = conv k hisos hisos' && conv k v v'
 
---         sides' = [ (n,(add (n,down),add (n,up))) | n <- toAdd ]
+  conv k (KanUElem us u) (KanUElem us' u') = conv k us us' && conv k u u'
+  conv k v v'@(KanUElem us' u') = conv k (KanUElem (border v us') v) v'
+  conv k v@(KanUElem us u) v' =  conv k v (KanUElem (border v' us) v')
 
---      in fill v (sides' `appendBox` box)
---   | x' `notElem` nK =
---     trace "Kan Com 2" $
---     let principal    = fill tx (mapBox (pickout (x,tdir')) boxL)
---         nonprincipal =
---           [ let pyc  = principal `face` yc
---                 side = [((x,tdir),lookBox yc box),((x,tdir'),pyc)]
---                 v'   = fill (lookBox yc tbox)
---                             (side `appendSides` mapBox (pickout yc) boxL)
---                 in (yc,v')
---           | yc <- allDirs nK ]
---     in VComp (Box tdir x principal nonprincipal)
---   | x' `elem` nK =
---     trace "Kan Com 3" $
---     let -- assumes zc in defBox tbox
---         auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
+  conv k (GlueElem us u) (GlueElem us' u') = conv k us us' && conv k u u'
+  conv k v v'@(GlueElem us' u') = conv k (GlueElem (border v us') v) v'
+  conv k v@(GlueElem us u) v' =  conv k v (GlueElem (border v' us) v')
 
---         -- extend input box along x with orientation tdir'; results
---         -- in the non-principal faces on the intersection of defBox
---         -- box and defBox tbox; note, that the intersection contains
---         -- (x',dir'), but not (x',dir) (and (x,_))
---         npintbox = modBox (\yc boxside -> fill (lookBox yc tbox)
---                                           (Box tdir' x boxside (auxsides yc)))
---                      (subBox (nK `intersect` nJ) box)
+  conv k (UnKan hisos v) (UnKan hisos' v') = conv k hisos hisos' && conv k v v'
+  conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
 
---         npintfacebox = mapBox (`face` (x,tdir')) npintbox
---         principal    = fill tx (auxsides (x,tdir') `appendSides` npintfacebox)
---         nplp         = principal `face` (x',dir)
---         fnpintboxs   = [ (yc,v `face` (x',dir)) | (yc,v) <- sides npintbox ]
---         nplnp        = auxsides (x',dir) ++ fnpintboxs
---         -- the missing non-principal face on side (x',dir)
---         v'           = fill (lookBox (x',dir) tbox) (Box tdir x nplp nplnp)
---         nplast       = ((x',dir),v')
-
---     in VComp (Box tdir x principal (nplast:fromBox npintbox))
---   where nK    = nonPrincipal tbox
---         nJ    = nonPrincipal box
---         z     = fresh (tbox', box)
---         -- x is z
---         tbox@(Box tdir x tx nvs) = swap tbox' (pname tbox') z
---         toAdd = nK \\ (x' : nJ)
---         nL    = nJ \\ nK
---         boxL  = subBox nL box
---         dir'  = mirror dir
---         tdir' = mirror tdir
---         -- asumes zd is in the sides of tbox
---         pickout zd vcomp = lookBox zd (unCompAs vcomp z)
--- fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
---   -- the cases should be (in order):
---   -- 1) W.l.o.g. K subset x', J
---   -- 2) x' = x &  dir = tdir
---   -- 3) x' = x &  dir = mirror tdir
---   -- 4) x' `notElem` K
---   -- 5) x' `elem` K
---   | toAdd /= [] =
---     -- W.l.o.g. x,nK subset x':nJ
---     trace "Kan Fill VU Case 1" $
---     let add :: Side -> Val
---         add zc = fill (v `face` zc) (mapBox (`face` zc) box)
-
---         newSides = [ (zc,add zc) | zc <- allDirs toAdd ]
---     in fill v (newSides `appendSides` box)
---   | x == x' && dir == tdir =
---     -- assumes K subset x',J
---     trace "Kan Fill VU Case 2" $
---     let boxp = lookBox (x,dir') box  -- is vx'
---         principal = fill (lookBox (x',tdir') tbox)
---                          (Box up z boxp (auxsides (x',tdir')))
---         nonprincipal =
---           [ (zc,let principzc = lookBox zc box
---                     fpzc = principal `face` zc
---                     -- "degenerate" along z!
---                     ppzc = principzc `face` (x,tdir)
---                     sides = [((x,tdir'),fpzc),((x,tdir),ppzc)]
---                 in fill (lookBox zc tbox)
---                         (Box up z principzc (sides ++ auxsides zc)))
---           | zc <- allDirs nK ]
---     in VFill z (Box tdir x principal nonprincipal)
---   | x == x' && dir == mirror tdir =
---     -- assumes K subset x',J
---     trace "Kan Fill VU Case 3" $
---     let -- the principal side of box must be a VComp
---         -- should be safe given the neutral test at the beginning
---         upperbox = unCompAs (lookBox (x,dir') box) x
---         nonprincipal =
---           [ (zc,let top    = lookBox zc upperbox
---                     bottom = lookBox zc box
---                     princ  = top `face` (x,tdir) -- same as: bottom `face` (x,tdir)
---                     sides  = [((z,down),bottom),((z,up),top)]
---                in fill (lookBox zc tbox) (Box tdir' x princ -- "degenerate" along z!
---                                        (sides ++ auxsides zc)))
---           | zc <- allDirs nK ]
---         nonprincipalfaces = [ (zc,u `face` (x,dir)) | (zc,u) <- nonprincipal ]
---         principal         = fill (lookBox (x,tdir') tbox)
---                              (Box up z (lookBox (x,tdir') upperbox)
---                                        (nonprincipalfaces ++ auxsides (x,tdir')))
---     in VFill z (Box tdir x principal nonprincipal)
---   | x' `notElem` nK =
---     -- assumes x,K subset x',J
---     trace "Kan Fill VU Case 4" $
---     let xaux      = unCompAs (lookBox (x,tdir) box) x
---         boxprinc  = unFillAs (lookBox (x',dir') box) z
---         princnp   = [((z,up),lookBox (x,tdir') xaux),
---                      ((z,down),lookBox (x,tdir') box)]
---                     ++ auxsides (x,tdir')
---         principal = fill (lookBox (x,tdir') tbox) -- tx
---                          (Box dir x' (lookBox (x,tdir') boxprinc) princnp)
---         nonprincipal = [ let yup  = lookBox yc xaux
---                              fyup = yup `face` (x,tdir)
---                              np   = [ ((z,up),yup), ((z,down),lookBox yc box)
---                                     , ((x,tdir), fyup) -- deg along z!
---                                     , ((x,tdir'), principal `face` yc) ]
---                                     ++ auxsides yc
---                              fb   = fill (lookBox yc tbox)
---                                          (Box dir x' (lookBox yc boxprinc) np)
---                          in (yc, fb)
---                        | yc <- allDirs nK]
---     in VFill z (Box tdir x principal nonprincipal)
---   | x' `elem` nK =
---     -- assumes x,K subset x',J
---     trace "Kan Fill VU Case 5" $
---     -- surprisingly close to the last case of the Kan-Com-VU filling
---     let upperbox = unCompAs (lookBox (x,dir') box) x
---         npintbox = modBox (\zc downside ->
---                             let bottom = lookBox zc box
---                                 top    = lookBox zc upperbox
---                                 princ  = downside
---                                          -- same as bottom `face` (x',tdir) and
---                                          -- top `face` (x',tdir)
---                                 sides  = [((z,down),bottom),((z,up),top)]
---                             in fill (lookBox zc tbox)
---                                     (Box tdir' x princ (sides ++ auxsides zc)))
---                    (subBox (nK `intersect` nJ) box)  -- intersection is nK - x'
---         npint = fromBox npintbox
---         npintfacebox = mapBox (`face` (x,tdir')) npintbox
---         principalbox = ([ ((z,down),lookBox (x,tdir') box)
---                         , ((z,up)  ,lookBox (x,tdir') upperbox)]
---                         ++ auxsides (x,tdir'))
---                        `appendSides` npintfacebox
---         principal = fill tx principalbox
---         nplp      = lookBox (x',dir) upperbox
---         nplnp = [ ((x,tdir), nplp `face` (x',dir)) -- deg along z!
---                 , ((x,tdir'),principal `face` (x',dir)) ]
---                 ++ auxsides (x',dir)
---                 ++ [ (zc,u `face` (x',dir)) | (zc,u) <- sides npintbox ]
---         fb = fill (lookBox (x',dir) tbox) (Box down z nplp nplnp)
---     in VFill z (Box tdir x principal (((x',dir),fb) : npint))
---     where z     = fresh (v, box)
---           nK    = nonPrincipal tbox
---           nJ    = nonPrincipal box
---           toAdd = (x:nK) \\ (x' : nJ)
---           nL    = nJ \\ (x : nK)
---           dir'  = mirror dir
---           tdir' = mirror tdir
---           -- asumes zc is in the sides of tbox
---           pickout zc vfill = lookBox zc (unFillAs vfill z)
---           -- asumes zc is in the sides of tbox
---           auxsides zc = [ (yd,pickout zc (lookBox yd box)) | yd <- allDirs nL ]
--- fill v b = Kan Fill v b
-
-conv :: Int -> Val -> Val -> Bool
-conv k VU VU                                  = True
-conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
-  let v = mkVar k
-  in conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
-conv k (Ter (Lam x u) e) u' =
-  let v = mkVar k
-  in conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
-conv k u' (Ter (Lam x u) e) =
-  let v = mkVar k
-  in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
-conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
-  (p == p') && convEnv k e e'
-conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
-  (p == p') && convEnv k e e'
-conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
-  (p == p') && convEnv k e e'
-conv k (VPi u v) (VPi u' v') =
-  let w = mkVar k
-  in conv k u u' && conv (k+1) (app v w) (app v' w)
-conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
-conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
-                                    conv k (u `rename` (i,j)) (u' `rename` (i',j))
-  where j = fresh (u,u')
-conv k (Path i u) p'              = trace "conv Path p" $
-                                    conv k (u `rename` (i,j)) (p' @@@ j)
-  where j = fresh u
-conv k p (Path i' u')             = trace "conv p Path" $
-                                    conv k (p @@@ j) (u' `rename` (i',j))
-  where j = fresh u'
-
-conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
-  where w = mkVar k
-conv k (VFst u) (VFst u')              = conv k u u'
-conv k (VSnd u) (VSnd u')              = conv k u u'
-conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
-conv k (VSPair u v)   w                =
-  conv k u (fstSVal w) && conv k v (sndSVal w)
-conv k w              (VSPair u v)     =
-  conv k (fstSVal w) u && conv k (sndSVal w) v
-
-conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
-conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
-   let j    = fresh (v, v')
-       tsj  = ts  `rename` (i,j)
-       tsj' = ts' `rename` (i',j)
-   in
-   and [ conv k (a `rename` (i,j)) (a' `rename` (i',j))
-       , Map.keysSet tsj == Map.keysSet tsj'
-       , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
-       , conv k (u `rename` (i,j)) (u' `rename` (i',j))]
-
+  conv k u@(HisoProj{}) u'@(HisoProj{}) = conv (k+1) (app u w) (app u' w)
+       where w = mkVar k
 -- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
 --   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
 -- conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
@@ -1038,24 +696,24 @@ conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
 --   convBox k (swap box x y) (swap box' x' y)
 --   where y      = fresh (box,box')
 
-conv k (VVar x)       (VVar x')        = (x == x')
-conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
-conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
-conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
--- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
---   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
--- conv k VCircle        VCircle          = True
--- conv k VBase          VBase            = True
--- conv k (VLoop x)      (VLoop y)        = x == y
--- conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
---   and [conv k f f', conv k b b', conv k l l', conv k v v']
--- conv k VI             VI               = True
--- conv k VI0            VI0              = True
--- conv k VI1            VI1              = True
--- conv k (VLine x)      (VLine y)        = x == y
--- conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
---   and [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
-conv k _              _                = False
+  conv k (VVar x)       (VVar x')        = (x == x')
+  conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
+  conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
+  conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
+  -- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
+  --   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
+  -- conv k VCircle        VCircle          = True
+  -- conv k VBase          VBase            = True
+  -- conv k (VLoop x)      (VLoop y)        = x == y
+  -- conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
+  --   and [conv k f f', conv k b b', conv k l l', conv k v v']
+  -- conv k VI             VI               = True
+  -- conv k VI0            VI0              = True
+  -- conv k VI1            VI1              = True
+  -- conv k (VLine x)      (VLine y)        = x == y
+  -- conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
+  --   and [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
+  conv k _              _                = False
 
 -- convBox :: Int -> Box Val -> Box Val -> Bool
 -- convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
@@ -1065,5 +723,13 @@ conv k _              _                = False
 --      else False
 --   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
-convEnv :: Int -> Env -> Env -> Bool
-convEnv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
+instance Convertible Env where
+  conv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
+
+instance (Ord k, Convertible a) => Convertible (Map k a) where
+  conv k ts ts' =  Map.keysSet ts == Map.keysSet ts' &&
+                   (and $ Map.elems $ Map.intersectionWith (conv k) ts ts')
+
+instance Convertible Hiso where
+  conv k (Hiso a b f g s t) (Hiso a' b' f' g' s' t') =
+    and [conv k x y | (x, y) <- zip [a, b, f, g, s, t] [a', b', f', g', s', t']]

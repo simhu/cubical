@@ -363,6 +363,7 @@ rename a (i, j) = a `act` (i, Atom j)
 connect :: Nominal a => a -> (Name, Name) -> a
 connect a (i, j) = a `act` (i, Atom i :/\: Atom j)
 
+-- assumes alpha <= shape us
 proj :: Nominal a => System a -> Face -> a
 proj us alpha = (us `face` alpha) ! eps
 

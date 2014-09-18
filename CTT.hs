@@ -266,6 +266,8 @@ data Val = VU
 
          -- comp ^i _{ A, ts } (a)
          | Kan Name Val (System Val) Val
+         | KanUElem (System Val) Val
+         | UnKan (System Hiso) Val
 
          | VId Val Val Val
 
