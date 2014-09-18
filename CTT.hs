@@ -226,7 +226,7 @@ primHandle =
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
    ("inhrec"        , 5,  InhRec       ),
-   ("hisoEq"       , 6,  HisoEq      ),
+   ("isoId"         , 6,  HisoEq      ),
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
    ("contrSingl"    , 4,  CSingl       ),

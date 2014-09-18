@@ -1,7 +1,6 @@
 module nIso where
 
-import gradLemma
-
+import lemId
 -- an example with N and 1 + N isomorphic
 
 NToOr : N -> or N Unit
