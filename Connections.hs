@@ -107,7 +107,7 @@ incomparables []     = True
 incomparables (x:xs) = all (not . (x `comparable`)) xs && incomparables xs
 
 (~>) :: Name -> Dir -> Face
-i ~> d = Map.fromList [(i, d)]
+i ~> d = Map.singleton i d
 
 eps :: Face
 eps = Map.empty

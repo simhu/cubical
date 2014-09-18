@@ -171,7 +171,7 @@ instance Nominal Env where
 -- Glueing
 glue :: System Hiso -> Val -> Val
 glue hisos b | Map.null hisos         = b
-glue hisos b | eps `Map.member` hisos = let Hiso a _ _ _ _ _ = hisos ! eps in a
+glue hisos b | eps `Map.member` hisos = hisoA (hisos ! eps)
 glue hisos b = Glue hisos b
 
 glueElem :: System Val -> Val -> Val
@@ -197,12 +197,13 @@ app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
 
 app g@(UnGlue hisos b) w
     | Map.null hisos         = w
-    | eps `Map.member` hisos = let Hiso _ _ f _ _ _ = hisos ! eps in app f w
+    | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
     | otherwise              = case w of
        GlueElem us v -> v
        _             -> VApp g w
 
--- TODO: recheck at least 2 more times (please decrease the counter if you checked)
+-- TODO: recheck at least 2 more times (please decrease the counter if
+-- you checked)
 app (HisoProj hisoProj e) u = case hisoProj of
     HisoSign sign -> comp sign i (e @@@ i) Map.empty u
     -- f (g y) -> y
@@ -268,7 +269,7 @@ gradLemma hiso@(Hiso a b f g s t) us v = (u, Path i theta'')
         us'     = Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@@ i) us
         theta   = fill Pos i a us' (app g v)
         u       = theta `face` (i ~> 1)
-        ws      =  insertSystem (i ~> 0) (app g v) $
+        ws      = insertSystem (i ~> 0) (app g v) $
                   insertSystem (i ~> 1) (app t u @@@ j) $
                   Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@ (Atom i :/\: Atom j)) us
         theta'  = comp Neg j a ws theta
@@ -612,8 +613,8 @@ comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
   Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
   where j   = fresh (Atom i, vid, ts, w)
-        ts' = insertSystem (Map.fromList [(j,0)]) u $
-              insertSystem (Map.fromList [(j,1)]) v $
+        ts' = insertSystem (j ~> 0) u $
+              insertSystem (j ~> 1) v $
               Map.map (@@@ j) ts
 comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
@@ -687,7 +688,7 @@ comp Pos i a ts u = error $
 -- The output is an L-path in A(i1) between u(i1) and u'(i1)
 pathComp :: Sign -> Name -> Val -> System Val -> (Val -> Val -> Val)
 pathComp Neg i a us u u' =
- pathComp Pos i (a `sym` i) (us `sym` i) (u `sym` i) (u' `sym` i)
+  pathComp Pos i (a `sym` i) (us `sym` i) (u `sym` i) (u' `sym` i)
 pathComp Pos i a us u u' = Path j $ comp Pos i a us' (u `face` (i ~> 0))
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
