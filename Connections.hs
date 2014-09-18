@@ -300,6 +300,9 @@ insertsSystem :: [(Face, a)] -> System a -> System a
 insertsSystem faces us =
   foldr (\(alpha, ualpha) -> insertSystem alpha ualpha) us faces
 
+mkSystem :: [(Face, a)] -> System a
+mkSystem = flip insertsSystem Map.empty
+
 -- could something like that work??
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem as = Map.tranverseWithKey (const . id) as

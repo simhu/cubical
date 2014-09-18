@@ -340,6 +340,8 @@ evalPN (i:j:_) CSingl [a,u,v,p] =
 -- evalPN (x:_)   Squash     [_,r,s]       = Path x $ VSquash x r s
 -- evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
 -- evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
+evalPN (i:_)   HisoEq    [a,b,f,g,s,t]   =
+  Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
 evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)

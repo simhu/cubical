@@ -1,0 +1,15 @@
+module connections where
+
+import prelude
+
+eqBoolBool : Id U Bool Bool
+eqBoolBool = hisoEq Bool Bool not not sNot sNot
+  where sNot : (b : Bool) -> Id Bool (not (not b)) b
+        sNot = split true  -> refl Bool true
+	       	     false -> refl Bool false
+
+notEqBool : Bool -> Bool
+notEqBool = transport Bool Bool eqBoolBool
+
+test : Bool
+test = notEqBool true

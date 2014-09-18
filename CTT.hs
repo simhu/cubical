@@ -124,7 +124,15 @@ data PN = Id | Refl
         -- s : (y : B) -> fiber f y, and
         -- t : (y : B) (z : fiber f y) -> Id (fiber f y) (s y) z
         -- where fiber f y is Sigma x : A. Id B (f x) z.
-        | EquivEq
+        -- | EquivEq
+
+        -- HisoEq A B f g s t where
+        -- (A B : U) (f : A -> B) (g : B -> A)
+	-- (s : (x:A) -> Id A (g (f x)) x)
+        -- (t : (y:B) -> Id B (f (g y)) y) ->
+        -- Id U A B
+        | HisoEq
+
         -- (A : U) -> (s : (y : A) -> pathTo A a) ->
         -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
         -- Id (Id U A A) (refl U A) (equivEq A A (id A) s t)
@@ -218,7 +226,7 @@ primHandle =
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
    ("inhrec"        , 5,  InhRec       ),
-   ("equivEq"       , 5,  EquivEq      ),
+   ("hisoEq"       , 6,  HisoEq      ),
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
    ("contrSingl"    , 4,  CSingl       ),

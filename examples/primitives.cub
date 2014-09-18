@@ -53,3 +53,18 @@ primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
 primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
                        (a0 a1 : A) (p : Id A a0 a1) (b0 : F a0) (b1 : F a1)
                        (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
+
+primitive hisoEq : (A B : U) (f : A -> B) (g : B -> A)
+	           (s : (y:B) -> Id B (f (g y)) y)
+                   (t : (x:A) -> Id A (g (f x)) x) ->
+                   Id U A B
+
+propId : (A B : U) -> prop A -> prop B ->
+         (f : A -> B) (g : B -> A) -> Id U A B
+propId A B pA pB f g = hisoEq A B f g sfg rfg
+ where
+  sfg : (b:B) -> Id B (f (g b)) b
+  sfg b = pB (f (g b)) b
+
+  rfg : (a:A) -> Id A (g (f a)) a
+  rfg a = pA (g (f a)) a
