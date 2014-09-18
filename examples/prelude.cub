@@ -258,11 +258,11 @@ appEq : (A : U) (B : A -> U) (a : A) (f0 f1 : Pi A B) ->
         Id (Pi A B) f0 f1 -> Id (B a) (f0 a) (f1 a)
 appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 
--- J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U)
---     (d : C a (refl A a)) (x : A) (p : Id A a x) -> C x p
--- J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
---  where T : singl A a -> U
---        T z = C (z.1) (z.2)
+J : (A : U) (a : A) (C : (x : A) -> Id A a x -> U)
+    (d : C a (refl A a)) (x : A) (p : Id A a x) -> C x p
+J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
+ where T : singl A a -> U
+       T z = C (z.1) (z.2)
 
 -- funExt : (A : U) (B : A -> U) (f g : (a : A) -> B a)
 --          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
@@ -336,8 +336,8 @@ appEq A B a = mapOnPath (Pi A B) (B a) (\ f -> f a)
 -- propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
 -- propImply A B h = propPi A (\_ -> B) h
 
--- propFam : (A : U) (B : A -> U) -> U
--- propFam A B = (a : A) -> prop (B a)
+propFam : (A : U) (B : A -> U) -> U
+propFam A B = (a : A) -> prop (B a)
 
 -- reflexive : (A : U) -> rel A -> U
 -- reflexive A R = (a : A) -> R a a

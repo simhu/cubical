@@ -25,6 +25,9 @@ sId A a = (a, refl A a)
 singl : (A : U) -> A -> U
 singl A a = Sigma A (Id A a)
 
+primitive contrSingl : (A : U) (a b : A) (p : Id A a b) ->
+                       Id (singl A a) (a, refl A a) (b, p)
+
 primitive transport : (A B : U) -> Id U A B -> A -> B
 
 primitive transpInv : (A B : U) -> Id U A B -> B -> A
