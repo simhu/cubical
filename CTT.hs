@@ -355,20 +355,6 @@ data Val = VU
 mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
 
-isNeutral :: Val -> Bool
-isNeutral (VVar _)             = True
-isNeutral (VApp u _)           = isNeutral u
-isNeutral (VAppFormula u _)    = isNeutral u
-isNeutral (VFst v)             = isNeutral v
-isNeutral (VSnd v)             = isNeutral v
-isNeutral (VSplit _ v)         = isNeutral v
--- isNeutral (VInhRec _ _ _ v)    = isNeutral v
--- isNeutral (VCircleRec _ _ _ v) = isNeutral v
--- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
--- isNeutral (VFillN _ _)         = True
--- isNeutral (VComN _ _)          = True
-isNeutral _                    = False
-
 -- fstVal, sndVal, unSquare :: Val -> Val
 -- fstVal (VPair _ a _)     = a
 -- fstVal x                 = error $ "error fstVal: " ++ show x
@@ -506,6 +492,9 @@ showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
   "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal a
+showVal (KanUElem ts u)          = "KanUElem" <+> show ts <+> showVal u
+showVal (UnKan ts u)             = "UnKan" <+> show ts <+> showVal u
+
 showVal (VId a u v)              =
   "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
 showVal (Path n u)               = abrack (show n) <+> showVal u

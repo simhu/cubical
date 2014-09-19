@@ -126,7 +126,7 @@ instance Nominal Val where
   -- support v                             = error ("support " ++ show v)
 
 
-  act u (i, phi) = trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
+  act u (i, phi) = -- trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
     let acti :: Nominal a => a -> a
         acti u = act u (i, phi)
     in case u of
@@ -193,8 +193,8 @@ kanUElem us v = KanUElem us v
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
-app (Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
-    let j   = fresh (b,u,ts)
+app kan@(Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
+    let j   = fresh (Atom i,kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `rename` (i,j)
         u   = fill Neg j aj Map.empty ui1
         ui0 = act u (j, Dir 0)
@@ -410,21 +410,37 @@ faceEnv e alpha = mapEnv (`face` alpha) e
 -- isNeutralFill v box = False
 
 -- TODO: Simplify?
-comps :: Name -> [(Binder,Ter)] -> Env -> [System Val] -> [Val] -> [Val]
-comps i []         _ []         []      = []
-comps i ((x,a):as) e (ts:tss)   (u:us) =
+comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
+comps i []         _ []         = []
+comps i ((x,a):as) e ((ts,u):tsus) =
   let v  = comp Pos i (eval e a) ts u
-      vs = comps i as (Pair e (x,v)) tss us
+      vs = comps i as (Pair e (x,v)) tsus
   in v : vs
-comps _ _ _ _ _ = error "comps: different lengths of types and values"
+comps _ _ _ _ = error "comps: different lengths of types and values"
+
+isNeutral :: Val -> Bool
+isNeutral (VVar _)          = True
+isNeutral (VApp u _)        = isNeutral u
+isNeutral (VAppFormula u _) = isNeutral u
+isNeutral (VFst v)          = isNeutral v
+isNeutral (VSnd v)          = isNeutral v
+isNeutral (VSplit _ v)      = isNeutral v
+isNeutral (Kan _ a ts u)    = isNeutral a || isNeutralSystem ts || isNeutral u
+-- isNeutral (VInhRec _ _ _ v)    = isNeutral v
+-- isNeutral (VCircleRec _ _ _ v) = isNeutral v
+-- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
+-- isNeutral (VFillN _ _)         = True
+-- isNeutral (VComN _ _)          = True
+isNeutral _                    = False
 
 isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
 fill Neg i a ts u =  trace "fill Neg" $ (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
-fill Pos i a ts u =  trace "fill Pos" $ comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
-  where j = fresh (a,u,ts)
+fill Pos i a ts u =  trace "fill Pos" $
+  comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
+  where j = fresh (Atom i,a,u,ts)
 
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
@@ -539,8 +555,8 @@ comp Pos i VU ts u = Kan i VU ts u
 
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
-  Just as -> VCon n $ comps i as env tss' us
-    where tss' = transposeSystem $ Map.map unCon tss
+  Just as -> VCon n $ comps i as env tsus
+    where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
 
 comp Pos i a ts u = error $

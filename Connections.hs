@@ -307,9 +307,11 @@ mkSystem = flip insertsSystem Map.empty
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem as = Map.tranverseWithKey (const . id) as
 
-transposeSystem :: System [a] -> [System a]
-transposeSystem ts = map Map.fromList $
-                     transpose [[(k, v) | v <- vs] | (k,vs) <- Map.toList ts]
+-- TODO: add some checks
+transposeSystemAndList :: System [a] -> [b] -> [(System a,b)]
+transposeSystemAndList _  []      = []
+transposeSystemAndList tss (u:us) =
+  (Map.map head tss,u):transposeSystemAndList (Map.map tail tss) us
 
 -- transposeSystem :: System [a] -> [System a]
 -- transposeSystem ts =
