@@ -666,8 +666,8 @@ instance Convertible Val where
   conv k v@(KanUElem us u) v' =  conv k v (KanUElem (border v' us) v')
 
   conv k (GlueElem us u) (GlueElem us' u') = conv k us us' && conv k u u'
-  conv k v v'@(GlueElem us' u') = conv k (GlueElem (border v us') v) v'
-  conv k v@(GlueElem us u) v' =  conv k v (GlueElem (border v' us) v')
+  -- conv k v v'@(GlueElem us' u') = conv k (GlueElem (border v us') v) v'
+  -- conv k v@(GlueElem us u) v' =  conv k v (GlueElem (border v' us) v')
 
   conv k (UnKan hisos v) (UnKan hisos' v') = conv k hisos hisos' && conv k v v'
   conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
