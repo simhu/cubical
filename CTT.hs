@@ -274,7 +274,8 @@ data Val = VU
 
          -- comp ^i _{ A, ts } (a)
          | Kan Name Val (System Val) Val
-         | KanUElem (System Val) Val
+         -- KanUElem type us v
+         | KanUElem Val (System Val) Val
          | UnKan (System Hiso) Val
 
          | VId Val Val Val
@@ -492,7 +493,8 @@ showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
   "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal a
-showVal (KanUElem ts u)          = "KanUElem" <+> show ts <+> showVal u
+showVal (KanUElem a ts u)        =
+  "KanUElem" <+> show a <+> show ts <+> showVal u
 showVal (UnKan ts u)             = "UnKan" <+> show ts <+> showVal u
 
 showVal (VId a u v)              =
