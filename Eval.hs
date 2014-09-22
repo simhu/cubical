@@ -325,11 +325,8 @@ evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@ i) Map.empty t
 evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 -- evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] =
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
-evalPN (i:j:_) CSingl [a,u,v,p] =
-  let pv    = p @@ j
-      theta = fill Pos j a (Map.fromList [(i ~> 0, u), (i ~> 1, pv)]) u
-      omega = theta `face` (j ~> 1)
-  in Path i (VSPair omega (Path j theta))
+evalPN (i:j:_) CSingl [_,_,_,p] = Path i $ VSPair q (Path j (q `connect` (i,j)))
+  where q = p @@ i
 -- -- evalPN (x:_)   Ext        [_,b,f,g,p]   = return $ Path x $ VExt x b f g p
 -- evalPN (x:_)   HExt       [_,b,f,g,p]   = Path x $ VHExt x b f g p
 -- evalPN _       Inh        [a]           = VInh a
