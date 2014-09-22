@@ -54,6 +54,10 @@ primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
                        (a0 a1 : A) (p : Id A a0 a1) (b0 : F a0) (b1 : F a1)
                        (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
 
+primitive funExt : (A : U) (B : A -> U) (f g : (x : A) -> B x) ->
+                   ((x : A) -> Id (B x) (f x) (g x)) ->
+                   Id ((y : A) -> B y) f g
+
 primitive isoId : (A B : U) (f : A -> B) (g : B -> A)
 	           (s : (y:B) -> Id B (f (g y)) y)
                    (t : (x:A) -> Id A (g (f x)) x) ->

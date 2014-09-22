@@ -1,6 +1,7 @@
 module curry where
 
-import swap
+-- import swap
+import lemId
 
 curry : (A B C:U) -> ((and A B) -> C) -> A -> B -> C
 curry A B C f a b = f (a,b)
@@ -8,14 +9,22 @@ curry A B C f a b = f (a,b)
 uncurry : (A B C:U) -> (A -> B -> C) -> (and A B) -> C
 uncurry A B C g z = g z.1 z.2
 
+
+eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
+eqPi A B0 B1 eB = mapOnPath (A->U) U (Pi A) B0 B1 rem
+ where rem : Id (A -> U) B0 B1
+       rem = funExt A (\ _ -> U) B0 B1 eB
+
 eqCurry : (A B C : U) -> Id U ((and A B) -> C) (A -> B -> C)
-eqCurry A B C =
- isEquivEq T V (curry A B C) (gradLemma T V (curry A B C) (uncurry A B C) (refl V) (refl T))
+eqCurry A B C = isoId ((and A B) -> C) (A -> B -> C) (curry A B C) (uncurry A B C) (refl V) (refl T)
   where
    T:U
    T = (and A B) -> C
    V : U
    V = A -> B -> C
+
+ -- isEquivEq T V (curry A B C) (gradLemma T V (curry A B C) (uncurry A B C) (refl V) (refl T))
+ --  where
 
 typFst : U
 typFst = (X Y:U) -> (and X Y) -> X

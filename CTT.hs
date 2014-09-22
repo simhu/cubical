@@ -113,11 +113,11 @@ data PN = Id | Refl
 
         -- Ext B f g p : Id (Pi A B) f g,
         -- (p : (Pi x:A) Id (Bx) (fx,gx)); A not needed ??
-        -- | Ext
+        | Ext
 
         -- Ext B f g p : Id (Pi A B) f g,
         -- (p : (Pi x y:A) IdS A (Bx) x y p fx gy)
-        | HExt
+        -- | HExt
 
         -- EquivEq A B f s t where
         -- A, B are types, f : A -> B,
@@ -220,8 +220,8 @@ primHandle :: [(Ident,Int,PN)]
 primHandle =
   [("Id"            , 3,  Id           ),
    ("refl"          , 2,  Refl         ),
-   -- ("funExt"        , 5,  Ext          ),
-   ("funHExt"       , 5,  HExt          ),
+   ("funExt"        , 5,  Ext          ),
+   --("funHExt"       , 5,  HExt          ),
    ("inh"           , 1,  Inh          ),
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
@@ -292,7 +292,7 @@ data Val = VU
          | GlueElem (System Val) Val
          | HisoProj HisoProj Val
 
-         -- | VExt Name Val Val Val Val
+         | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val
 
          -- inhabited
@@ -516,7 +516,7 @@ showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
 showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
--- showVal (VExt n b f g p)      = "funExt" <+> show n <+> showVals [b,f,g,p]
+showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VInh u)                 = "inh" <+> showVal1 u
 -- showVal (VInc u)                 = "inc" <+> showVal1 u

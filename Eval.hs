@@ -98,6 +98,8 @@ instance Nominal Val where
   support (GlueElem ts u)               = support (ts, u)
   support (HisoProj _ e)                = support e
 
+  support (VExt phi f g p)              = support (phi,f,g,p)
+
   -- support (VInh v)                      = support v
   -- support (VInc v)                      = support v
   -- support (VSquash x v0 v1)             = support (x, [v0,v1])
@@ -162,6 +164,8 @@ instance Nominal Val where
          GlueElem ts u     -> glueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
 
+         VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
+
 instance Nominal Hiso where
   support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
   act (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
@@ -189,6 +193,12 @@ kanUElem :: System Val -> Val -> Val
 kanUElem us v | Map.null us         = v
 kanUElem us v | eps `Map.member` us = us ! eps
 kanUElem us v = KanUElem us v
+
+vext :: Formula -> Val -> Val -> Val -> Val
+vext (Dir Zero) f _ _ = f
+vext (Dir One)  _ g _ = g
+vext phi f g p        = VExt phi f g p
+
 
 -- Application
 app :: Val -> Val -> Val
@@ -239,6 +249,7 @@ app (HisoProj hisoProj e) u = case hisoProj of
 app u@(Ter (Split _ _) _) v
   | isNeutral v = VSplit u v -- v should be neutral
   | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
+app u@(VExt phi f g p) v = (app p v) @@ phi
 app r s
   | isNeutral r = VApp r s -- r should be neutral
   | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
@@ -327,7 +338,7 @@ evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
 evalPN (i:j:_) CSingl [_,_,_,p] = Path i $ VSPair q (Path j (q `connect` (i,j)))
   where q = p @@ i
--- -- evalPN (x:_)   Ext        [_,b,f,g,p]   = return $ Path x $ VExt x b f g p
+evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
 -- evalPN (x:_)   HExt       [_,b,f,g,p]   = Path x $ VHExt x b f g p
 -- evalPN _       Inh        [a]           = VInh a
 -- evalPN _       Inc        [_,t]         = VInc t
