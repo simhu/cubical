@@ -666,9 +666,12 @@ instance Convertible Val where
 
   conv k (Glue hisos v) (Glue hisos' v') = conv k hisos hisos' && conv k v v'
 
-  conv k (KanUElem (Kan i VU as _) us u) v'   | isRegularConv k i as = conv k u v'
-  conv k v (KanUElem (Kan i VU as' _) us' u') | isRegularConv k i as' = conv k v u'
-  conv k v@(KanUElem _ us u) v'@(KanUElem _ us' u') =  conv k us us' && conv k u u'
+  conv k (KanUElem (Kan i VU as _) us u) v'   | isRegularConv k i as  =
+    conv k u v'
+  conv k v (KanUElem (Kan i VU as' _) us' u') | isRegularConv k i as' =
+    conv k v u'
+  conv k v@(KanUElem _ us u) v'@(KanUElem _ us' u') =
+    conv k us us' && conv k u u'
 
   conv k (GlueElem us u) (GlueElem us' u') = conv k us us' && conv k u u'
   -- conv k v v'@(GlueElem us' u') = conv k (GlueElem (border v us') v) v'
@@ -679,6 +682,10 @@ instance Convertible Val where
 
   conv k u@(HisoProj{}) u'@(HisoProj{}) = conv (k+1) (app u w) (app u' w)
        where w = mkVar k
+
+  conv k (VExt phi f g p) (VExt phi' f' g' p') =
+    and [phi == phi', conv k f f', conv k g g', conv k p p']
+
 -- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
 --   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
 -- conv k (VHExt x b f g p) (VHExt x' b' f' g' p') =
@@ -749,7 +756,7 @@ instance Convertible Val where
 
 isRegularConv :: Int -> Name -> System Val -> Bool
 isRegularConv k i us =
-  and $ Map.elems $ Map.map (\u -> conv k u (u `act` (i, Dir Zero))) us
+  and $ Map.elems $ Map.map (\u -> conv k u (u `act` (i,Dir 0))) us
 
 
 instance Convertible Env where
