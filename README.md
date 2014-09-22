@@ -260,10 +260,10 @@ REFERENCES AND NOTES
  * HoTT book and webpage:
    [http://homotopytypetheory.org/](http://homotopytypetheory.org/)
 
- * Type Theory in Color, J.P. Bernardy, G. Moulin
+ * [Type Theory in Color](http://www.cse.chalmers.se/~bernardy/CCCC.pdf), J.P. Bernardy, G. Moulin
 
  * A simple type-theoretic language: Mini-TT, Th. Coquand,
-   Y. Kinoshita, B. Nordström and M. Takeyama
+   Y. Kinoshita, B. NordstrÃ¶m and M. Takeyama
 
  * [A cubical set model of type
    theory](http://www.cse.chalmers.se/~coquand/model1.pdf), M. Bezem,
@@ -294,4 +294,4 @@ REFERENCES AND NOTES
 AUTHORS
 -------
 
-Cyril Cohen, Thierry Coquand, Simon Huber, Anders Mörtberg
+Cyril Cohen, Thierry Coquand, Simon Huber, Anders MÃ¶rtberg
