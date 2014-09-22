@@ -12,7 +12,7 @@ import Data.Maybe
 import Test.QuickCheck
 
 newtype Name = Name Integer
-  deriving (Arbitrary,Eq,Num,Ord)
+  deriving (Arbitrary,Eq,Ord)
 
 instance Show Name where
   show (Name i) = 'i' : show i
@@ -154,8 +154,8 @@ instance ToFormula Formula where
 instance ToFormula Name where
   toFormula = Atom
 
-instance ToFormula Int where
-  toFormula = Atom . fromIntegral
+instance ToFormula Dir where
+  toFormula = Dir
 
 -- TODO: FINISH!
 -- instance Show a => Show (Formula a) where
@@ -220,8 +220,9 @@ testInvFormula = invFormula (Atom (Name 0) :/\: Atom (Name 1)) 1
 
 -- | Nominal
 gensym :: [Name] -> Name
-gensym [] = 0
-gensym xs = maximum xs + 1
+gensym [] = Name 0
+gensym xs = Name (max+1)
+  where Name max = maximum xs
 
 gensyms :: [Name] -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)

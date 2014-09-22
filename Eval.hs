@@ -294,7 +294,7 @@ gradLemma hiso@(Hiso a b f g s t) us v = (u, Path i theta'')
         theta'' = comp Pos j b xs (app f theta')
 
 eqHiso :: Val -> Hiso
-eqHiso e = Hiso (e @@ (0 :: Int)) (e @@ (1 :: Int))
+eqHiso e = Hiso (e @@ Zero) (e @@ One)
                 (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
                 (HisoProj IsSection e) (HisoProj IsRetraction e)
 
@@ -582,7 +582,7 @@ pathUniv i e us ui0 = Path k xi1
   where j:k:_ = freshs (Atom i, e, us, ui0)
         f     = HisoProj (HisoSign Pos) e
         ej    = e @@ j
-        ui1   = comp Pos i (e @@ (0 :: Int)) us ui0
+        ui1   = comp Pos i (e @@ Zero) us ui0
         ws    = Map.mapWithKey (\alpha uAlpha ->
                   fill Pos j (ej `face` alpha) Map.empty uAlpha)
                 us
