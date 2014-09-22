@@ -223,7 +223,7 @@ app g@(UnKan hisos b) w
 -- TODO: recheck at least 2 more times (please decrease the counter if
 -- you checked)
 app (HisoProj hisoProj e) u = case hisoProj of
-    HisoSign sign -> comp sign i (e @@@ i) Map.empty u
+    HisoSign sign -> comp sign i (e @@ i) Map.empty u
     -- f (g y) -> y
     IsSection     ->
       let ts = Map.fromList [(i ~> 0, line Pos j (appiso Neg u)), (i ~> 1, u)]
@@ -234,7 +234,7 @@ app (HisoProj hisoProj e) u = case hisoProj of
       in Path i $ (comp Neg j (e @@ (Atom i :/\: Atom j)) ts (line Pos i u)) `sym` i
   where i:j:_ = freshs (e, u)
         appiso sign v = app (HisoProj (HisoSign sign) e) v
-        line sign k v = fill sign k (e @@@ k) Map.empty v
+        line sign k v = fill sign k (e @@ k) Map.empty v
 
 app u@(Ter (Split _ _) _) v
   | isNeutral v = VSplit u v -- v should be neutral
@@ -262,12 +262,9 @@ app r s
 apps :: Val -> [Val] -> Val
 apps = foldl app
 
-(@@) :: Val -> Formula -> Val
-(Path i u) @@ phi = u `act` (i, phi)
-v @@ phi          = VAppFormula v phi
-
-(@@@) :: Val -> Name -> Val
-p @@@ i = p @@ Atom i
+(@@) :: ToFormula a => Val -> a -> Val
+(Path i u) @@ phi = u `act` (i, toFormula phi)
+v @@ phi          = VAppFormula v (toFormula phi)
 
 -- where j = fresh (u, Atom i, phi)
 -- | y `elem` [0,1] = u `face` (x,y)
@@ -284,20 +281,20 @@ p @@@ i = p @@ Atom i
 gradLemma :: Hiso -> System Val -> Val -> (Val, Val)
 gradLemma hiso@(Hiso a b f g s t) us v = (u, Path i theta'')
   where i:j:_   = freshs (hiso, us, v)
-        us'     = Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@@ i) us
+        us'     = Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@ i) us
         theta   = fill Pos i a us' (app g v)
         u       = theta `face` (i ~> 1)
         ws      = insertSystem (i ~> 0) (app g v) $
-                  insertSystem (i ~> 1) (app t u @@@ j) $
+                  insertSystem (i ~> 1) (app t u @@ j) $
                   Map.mapWithKey (\alpha uAlpha -> app (t `face` alpha) uAlpha @@ (Atom i :/\: Atom j)) us
         theta'  = comp Neg j a ws theta
-        xs      = insertSystem (i ~> 0) (app s v @@@ j) $
-                  insertSystem (i ~> 1) (app s (app f u) @@@ j) $
-                  Map.mapWithKey (\alpha uAlpha -> app (s `face` alpha) (app (f `face` alpha) uAlpha) @@@ j) us
+        xs      = insertSystem (i ~> 0) (app s v @@ j) $
+                  insertSystem (i ~> 1) (app s (app f u) @@ j) $
+                  Map.mapWithKey (\alpha uAlpha -> app (s `face` alpha) (app (f `face` alpha) uAlpha) @@ j) us
         theta'' = comp Pos j b xs (app f theta')
 
 eqHiso :: Val -> Hiso
-eqHiso e = Hiso (e @@@ 0) (e @@@ 1)
+eqHiso e = Hiso (e @@ (0 :: Int)) (e @@ (1 :: Int))
                 (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
                 (HisoProj IsSection e) (HisoProj IsRetraction e)
 
@@ -322,14 +319,14 @@ evalPN :: [Name] -> PN -> [Val] -> Val
 evalPN (i:_) Id            [a,a0,a1]     = VId (Path i a) a0 a1
 evalPN (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
 evalPN (i:_) Refl          [_,a]         = Path i a
-evalPN (i:_) TransU        [_,_,p,t]     = trace "evalPN TransU" $ comp Pos i (p @@@ i) Map.empty t
-evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@@ i) Map.empty t
+evalPN (i:_) TransU        [_,_,p,t]     = trace "evalPN TransU" $ comp Pos i (p @@ i) Map.empty t
+evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@ i) Map.empty t
 -- figure out how to turn TransURef into a definitional equality (pb for neutral terms)
 evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 -- evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] =
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
 evalPN (i:j:_) CSingl [a,u,v,p] =
-  let pv    = p @@@ j
+  let pv    = p @@ j
       theta = fill Pos j a (Map.fromList [(i ~> 0, u), (i ~> 1, pv)]) u
       omega = theta `face` (j ~> 1)
   in Path i (VSPair omega (Path j theta))
@@ -344,11 +341,11 @@ evalPN (i:_)   HisoEq    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
-evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
-evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@@ i)
-evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@@ i) (q @@@ i)
+evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
+evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
+evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@ i) (q @@ i)
 evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
-  Path i $ app (app f (p @@@ i)) (q @@@ i)
+  Path i $ app (app f (p @@ i)) (q @@ i)
 -- evalPN _       Circle     []               = VCircle
 -- evalPN _       Base       []               = VBase
 -- evalPN (x:_)   Loop       []               = Path x $ VLoop x
@@ -448,11 +445,11 @@ comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
-  Path j $ comp Pos i (a @@@ j) ts' (w @@@ j)
+  Path j $ comp Pos i (a @@ j) ts' (w @@ j)
   where j   = fresh (Atom i, vid, ts, w)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
-              Map.map (@@@ j) ts
+              Map.map (@@ j) ts
 comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
@@ -584,8 +581,8 @@ pathUniv :: Name -> Val -> System Val -> Val -> Val
 pathUniv i e us ui0 = Path k xi1
   where j:k:_ = freshs (Atom i, e, us, ui0)
         f     = HisoProj (HisoSign Pos) e
-        ej    = e @@@ j
-        ui1   = comp Pos i (e @@@ 0) us ui0
+        ej    = e @@ j
+        ui1   = comp Pos i (e @@ (0 :: Int)) us ui0
         ws    = Map.mapWithKey (\alpha uAlpha ->
                   fill Pos j (ej `face` alpha) Map.empty uAlpha)
                 us
@@ -598,11 +595,11 @@ pathUniv i e us ui0 = Path k xi1
 
 -- Lemma 2.2
 -- takes a type A, an L-system of lines ls and a value u
--- s.t. ls alpha @@@ 0 = u alpha
--- and returns u' s.t. ls alpha @@@ 1 = u' alpha
+-- s.t. ls alpha @@ 0 = u alpha
+-- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: Val -> System Val -> Val -> Val
-compLine a ls u = comp Neg i a (Map.map (@@@ i) ls) u
-  where i  = fresh(a, ls, u)
+compLine a ls u = comp Neg i a (Map.map (@@ i) ls) u
+  where i = fresh (a, ls, u)
 
 class Convertible a where
   conv :: Int -> a -> a -> Bool
@@ -632,10 +629,10 @@ instance Convertible Val where
                                       conv k (u `rename` (i,j)) (u' `rename` (i',j))
     where j = fresh (u,u')
   conv k (Path i u) p'              = trace "conv Path p" $
-                                      conv k (u `rename` (i,j)) (p' @@@ j)
+                                      conv k (u `rename` (i,j)) (p' @@ j)
     where j = fresh u
   conv k p (Path i' u')             = trace "conv p Path" $
-                                      conv k (p @@@ j) (u' `rename` (i',j))
+                                      conv k (p @@ j) (u' `rename` (i',j))
     where j = fresh u'
 
   conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)

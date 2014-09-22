@@ -145,6 +145,17 @@ instance Arbitrary Formula where
       n <- arbitrary :: Gen Integer
       sized $ arbFormula (map Name [0..n])
 
+class ToFormula a where
+  toFormula :: a -> Formula
+
+instance ToFormula Formula where
+  toFormula = id
+
+instance ToFormula Name where
+  toFormula = Atom
+
+instance ToFormula Int where
+  toFormula = Atom . fromIntegral
 
 -- TODO: FINISH!
 -- instance Show a => Show (Formula a) where
