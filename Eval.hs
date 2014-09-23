@@ -88,7 +88,7 @@ instance Nominal Val where
 
   support (VCon _ vs)                   = support vs
 
-  support (VVar i)                      = []
+  support (VVar _ phis)                 = support phis
   support (VApp u v)                    = support (u, v)
   support (VAppFormula u phi)           = support (u, phi)
   support (VSplit u v)                  = support (u, v)
@@ -154,7 +154,7 @@ instance Nominal Val where
 
          VCon c vs  -> VCon c (acti vs)
 
-         VVar x            -> VVar x
+         VVar x psis       -> VVar x (acti psis)
          VAppFormula u psi -> acti u @@ acti psi
          VApp u v          -> app (acti u) (acti v)
          VSplit u v        -> app (acti u) (acti v)
@@ -428,7 +428,7 @@ comps i ((x,a):as) e ((ts,u):tsus) =
 comps _ _ _ _ = error "comps: different lengths of types and values"
 
 isNeutral :: Val -> Bool
-isNeutral (VVar _)          = True
+isNeutral (VVar _ _)        = True
 isNeutral (VApp u _)        = isNeutral u
 isNeutral (VAppFormula u _) = isNeutral u
 isNeutral (VFst v)          = isNeutral v
@@ -619,13 +619,13 @@ class Convertible a where
 instance Convertible Val where
   conv k VU VU                                  = True
   conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
-    let v = mkVar k
+    let v = mkVar k $ support (e, e')
     in conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
   conv k (Ter (Lam x u) e) u' =
-    let v = mkVar k
+    let v = mkVar k $ support (e,u')
     in conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
   conv k u' (Ter (Lam x u) e) =
-    let v = mkVar k
+    let v = mkVar k $ support (u',e)
     in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
   conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
     (p == p') && conv k e e'
@@ -634,7 +634,7 @@ instance Convertible Val where
   conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
     (p == p') && conv k e e'
   conv k (VPi u v) (VPi u' v') =
-    let w = mkVar k
+    let w = mkVar k $ support (u,v,u',v')
     in conv k u u' && conv (k+1) (app v w) (app v' w)
   conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
   conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
@@ -648,7 +648,7 @@ instance Convertible Val where
     where j = fresh u'
 
   conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
-    where w = mkVar k
+    where w = mkVar k $ support (u,v,u',v')
   conv k (VFst u) (VFst u')              = conv k u u'
   conv k (VSnd u) (VSnd u')              = conv k u u'
   conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
@@ -658,6 +658,11 @@ instance Convertible Val where
     conv k (fstSVal w) u && conv k (sndSVal w) v
 
   conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
+
+  conv k (Kan i a ts u) v' | isRegularConv k i ts = trace "conv Kan regular"
+    conv k u v'
+  conv k v' (Kan i a ts u) | isRegularConv k i ts = trace "conv Kan regular"
+    conv k v' u
   conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
      let j    = fresh (v, v')
          tsj  = ts  `rename` (i,j)
@@ -681,7 +686,7 @@ instance Convertible Val where
   conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
 
   conv k u@(HisoProj{}) u'@(HisoProj{}) = conv (k+1) (app u w) (app u' w)
-       where w = mkVar k
+       where w = mkVar k $ support (u,u')
 
   conv k (VExt phi f g p) (VExt phi' f' g' p') =
     and [phi == phi', conv k f f', conv k g g', conv k p p']
@@ -726,7 +731,7 @@ instance Convertible Val where
 --   convBox k (swap box x y) (swap box' x' y)
 --   where y      = fresh (box,box')
 
-  conv k (VVar x)       (VVar x')        = (x == x')
+  conv k (VVar x phis)  (VVar x' phis')  = x == x' && phis == phis'
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'

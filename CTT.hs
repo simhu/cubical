@@ -336,7 +336,7 @@ data Val = VU
          -- | VLine Name           -- connects start and end point along name
 
          -- neutral values
-         | VVar String
+         | VVar String [Formula]
          | VApp Val Val            -- the first Val must be neutral
          | VAppFormula Val Formula
          | VFst Val
@@ -352,8 +352,8 @@ data Val = VU
 -- vepair :: Name -> Val -> Val -> Val
 -- vepair x a b = VSPair a (Path x b)
 
-mkVar :: Int -> Val
-mkVar k = VVar ('X' : show k)
+mkVar :: Int -> [Name] -> Val
+mkVar k supp = VVar ('X' : show k) (map Atom supp)
 
 -- fstVal, sndVal, unSquare :: Val -> Val
 -- fstVal (VPair _ a _)     = a
@@ -504,7 +504,7 @@ showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
 showVal (VFst u)                 = showVal u ++ ".1"
 showVal (VSnd u)                 = showVal u ++ ".2"
 
-showVal (VVar x)                 = x
+showVal (VVar x phis)            = x <+> showDim phis
 showVal (VApp u v)               = showVal u <+> showVal1 v
 showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 

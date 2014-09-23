@@ -80,7 +80,7 @@ silentEnv  = TEnv 0 Empty [] False
 
 addTypeVal :: (Binder,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam v) =
-  TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) v
+  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
 
 addType :: (Binder,Ter) -> TEnv -> TEnv
 addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval rho a) tenv
@@ -101,7 +101,7 @@ addTele :: Tele -> TEnv -> TEnv
 addTele xas lenv = foldl (flip addType) lenv xas
 
 getFresh :: Typing Val
-getFresh = mkVar <$> asks index
+getFresh = mkVar <$> asks index <*> (support <$> asks env)
 
 checkDecls :: Decls -> Typing ()
 checkDecls d = do
@@ -159,7 +159,7 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
   env <- asks env
   let d  = support env
       l  = length xas
-      us = map mkVar [k..k+l-1]
+      us = map (`mkVar` d) [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkInfer :: Ter -> Typing Val
