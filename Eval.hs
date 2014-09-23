@@ -215,6 +215,7 @@ app kan@(Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
     in comp Pos j (app fj u)
            (Map.intersectionWith app tsj (border u tsj))
            (app li0 ui0)
+app u@(Ter (Split _ _) _) (KanUElem _ v) = app u v
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t)  -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
