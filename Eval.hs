@@ -245,10 +245,11 @@ circleRec :: Val -> Val -> Val -> Val -> Val
 circleRec _ b _ VBase         = b
 circleRec f b l v@(VLoop phi) = l @@ phi
 circleRec f b l v@(Kan i VCircle us u) = comp Pos i (app f v) us' u'
-  where us' = Map.mapWithKey (\alpha uAlpha -> crec alpha uAlpha) us
+  where us' = Map.mapWithKey crec us
         u'  = crec (i ~> 0) u
         crec alpha = circleRec (f `face` alpha)
                        (b `face` alpha) (l `face` alpha)
+circleRec f b l (KanUElem _ u) = circleRec f b l u
 circleRec f b l v = VCircleRec f b l v -- v should be neutral
 
 
@@ -527,7 +528,7 @@ comp Pos i b@(VSigma a f) ts u = VSPair (fill_u1 `act` (i, Dir 1)) comp_u2
 
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
-comp Pos i g@(Glue hisos b) ws wi0 =
+comp Pos i g@(Glue hisos b) ws wi0 = trace "comp Glue" $
     let unglue = UnGlue hisos b
         vs   = Map.mapWithKey (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
         vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
@@ -572,7 +573,7 @@ comp Pos i g@(Glue hisos b) ws wi0 =
 
     in glueElem usi1 vi1''
 
-comp Pos i (Kan j VU ejs b) ws wi0 =
+comp Pos i (Kan j VU ejs b) ws wi0 = trace "comp Kan VU" $
     let es    = Map.map (Path j . (`sym` j)) ejs
         hisos = Map.map eqHiso es
         unkan = UnKan hisos b
