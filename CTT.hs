@@ -302,8 +302,8 @@ data Val = VU
          | UnGlue (System Hiso) Val
          | GlueElem (System Val) Val
          | HisoProj HisoProj Val
-         -- | GlueLine Val Formula
-         -- | GlueLineElem Val Formula
+         | GlueLine (System ()) Val Formula
+         | GlueLineElem (System ()) Val Formula
 
          | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val
@@ -528,6 +528,9 @@ showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
 showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
 showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
+
+showVal (GlueLine ts u phi)     = "GlueLine" <+> show ts <+> show u <+> show phi
+showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show phi
 
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]

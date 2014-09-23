@@ -97,6 +97,8 @@ instance Nominal Val where
   support (UnGlue ts u)                 = support (ts, u)
   support (GlueElem ts u)               = support (ts, u)
   support (HisoProj _ e)                = support e
+  support (GlueLine ts u phi)           = support (ts,u,phi)
+  support (GlueLineElem ts u phi)       = support (ts,u,phi)
 
   support (VExt phi f g p)              = support (phi,f,g,p)
 
@@ -163,6 +165,8 @@ instance Nominal Val where
          UnGlue ts u       -> UnGlue (acti ts) (acti u)
          GlueElem ts u     -> glueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
+         GlueLine ts u phi -> glueLine (acti ts) (acti u) (acti phi)
+         GlueLineElem ts u phi -> glueLineElem (acti ts) (acti u) (acti phi)
 
          VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
 
@@ -188,6 +192,12 @@ glueElem :: System Val -> Val -> Val
 glueElem us v | Map.null us         = v
 glueElem us v | eps `Map.member` us = us ! eps
 glueElem us v = GlueElem us v
+
+glueLine :: System () -> Val -> Formula -> Val
+glueLine = undefined
+
+glueLineElem :: System () -> Val -> Formula -> Val
+glueLineElem = undefined
 
 kanUElem :: System Val -> Val -> Val
 kanUElem us v | Map.null us         = v
@@ -357,7 +367,8 @@ evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
 -- evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
 evalPN (i:_)   IsoId    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
--- evalPN (i:_)   IsoIdRef [a] = Path i $ GlueLine a (Atom i)
+evalPN (i:j:_) IsoIdRef [a] =
+  Path j $ Path i $ GlueLine (mkSystem [(i ~> 0,())]) a (Atom j)
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
 evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
@@ -701,7 +712,7 @@ instance Convertible Val where
        where w = mkVar k $ support (u,u')
 
   conv k (VExt phi f g p) (VExt phi' f' g' p') =
-    and [phi == phi', conv k f f', conv k g g', conv k p p']
+    and [conv k phi phi', conv k f f', conv k g g', conv k p p']
 
 -- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
 --   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
@@ -743,7 +754,7 @@ instance Convertible Val where
 --   convBox k (swap box x y) (swap box' x' y)
 --   where y      = fresh (box,box')
 
-  conv k (VVar x phis)  (VVar x' phis')  = x == x' && phis == phis'
+  conv k (VVar x phis)  (VVar x' phis')  = x == x' && conv k phis phis'
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
@@ -783,6 +794,9 @@ instance (Convertible a, Convertible b, Convertible c)
       => Convertible (a, b, c) where
   conv k (u, v, w) (u', v', w') = and [conv k u u', conv k v v', conv k w w']
 
+instance Convertible a => Convertible [a] where
+  conv k us us' = and [conv k u u' | (u, u') <- zip us us']
+
 instance Convertible Env where
   conv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
 
@@ -793,3 +807,6 @@ instance (Ord k, Convertible a) => Convertible (Map k a) where
 instance Convertible Hiso where
   conv k (Hiso a b f g s t) (Hiso a' b' f' g' s' t') =
     and [conv k x y | (x, y) <- zip [a, b, f, g, s, t] [a', b', f', g', s', t']]
+
+instance Convertible Formula where
+  conv _ phi psi = sort (invFormula phi 1) == sort (invFormula psi 1)
