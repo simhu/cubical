@@ -97,7 +97,7 @@ data PN = Id | Refl
         | TransInvU
 
         -- (A : U) -> (a : A) -> Id A a (transport A (refl U A) a)
-        | TransURef
+        -- | TransURef
 
         -- (A : U) (a b:A) (p:Id A a b) -> Id (singl A a) (pair a (refl A a)) (pair b p)
         | CSingl
@@ -126,12 +126,16 @@ data PN = Id | Refl
         -- where fiber f y is Sigma x : A. Id B (f x) z.
         -- | EquivEq
 
-        -- HisoEq A B f g s t where
+        -- IsoId A B f g s t where
         -- (A B : U) (f : A -> B) (g : B -> A)
 	-- (s : (x:A) -> Id A (g (f x)) x)
         -- (t : (y:B) -> Id B (f (g y)) y) ->
         -- Id U A B
-        | HisoEq
+        | IsoId
+
+        -- (A : U) ->
+        -- Id (Id U A A) (refl U A) (isoId A A (id A) (id A) (refl A) (refl A))
+        | IsoIdRef
 
         -- (A : U) -> (s : (y : A) -> pathTo A a) ->
         -- (t : (y : B) -> (v : pathTo A a) -> Id (path To A a) (s y) v) ->
@@ -142,6 +146,12 @@ data PN = Id | Refl
         -- (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
         -- (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
         | TransUEquivEq
+
+        -- (A B : U) -> (f : A -> B) (g : B -> A)
+	-- (s : (x:A) -> Id A (g (f x)) x) ->
+        -- (t : (y:B) -> Id B (f (g y)) y) ->
+        -- (a : A) -> Id B (f a) (transport A B (isoId A B f g s t) a)
+        | TransUIsoId
 
         -- IdP  :    (A B :U) -> Id U A B ->  A -> B -> U
         -- IdP A B p a b   is the type of paths  connecting a to b over p
@@ -226,13 +236,14 @@ primHandle =
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
    ("inhrec"        , 5,  InhRec       ),
-   ("isoId"         , 6,  HisoEq      ),
+   ("isoId"         , 6,  IsoId      ),
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
+   -- ("transpIsoId"   , 7,  TransUIsoId),
    ("contrSingl"    , 4,  CSingl       ),
-   ("transportRef"  , 2,  TransURef    ),
+   -- ("transportRef"  , 2,  TransURef    ),
    ("equivEqRef"    , 3,  EquivEqRef   ),
-   ("transpEquivEq" , 6,  TransUEquivEq),
+   -- ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
    ("mapOnPath"     , 6,  MapOnPath    ),
    ("IdP"           , 5,  IdP          ),
@@ -291,6 +302,8 @@ data Val = VU
          | UnGlue (System Hiso) Val
          | GlueElem (System Val) Val
          | HisoProj HisoProj Val
+         -- | GlueLine Val Formula
+         -- | GlueLineElem Val Formula
 
          | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val

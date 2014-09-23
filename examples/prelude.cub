@@ -28,9 +28,9 @@ substInv A P a x p = subst A (\ y -> P y -> P a) a x p (\ h -> h)
 --           Id (P a) d (subst A P a a (refl A a) d)
 -- substeq A P a d = Jeq A a (\ x q -> P x) d
 
-substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
-           Id (P a) d (subst A P a a (refl A a) d)
-substeq A P a d = transportRef (P a) d
+-- substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
+--            Id (P a) d (subst A P a a (refl A a) d)
+-- substeq A P a d = transportRef (P a) d
 
 -- Monoids
 Monoid : U -> U

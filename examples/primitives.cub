@@ -32,8 +32,10 @@ primitive transport : (A B : U) -> Id U A B -> A -> B
 
 primitive transpInv : (A B : U) -> Id U A B -> B -> A
 
-primitive transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
+-- primitive transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
 
+transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
+transportRef A a = refl A a
 
 primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
                       (p : Id A a b) -> Id B (f a) (f b)
@@ -62,6 +64,12 @@ primitive isoId : (A B : U) (f : A -> B) (g : B -> A)
 	           (s : (y:B) -> Id B (f (g y)) y)
                    (t : (x:A) -> Id A (g (f x)) x) ->
                    Id U A B
+
+transpIsoId : (A B : U) (f : A -> B) (g : B -> A)
+	           (s : (y:B) -> Id B (f (g y)) y)
+                   (t : (x:A) -> Id A (g (f x)) x) ->
+                   (a : A) -> Id B (transport A B (isoId A B f g s t) a) (f a)
+transpIsoId A B f g s t a = refl B (f a)
 
 propId : (A B : U) -> prop A -> prop B ->
          (f : A -> B) (g : B -> A) -> Id U A B

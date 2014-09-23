@@ -224,16 +224,21 @@ app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
 app g@(UnGlue hisos b) w
     | Map.null hisos         = w
     | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
-    | otherwise              = case w of
+    | otherwise             = case w of
        GlueElem us v -> v
+       KanUElem _ v  -> app g v
        _             -> VApp g w
 
 app g@(UnKan hisos b) w
     | Map.null hisos         = w
     | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
-    | otherwise              = case w of
-       KanUElem us v -> v
-       _             -> VApp g w
+    | otherwise              = kanUElem (Map.mapWithKey (\alpha hisoAlpha ->
+                                 app (hisoF hisoAlpha) (w `face` alpha))
+                               hisos) w
+
+ -- case w of
+ --       KanUElem us v -> v
+ --       _             -> VApp g w
 
 -- TODO: recheck at least 2 more times (please decrease the counter if
 -- you checked)
@@ -338,7 +343,7 @@ evalPN (i:_) Refl          [_,a]         = Path i a
 evalPN (i:_) TransU        [_,_,p,t]     = trace "evalPN TransU" $ comp Pos i (p @@ i) Map.empty t
 evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@ i) Map.empty t
 -- figure out how to turn TransURef into a definitional equality (pb for neutral terms)
-evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
+-- evalPN (i:_) TransURef     [a,t]         = Path i $ fill Pos i a Map.empty t
 -- evalPN (x:_) TransUEquivEq [_,b,f,_,_,u] =
 --   Path x $ fill b (Box up x (app f u) [])   -- TODO: Check this!
 evalPN (i:j:_) CSingl [_,_,_,p] = Path i $ VSPair q (Path j (q `connect` (i,j)))
@@ -350,8 +355,9 @@ evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
 -- evalPN (x:_)   Squash     [_,r,s]       = Path x $ VSquash x r s
 -- evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
 -- evalPN (x:_)   EquivEq    [a,b,f,s,t]   = Path x $ VEquivEq x a b f s t
-evalPN (i:_)   HisoEq    [a,b,f,g,s,t]   =
+evalPN (i:_)   IsoId    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
+-- evalPN (i:_)   IsoIdRef [a] = Path i $ GlueLine a (Atom i)
 -- evalPN (x:y:_) EquivEqRef [a,s,t]       =
 --   Path y $ Path x $ VEquivSquare x y a s t
 evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
@@ -456,6 +462,7 @@ comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
+comp Pos i (KanUElem _ a) ts u = comp Pos i a ts u
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i vid@(VId a u v) ts w = trace "comp VId"
   Path j $ comp Pos i (a @@ j) ts' (w @@ j)
@@ -564,13 +571,17 @@ comp Pos i (Kan j VU ejs b) ws wi0 =
 comp Pos i VU ts u = Kan i VU ts u
 
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
+
+comp Pos i v@(Ter (Sum _ nass) env) tss (KanUElem _ w) = comp Pos i v tss w
 comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
   Just as -> VCon n $ comps i as env tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
 
 comp Pos i a ts u = error $
-  "comp _: not implemented for " <+> show a <+> show ts <+> parens (show u)
+  "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
+  "ts = " <+> show ts <+> "\n" <+>
+  "u = " <+> parens (show u)
 
 -- Lemma 2.1
 -- assumes u and u' : A are solutions of us + (i0 -> u(i0)) and u(i0) = u'(i1)
@@ -660,9 +671,9 @@ instance Convertible Val where
 
   conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
 
-  conv k (Kan i a ts u) v' | isRegularConv k i ts = trace "conv Kan regular"
+  conv k (Kan i a ts u) v' | isIndep k i (a,ts) = trace "conv Kan regular"
     conv k u v'
-  conv k v' (Kan i a ts u) | isRegularConv k i ts = trace "conv Kan regular"
+  conv k v' (Kan i a ts u) | isIndep k i (a,ts) = trace "conv Kan regular"
     conv k v' u
   conv k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
      let j    = fresh (v, v')
@@ -760,10 +771,17 @@ instance Convertible Val where
 --   where (np, np') = (nonPrincipal box, nonPrincipal box')
 
 
-isRegularConv :: Int -> Name -> System Val -> Bool
-isRegularConv k i us =
-  and $ Map.elems $ Map.map (\u -> conv k u (u `act` (i,Dir 0))) us
+isIndep :: (Nominal a, Convertible a) => Int -> Name -> a -> Bool
+isIndep k i u = conv k u (u `face` (i ~> 0))
 
+instance Convertible () where conv _ _ _ = True
+
+instance (Convertible a, Convertible b) => Convertible (a, b) where
+  conv k (u, v) (u', v') = conv k u u' && conv k v v'
+
+instance (Convertible a, Convertible b, Convertible c)
+      => Convertible (a, b, c) where
+  conv k (u, v, w) (u', v', w') = and [conv k u u', conv k v v', conv k w w']
 
 instance Convertible Env where
   conv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')

@@ -210,8 +210,8 @@ sndaZNIt2 = aZNIt2.2
 addIt2 : (step4 N) -> (step4 N) -> step4 N
 addIt2 = sndaZNIt2.1
 
-propAddIt2 : (x:step4 N) -> Id (step4 N) (addIt2 zeroIt2 x) x
-propAddIt2 = sndaZNIt2.2
+-- propAddIt2 : (x:step4 N) -> Id (step4 N) (addIt2 zeroIt2 x) x
+-- propAddIt2 = sndaZNIt2.2
 
 inl4 : N -> step4 N
 inl4 x = inl (inl (inl (inl x)))
@@ -219,8 +219,8 @@ inl4 x = inl (inl (inl (inl x)))
 testIt2 : step4 N
 testIt2 = addIt2 (inl4 zero) (inl4 zero)
 
-testIt21 : Id (step4 N) (addIt2 zeroIt2 zeroIt2) zeroIt2
-testIt21 = propAddIt2 zeroIt2
+-- testIt21 : Id (step4 N) (addIt2 zeroIt2 zeroIt2) zeroIt2
+-- testIt21 = propAddIt2 zeroIt2
 
 testIt22 : step4 N
 testIt22 = zeroIt2
