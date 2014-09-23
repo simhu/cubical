@@ -244,9 +244,11 @@ loop phi     = VLoop phi
 circleRec :: Val -> Val -> Val -> Val -> Val
 circleRec _ b _ VBase         = b
 circleRec f b l v@(VLoop phi) = l @@ phi
-circleRec f b l v@(Kan i VCircle us u) = comp Pos i (app f v) us' u'
-  where us' = Map.mapWithKey crec us
-        u'  = crec (i ~> 0) u
+circleRec f b l v@(Kan i VCircle us u) = comp Pos j (app f v) us' u'
+  where j    = fresh (f,b,l,v)
+        usij = us `rename` (i,j)
+        us'  = Map.mapWithKey crec usij
+        u'   = crec (i ~> 0) u
         crec alpha = circleRec (f `face` alpha)
                        (b `face` alpha) (l `face` alpha)
 circleRec f b l (KanUElem _ u) = circleRec f b l u
