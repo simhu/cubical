@@ -75,7 +75,7 @@ instance Nominal Val where
   support (Ter _ e)                     = support e
   support (VPi v1 v2)                   = support [v1,v2]
   support (Kan i a ts u)                = i `delete` support (a,ts,u)
-  support (KanUElem a ts u)             = support (a,ts,u)
+  support (KanUElem ts u)               = support (ts,u)
   support (UnKan ts u)                  = support (ts, u)
 
   support (VId a v0 v1)                 = support [a,v0,v1]
@@ -140,8 +140,8 @@ instance Nominal Val where
                     ar :: Nominal a => a -> a
                     ar = acti . (`rename` (j,k))
 
-         KanUElem a ts u -> kanUElem (acti a) (acti ts) (acti u)
-         UnKan ts u      -> UnKan (acti ts) (acti u)
+         KanUElem ts u -> kanUElem (acti ts) (acti u)
+         UnKan ts u    -> UnKan (acti ts) (acti u)
 
          VId a u v -> VId (acti a) (acti u) (acti v)
          Path j v -> Path k (acti (v `rename` (j,k)))
@@ -189,10 +189,14 @@ glueElem us v | Map.null us         = v
 glueElem us v | eps `Map.member` us = us ! eps
 glueElem us v = GlueElem us v
 
-kanUElem :: Val -> System Val -> Val -> Val
-kanUElem _ us v | Map.null us         = v
-kanUElem _ us v | eps `Map.member` us = us ! eps
-kanUElem a us v = KanUElem a us v
+kanUElem :: System Val -> Val -> Val
+kanUElem us v | Map.null us         = v
+kanUElem us v | eps `Map.member` us = us ! eps
+kanUElem us (KanUElem vs w) = KanUElem ws w
+  where
+    ws' = Map.mapWithKey (\alpha vAlpha -> kanUElem (us `face` alpha) vAlpha) vs
+    ws  = insertsSystem (Map.toList us) ws'
+kanUElem us v = KanUElem us v
 
 vext :: Formula -> Val -> Val -> Val -> Val
 vext (Dir Zero) f _ _ = f
@@ -227,8 +231,8 @@ app g@(UnKan hisos b) w
     | Map.null hisos         = w
     | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
     | otherwise              = case w of
-       KanUElem a us v -> v
-       _               -> VApp g w
+       KanUElem us v -> v
+       _             -> VApp g w
 
 -- TODO: recheck at least 2 more times (please decrease the counter if
 -- you checked)
@@ -511,7 +515,7 @@ comp Pos i g@(Glue hisos b) ws wi0 =
 
     in glueElem usi1 vi1''
 
-comp Pos i kvu@(Kan j VU ejs b) ws wi0 =
+comp Pos i (Kan j VU ejs b) ws wi0 =
     let es    = Map.map (Path j . (`sym` j)) ejs
         hisos = Map.map eqHiso es
         unkan = UnKan hisos b
@@ -554,7 +558,7 @@ comp Pos i kvu@(Kan j VU ejs b) ws wi0 =
                     else fst (uls'' ! gamma))
                   hisosI1
 
-    in kanUElem kvu usi1 vi1''
+    in kanUElem usi1 vi1''
 
 comp Pos i VU ts u = Kan i VU ts u
 
@@ -666,16 +670,12 @@ instance Convertible Val where
 
   conv k (Glue hisos v) (Glue hisos' v') = conv k hisos hisos' && conv k v v'
 
-  conv k (KanUElem (Kan i VU as _) us u) v'   | isRegularConv k i as  =
-    conv k u v'
-  conv k v (KanUElem (Kan i VU as' _) us' u') | isRegularConv k i as' =
-    conv k v u'
-  conv k v@(KanUElem _ us u) v'@(KanUElem _ us' u') =
-    conv k us us' && conv k u u'
+  conv k (KanUElem us u) v'@(KanUElem us' u') =
+    conv k u u' && conv k us (border v' us)
+  conv k (KanUElem us u) v'  = conv k u v'
+  conv k v (KanUElem us' u') = conv k v u'
 
   conv k (GlueElem us u) (GlueElem us' u') = conv k us us' && conv k u u'
-  -- conv k v v'@(GlueElem us' u') = conv k (GlueElem (border v us') v) v'
-  -- conv k v@(GlueElem us u) v' =  conv k v (GlueElem (border v' us) v')
 
   conv k (UnKan hisos v) (UnKan hisos' v') = conv k hisos hisos' && conv k v v'
   conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
