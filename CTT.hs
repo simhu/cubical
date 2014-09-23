@@ -505,7 +505,7 @@ showVal VU                       = "U"
 showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
-  "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal a
+  "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a
 showVal (KanUElem ts u)          = "KanUElem" <+> show ts <+> showVal u
 showVal (UnKan ts u)             = "UnKan" <+> show ts <+> showVal u
 
@@ -536,7 +536,7 @@ showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 showVal VCircle                  = "S1"
 showVal VBase                    = "base"
-showVal (VLoop x)                = "loop" <+> show x
+showVal (VLoop x)                = "loop" <+> parens (show x)
 showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
 
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
@@ -569,6 +569,6 @@ showVals = hcat . map showVal1
 
 showVal1 :: Val -> String
 showVal1 VU          = "U"
--- showVal1 (VCon c []) = c
+showVal1 (VCon c []) = c
 -- showVal1 u@(VVar{})  = showVal u
 showVal1 u           = parens $ showVal u
