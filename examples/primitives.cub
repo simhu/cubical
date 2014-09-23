@@ -71,6 +71,9 @@ transpIsoId : (A B : U) (f : A -> B) (g : B -> A)
                    (a : A) -> Id B (transport A B (isoId A B f g s t) a) (f a)
 transpIsoId A B f g s t a = refl B (f a)
 
+primitive isoIdRef : (A : U) ->
+                   Id (Id U A A) (refl U A) (isoId A A (id A) (id A) (refl A) (refl A))
+
 propId : (A B : U) -> prop A -> prop B ->
          (f : A -> B) (g : B -> A) -> Id U A B
 propId A B pA pB f g = isoId A B f g sfg rfg
@@ -80,3 +83,15 @@ propId A B pA pB f g = isoId A B f g sfg rfg
 
   rfg : (a:A) -> Id A (g (f a)) a
   rfg a = pA (g (f a)) a
+
+
+
+-- The circle.
+primitive S1 : U
+
+primitive base : S1
+
+primitive loop : Id S1 base base
+
+primitive S1rec : (F : S1 -> U) (b : F base)
+                (l : IdS S1 F base base loop b b) (x : S1) -> F x

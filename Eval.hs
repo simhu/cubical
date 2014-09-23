@@ -102,6 +102,11 @@ instance Nominal Val where
 
   support (VExt phi f g p)              = support (phi,f,g,p)
 
+  support VCircle                       = []
+  support VBase                         = []
+  support (VLoop phi)                   = support phi
+  support (VCircleRec f b l s)          = support [f,b,l,s]
+
   -- support (VInh v)                      = support v
   -- support (VInc v)                      = support v
   -- support (VSquash x v0 v1)             = support (x, [v0,v1])
@@ -118,10 +123,6 @@ instance Nominal Val where
   -- support (VComp box@(Box _ n _ _))     = delete n $ support box
   -- support (VFill x box)                 = delete x $ support box
   -- support (VInhRec b p h a)             = support [b,p,h,a]
-  -- support VCircle                       = []
-  -- support VBase                         = []
-  -- support (VLoop n)                     = [n]
-  -- support (VCircleRec f b l s)          = support [f,b,l,s]
   -- support VI                            = []
   -- support VI0                           = []
   -- support VI1                           = []
@@ -165,10 +166,16 @@ instance Nominal Val where
          UnGlue ts u       -> UnGlue (acti ts) (acti u)
          GlueElem ts u     -> glueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
-         GlueLine ts u phi -> glueLine (acti ts) (acti u) (acti phi)
-         GlueLineElem ts u phi -> glueLineElem (acti ts) (acti u) (acti phi)
+         GlueLine ts u psi -> glueLine (acti ts) (acti u) (acti psi)
+         GlueLineElem ts u psi -> glueLineElem (acti ts) (acti u) (acti psi)
 
          VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
+
+         VCircle    -> VCircle
+         VBase      -> VBase
+         VLoop psi  -> loop (acti psi)
+         VCircleRec f b l s -> circleRec (acti f) (acti b) (acti l) (acti s)
+
 
 instance Nominal Hiso where
   support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
@@ -194,10 +201,27 @@ glueElem us v | eps `Map.member` us = us ! eps
 glueElem us v = GlueElem us v
 
 glueLine :: System () -> Val -> Formula -> Val
-glueLine = undefined
+glueLine ts b (Dir Zero) = b
+glueLine ts b (Dir One)  = glue hisos b
+  where hisos = Map.mapWithKey (\alpha _ -> idHiso (b `face` alpha)) ts
+glueLine ts b phi = GlueLine ts b phi
+
+idHiso :: Val -> Hiso
+idHiso a = Hiso a a idV idV refl refl
+  where idV  = Ter (Lam (noLoc "x") (Var "x")) Empty
+        refl = Ter (Lam (noLoc "x") (App (App (PN Refl) (Var "y")) (Var "x")))
+                 (Pair Empty ((noLoc "y"),a))
 
 glueLineElem :: System () -> Val -> Formula -> Val
-glueLineElem = undefined
+glueLineElem ts v (Dir Zero) = v
+glueLineElem ts v (Dir One)  = glueElem (border v ts) v
+glueLineElem ts v phi        = GlueLineElem ts  v phi
+
+unGlueLineElem :: Formula -> Val -> Val
+unGlueLineElem (Dir Zero) v                    = v
+unGlueLineElem (Dir One)  (GlueElem _ v)       = v
+unGlueLineElem phi        (GlueLineElem _ v _) = v
+unGlueLineElem phi        v = error $ "unGlueLineElem: " <+> show phi <+> show v
 
 kanUElem :: System Val -> Val -> Val
 kanUElem us v | Map.null us         = v
@@ -212,6 +236,20 @@ vext :: Formula -> Val -> Val -> Val -> Val
 vext (Dir Zero) f _ _ = f
 vext (Dir One)  _ g _ = g
 vext phi f g p        = VExt phi f g p
+
+loop :: Formula -> Val
+loop (Dir _) = VBase
+loop phi     = VLoop phi
+
+circleRec :: Val -> Val -> Val -> Val -> Val
+circleRec _ b _ VBase         = b
+circleRec f b l v@(VLoop phi) = l @@ phi
+circleRec f b l v@(Kan i VCircle us u) = comp Pos i (app f v) us' u'
+  where us' = Map.mapWithKey (\alpha uAlpha -> crec alpha uAlpha) us
+        u'  = crec (i ~> 0) u
+        crec alpha = circleRec (f `face` alpha)
+                       (b `face` alpha) (l `face` alpha)
+circleRec f b l v = VCircleRec f b l v -- v should be neutral
 
 
 -- Application
@@ -376,10 +414,10 @@ evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
 evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@ i) (q @@ i)
 evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
   Path i $ app (app f (p @@ i)) (q @@ i)
--- evalPN _       Circle     []               = VCircle
--- evalPN _       Base       []               = VBase
--- evalPN (x:_)   Loop       []               = Path x $ VLoop x
--- evalPN _       CircleRec  [f,b,l,s]        = circlerec f b l s
+evalPN _       Circle     []               = VCircle
+evalPN _       Base       []               = VBase
+evalPN (i:_)   Loop       []               = Path i $ VLoop (Atom i)
+evalPN _       CircleRec  [f,b,l,s]        = circleRec f b l s
 -- evalPN _       I          []               = VI
 -- evalPN _       I0         []               = VI0
 -- evalPN _       I1         []               = VI1
@@ -581,6 +619,16 @@ comp Pos i (Kan j VU ejs b) ws wi0 =
 
 comp Pos i VU ts u = Kan i VU ts u
 
+comp Pos i (GlueLine shape b phi) us u = glueLineElem shapei1 v phii1
+  where shapei1 = shape `face` (i ~> 1)
+        phii1   = phi `face` (i ~> 1)
+        v = comp Pos i b ws w
+        ws = Map.mapWithKey (\alpha uAlpha ->
+                              unGlueLineElem (phi `face` alpha) uAlpha) us
+        w  = unGlueLineElem (phi `face` (i ~> 0)) u
+
+comp Pos i VCircle ts u = Kan i VCircle ts u
+
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u = Kan i a ts u
 
 comp Pos i v@(Ter (Sum _ nass) env) tss (KanUElem _ w) = comp Pos i v tss w
@@ -705,6 +753,11 @@ instance Convertible Val where
 
   conv k (GlueElem us u) (GlueElem us' u') = conv k us us' && conv k u u'
 
+  conv k (GlueLine ts u phi) (GlueLine ts' u' phi') =
+    conv k (ts,u,phi) (ts',u',phi')
+  conv k (GlueLineElem ts u phi) (GlueLineElem ts' u' phi') =
+    conv k (ts,u,phi) (ts',u',phi')
+
   conv k (UnKan hisos v) (UnKan hisos' v') = conv k hisos hisos' && conv k v v'
   conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
 
@@ -758,13 +811,13 @@ instance Convertible Val where
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
+  conv k VCircle        VCircle          = True
+  conv k VBase          VBase            = True
+  conv k (VLoop phi)    (VLoop phi')     = conv k phi phi'
+  conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
+    and [conv k f f', conv k b b', conv k l l', conv k v v']
   -- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
   --   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
-  -- conv k VCircle        VCircle          = True
-  -- conv k VBase          VBase            = True
-  -- conv k (VLoop x)      (VLoop y)        = x == y
-  -- conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
-  --   and [conv k f f', conv k b b', conv k l l', conv k v v']
   -- conv k VI             VI               = True
   -- conv k VI0            VI0              = True
   -- conv k VI1            VI1              = True

@@ -236,7 +236,8 @@ primHandle =
    ("inc"           , 2,  Inc          ),
    ("squash"        , 3,  Squash       ),
    ("inhrec"        , 5,  InhRec       ),
-   ("isoId"         , 6,  IsoId      ),
+   ("isoId"         , 6,  IsoId        ),
+   ("isoIdRef"      , 1,  IsoIdRef     ),
    ("transport"     , 4,  TransU       ),
    ("transpInv"     , 4,  TransInvU    ),
    -- ("transpIsoId"   , 7,  TransUIsoId),
@@ -338,9 +339,9 @@ data Val = VU
          -- | VFill Name (Box Val)
 
          -- circle
-         -- | VCircle
-         -- | VBase
-         -- | VLoop Name -- has type VCircle and connects base along the name
+         | VCircle
+         | VBase
+         | VLoop Formula
 
          -- interval
          -- | VI
@@ -355,8 +356,8 @@ data Val = VU
          | VFst Val
          | VSnd Val
          | VSplit Val Val          -- the second Val must be neutral
+         | VCircleRec Val Val Val Val  -- the last Val must be neutral
          -- | VInhRec Val Val Val Val     -- the last Val must be neutral
-         -- | VCircleRec Val Val Val Val  -- the last Val must be neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
          -- | VFillN Val (Box Val)
          -- | VComN Val (Box Val)
@@ -533,6 +534,11 @@ showVal (GlueLine ts u phi)     = "GlueLine" <+> show ts <+> show u <+> show phi
 showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show phi
 
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
+showVal VCircle                  = "S1"
+showVal VBase                    = "base"
+showVal (VLoop x)                = "loop" <+> show x
+showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
+
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (VInh u)                 = "inh" <+> showVal1 u
 -- showVal (VInc u)                 = "inc" <+> showVal1 u
@@ -549,10 +555,6 @@ showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 -- showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 -- showVal (VEquivSquare x y a s t) =
 --   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
--- showVal VCircle                  = "S1"
--- showVal VBase                    = "base"
--- showVal (VLoop x)                = "loop" <+> show x
--- showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
 -- showVal VI                       = "I"
 -- showVal VI0                      = "I0"
 -- showVal VI1                      = "I1"

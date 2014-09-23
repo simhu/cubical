@@ -11,9 +11,9 @@ lemTranspL A a l = rem2
   l1 : Id A a a
   l1 = comp A a a a l (refl A a)
   rem : Id (Id A a a) l1 l
-  rem = compIdr A a a l
+  rem = refl (Id A a a) l -- compIdr A a a l
   rem1 : Id (Id A a a) l1 (compInv A a a a (refl A a) l1) 
-  rem1 = compInvIdl' A a a l1
+  rem1 = refl (Id A a a) l --  compInvIdl' A a a l1
   rem2 : Id (Id A a a) l (compInv A a a a (refl A a) l1) 
   rem2 = compInv (Id A a a) l1 l (compInv A a a a (refl A a) l1) rem rem1
 
@@ -42,9 +42,15 @@ path = mapOnPath S1 S1 lp1 base base loop
 test : Z
 test = winding path
 
+path3 : Id S1 base base
+path3 = mapOnPath S1 S1 lp1 base base (compS1 loop (compS1 loop loop))
+
+test3 : Z
+test3 = winding path3
+
+
 path2 : Id S1 base base
-path2 = mapOnPath S1 S1 lp1 base base (compS1 loop (compS1 loop loop))
+path2 = mapOnPath S1 S1 lp1 base base (compS1 loop loop)
 
 test2 : Z
 test2 = winding path2
-
