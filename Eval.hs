@@ -362,12 +362,13 @@ circlerec f b l v@(VLoop x) =
       p11   = px1 `face` (x,up)
       p0y   = pxy `face` (x,down)
   in com a (Box down y px1 [((x,down),p0y),((x,up),p11)])
-circlerec f b l v@(Kan ktype VCircle box) =
-  let crec side u = let fc w = w `face` side
-                    in circlerec (fc f) (fc b) (fc l) u
-      fv   = app f v
-      box' = modBox crec box
-  in kan ktype fv box'
+circlerec f b l v@(Kan ktype VCircle box) = kan ktype ffillv box'
+  where y = fresh [f,b,l,v]
+        boxxy = swap box (pname box) y
+        crec side = let fc w = w `face` side
+                    in circlerec (fc f) (fc b) (fc l)
+        ffillv = app f (Kan Fill VCircle boxxy)
+        box'   = modBox crec boxxy
 circlerec f b l v = VCircleRec f b l v -- v should be neutral
 
 -- Assumes y is fresh and x fresh for a; constructs a connection
