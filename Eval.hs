@@ -138,7 +138,7 @@ instance Nominal Val where
          VU      -> VU
          Ter t e -> Ter t (acti e)
          VPi a f -> VPi (acti a) (acti f)
-         Kan j a ts u -> comp Pos k (ar a) (ar ts) (ar u)
+         Kan j a ts v -> comp Pos k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
                     ar = acti . (`rename` (j,k))
@@ -244,11 +244,12 @@ loop phi     = VLoop phi
 circleRec :: Val -> Val -> Val -> Val -> Val
 circleRec _ b _ VBase         = b
 circleRec f b l v@(VLoop phi) = l @@ phi
-circleRec f b l v@(Kan i VCircle us u) = comp Pos j (app f v) us' u'
+circleRec f b l v@(Kan i VCircle us u) = comp Pos j ffillu us' u'
   where j    = fresh (f,b,l,v)
         usij = us `rename` (i,j)
         us'  = Map.mapWithKey crec usij
         u'   = crec (i ~> 0) u
+        ffillu     = app f (fill Pos j VCircle usij u)
         crec alpha = circleRec (f `face` alpha)
                        (b `face` alpha) (l `face` alpha)
 circleRec f b l (KanUElem _ u) = circleRec f b l u
@@ -428,27 +429,9 @@ evalPN _       CircleRec  [f,b,l,s]        = circleRec f b l s
 -- evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
--- appS1 :: Val -> Val -> Name -> Eval Val
--- appS1 f p x | x `elem` [0,1] = appFormula p x
--- appS1 f p x = do
---   let y = fresh (p,(f,x))
---   q <- appFormula p y
---   a <- appFormula p 0
---   b <- appFormula p 1
---   newBox <- Box down y b <$>
---             sequenceSnd  [ ((x,down),q `face` (x,down))
---                          , ((x,up),b `face` (x,up))]
---   fb <- app f VBase
---   fl <- app f (VLoop y)
---   tu <- fillM (return VU) (Box down y fb <$>
---                            sequenceSnd [ ((x,down),fl `face` (x,down))
---                                        , ((x,up),fb `face` (x,up))])
---   com tu newBox
-
 -- Compute the face of an environment
 faceEnv :: Env -> Face -> Env
 faceEnv e alpha = mapEnv (`face` alpha) e
-
 
 -- isNeutralFill :: Val -> Box Val -> Bool
 -- isNeutralFill v box | isNeutral v               = True
@@ -494,8 +477,8 @@ isNeutral (VFst v)          = isNeutral v
 isNeutral (VSnd v)          = isNeutral v
 isNeutral (VSplit _ v)      = isNeutral v
 isNeutral (Kan _ a ts u)    = isNeutral a || isNeutralSystem ts || isNeutral u
+isNeutral (VCircleRec _ _ _ v) = isNeutral v
 -- isNeutral (VInhRec _ _ _ v)    = isNeutral v
--- isNeutral (VCircleRec _ _ _ v) = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
 -- isNeutral (VFillN _ _)         = True
 -- isNeutral (VComN _ _)          = True
