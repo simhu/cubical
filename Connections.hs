@@ -348,9 +348,10 @@ instance Nominal a => Nominal (System a) where
         --   and delta in phi^-1 d
         --   and gamma = alpha - i
         Just d -> foldr (\delta s'' ->
-                             insertSystem (meet delta (Map.delete i alpha))
-                                          (face u (Map.delete i delta)) s'')
-                  s' (invFormula phi d)
+          case meetMaybe delta (Map.delete i alpha) of
+            Just beta -> insertSystem beta (face u (Map.delete i delta)) s''
+            Nothing    -> s'')
+                   s' (invFormula phi d)
         -- t'_alpha = t_alpha (i = phi alpha)
         Nothing -> insertSystem alpha (act u (i,face phi alpha)) s'
 
