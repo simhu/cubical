@@ -125,7 +125,7 @@ eps = Map.empty
 -- | Formulas
 data Formula = Dir Dir
              | Atom Name
-             | Not Formula
+             | NegAtom Name
              | Formula :/\: Formula
              | Formula :\/: Formula
   deriving (Eq,Show)
@@ -134,7 +134,7 @@ arbFormula :: [Name] -> Int -> Gen Formula
 arbFormula names s =
       frequency [ (1, Dir <$> arbitrary)
                 , (1, Atom <$> elements names)
-                , (s, notFormula <$> arbFormula names s')
+                , (s, negFormula <$> arbFormula names s')
                 , (s, do op <- elements [andFormula,orFormula]
                          op <$> arbFormula names s' <*> arbFormula names s')
                 ]
@@ -161,13 +161,16 @@ instance ToFormula Dir where
 -- instance Show a => Show (Formula a) where
 --   show Zero = "0"
 --   show One  = "1"
---   show (Not a)  = "~" ++ show a
+--   show (NegAtom a)  = "~" ++ show a
 --   show (Atom a) = show a
 --   show (a :/\: b) = show a ++ " /\ " ++ show b
 
-notFormula :: Formula -> Formula
-notFormula (Dir b) = Dir (- b)
-notFormula phi     = Not phi
+negFormula :: Formula -> Formula
+negFormula (Dir b)  = Dir (- b)
+negFormula (Atom i) = NegAtom i
+negFormula (NegAtom i)  = Atom i
+negFormula (phi :/\: psi) = orFormula (negFormula phi) (negFormula psi)
+negFormula (phi :\/: psi) = andFormula (negFormula phi) (negFormula psi)
 
 andFormula :: Formula -> Formula -> Formula
 andFormula (Dir Zero) _  = Dir Zero
@@ -191,7 +194,7 @@ evalFormula phi alpha =
 -- evalFormula (Atom i) alpha = case Map.lookup i alpha of
 --                                Just b -> Dir b
 --                                Nothing -> Atom i
--- evalFormula (Not phi) alpha = notFormula (evalFormula phi alpha)
+-- evalFormula (Not phi) alpha = negFormula (evalFormula phi alpha)
 -- evalFormula (phi :/\: psi) alpha =
 --   andFormula (evalFormula phi alpha) (evalFormula psi alpha)
 -- evalFormula (phi :\/: psi) alpha =
@@ -202,11 +205,15 @@ evalFormula phi alpha =
 invFormula :: Formula -> Dir -> [Face]
 invFormula (Dir b') b          = [ eps | b == b' ]
 invFormula (Atom i) b          = [ Map.singleton i b ]
-invFormula (Not phi) b         = invFormula phi (- b)
+invFormula (NegAtom i) b         = [ Map.singleton i (- b) ]
 invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
 invFormula (phi :/\: psi) One  =
   meets (invFormula phi 1) (invFormula psi 1)
-invFormula (phi :\/: psi) b    = invFormula (Not phi :/\: Not psi) (- b)
+invFormula (phi :\/: psi) b    = invFormula (negFormula phi :/\: negFormula psi) (- b)
+
+-- primeImplicants :: Formula -> Dir -> System ()
+-- primeImplicants phi Zero = primeImplicants (NegAtom phi) One
+-- primeImplicants phi One  = undefined
 
 propInvFormulaIncomp :: Formula -> Dir -> Bool
 propInvFormulaIncomp phi b = incomparables (invFormula phi b)
@@ -284,14 +291,15 @@ instance Nominal a => Nominal (Maybe a)  where
 instance Nominal Formula where
   support (Dir _) = []
   support (Atom i) = [i]
-  support (Not phi)  = support phi
+  support (NegAtom i)  = [i]
   support (phi :/\: psi) = support phi `union` support psi
   support (phi :\/: psi) = support phi `union` support psi
 
   act (Dir b) (i,phi)  = Dir b
   act (Atom j) (i,phi) | i == j    = phi
                        | otherwise = Atom j
-  act (Not psi) (i,phi)        = notFormula (act psi (i,phi))
+  act (NegAtom j) (i,phi) | i == j    = negFormula phi
+                          | otherwise = NegAtom j
   act (psi1 :/\: psi2) (i,phi) = act psi1 (i,phi) `andFormula` act psi2 (i,phi)
   act (psi1 :\/: psi2) (i,phi) = act psi1 (i,phi) `orFormula` act psi2 (i,phi)
 
@@ -373,7 +381,7 @@ instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
         return $ Map.fromList [(face,()) | face <- invFormula phi 0]
 
 sym :: Nominal a => a -> Name -> a
-sym a i = a `act` (i, Not $ Atom i)
+sym a i = a `act` (i, NegAtom i)
 
 rename :: Nominal a => a -> (Name, Name) -> a
 rename a (i, j) = a `act` (i, Atom j)
