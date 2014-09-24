@@ -134,16 +134,16 @@ arbFormula :: [Name] -> Int -> Gen Formula
 arbFormula names s =
       frequency [ (1, Dir <$> arbitrary)
                 , (1, Atom <$> elements names)
-                , (s, negFormula <$> arbFormula names s')
+                , (1, NegAtom <$> elements names)
                 , (s, do op <- elements [andFormula,orFormula]
                          op <$> arbFormula names s' <*> arbFormula names s')
                 ]
-      where s' = s `div` 2
+      where s' = s `div` 3
 
 instance Arbitrary Formula where
   arbitrary = do
       n <- arbitrary :: Gen Integer
-      sized $ arbFormula (map Name [0..n])
+      sized $ arbFormula (map Name [0..(abs n)])
 
 class ToFormula a where
   toFormula :: a -> Formula
@@ -322,6 +322,9 @@ insertsSystem faces us =
 
 mkSystem :: [(Face, a)] -> System a
 mkSystem = flip insertsSystem Map.empty
+
+unionSystem :: System a  -> System a  -> System a
+unionSystem us vs = insertsSystem (Map.assocs us) vs
 
 -- could something like that work??
 -- transposeSystem :: System [a] -> [System a]
