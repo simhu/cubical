@@ -288,10 +288,6 @@ app g@(UnKan hisos b) w
                                  app (hisoF hisoAlpha) (w `face` alpha))
                                hisos) w
 
- -- case w of
- --       KanUElem us v -> v
- --       _             -> VApp g w
-
 -- TODO: recheck at least 2 more times (please decrease the counter if
 -- you checked)
 app (HisoProj hisoProj e) u = case hisoProj of
@@ -339,14 +335,6 @@ apps = foldl app
 (Path i u) @@ phi = u `act` (i, toFormula phi)
 v @@ phi          = VAppFormula v (toFormula phi)
 
--- where j = fresh (u, Atom i, phi)
--- | y `elem` [0,1] = u `face` (x,y)
--- appFormula p y          | y `elem` [0,1] = VAppFormula p y -- p has to be neutral
--- appFormula (Path x u) y | x == y             = u
---                      | y `elem` support u = error ("appFormula " ++ "\nu = " ++
---                                                    show u ++ "\ny = " ++ show y)
---                      | otherwise          = swap u x y
--- appFormula v y          = VAppFormula v y
 
 -- Grad Lemma, takes a iso an L-system ts a value v s.t. sigma us = border v
 -- outputs u s.t. border u = us and an L-path between v and sigma u
@@ -432,33 +420,6 @@ evalPN _       u          _                = error ("evalPN " ++ show u)
 -- Compute the face of an environment
 faceEnv :: Env -> Face -> Env
 faceEnv e alpha = mapEnv (`face` alpha) e
-
--- isNeutralFill :: Val -> Box Val -> Bool
--- isNeutralFill v box | isNeutral v               = True
--- isNeutralFill v@(Ter (PN (Undef _)) _) box      = True
--- isNeutralFill (Ter (Sum _ _) _) (Box _ _ v nvs) =
---  isNeutral v || or [ isNeutral u | (_,u) <- nvs ]
--- isNeutralFill v@(Kan Com VU tbox') box@(Box d x _ _) = do
---   let nK  = nonPrincipal tbox'
---       nJ  = nonPrincipal box
---       nL  = nJ \\ nK
---       aDs = if x `elem` nK then allDirs nL else (x,mirror d):allDirs nL
---   or [ isNeutral (lookBox yc box) | yc <- aDs ]
--- isNeutralFill v@(Kan Fill VU tbox) box =
---   or [ isNeutral (lookBox yc box) | yc <- defBox box \\ defBox tbox ]
--- isNeutralFill v@(VEquivSquare y z _ _ _) box@(Box d x _ _) = do
---   let nJ  = nonPrincipal box
---       nL  = nJ \\ [y,z]
---       aDs = if x `elem` [y,z] then allDirs nL else (x,mirror d) : allDirs nL
---   or [ isNeutral (lookBox yc box) | yc <- aDs ]
--- isNeutralFill v@(VEquivEq z a b f s t) box@(Box d x vx nxs)
---   | d == down && z == x = isNeutral $ app s vx
---   | otherwise           = -- TODO: check
---     let nJ  = nonPrincipal box
---         nL  = nJ \\ [z]
---         aDs = if x == z then allDirs nL else (x,mirror d) : allDirs nL
---     in or [ isNeutral (lookBox yc box) | yc <- aDs ]
--- isNeutralFill v box = False
 
 -- TODO: Simplify?
 comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
@@ -685,15 +646,15 @@ instance Convertible Val where
     let v = mkVar k $ support (u',e)
     in conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
   conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
-    (p == p') && conv k e e'
+    p == p' && conv k e e'
   conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
-    (p == p') && conv k e e'
+    p == p' && conv k e e'
   conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
-    (p == p') && conv k e e'
+    p == p' && conv k e e'
   conv k (VPi u v) (VPi u' v') =
     let w = mkVar k $ support (u,v,u',v')
     in conv k u u' && conv (k+1) (app v w) (app v' w)
-  conv k (VId a u v) (VId a' u' v') = and [conv k a a', conv k u u', conv k v v']
+  conv k (VId a u v) (VId a' u' v') = conv k (a,u,v) (a',u',v')
   conv k (Path i u) (Path i' u')    = trace "conv Path Path" $
                                       conv k (u `rename` (i,j)) (u' `rename` (i',j))
     where j = fresh (u,u')
@@ -708,13 +669,13 @@ instance Convertible Val where
     where w = mkVar k $ support (u,v,u',v')
   conv k (VFst u) (VFst u')              = conv k u u'
   conv k (VSnd u) (VSnd u')              = conv k u u'
-  conv k (VSPair u v)   (VSPair u' v')   = conv k u u' && conv k v v'
+  conv k (VSPair u v)   (VSPair u' v')   = conv k (u,v) (u',v')
   conv k (VSPair u v)   w                =
     conv k u (fstSVal w) && conv k v (sndSVal w)
   conv k w              (VSPair u v)     =
     conv k (fstSVal w) u && conv k (sndSVal w) v
 
-  conv k (VCon c us) (VCon c' us') = (c == c') && and (zipWith (conv k) us us')
+  conv k (VCon c us) (VCon c' us') = c == c' && conv k us us'
 
   conv k (Kan i a ts u) v' | isIndep k i (a,ts) = trace "conv Kan regular"
     conv k u v'
@@ -751,7 +712,7 @@ instance Convertible Val where
        where w = mkVar k $ support (u,u')
 
   conv k (VExt phi f g p) (VExt phi' f' g' p') =
-    and [conv k phi phi', conv k f f', conv k g g', conv k p p']
+    conv k (phi,f,g,p) (phi',f',g',p')
 
 -- conv k (VExt x b f g p) (VExt x' b' f' g' p') =
 --   andM [x <==> x', conv k b b', conv k f f', conv k g g', conv k p p']
@@ -812,14 +773,6 @@ instance Convertible Val where
   --   and [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
   conv k _              _                = False
 
--- convBox :: Int -> Box Val -> Box Val -> Bool
--- convBox k box@(Box d pn _ ss) box'@(Box d' pn' _ ss') =
---   if (d == d') && (pn == pn') && (sort np == sort np')
---      then and [ conv k (lookBox s box) (lookBox s box')
---               | s <- defBox box ]
---      else False
---   where (np, np') = (nonPrincipal box, nonPrincipal box')
-
 
 isIndep :: (Nominal a, Convertible a) => Int -> Name -> a -> Bool
 isIndep k i u = conv k u (u `face` (i ~> 0))
@@ -833,8 +786,12 @@ instance (Convertible a, Convertible b, Convertible c)
       => Convertible (a, b, c) where
   conv k (u, v, w) (u', v', w') = and [conv k u u', conv k v v', conv k w w']
 
+instance (Convertible a,Convertible b,Convertible c,Convertible d)
+      => Convertible (a,b,c,d) where
+  conv k (u,v,w,x) (u',v',w',x') = conv k (u,v,(w,x)) (u',v',(w',x'))
+
 instance Convertible a => Convertible [a] where
-  conv k us us' = and [conv k u u' | (u, u') <- zip us us']
+  conv k us us' = and [conv k u u' | (u,u') <- zip us us']
 
 instance Convertible Env where
   conv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
@@ -845,7 +802,7 @@ instance (Ord k, Convertible a) => Convertible (Map k a) where
 
 instance Convertible Hiso where
   conv k (Hiso a b f g s t) (Hiso a' b' f' g' s' t') =
-    and [conv k x y | (x, y) <- zip [a, b, f, g, s, t] [a', b', f', g', s', t']]
+    conv k [a,b,f,g,s,t] [a',b',f',g',s',t']
 
 instance Convertible Formula where
   conv _ phi psi = sort (invFormula phi 1) == sort (invFormula psi 1)
