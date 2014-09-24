@@ -91,8 +91,12 @@ meetAssoc xs ys zs = compatibles [xs,ys,zs] ==>
 meetId :: Face -> Bool
 meetId xs = xs `meet` xs == xs
 
-meets :: [Face] -> [Face] -> [Face]
-meets xs ys = nub [ meet x y | x <- xs, y <- ys, compatible x y ]
+-- meets :: [Face] -> [Face] -> [Face]
+-- meets xs ys = nub [ meet x y | x <- xs, y <- ys, compatible x y ]
+
+meets :: System () -> System () -> System ()
+meets xs ys = mkSystem [ (meet x y,()) 
+                       | x <- Map.keys xs, y <- Map.keys ys, compatible x y ]
 
 -- instance Ord Face where
 
@@ -202,28 +206,63 @@ evalFormula phi alpha =
 
 -- find a better name?
 -- phi b = max {alpha : Face | phi alpha = b}
-invFormula :: Formula -> Dir -> [Face]
-invFormula (Dir b') b          = [ eps | b == b' ]
-invFormula (Atom i) b          = [ Map.singleton i b ]
-invFormula (NegAtom i) b         = [ Map.singleton i (- b) ]
-invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
-invFormula (phi :/\: psi) One  =
-  meets (invFormula phi 1) (invFormula psi 1)
-invFormula (phi :\/: psi) b    = invFormula (negFormula phi :/\: negFormula psi) (- b)
+-- invFormula :: Formula -> Dir -> [Face]
+-- invFormula (Dir b') b          = [ eps | b == b' ]
+-- invFormula (Atom i) b          = [ Map.singleton i b ]
+-- invFormula (NegAtom i) b         = [ Map.singleton i (- b) ]
+-- invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
+-- invFormula (phi :/\: psi) One  =
+--   meets (invFormula phi 1) (invFormula psi 1)
+-- invFormula (phi :\/: psi) b    = invFormula (negFormula phi :/\: negFormula psi) (- b)
 
--- primeImplicants :: Formula -> Dir -> System ()
--- primeImplicants phi Zero = primeImplicants (NegAtom phi) One
--- primeImplicants phi One  = undefined
+resolveFaces :: Face -> Face -> Maybe Face
+resolveFaces alpha beta =
+  let inter = Map.filter (== True) $ Map.intersectionWith
+              (\ai bi -> ai /= bi) alpha beta
+  in case Map.keys inter of
+       [i] -> Map.delete i alpha `meetMaybe` Map.delete i beta
+       _   -> Nothing
+
+-- assumes the first system is fully resolved
+-- addAndResolve :: System () -> Face -> System ()
+-- addAndResolve us alpha = 
+--   let us' = Map.foldWithKey
+--             (\beta _ vs -> case resolveFaces alpha beta of
+--                              Just gamma -> addAndResolve vs gamma
+--                              Nothing    -> vs) us us
+--   in insertSystem alpha () us'
+
+resolveSystem1 :: System () -> System ()
+resolveSystem1 us = 
+    let keys   = Map.keys us
+        gammas = [resolveFaces alpha beta | alpha <- keys, beta <- keys]
+    in mkSystem [(gamma,()) | Just gamma <- gammas]
+
+-- we hope that terminates by a theorem of Blake
+resolveSystem :: System () -> System ()
+resolveSystem us = let vs = unionSystem (resolveSystem1 us) us
+                   in if us == vs then vs else resolveSystem vs
+
+primeImplicants :: Formula -> Dir -> System ()
+primeImplicants phi Zero = primeImplicants (negFormula phi) One
+primeImplicants (Dir b) One | b == One = mkSystem [(eps, ())]
+                            | otherwise = mkSystem []
+primeImplicants (Atom i) One    = mkSystem [(i ~> 1, ())]
+primeImplicants (NegAtom i) One = mkSystem [(i ~> 0, ())]
+primeImplicants (phi :\/: psi) One =
+  resolveSystem (primeImplicants phi One `unionSystem` primeImplicants psi One)
+primeImplicants (phi :/\: psi) One =
+  resolveSystem (primeImplicants phi One `meets` primeImplicants psi One)
 
 propInvFormulaIncomp :: Formula -> Dir -> Bool
-propInvFormulaIncomp phi b = incomparables (invFormula phi b)
+propInvFormulaIncomp phi b = incomparables (Map.keys (primeImplicants phi b))
 
-prop_invFormula :: Formula -> Dir -> Bool
-prop_invFormula phi b =
-  all (\alpha -> phi `evalFormula` alpha == Dir b) (invFormula phi b)
+prop_primeImplicants :: Formula -> Dir -> Bool
+prop_primeImplicants phi b =
+  all (\alpha -> phi `face` alpha == Dir b) (Map.keys $ primeImplicants phi b)
 
-testInvFormula :: [Face]
-testInvFormula = invFormula (Atom (Name 0) :/\: Atom (Name 1)) 1
+testInvFormula :: System ()
+testInvFormula = primeImplicants (Atom (Name 0) :/\: Atom (Name 1)) 1
 
 -- | Nominal
 gensym :: [Name] -> Name
@@ -358,11 +397,11 @@ instance Nominal a => Nominal (System a) where
         -- where beta = delta gamma
         --   and delta in phi^-1 d
         --   and gamma = alpha - i
-        Just d -> foldr (\delta s'' ->
+        Just d -> Map.foldWithKey (\delta _ s'' ->
           case meetMaybe delta (Map.delete i alpha) of
             Just beta -> insertSystem beta (face u (Map.delete i delta)) s''
             Nothing    -> s'')
-                   s' (invFormula phi d)
+                   s' (primeImplicants phi d)
         -- t'_alpha = t_alpha (i = phi alpha)
         Nothing -> insertSystem alpha (act u (i,face phi alpha)) s'
 
@@ -381,7 +420,7 @@ instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
       arbitraryShape :: [Name] -> Gen (System ())
       arbitraryShape supp = do
         phi <- sized $ arbFormula supp
-        return $ Map.fromList [(face,()) | face <- invFormula phi 0]
+        return $ primeImplicants phi Zero
 
 sym :: Nominal a => a -> Name -> a
 sym a i = a `act` (i, NegAtom i)
