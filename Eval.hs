@@ -709,10 +709,10 @@ conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') =
   let v = mkVar k $ support (e, e')
   in conv (k+1) (eval (oPair e (x,v)) u) (eval (oPair e' (x',v)) u')
 conv k (Ter (Lam x u) e) u' =
-  let v = mkVar k $ support e
+  let v = mkVar k $ support (e,u')
   in conv (k+1) (eval (oPair e (x,v)) u) (app u' v)
 conv k u' (Ter (Lam x u) e) =
-  let v = mkVar k $ support e
+  let v = mkVar k $ support (u',e)
   in conv (k+1) (app u' v) (eval (oPair e (x,v)) u)
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
   (p == p') && convEnv k e e'
