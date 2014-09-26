@@ -11,8 +11,8 @@ comp A a b c p q = subst A (Id A a) b c q p
 --              Id (Id A a b) p (comp A a b b p (refl A b))
 -- compInvIdr A a b p = substeq A (\x -> Id A a x) b p
 
-inv : (A : U) -> (a b : A) -> Id A a b -> Id A b a
-inv A a b p = subst A (\x -> Id A x a) a b p (refl A a)
+-- inv : (A : U) -> (a b : A) -> Id A a b -> Id A b a
+-- inv A a b p = subst A (\x -> Id A x a) a b p (refl A a)
 
 -- invRefl : (A : U) -> (a : A) -> Id (Id A a a) (refl A a) (inv A a a (refl A a))
 -- invRefl A a = substeq A (\x -> Id A x a) a (refl A a)

@@ -380,6 +380,7 @@ evalPN :: [Name] -> PN -> [Val] -> Val
 evalPN (i:_) Id            [a,a0,a1]     = VId (Path i a) a0 a1
 evalPN (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
 evalPN (i:_) Refl          [_,a]         = Path i a
+evalPN (i:_) Sym           [_,_,_,p]     = Path i $ p @@ (NegAtom i)
 evalPN (i:_) TransU        [_,_,p,t]     = trace "evalPN TransU" $ comp Pos i (p @@ i) Map.empty t
 evalPN (i:_) TransInvU     [_,_,p,t]     = comp Neg i (p @@ i) Map.empty t
 -- figure out how to turn TransURef into a definitional equality (pb for neutral terms)

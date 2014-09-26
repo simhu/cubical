@@ -4,6 +4,8 @@ primitive Id : (A : U) (a b : A) -> U
 
 primitive refl : (A : U) (a : A) -> Id A a a
 
+primitive inv : (A : U) (a b : A) -> Id A a b -> Id A b a
+
 Sigma : (A : U) (B : A -> U) -> U
 Sigma A B = (x : A) * B x
 
@@ -83,6 +85,9 @@ propId A B pA pB f g = isoId A B f g sfg rfg
 
   rfg : (a:A) -> Id A (g (f a)) a
   rfg a = pA (g (f a)) a
+
+
+
 
 
 

@@ -76,7 +76,7 @@ data Ter = App Ter Ter
   deriving Eq
 
 -- Primitive notions
-data PN = Id | Refl
+data PN = Id | Refl | Sym
         -- Inh A is an h-prop stating that A is inhabited.
         -- Here we take h-prop A as (Pi x y : A) Id A x y.
         | Inh
@@ -230,6 +230,7 @@ primHandle :: [(Ident,Int,PN)]
 primHandle =
   [("Id"            , 3,  Id           ),
    ("refl"          , 2,  Refl         ),
+   ("inv"          , 4,  Sym         ),
    ("funExt"        , 5,  Ext          ),
    --("funHExt"       , 5,  HExt          ),
    ("inh"           , 1,  Inh          ),
