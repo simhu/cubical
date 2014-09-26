@@ -33,8 +33,73 @@ hasSection A B f = Sigma (B -> A) (section A B f)
 
 -- an equivalence has a section
 
+typEquivS : (A B : U) -> (f : A -> B) -> U
+typEquivS A B f = (y : B) -> fiber A B f y
+
+typEquivT : (A B : U) -> (f : A -> B) -> (typEquivS A B f) -> U
+typEquivT A B f s =  (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v
+
+isEquiv : (A B : U) (f : A -> B) -> U
+isEquiv A B f = Sigma (typEquivS A B f) (typEquivT A B f)
+
 equivSec : (A B : U) -> (f : A -> B) -> isEquiv A B f -> hasSection A B f
 equivSec A B f st = (\y -> (st.1 y).1, \y -> (st.1 y).2)
+
+invIsEquiv : (A B : U) -> (f : A -> B) -> isEquiv A B f -> B -> A
+invIsEquiv A B f is y = (is.1 y).1
+
+invIsEquivSec : (A B : U) (f : A -> B) (is: isEquiv A B f ) (y:B) -> Id B (f (invIsEquiv A B f is y)) y
+invIsEquivSec A B f is y = (is.1 y).2
+
+invIsEquivRet : (A B : U) (f : A -> B) (is: isEquiv A B f ) (x:A) -> Id A (invIsEquiv A B f is (f x)) x
+invIsEquivRet A B f is x = rem4 x
+ where
+  g : B -> A
+  g  = invIsEquiv A B f is
+ 
+  rem : (x:A) -> Id B (f (g (f x))) (f x)
+  rem x = invIsEquivSec A B f is (f x)
+
+  f1 : (x:A) -> fiber A B f (f x)
+  f1 x = (g (f x) , rem x)
+
+  rem1 : (x:A) -> Id (fiber A B f (f x)) (is.1 (f x)) (f1 x)
+  rem1 x = is.2 (f x) (f1 x)
+
+  f2 : (x:A) -> fiber A B f (f x)
+  f2 x = (x , refl B (f x))
+
+  rem2 : (x:A) -> Id (fiber A B f (f x)) (is.1 (f x)) (f2 x)
+  rem2 x = is.2 (f x) (f2 x)
+
+  rem3 : (x:A) -> Id (fiber A B f (f x)) (f1 x) (f2 x)
+  rem3 x = comp (fiber A B f (f x)) (f1 x) (is.1 (f x)) (f2 x) 
+                (inv (fiber A B f (f x)) (is.1 (f x)) (f1 x) (rem1 x)) (rem2 x)
+
+  rem4 : (x:A) -> Id A (g (f x)) x
+  rem4 x = mapOnPath (fiber A B f (f x)) A (\ z -> z.1) (f1 x) (f2 x) (rem3 x)
+
+
+isEquivEq : (A B : U) -> (f : A -> B) -> isEquiv A B f -> Id U A B
+isEquivEq A B f is = 
+ isoId A B f (invIsEquiv A B f is) (invIsEquivSec A B f is) (invIsEquivRet A B f is)
+
+
+
+
+equivEq : (A B : U) (f : A -> B) (s : (y : B) -> fiber A B f y)
+                    (t : (y : B) -> (v : fiber A B f y) ->
+                    Id (fiber A B f y) (s y) v) -> Id U A B
+equivEq A B f s t = isEquivEq A B f (s,t)
+
+transpEquivEq :
+  (A B : U) -> (f : A -> B) (s : (y : B) -> fiber A B f y) ->
+  (t : (y : B) -> (v : fiber A B f y) -> Id (fiber A B f y) (s y) v) ->
+  (a : A) -> Id B (f a) (transport A B (equivEq A B f s t) a)
+transpEquivEq A B f s t = transpIsoId A B f  (invIsEquiv A B f is) (invIsEquivSec A B f is) (invIsEquivRet A B f is)
+ where 
+  is : isEquiv A B f
+  is = (s,t)
 
 allSection : (A B : U) (f : A -> B) -> hasSection A B f ->
              (Q : B -> U) -> ((x : A) -> Q (f x)) -> Pi B Q

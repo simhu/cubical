@@ -1,6 +1,6 @@
 module swap where
 
-import gradLemma
+import lemId
 
 -- the swap function defines an equality
 
@@ -10,14 +10,8 @@ and A B = (_ : A) * B
 swap : (A B :U) -> and A B -> and B A
 swap A B z = (z.2,z.1)
 
-lemSwap : (A B:U) -> (z: and A B) -> Id (and A B) (swap B A (swap A B z)) z
-lemSwap A B z = refl (and A B) z
-
 eqSwap : (A B :U) -> Id U (and A B) (and B A)
-eqSwap A B = isEquivEq (and A B) (and B A) (swap A B) rem
- where
-  rem : isEquiv (and A B) (and B A) (swap A B)
-  rem = gradLemma (and A B) (and B A) (swap A B) (swap B A) (lemSwap B A) (lemSwap A B)
+eqSwap A B = isoId (and A B) (and B A) (swap A B) (swap B A) (refl (and B A)) (refl (and A B))
 
 -- a simple test example
 
@@ -139,3 +133,5 @@ eqUU = eqPi U (\ _ -> and U U) (\ _ -> and U U) (\ _ -> eqSwap U U)
 testUU : U
 testUU = (transport (U -> and U U) (U -> and U U) eqUU (\ X -> (X,X)) Bool).1
 
+tUU : Id U testUU Bool
+tUU = refl U Bool

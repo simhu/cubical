@@ -379,6 +379,7 @@ mkVar k supp = VVar ('X' : show k) (map Atom supp)
 
 unCon :: Val -> [Val]
 unCon (VCon _ vs) = vs
+unCon (KanUElem _ u) = unCon u
 unCon v           = error $ "unCon: not a constructor: " ++ show v
 
 --------------------------------------------------------------------------------

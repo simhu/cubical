@@ -34,3 +34,11 @@ propIsEquiv A B f =
    rem1 : prop ((y:B) -> contr' (fiber A B f y))
    rem1 = isPropProd B (\y -> contr' (fiber A B f y)) 
                        (\y -> contr'IsProp (fiber A B f y))
+
+-- one should deduce
+
+Equiv : U -> U -> U
+Equiv A B = Sigma (A->B) (isEquiv A B)
+
+lemIdEquiv : (A B:U) (f g : Equiv A B) -> Id (A->B) f.1 g.1 -> Id (Equiv A B) f g
+lemIdEquiv A B = eqPropFam (A->B) (isEquiv A B) (propIsEquiv A B)

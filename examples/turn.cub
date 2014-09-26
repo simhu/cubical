@@ -3,19 +3,10 @@ module turn where
 import helix
 
 transpL : (A:U)(a b:A) -> Id A a b -> Id A a a -> Id A b b
-transpL A a b p l = (compInv A a b b p (comp A a a b l p))
+transpL A a b p l = compInv A a b b p (comp A a a b l p)
 
 lemTranspL : (A:U)(a:A)(l:Id A a a) -> Id (Id A a a) l (transpL A a a (refl A a) l)
-lemTranspL A a l = rem2
- where
-  l1 : Id A a a
-  l1 = comp A a a a l (refl A a)
-  rem : Id (Id A a a) l1 l
-  rem = refl (Id A a a) l -- compIdr A a a l
-  rem1 : Id (Id A a a) l1 (compInv A a a a (refl A a) l1) 
-  rem1 = refl (Id A a a) l --  compInvIdl' A a a l1
-  rem2 : Id (Id A a a) l (compInv A a a a (refl A a) l1) 
-  rem2 = compInv (Id A a a) l1 l (compInv A a a a (refl A a) l1) rem rem1
+lemTranspL A a l = refl (Id A a a) l
 
 lemTranspL1 : (A:U)(a:A)(l:Id A a a) -> Id (Id A a a) l (transpL A a a l l)
 lemTranspL1 A a l = lemInv A a a a l l
@@ -48,9 +39,77 @@ path3 = mapOnPath S1 S1 lp1 base base (compS1 loop (compS1 loop loop))
 test3 : Z
 test3 = winding path3
 
+path1 : Id S1 base base
+path1 = mapOnPath S1 S1 lp1 base base (compS1 (refl S1 base) loop)
+
+test1 : Z
+test1 = winding path1
+
+loop2 : Id S1 base base
+loop2 = compS1 loop loop
 
 path2 : Id S1 base base
-path2 = mapOnPath S1 S1 lp1 base base (compS1 loop loop)
+path2 = mapOnPath S1 S1 lp1 base base loop2
 
 test2 : Z
 test2 = winding path2
+
+path3 : Id S1 base base
+path3 = mapOnPath S1 S1 lp1 base base (compS1 loop2 loop)
+
+test3 : Z
+test3 = winding path3
+
+path8 : Id S1 base base
+path8 = mapOnPath S1 S1 lp1 base base loop8
+
+test8 : Z
+test8 = winding path8
+
+loop0 : Id S1 base base
+loop0 = compS1 (inv S1 base base loop2) loop2
+
+path0 : Id S1 base base
+path0 = mapOnPath S1 S1 lp1 base base loop0
+
+test0 : Z
+test0 = winding path0
+
+loopm : Id S1 base base
+loopm = inv S1 base base loop
+
+loopZ : Id S1 base base
+loopZ = compS1 loopm (compS1 loopm loop2)
+
+pathZ : Id S1 base base
+pathZ = mapOnPath S1 S1 lp1 base base loopZ
+
+testZ : Z
+testZ = winding pathZ
+
+pathm : Id S1 base base
+pathm = mapOnPath S1 S1 lp1 base base loopm
+
+testm : Z
+testm = winding pathm
+
+tt2 : Z
+tt2 = winding (compS1 path1 path1)
+
+mapComp : (A B :U) (f:A->B) (a b c :A )(q:Id A b c) (p:Id A a b) ->
+             Id (Id B (f a) (f c)) (mapOnPath A B f a c (comp A a b c p q))
+                (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q))
+mapComp A B f a b = 
+ J A b (\ c q -> (p:Id A a b) ->
+                     Id (Id B (f a) (f c)) (mapOnPath A B f a c (comp A a b c p q))
+                        (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q)))
+       (\ p -> refl (Id B (f a) (f b))  (mapOnPath A B f a b p))
+
+corr : Id (Id S1 base base) path2 (compS1 path path) 
+corr = mapComp S1 S1 lp1 base base base loop loop
+
+corr1 : Id Z (winding path2) (winding (compS1 path path))
+corr1 = mapOnPath (Id S1 base base) Z winding path2 (compS1 path path) corr
+
+
+

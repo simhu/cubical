@@ -8,24 +8,7 @@ import set
 
 equivSet : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g ->
            injective A B f -> set B -> Id U A B
-equivSet A B f g sfg injf setB = equivEq A B f sf tf
-  where
-  fFiber : B -> U
-  fFiber b = fiber A B f b
-
-  eqfFiber : (b : B) -> (v v' : fFiber b) ->
-             Id A v.1 v'.1 -> Id (fFiber b) v v'
-  eqfFiber b = eqPropFam A (\x -> Id B (f x) b) (\x -> setB (f x) b)
-
-  sf : (b : B) -> fFiber b
-  sf b = (g b, sfg b)
-
-  tf : (b : B) (v : fFiber b) -> Id (fFiber b) (sf b) v
-  tf b v = eqfFiber b (sf b) v rem
-    where
-    rem1 : Id B (f (g b)) (f v.1)
-    rem1 = comp B (f (g b)) b (f v.1) (sfg b) (inv B (f v.1) b v.2)
-
-    rem : Id A (g b) v.1
-    rem = injf (g b) v.1 rem1
-
+equivSet A B f g sfg injf _ = isoId A B f g sfg tfg
+ where
+   tfg : (x:A) -> Id A (g (f x)) x
+   tfg x = injf (g (f x)) x (sfg (f x))

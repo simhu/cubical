@@ -260,7 +260,7 @@ circleRec f b l v = VCircleRec f b l v -- v should be neutral
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
 app kan@(Kan i b@(VPi a f) ts li0) ui1 = trace "app (Kan VPi)" $
-    let j   = fresh (Atom i,kan,ui1)
+    let j   = fresh (kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `rename` (i,j)
         u   = fill Neg j aj Map.empty ui1
         ui0 = act u (j, Dir 0)

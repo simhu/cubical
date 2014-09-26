@@ -298,8 +298,8 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
 --            ((f : Pi A B) -> C (\x -> f x)) -> Pi (Pi A B) C
 -- funSplit A B C eC f = subst (Pi A B) C (\x -> f x) f (etaId A B f) (eC f)
 
--- lemProp1 : (A : U) -> (A -> prop A) -> prop A
--- lemProp1 A h a0 = h a0 a0
+lemProp1 : (A : U) -> (A -> prop A) -> prop A
+lemProp1 A h a0 = h a0 a0
 
 -- propN0 : prop N0
 -- propN0 a b = efq (Id N0 a b) a
@@ -327,11 +327,11 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
 -- idIsEquiv : (A : U) -> isEquiv A A (id A)
 -- idIsEquiv A = (sId A, tId A)
 
--- propUnit : prop Unit
--- propUnit = split tt -> split tt -> refl Unit tt
+propUnit : prop Unit
+propUnit = split tt -> split tt -> refl Unit tt
 
--- propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
--- propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
+propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
+propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
 
 -- propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
 -- propImply A B h = propPi A (\_ -> B) h

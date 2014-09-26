@@ -24,7 +24,7 @@ hedbergLemma A f a =
     where
     rem : Id (Id A a a) (comp A a a a (f a a (refl A a)) (refl A a))
           (f a a (refl A a))
-    rem = compIdr A a a (f a a (refl A a))
+    rem = refl (Id A a a) (f a a (refl A a)) -- compIdr A a a (f a a (refl A a))
 
 hedberg : (A : U) -> discrete A -> set A
 hedberg A h a b p q = lemSimpl A a a b r p q rem5

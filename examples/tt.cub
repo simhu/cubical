@@ -1,8 +1,9 @@
-module univalence where
+module tt where
 
 import gradLemma
 
--- the transport of any equality proof is an equivalence
+test : (A:U) -> Id (A->A) (id A) (transport A A (refl U A))
+test A = refl (A->A) (id A)
 
 transpIsEquiv : (A B:U) -> (p:Id U A B) -> isEquiv A B (transport A B p)
 transpIsEquiv A = J U A (\ B p -> isEquiv A B (transport A B p)) (idIsEquiv A)
@@ -22,23 +23,6 @@ secIdEquiv A = J U A (\ B p ->  Id (Id U A B) (EquivToId A B (IdToEquiv A B p)) 
 retIdEquiv : (A B :U) (s : Equiv A B) -> Id (Equiv A B) (IdToEquiv A B (EquivToId A B s)) s
 retIdEquiv A B s = lemIdEquiv A B (IdToEquiv A B (EquivToId A B s)) s (refl (A->B) s.1)
 
--- and now univalence
-
 univAx : (A B:U) -> isEquiv (Id U A B) (Equiv A B) (IdToEquiv A B)
 univAx A B = 
  gradLemma (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
-
--- in particular Id U A B and Equiv A B are equal
-
-corUnivAx : (A B : U) -> Id U (Id U A B) (Equiv A B)
-corUnivAx A B = isEquivEq (Id U A B) (Equiv A B) (IdToEquiv A B) (univAx A B)
--- isoId (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
-
--- a simple application
-
-idPropIsProp : (A B : U) -> prop A -> prop B -> prop (Id U A B)
-idPropIsProp A B pA pB = substInv U prop (Id U A B) (Equiv A B) (corUnivAx A B) rem
- where
-  rem : prop (Equiv A B)
-  rem = sigIsProp (A->B) (isEquiv A B) (propIsEquiv A B) (isPropProd A (\ _ -> B) (\ _ -> pB))
-

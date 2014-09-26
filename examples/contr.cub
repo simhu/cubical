@@ -1,6 +1,8 @@
 module contr where
 
-import gradLemma
+import function
+import set
+import equivSet
 
 -- a product of contractibles is contractible
 
@@ -15,10 +17,22 @@ propContr A a pA = propId Unit A propUnit pA (\_ -> a) (\_ -> tt)
 
 -- a singleton is a proposition
 
-singlIsProp : (A:U) (a:A) -> prop (singl A a)
+tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
+tId A a z = rem (z.1) a (z.2)
+   where
+    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
+    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p)) (refl (pathTo A x) (sId A x))
+
+isPropProd : (A:U) (B:A->U) (pB : (x:A) -> prop (B x)) -> prop (Pi A B)
+isPropProd A B pB f0 f1 = funExt A B f0 f1 (\ x -> pB x (f0 x) (f1 x))
+
+idIsEquiv : (A:U) -> isEquiv A A (id A)
+idIsEquiv A = (sId A, tId A)
+
+singlIsProp : (A:U) (a:A) -> prop (pathTo A a)
 singlIsProp A a v0 v1 =
- comp (singl A a) v0 (sId A a) v1
-      (inv (singl A a) (sId A a) v0 (tId A a v0)) (tId A a v1)
+ comp (pathTo A a) v0 (sId A a) v1
+      (inv (pathTo A a) (sId A a) v0 (tId A a v0)) (tId A a v1)
 
 -- another definition of contr
 
@@ -116,18 +130,18 @@ lemUnitSig P = split
 lemContrSig : (A : U) -> contr A -> hasContrSig A
 lemContrSig A p = subst U hasContrSig Unit A p lemUnitSig
 
-singContr : (A : U) (a : A) -> contr (singl A a)
+singContr : (A : U) (a : A) -> contr (pathTo A a)
 singContr A a = isContr T ((a, refl A a), f)
  where
   T : U
-  T = singl A a
+  T = pathTo A a
 
   f : (z : T) -> Id T (a, refl A a) z
   f z = rem z.1 a z.2
    where
-    rem : (b : A) (a : A) (p : Id A b a) -> Id (singl A a) (a, refl A a) (b, p)
-    rem b = J A b (\a p -> Id (singl A a) (a,refl A a) (b,p))
-              (refl (singl A b) (b, refl A b))
+    rem : (b : A) (a : A) (p : Id A b a) -> Id (pathTo A a) (a, refl A a) (b, p)
+    rem b = J A b (\a p -> Id (pathTo A a) (a,refl A a) (b,p))
+              (refl (pathTo A b) (b, refl A b))
 
 -- any function between two contractible types is an equivalence
 equivUnit : (f : Unit -> Unit) -> isEquiv Unit Unit f

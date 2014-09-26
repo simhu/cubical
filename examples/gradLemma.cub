@@ -1,6 +1,6 @@
 module gradLemma where
 
-import BoolEqBool
+import axChoice
 
 corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
 corrstId A a v0 v1 =
@@ -69,18 +69,3 @@ gradLemma A B f g sfg rfg = isEquivSection A B f g sfg rem
              (\u -> Id (Sigma A (\x -> Id B (u (f x)) (u b)))
                        (pc u z0) (pc u z1)) fg (id B) rem4 rem3
 
--- isomorphic types are equal
-isoId : (A B : U) -> (f : A -> B) (g : B -> A) ->
-        section A B f g -> retract A B f g -> Id U A B
-isoId A B f g sfg rfg = isEquivEq A B f (gradLemma A B f g sfg rfg)
-
--- some applications of the gradlemma
-propId : (A B : U) -> prop A -> prop B -> (f : A -> B) (g : B -> A) ->
-         Id U A B
-propId A B pA pB f g = isEquivEq A B f (gradLemma A B f g sfg rfg)
- where
-  sfg : (b:B) -> Id B (f (g b)) b
-  sfg b = pB (f (g b)) b
-
-  rfg : (a:A) -> Id A (g (f a)) a
-  rfg a = pA (g (f a)) a

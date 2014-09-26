@@ -14,7 +14,7 @@ lem1 A a h x =
   J A x (\ y p -> Id (Id A a y) (comp A a x y (h x) p) (h y)) rem
  where
    rem : Id (Id A a x) (comp A a x x (h x) (refl A x)) (h x)
-   rem = compIdr A a x (h x)
+   rem = refl (Id A a x) (h x) -- compIdr A a x (h x)
 
 lem2 : (A :U) -> (a:A) -> ((x:A) -> Id A a x) -> UIP A
 lem2 A a h x y p q =

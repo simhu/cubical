@@ -1,6 +1,7 @@
 module helix where
 
 import integer
+import swap
 
 helix : S1 -> U
 helix = S1rec (\_ -> U) Z sucIdZ
@@ -18,11 +19,11 @@ S1recbase : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
   Id (F base) (S1rec F b l base) b
 S1recbase F b l = refl (F base) b
 
--- S1recloop : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
---  Id (IdS S1 F base base loop b b)
---    (mapOnPathD S1 F (S1rec F b l) base base loop)
---    l
--- S1recloop F b l = refl (IdS S1 F base base loop b b) l
+S1recloop : (F : S1 -> U) (b : F base) -> (l : IdS S1 F base base loop b b) ->
+  Id (IdS S1 F base base loop b b)
+     (mapOnPathD S1 F (S1rec F b l) base base loop)
+     l
+S1recloop F b l = refl (IdS S1 F base base loop b b) l
 
 winding : loopS1 -> Z
 winding l = transport Z Z (rem l) zeroZ
@@ -105,3 +106,13 @@ testPeter = mapOnPath S1 N Peter base base loop
 
 -- helix = S1rec (\_ -> U) Z sucIdZ
 
+-- other eliminations
+
+telim : S1 -> U
+telim = S1rec (\_ -> U) (and N N) eqNN
+
+mtelim : Id S1 base base -> Id U (and N N) (and N N)
+mtelim = mapOnPath S1 U telim base base
+
+telimNN : Id S1 base base -> and N N
+telimNN l = transport (and N N) (and N N) (mtelim l) (zero,suc zero)
