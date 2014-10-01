@@ -143,13 +143,13 @@ instance Nominal Val where
          Kan j a ts v -> comp Pos k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
-                    ar = acti . (`rename` (j,k))
+                    ar = acti . (`swap` (j,k))
 
          KanUElem ts u -> kanUElem (acti ts) (acti u)
          UnKan ts u    -> UnKan (acti ts) (acti u)
 
          VId a u v -> VId (acti a) (acti u) (acti v)
-         Path j v -> Path k (acti (v `rename` (j,k)))
+         Path j v -> Path k (acti (v `swap` (j,k)))
               where k = fresh (v, Atom i, phi)
 
          VSigma a f -> VSigma (acti a) (acti f)
