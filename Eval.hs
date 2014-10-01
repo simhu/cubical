@@ -398,6 +398,23 @@ gradLemma hiso@(Hiso a b f g s t) us v =
                       app (s `face` alpha) (app (f `face` alpha) uAlpha) @@ j) us
         theta'' = comp Pos j b xs (app f theta')
 
+
+-- any equality defines an equivalence Lemma 4.2
+eqLemma :: Val -> System Val -> Val -> (Val, Val)
+eqLemma e ts a = trace ("eqLemma " ++ show a) $ (t, Path j theta'')
+  where i:j:_  = freshs (e, ts, a)
+        ei      = e @@ i
+        vs      = Map.mapWithKey (\alpha uAlpha ->
+                    fill Pos i (ei `face` alpha) Map.empty uAlpha) ts
+        theta   = fill Neg i ei vs a
+        --t       = comp Neg i ei vs a
+        t       = theta `face` (i ~> 0)
+        theta'  = fill Pos i ei Map.empty t
+        ws      = insertSystem (j ~> 1) theta' $
+                  insertSystem (j ~> 0) theta $ vs
+        theta'' = comp Pos i ei ws t
+
+
 eqHiso :: Val -> Hiso
 eqHiso e = Hiso (e @@ Zero) (e @@ One)
                 (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
@@ -563,8 +580,7 @@ comp Pos i g@(Glue hisos b) ws wi0 = trace "comp Glue"
                     else fst (uls'' ! gamma))
                   hisosI1
 
-
-comp Pos i (Kan j VU ejs b) ws wi0 = trace "comp Kan VU" $
+comp Pos i t@(Kan j VU ejs b) ws wi0 = trace ("comp Kan VU") $
     let es    = Map.map (Path j . (`sym` j)) ejs
         hisos = Map.map eqHiso es
         unkan = UnKan hisos b
@@ -572,7 +588,7 @@ comp Pos i (Kan j VU ejs b) ws wi0 = trace "comp Kan VU" $
         vs    = Map.mapWithKey (\alpha wAlpha -> app (unkan `face` alpha) wAlpha) ws
         vi0   = app (unkan `face` (i ~> 0)) wi0 -- in b(i0)
 
-        vi1     = comp Pos i b vs vi0           -- in b
+        vi1     =  comp Pos i b vs vi0           -- in b(i1)
 
         hisosI1 = hisos `face` (i ~> 1)
         (hisos', hisos'') = Map.partitionWithKey
@@ -597,8 +613,8 @@ comp Pos i (Kan j VU ejs b) ws wi0 = trace "comp Kan VU" $
                                         then ws `proj` (delta `meet` (i ~> 1))
                                         else usi1' `proj` delta)
                                    shgamma
-                     in gradLemma hisoGamma usgamma (vi1' `face` gamma))
-                   hisos''
+                     in eqLemma (es `proj` (gamma `meet` (i ~> 1)))
+                          usgamma (vi1' `face` gamma)) hisos''
 
         vi1''   = compLine (b `face` (i ~> 1)) (Map.map snd uls'') vi1'
 
