@@ -428,10 +428,10 @@ mapEnv _ Empty          = Empty
 mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
 mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
 
-mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
-mapEnvM _ Empty          = pure Empty
-mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
-mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
+-- mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
+-- mapEnvM _ Empty          = pure Empty
+-- mapEnvM f (Pair e (x,v)) = Pair <$> mapEnvM f e <*> ( (x,) <$> f v)
+-- mapEnvM f (PDef ts e)    = PDef ts <$> mapEnvM f e
 
 -- mapOEnv :: (Val -> Val) -> OEnv -> OEnv
 -- mapOEnv f (OEnv e o) = OEnv (mapEnv f e) o
@@ -572,5 +572,5 @@ showVals = hcat . map showVal1
 showVal1 :: Val -> String
 showVal1 VU          = "U"
 showVal1 (VCon c []) = c
--- showVal1 u@(VVar{})  = showVal u
+showVal1 u@(VVar{})  = showVal u
 showVal1 u           = parens $ showVal u
