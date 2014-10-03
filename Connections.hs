@@ -427,9 +427,17 @@ rename a (i, j) = a `act` (i, Atom j)
 connect :: Nominal a => a -> (Name, Name) -> a
 connect a (i, j) = a `act` (i, Atom i :/\: Atom j)
 
+leqSystem :: Face -> System a -> Bool
+alpha `leqSystem` us =
+  not $ Map.null $ Map.filterWithKey (\beta _ -> alpha `leq` beta) us
+
 -- assumes alpha <= shape us
-proj :: Nominal a => System a -> Face -> a
-proj us alpha = (us `face` alpha) ! eps
+proj :: (Nominal a, Show a) => System a -> Face -> a
+proj us alpha | eps `Map.member` usalpha = usalpha ! eps
+              | otherwise                =
+  error $ "proj: eps not in " ++ show usalpha ++ "\nwhich  is the "
+    ++ show alpha ++ "\nface of " ++ show us
+  where usalpha = us `face` alpha
 
 -- actSystemCom :: Formula -> Name -> Formula -> Bool
 -- actSystemCom psi i phi = border phi

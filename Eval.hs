@@ -444,7 +444,8 @@ evalPN (i:_) Refl          [_,a]         = Path i a
 evalPN (i:_) Sym           [_,_,_,p]     = Path i $ p @@ (NegAtom i)
 evalPN (i:_) TransU        [_,_,p,t]     = trace ("evalPN TransU") $
                                            comp Pos i (p @@ i) Map.empty t
-evalPN (i:_) TransInvU     [_,_,p,t]     = trace "evalPN TransInvU" $ comp Neg i (p @@ i) Map.empty t
+evalPN (i:_) TransInvU     [_,_,p,t]     = trace "evalPN TransInvU" $
+                                           comp Neg i (p @@ i) Map.empty t
 evalPN (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
                                   Path i $ VSPair q (Path j (q `connect` (i,j)))
   where q = p @@ i
@@ -535,7 +536,8 @@ comp Pos i b@(VSigma a f) ts u = trace "comp VSigma"
 
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
-comp Pos i g@(Glue hisos b) ws wi0 = trace "comp Glue"
+comp Pos i g@(Glue hisos b) ws wi0 =
+  trace ("comp Glue \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
     glueElem usi1 vi1''
   where unglue = UnGlue hisos b
         vs   = Map.mapWithKey
@@ -564,12 +566,13 @@ comp Pos i g@(Glue hisos b) ws wi0 = trace "comp Glue"
         uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
                      let shgamma :: System ()
                          shgamma = (shape hisos' `unionSystem` shape ws) `face` gamma
-                         usgamma = Map.mapWithKey (\beta _ ->
-                                     let delta = gamma `meet` beta
-                                     in if delta `Map.member` ws
-                                        then ws `proj` (delta `meet` (i ~> 1))
-                                        else usi1' `proj` delta)
-                                   shgamma
+                         usgamma = Map.mapWithKey
+                           (\beta _ ->
+                             let delta = gamma `meet` beta
+                             in if delta `leqSystem` ws
+                                then ws `proj` (delta `meet` (i ~> 1))
+                                else usi1' `proj` delta)
+                           shgamma
                      in gradLemma hisoGamma usgamma (vi1' `face` gamma))
                    hisos''
 
@@ -580,7 +583,7 @@ comp Pos i g@(Glue hisos b) ws wi0 = trace "comp Glue"
                     else fst (uls'' ! gamma))
                   hisosI1
 
-comp Pos i t@(Kan j VU ejs b) ws wi0 = trace ("comp Kan VU") $
+comp Pos i t@(Kan j VU ejs b) ws wi0 =
     let es    = Map.map (Path j . (`sym` j)) ejs
         hisos = Map.map eqHiso es
         unkan = UnKan hisos b
@@ -606,13 +609,15 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 = trace ("comp Kan VU") $
 
         uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
                      let shgamma :: System ()
-                         shgamma = Map.union (shape hisos') (shape ws) `face` gamma
-                         usgamma = Map.mapWithKey (\beta _ ->
-                                     let delta = gamma `meet` beta
-                                     in if delta `Map.member` ws
-                                        then ws `proj` (delta `meet` (i ~> 1))
-                                        else usi1' `proj` delta)
-                                   shgamma
+                         shgamma = (shape hisos' `unionSystem` shape ws) `face` gamma
+                         usgamma =
+                           Map.mapWithKey
+                             (\beta _ ->
+                               let delta = gamma `meet` beta
+                               in if delta `leqSystem` ws
+                                  then ws `proj` (delta `meet` (i ~> 1))
+                                  else usi1' `proj` delta)
+                             shgamma
                      in eqLemma (es `proj` (gamma `meet` (i ~> 1)))
                           usgamma (vi1' `face` gamma)) hisos''
 
@@ -623,7 +628,8 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 = trace ("comp Kan VU") $
                     else fst (uls'' ! gamma))
                   hisosI1
 
-    in kanUElem usi1 vi1''
+    in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
+     kanUElem usi1 vi1''
 
 comp Pos i VU ts u = Kan i VU ts u
 
