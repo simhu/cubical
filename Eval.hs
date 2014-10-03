@@ -789,6 +789,12 @@ instance Convertible Val where
   conv k (VExt phi f g p) (VExt phi' f' g' p') =
     conv k (phi,f,g,p) (phi',f',g',p')
 
+  conv k u@(VExt phi f g p) u' = conv (k+1) (app u w) (app u' w)
+    where w = mkVar k $ support (u,u')
+
+  conv k u u'@(VExt phi f g p) = conv (k+1) (app u w) (app u' w)
+    where w = mkVar k $ support (u,u')
+
 -- conv k (VInh u) (VInh u')                     = conv k u u'
 -- conv k (VInc u) (VInc u')                     = conv k u u'
 -- conv k (VSquash x u v) (VSquash x' u' v')     =
