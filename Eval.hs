@@ -107,12 +107,14 @@ instance Nominal Val where
   support VCircle                       = []
   support VBase                         = []
   support (VLoop phi)                   = support phi
-  support (VCircleRec f b l s)          = support [f,b,l,s]
+  support (VCircleRec f b l s)          = support (f,b,l,s)
 
-  -- support (VInh v)                      = support v
-  -- support (VInc v)                      = support v
-  -- support (VSquash x v0 v1)             = support (x, [v0,v1])
-  -- -- support (VExt x b f g p)           = support (x, [b,f,g,p])
+  support (VInh v)                      = support v
+  support (VInc v)                      = support v
+  support (VSquash (_,phi) v0 v1)       = support (phi,v0,v1)
+  support (VInhRec b p h a)             = support (b,p,h,a)
+
+  -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
   -- support (Kan Fill a box)              = support (a, box)
   -- support (VFillN a box)                = support (a, box)
@@ -128,8 +130,8 @@ instance Nominal Val where
   -- support VI                            = []
   -- support VI0                           = []
   -- support VI1                           = []
+  -- support (VIntRec f s e l u)           = support (f,s,e,l,u)
   -- support (VLine n)                     = [n]
-  -- support (VIntRec f s e l u)           = support [f,s,e,l,u]
   -- support v                             = error ("support " ++ show v)
 
 
@@ -178,8 +180,16 @@ instance Nominal Val where
          VLoop psi  -> loop (acti psi)
          VCircleRec f b l s -> circleRec (acti f) (acti b) (acti l) (acti s)
 
+         VInh v                -> VInh (acti v)
+         VInc v                -> VInc (acti v)
+         VSquash (j,psi) v0 v1 -> squash (j, acti psi)
+                                    (v0 `act` (i, phi `face` (j ~> 0)))
+                                    (v1 `act` (i, phi `face` (j ~> 1)))
+         VInhRec b p h a       -> inhRec (acti b) (acti p) (acti h) (acti a)
+
+
   -- This increases efficiency as it won't trigger computation.
-  swap u ij =
+  swap u ij@ (i,j) =
     let sw :: Nominal a => a -> a
         sw u = swap u ij
     in case u of
@@ -220,6 +230,11 @@ instance Nominal Val where
          VLoop psi  -> VLoop (sw psi)
          VCircleRec f b l s -> VCircleRec (sw f) (sw b) (sw l) (sw s)
 
+         VInh v                -> VInh (sw v)
+         VInc v                -> VInc (sw v)
+         VSquash (k,phi) v0 v1
+           | k == i -> squash (k,sw phi) (sw v0) (sw v1)
+         VInhRec b p h a       -> inhRec (sw b) (sw p) (sw h) (sw a)
 
 
 instance Nominal Hiso where
@@ -306,6 +321,16 @@ circleRec f b l v@(Kan i VCircle us u) = comp Pos j ffillu us' u'
 circleRec f b l (KanUElem _ u) = circleRec f b l u
 circleRec f b l v = VCircleRec f b l v -- v should be neutral
 
+squash :: Formula -> Val -> Val -> Val
+squash (Dir Zero) u _ = u
+squash (Dir One)  _ v = v
+squash phi        u v = VSquash phi u v
+
+inhRec :: Val -> Val -> Val -> Val -> Val
+inhRec b p f (KanUElem _ u) = inhRec b p f u
+inhRec b p f (VInc a) = app f a
+inhRec b p f (VSquash phi u0 u1) = undefined
+inhRec b p f a = VInhRec b p f a -- a should be neutral
 
 -- Application
 app :: Val -> Val -> Val

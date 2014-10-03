@@ -311,13 +311,13 @@ data Val = VU
          -- | VHExt Name Val Val Val Val
 
          -- inhabited
-         -- | VInh Val
+         | VInh Val
 
          -- inclusion into inhabited
-         -- | VInc Val
+         | VInc Val
 
-         -- squash type - connects the two values along the name
-         -- | VSquash Name Val Val
+         -- squash type - connects the two values
+         | VSquash (Name,Formula) Val Val
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
@@ -358,7 +358,7 @@ data Val = VU
          | VSnd Val
          | VSplit Val Val          -- the second Val must be neutral
          | VCircleRec Val Val Val Val  -- the last Val must be neutral
-         -- | VInhRec Val Val Val Val     -- the last Val must be neutral
+         | VInhRec Val Val Val Val     -- the last Val must be neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
          -- | VFillN Val (Box Val)
          -- | VComN Val (Box Val)
@@ -541,11 +541,12 @@ showVal VBase                    = "base"
 showVal (VLoop x)                = "loop" <+> parens (show x)
 showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
 
+showVal (VInh u)                 = "inh" <+> showVal1 u
+showVal (VInc u)                 = "inc" <+> showVal1 u
+showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
+showVal (VSquash iphi u v)        = "squash" <+> show iphi <+> showVals [u,v]
+
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
--- showVal (VInh u)                 = "inh" <+> showVal1 u
--- showVal (VInc u)                 = "inc" <+> showVal1 u
--- showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
--- showVal (VSquash n u v)          = "squash" <+> show n <+> showVals [u,v]
 -- showVal (Kan Fill v box)         = "Fill" <+> showVal1 v <+> parens (show box)
 -- showVal (Kan Com v box)          = "Com" <+> showVal1 v <+> parens (show box)
 -- showVal (VFillN v box)           = "FillN" <+> showVal1 v <+> parens (show box)

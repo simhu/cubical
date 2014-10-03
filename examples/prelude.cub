@@ -42,17 +42,17 @@ data Monoid A =
          (_ : (a : A) -> Id A (op z a) a)
 
 zm : (A : U) (m : Monoid A) -> A
-zm A = split monoid a -> a
+zm A = split monoid a _ _ _ _ -> a
 
 opm : (A : U) (m : Monoid A) -> (A -> A -> A)
-opm A = split monoid _ op -> op
+opm A = split monoid _ op _ _ _ -> op
 
 opmA : (A : U) (m : Monoid A) ->
        ((a b c : A) -> Id A (opm A m a (opm A m b c)) (opm A m (opm A m a b) c))
-opmA A = split monoid _ _ assoc -> assoc
+opmA A = split monoid _ _ assoc _ _ -> assoc
 
 opm0 : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m a (zm A m)) a)
-opm0 A = split monoid _ _ _ p -> p
+opm0 A = split monoid _ _ _ p _ -> p
 
 op0m : (A : U) (m : Monoid A) -> ((a : A) -> Id A (opm A m (zm A m) a) a)
 op0m A = split monoid _ _ _ _ p -> p
@@ -270,12 +270,15 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
 --   where rem : (a x : A) -> (p : Id A a x) -> (IdS A B a x p (f a) (g x))
 --         rem a = J A a (\x p -> (IdS A B a x p (f a) (g x))) (p a)
 
--- tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
--- tId A a z = rem (z.1) a (z.2)
---    where
---     rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
---     rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p))
---                   (refl (pathTo A x) (sId A x))
+sId : (A : U) (a : A) -> pathTo A a
+sId A a = (a, refl A a)
+
+tId : (A : U) (a : A) (v : pathTo A a) -> Id (pathTo A a) (sId A a) v
+tId A a z = rem (z.1) a (z.2)
+   where
+    rem : (x y : A) (p : Id A x y) -> Id (pathTo A y) (sId A y) (x, p)
+    rem x = J A x (\y p -> Id (pathTo A y) (sId A y) (x, p))
+                  (refl (pathTo A x) (sId A x))
 
 -- typEquivS : (A B : U) -> (f : A -> B) -> U
 -- typEquivS A B f = (y : B) -> fiber A B f y
