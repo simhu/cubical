@@ -317,7 +317,7 @@ data Val = VU
          | VInc Val
 
          -- squash type - connects the two values
-         | VSquash (Name,Formula) Val Val
+         | VSquash Formula Val Val
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
@@ -544,7 +544,7 @@ showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
 showVal (VInh u)                 = "inh" <+> showVal1 u
 showVal (VInc u)                 = "inc" <+> showVal1 u
 showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
-showVal (VSquash iphi u v)        = "squash" <+> show iphi <+> showVals [u,v]
+showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
 
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (Kan Fill v box)         = "Fill" <+> showVal1 v <+> parens (show box)

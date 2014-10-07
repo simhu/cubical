@@ -111,7 +111,7 @@ instance Nominal Val where
 
   support (VInh v)                      = support v
   support (VInc v)                      = support v
-  support (VSquash (_,phi) v0 v1)       = support (phi,v0,v1)
+  support (VSquash phi v0 v1)           = support (phi,v0,v1)
   support (VInhRec b p h a)             = support (b,p,h,a)
 
   -- support (VExt x b f g p)           = support (x, [b,f,g,p])
@@ -182,9 +182,7 @@ instance Nominal Val where
 
          VInh v                -> VInh (acti v)
          VInc v                -> VInc (acti v)
-         VSquash (j,psi) v0 v1 -> squash (j, acti psi)
-                                    (v0 `act` (i, phi `face` (j ~> 0)))
-                                    (v1 `act` (i, phi `face` (j ~> 1)))
+         VSquash psi v0 v1     -> squash (acti psi) (acti v0) (acti v1)
          VInhRec b p h a       -> inhRec (acti b) (acti p) (acti h) (acti a)
 
 
@@ -230,11 +228,10 @@ instance Nominal Val where
          VLoop psi  -> VLoop (sw psi)
          VCircleRec f b l s -> VCircleRec (sw f) (sw b) (sw l) (sw s)
 
-         VInh v                -> VInh (sw v)
-         VInc v                -> VInc (sw v)
-         VSquash (k,phi) v0 v1
-           | k == i -> squash (k,sw phi) (sw v0) (sw v1)
-         VInhRec b p h a       -> inhRec (sw b) (sw p) (sw h) (sw a)
+         VInh v            -> VInh (sw v)
+         VInc v            -> VInc (sw v)
+         VSquash phi v0 v1 -> VSquash (sw phi) (sw v0) (sw v1)
+         VInhRec b p h a   -> VInhRec (sw b) (sw p) (sw h) (sw a)
 
 
 instance Nominal Hiso where
@@ -329,7 +326,8 @@ squash phi        u v = VSquash phi u v
 inhRec :: Val -> Val -> Val -> Val -> Val
 inhRec b p f (KanUElem _ u) = inhRec b p f u
 inhRec b p f (VInc a) = app f a
-inhRec b p f (VSquash phi u0 u1) = undefined
+inhRec b p f (VSquash phi u0 u1) =
+  app (app p (inhRec b p f u0)) (inhRec b p f u1) @@ phi
 inhRec b p f a = VInhRec b p f a -- a should be neutral
 
 -- Application
@@ -475,10 +473,10 @@ evalPN (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
                                   Path i $ VSPair q (Path j (q `connect` (i,j)))
   where q = p @@ i
 evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
--- evalPN _       Inh        [a]           = VInh a
--- evalPN _       Inc        [_,t]         = VInc t
--- evalPN (x:_)   Squash     [_,r,s]       = Path x $ VSquash x r s
--- evalPN _       InhRec     [_,b,p,phi,a] = inhrec b p phi a
+evalPN _       Inh        [a]           = VInh a
+evalPN _       Inc        [_,t]         = VInc t
+evalPN (i:_)   Squash     [_,r,s]       = Path i $ VSquash (Atom i) r s
+evalPN _       InhRec     [_,b,p,phi,a] = inhRec b p phi a
 evalPN (i:_)   IsoId    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
 evalPN (i:j:_) IsoIdRef [a] =
@@ -518,7 +516,7 @@ isNeutral (VSplit _ v)      = isNeutral v
 isNeutral (Kan _ a ts u)    = isNeutral a || isNeutralSystem ts || isNeutral u
 isNeutral (VCircleRec _ _ _ v) = isNeutral v
 isNeutral (KanUElem _ u)    = isNeutral u  -- TODO: check this!
--- isNeutral (VInhRec _ _ _ v)    = isNeutral v
+isNeutral (VInhRec _ _ _ v)    = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
 isNeutral _                    = False
 
@@ -826,10 +824,10 @@ instance Convertible Val where
   conv k u u'@(VExt phi f g p) = conv (k+1) (app u w) (app u' w)
     where w = mkVar k $ support (u,u')
 
--- conv k (VInh u) (VInh u')                     = conv k u u'
--- conv k (VInc u) (VInc u')                     = conv k u u'
--- conv k (VSquash x u v) (VSquash x' u' v')     =
---   and [x == x', conv k u u', conv k v v']
+  conv k (VInh u) (VInh u')                     = conv k u u'
+  conv k (VInc u) (VInc u')                     = conv k u u'
+  conv k (VSquash phi u v) (VSquash phi' u' v') =
+    and [conv k phi phi', conv k u u', conv k v v']
 
   conv k (VVar x phis)  (VVar x' phis')  =
     x == x' && conv k phis phis'
@@ -841,8 +839,8 @@ instance Convertible Val where
   conv k (VLoop phi)    (VLoop phi')     = conv k phi phi'
   conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
     and [conv k f f', conv k b b', conv k l l', conv k v v']
-  -- conv k (VInhRec b p phi v) (VInhRec b' p' phi' v') =
-  --   and [conv k b b', conv k p p', conv k phi phi', conv k v v']
+  conv k (VInhRec b p f v) (VInhRec b' p' f' v') =
+     and [conv k b b', conv k p p', conv k f f', conv k v v']
   -- conv k VI             VI               = True
   -- conv k VI0            VI0              = True
   -- conv k VI1            VI1              = True

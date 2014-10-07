@@ -342,22 +342,22 @@ propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
 propFam : (A : U) (B : A -> U) -> U
 propFam A B = (a : A) -> prop (B a)
 
--- reflexive : (A : U) -> rel A -> U
--- reflexive A R = (a : A) -> R a a
+reflexive : (A : U) -> rel A -> U
+reflexive A R = (a : A) -> R a a
 
--- symmetry : (A : U) -> rel A -> U
--- symmetry A R = (a b : A) -> R a b -> R b a
+symmetry : (A : U) -> rel A -> U
+symmetry A R = (a b : A) -> R a b -> R b a
 
--- equivalence : (A : U) -> rel A -> U
--- equivalence A R = and (reflexive A R) (euclidean A R)
+equivalence : (A : U) -> rel A -> U
+equivalence A R = and (reflexive A R) (euclidean A R)
 
--- eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
--- eqToSym A R z a b = (z.2) b a b (z.1 b)
+eqToSym : (A : U) (R : rel A) -> equivalence A R -> symmetry A R
+eqToSym A R z a b = (z.2) b a b (z.1 b)
 
--- eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
---               (a b c : A) -> R c a -> R c b -> R a b
--- eqToInvEucl A R eq a b c p q =
---   eq.2 a b c (eqToSym A R eq c a p) (eqToSym A R eq c b q)
+eqToInvEucl : (A : U) (R : rel A) -> equivalence A R ->
+              (a b c : A) -> R c a -> R c b -> R a b
+eqToInvEucl A R eq a b c p q =
+  eq.2 a b c (eqToSym A R eq c a p) (eqToSym A R eq c b q)
 
 -- -- definition by case on a decidable equality
 -- -- needed for Nicolai Kraus example

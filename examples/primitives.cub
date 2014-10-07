@@ -106,3 +106,11 @@ primitive inc : (A : U) -> A -> inh A
 primitive squash : (A : U) -> prop (inh A)
 
 primitive inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+
+-- primitive inhrec : (A : U) (F : inh A -> U) (f : (a : A) -> F (inc A a))
+--   (q : (x0 x1  : inh A) (u0 : F x0) (u1 : F x1) -> IdS (inh A) F x0 x1 (sqash A x0 x1) u0 u1)
+--   (x : inh A) -> F x
+
+
+-- IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
+-- IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
