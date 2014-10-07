@@ -22,7 +22,7 @@ noLoc :: String -> Binder
 noLoc x = (x, Loc "" (0,0))
 
 -- Branch of the form: c x1 .. xn -> e
-type Brc    = (Label,([Binder],Ter))
+type Brc    = (Label,([Binder],Ter))  -- TODO: why Binder and not Ident?
 
 -- Telescope (x1 : A1) .. (xn : An)
 type Tele   = [(Binder,Ter)]
@@ -362,6 +362,9 @@ data Val = VU
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
          -- | VFillN Val (Box Val)
          -- | VComN Val (Box Val)
+
+         -- for reification
+         | VLam String Val
   deriving Eq
 
 -- vepair :: Name -> Val -> Val -> Val
@@ -545,6 +548,8 @@ showVal (VInh u)                 = "inh" <+> showVal1 u
 showVal (VInc u)                 = "inc" <+> showVal1 u
 showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
 showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
+
+showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 
 -- showVal (VHExt n b f g p)        = "funHExt" <+> show n <+> showVals [b,f,g,p]
 -- showVal (Kan Fill v box)         = "Fill" <+> showVal1 v <+> parens (show box)

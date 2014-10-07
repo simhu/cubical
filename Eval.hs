@@ -2,6 +2,7 @@
 module Eval ( eval
             , evals
             , app
+            , normal
             , conv
             , fstSVal
             ) where
@@ -732,7 +733,7 @@ compLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
   where i = fresh (a, ls, u)
 
 class Convertible a where
-  conv :: Int -> a -> a -> Bool
+  conv   :: Int -> a -> a -> Bool
 
 instance Convertible Val where
   conv k VU VU                                  = True
@@ -882,3 +883,76 @@ instance Convertible Hiso where
 
 instance Convertible Formula where
   conv _ phi psi = sort (invFormula phi 1) == sort (invFormula psi 1)
+
+
+class Normal a where
+  normal :: Int -> a -> a
+
+-- Does neither normalize formulas nor environments.
+instance Normal Val where
+  normal _ VU = VU
+  normal k (Ter (Lam x u) e) = VLam name $ normal (k+1) (eval (Pair e (x,v)) u)
+    where v@(VVar name _) = mkVar k $ support e
+  normal k (VPi u v) = VPi (normal k u) (normal k v)
+  normal k (Kan i u vs v) = comp Pos i (normal k u) (normal k vs) (normal k v)
+  normal k (KanUElem us u) = kanUElem (normal k us) (normal k u)
+  normal k (UnKan hisos u) = UnKan (normal k hisos) (normal k u)
+
+  normal k (VId a u0 u1) = VId a' u0' u1'
+    where (a',u0',u1') = normal k (a,u0,u1)
+
+  normal k (Path i u) = Path i (normal k u)
+  normal k (VSigma u v) = VSigma (normal k u) (normal k v)
+  normal k (VSPair u v) = VSPair (normal k u) (normal k v)
+  normal k (VCon n us) = VCon n (normal k us)
+
+  normal k (Glue hisos u) = glue (normal k hisos) (normal k u)
+  normal k (UnGlue hisos u) = UnGlue (normal k hisos) (normal k u)
+  normal k (GlueElem us u) = glueElem (normal k us) u
+  normal k (GlueLine shape u phi) = glueLine shape (normal k u) phi
+  normal k (GlueLineElem shape u phi) = glueLineElem shape (normal k u) phi
+
+  normal k (VExt phi u v w) = VExt phi u' v' w'
+    where (u',v',w') = normal k (u,v,w)
+
+  normal k (VInh u)  = VInh (normal k u)
+  normal k (VInc u)  = VInc (normal k u)
+  normal k (VSquash phi u v) = VSquash phi (normal k u) (normal k v)
+
+  normal _ VCircle = VCircle
+  normal _ VBase   = VBase
+  normal _ (VLoop phi) = VLoop phi
+
+  normal k (VApp u v) = app (normal k u) (normal k v)
+  normal k (VAppFormula u phi) = normal k u @@ phi
+  normal k (VFst u) = fstSVal (normal k u)
+  normal k (VSnd u) = sndSVal (normal k u)
+  normal k (VSplit u v) = VSplit (normal k u) (normal k v)
+
+  normal k (VCircleRec u v w x) = VCircleRec u' v' w' x'
+    where (u',v',w',x') = normal k (u,v,w,x)
+
+  normal k (VInhRec b f h u) = VInhRec b' f' h' u'
+    where (b',f',h',u') = normal k (b,f,h,u)
+
+  normal k u = u
+
+instance Normal a => Normal (Map k a) where
+  normal k us = Map.map (normal k) us
+
+instance (Normal a,Normal b) => Normal (a,b) where
+  normal k (u,v) = (normal k u,normal k v)
+
+instance (Normal a,Normal b,Normal c) => Normal (a,b,c) where
+  normal k (u,v,w) = (normal k u,normal k v,normal k w)
+
+instance (Normal a,Normal b,Normal c,Normal d) => Normal (a,b,c,d) where
+  normal k (u,v,w,x) =
+    (normal k u,normal k v,normal k w, normal k x)
+
+instance Normal a => Normal [a] where
+  normal k us = map (normal k) us
+
+instance Normal Hiso where
+  normal k (Hiso a b f g s t) = Hiso a' b' f' g' s' t'
+    where [a',b',f',g',s',t'] = normal k [a,b,f,g,s,t]
