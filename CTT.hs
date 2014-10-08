@@ -75,27 +75,34 @@ data Ter = App Ter Ter
          -- c Ms xs N0 N1 connects N0 (Ms/xs) to N1 (Ms/xs)
          | PCon Label [Ter] [Ident] Ter Ter
          | HSum Binder [HLabel]
-         | HSplit Loc [HBranch]
+         | HSplit Loc Ter [HBranch]
          | PN PN
   deriving Eq
 
 data HLabel = Label Binder Tele | HLabel Binder Tele Ter Ter
-  deriving Eq
+  deriving (Eq,Show)
+
+data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
+             -- c xs @ u ~ v -> e
+             | HBranch Label [Binder] Ter Ter Ter
+  deriving (Eq,Show)
+
 
 hLabelToBinderTele :: HLabel -> (Binder,Tele)
 hLabelToBinderTele (Label n tele)      = (n,tele)
 hLabelToBinderTele (HLabel n tele _ _) = (n,tele)
 
+hLabelToBinder :: HLabel -> Binder
+hLabelToBinder (Label n _)      = n
+hLabelToBinder (HLabel n _ _ _) = n
+
 isLabel :: HLabel -> Bool
 isLabel h@Label{} = True
 isLabel _         = False
 
-
-data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
-             -- The first two Ters are the corresponding Ters to give the PCon
-             -- c xs @ u ~ v -> e
-             | HBranch Label [Binder] Ter Ter Ter Ter Ter
-  deriving Eq
+hBranchToLabel :: HBranch -> Label
+hBranchToLabel (Branch l _ _) = l
+hBranchToLabel (HBranch l _ _ _ _) = l
 
 -- Primitive notions
 data PN = Id | Refl | Sym
@@ -435,9 +442,9 @@ data Env = Empty
 instance Show Env where
   show Empty            = ""
   show (PDef xas env)   = show env
-  show (Pair env (x,u)) = parens $ showEnv1 env ++ show u
+  show (Pair env (x,u)) = parens $ showEnv1 env ++ fst x ++ "=" ++ show u
     where
-      showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
+      showEnv1 (Pair env (x,u)) = showEnv1 env ++ fst x ++ "=" ++ show u ++ ", "
       showEnv1 e                = show e
 
 upds :: Env -> [(Binder,Val)] -> Env
@@ -503,7 +510,7 @@ showTer (PN pn)       = showPN pn
 showTer (PCon c es _ e0 e1) = -- verbose for now
   c <+> showTers es <+> "@" <+> showTer e0 <+> "~" <+> showTer e1
 showTer (HSum l _)    = "hsum" <+> show l
-showTer (HSplit l _)  = "hsplit" <+> show l
+showTer (HSplit l _ _)  = "hsplit" <+> show l
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1

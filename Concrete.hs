@@ -120,14 +120,14 @@ getLoc l = C.Loc <$> getModule <*> pure l
 resolveBinder :: AIdent -> Resolver C.Binder
 resolveBinder (AIdent (l,x)) = (x,) <$> getLoc l
 
-resolveFaceTers :: AIdent -> Resolver (C.Ter,C.Ter)
-resolveFaceTers (AIdent (l,x)) = do
-  modName <- getModule
-  vars    <- getVariables
-  case C.getIdent x vars of
-    Just (PConstructor _ t1 t2) -> return (t1,t2)
-    _ -> throwError $ "Cannot find path variable" <+> x <+> "at position" <+>
-           show l <+> "in module" <+> modName
+-- resolveFaceTers :: AIdent -> Resolver (C.Ter,C.Ter)
+-- resolveFaceTers (AIdent (l,x)) = do
+--   modName <- getModule
+--   vars    <- getVariables
+--   case C.getIdent x vars of
+--     Just (PConstructor _ t1 t2) -> return (t1,t2)
+--     _ -> throwError $ "Cannot find path variable" <+> x <+> "at position" <+>
+--            show l <+> "in module" <+> modName
 
 
 -- Eta expand constructors
@@ -210,7 +210,7 @@ resolveExp (HSplit f hbrs) = do
                       HBranchData (AIdent (l,_)) _ _:_ -> l
                       HBranchPath (AIdent (l,_)) _ _ _ _:_ -> l
                       _ -> (0,0))
-  return $ C.HSplit loc hbrs'
+  return $ C.HSplit loc f' hbrs'
 resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
@@ -234,8 +234,8 @@ resolveHBranch (HBranchPath lbl args e1 e2 e) = do
   re1     <- local (insertVars binders) $ resolveExp e1
   re2     <- local (insertVars binders) $ resolveExp e2
   re      <- local (insertVars binders) $ resolveWhere e
-  (t1,t2) <- resolveFaceTers lbl
-  return $ C.HBranch (unAIdent lbl) binders t1 t2 re1 re2 re
+  --(t1,t2) <- resolveFaceTers lbl
+  return $ C.HBranch (unAIdent lbl) binders re1 re2 re
 
 resolveTele :: [(AIdent,Exp)] -> Resolver C.Tele
 resolveTele []        = return []

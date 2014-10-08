@@ -153,7 +153,7 @@ check a t = case (a,t) of
     if map (fst . fst) cas' == map fst ces'
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces' cas' ]
-       else throwError "case branches does not match the data type"
+       else throwError "case branches do not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
     local (addTypeVal (x,a)) $ check (app f var) t
@@ -171,21 +171,32 @@ check a t = case (a,t) of
         w1   = eval env' t1
     if conv k v0 w0
       then unless (conv k v1 w1)
-           (throwError $ "check conv:" <+> show v1 <+> "/=" <+> show w1)
-      else throwError $ "check conv:" <+> show v0 <+> "/=" <+> show w0
+           (throwError $ "check conv pcon:" <+> show v1 <+> "/=" <+> show w1)
+      else throwError $ "check conv pcon:" <+> show v0 <+> "/=" <+> show w0
   (VU,HSum _ hlabels) -> forM_ hlabels $ \hlabel -> case hlabel of
     Label _ tele -> checkTele tele
     HLabel n tele t0 t1 -> do
       checkTele tele
-      env <- asks env
+      rho <- asks env
       k   <- asks index
-      let d  = support env
+      let d  = support rho
           l  = length tele
           us = map (`mkVar` d) [k..k+l-1]
-          e  = eval env t
+          e  = eval rho t
       local (addTypeVals (zip (map fst tele) us)) $ do
+        env' <- asks env
+        trace ("left e = " ++ show e ++ "\n t0 = " ++ show t0 ++ "\n env = " ++ show env')
         check e t0
+        trace ("right")
         check e t1
+  (VPi (Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
+    -- TODO: don't ignore f'?
+    let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
+        hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
+    if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
+      then sequence_ [ checkHBranch (hl,nu) f hbr
+                     | (hbr,hl) <- zip hbranches' hlabels']
+      else throwError "hsplit branches do not match the hdata type"
   (_,Where e d) -> do
     checkDecls d
     local (addDecls d) $ check a e
@@ -205,6 +216,17 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
       l  = length xas
       us = map (`mkVar` d) [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
+
+checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Typing ()
+checkHBranch (Label _ tele,nu) f (Branch c binders e) =
+  checkBranch (tele,nu) f (c,(binders,e))
+checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders u0 u1 e) =
+  undefined
+
+checkHBranch (hlb,_) _ hbr =
+  throwError ("checkHBranch: constructor kinds don't match up in"
+             <+> show hlb <+> "and" <+> show hbr)
+
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
