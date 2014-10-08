@@ -72,8 +72,8 @@ data Ter = App Ter Ter
          | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Binder LblSum
-         -- c Ms N0 N1 connects N0 Ms to N1 Ms
-         | PCon Label [Ter] Ter Ter
+         -- c Ms xs N0 N1 connects N0 (Ms/xs) to N1 (Ms/xs)
+         | PCon Label [Ter] [Ident] Ter Ter
          | HSum Binder [HLabel]
          | HSplit Loc [HBranch]
          | PN PN
@@ -236,9 +236,9 @@ unApps = aux []
 -- unApps t         = (t,[])
 
 mkApps :: Ter -> [Ter] -> Ter
-mkApps (Con l us) vs = Con l (us ++ vs)
-mkApps (PCon l us t1 t2) vs = PCon l (us ++ vs) t1 t2
-mkApps t ts          = foldl App t ts
+mkApps (Con l us) vs           = Con l (us ++ vs)
+mkApps (PCon l us ns t1 t2) vs = PCon l (us ++ vs) ns t1 t2
+mkApps t ts                    = foldl App t ts
 
 mkLams :: [String] -> Ter -> Ter
 mkLams bs t = foldr Lam t [noLoc b | b <- bs]
@@ -366,6 +366,9 @@ data Val = VU
          | VCircle
          | VBase
          | VLoop Formula
+
+         -- Path constructors
+         | VPCon Ident [Val] Formula Val Val
 
          -- interval
          -- | VI
@@ -497,7 +500,7 @@ showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (PN pn)       = showPN pn
-showTer (PCon c es e0 e1) =
+showTer (PCon c es _ e0 e1) = -- verbose for now
   c <+> showTers es <+> "@" <+> showTer e0 <+> "~" <+> showTer e1
 showTer (HSum l _)    = "hsum" <+> show l
 showTer (HSplit l _)  = "hsplit" <+> show l
@@ -575,6 +578,10 @@ showVal (VInh u)                 = "inh" <+> showVal1 u
 showVal (VInc u)                 = "inc" <+> showVal1 u
 showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
 showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
+
+showVal (VPCon c es phi u v)     = -- verbose for now
+  c <+> showVals es <+> parens (show phi) <+> "@" <+> showVal u <+> "~" <+> showVal v
+
 
 showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 

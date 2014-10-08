@@ -59,9 +59,21 @@ eval e (Sum pr ntss)     = Ter (Sum pr ntss) e
 eval e (Con name ts)     = VCon name $ map (eval e) ts
 eval e (Split pr alts)   = Ter (Split pr alts) e
 
+eval e t@(HSum {})       = Ter t e
+eval e (PCon n ts ns t0 t1) =
+  let i = fresh e
+      -- TODO: lambda abstract or not?
+      u0 = Ter (mkLams ns t0) e
+      u1 = Ter (mkLams ns t1) e
+  in Path i $ VPCon n (map (eval e) ts) (Atom i) u0 u1
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
+
+pathCon :: Ident -> [Val] -> Formula -> Val -> Val -> Val
+pathCon n vs (Dir Zero) u _ = apps u vs
+pathCon n vs (Dir One)  _ u = apps u vs
+pathCon n vs phi        u v = VPCon n vs phi u v
 
 fstSVal, sndSVal :: Val -> Val
 fstSVal (VSPair a b)    = a
@@ -114,6 +126,8 @@ instance Nominal Val where
   support (VInc v)                      = support v
   support (VSquash phi v0 v1)           = support (phi,v0,v1)
   support (VInhRec b p h a)             = support (b,p,h,a)
+
+  support (VPCon _ vs phi u v)          = support (vs,phi,u,v)
 
   -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
@@ -186,6 +200,7 @@ instance Nominal Val where
          VSquash psi v0 v1     -> squash (acti psi) (acti v0) (acti v1)
          VInhRec b p h a       -> inhRec (acti b) (acti p) (acti h) (acti a)
 
+         VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
   swap u ij@ (i,j) =
@@ -234,6 +249,7 @@ instance Nominal Val where
          VSquash phi v0 v1 -> VSquash (sw phi) (sw v0) (sw v1)
          VInhRec b p h a   -> VInhRec (sw b) (sw p) (sw h) (sw a)
 
+         VPCon n vs phi u v -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
 
 instance Nominal Hiso where
   support (Hiso a b f g s t)  = support (a,b,f,g,s,t)

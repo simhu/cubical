@@ -97,6 +97,9 @@ addTypeVal :: (Binder,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam v) =
   TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
 
+addTypeVals :: [(Binder,Val)] -> TEnv -> TEnv
+addTypeVals = flip $ foldl (flip addTypeVal)
+
 addType :: (Binder,Ter) -> TEnv -> TEnv
 addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval rho a) tenv
 
@@ -158,33 +161,31 @@ check a t = case (a,t) of
     check a t1
     e <- asks env
     check (app f (eval e t1)) t2
-  (VId u v0 v1,PCon c es t0 t1) -> do
+  (VId (Path i u) v0 v1,PCon c es _ t0 t1) -> do -- TODO: what about the <i> ?
     (bs,nu) <- getHLblType c u
     checks (bs,nu) es
-    env <- asks env
     k   <- asks index
-    let apps = foldl App
-        w0 = eval env (apps t0 es)
-        w1 = eval env (apps t1 es)
+    env <- asks env
+    let env' = upds env (evals env (zip (map fst bs) es))
+        w0   = eval env' t0
+        w1   = eval env' t1
     if conv k v0 w0
       then unless (conv k v1 w1)
            (throwError $ "check conv:" <+> show v1 <+> "/=" <+> show w1)
       else throwError $ "check conv:" <+> show v0 <+> "/=" <+> show w0
-  (VU, HSum _ hlabels) -> forM_ hlabels $ \hlabel -> case hlabel of
+  (VU,HSum _ hlabels) -> forM_ hlabels $ \hlabel -> case hlabel of
     Label _ tele -> checkTele tele
     HLabel n tele t0 t1 -> do
       checkTele tele
-      let apps = foldl App
-          args = 
       env <- asks env
       k   <- asks index
-      check (eval env t) (apps t0 
-
-        w0 = eval env (apps t0 es)
-        w1 = eval env (apps t1 es)
-  
-  
-
+      let d  = support env
+          l  = length tele
+          us = map (`mkVar` d) [k..k+l-1]
+          e  = eval env t
+      local (addTypeVals (zip (map fst tele) us)) $ do
+        check e t0
+        check e t1
   (_,Where e d) -> do
     checkDecls d
     local (addDecls d) $ check a e

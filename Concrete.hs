@@ -48,8 +48,8 @@ unApps u         ws = (u, ws)
 vTele :: [VTDecl] -> Tele
 vTele decls = [ (i, typ) | VTDecl id ids typ <- decls, i <- id:ids ]
 
-vArgs :: [VTDecl] -> [AIdent]
-vArgs decls = [ i | VTDecl id ids _ <- decls, i <- id:ids ]
+vArgs :: [VTDecl] -> Resolver [C.Binder]
+vArgs decls = sequence [ resolveBinder i | VTDecl id ids _ <- decls, i <- id:ids ]
 
 
 -- turns an expression of the form App (... (App id1 id2) ... idn)
@@ -69,7 +69,7 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 
 type Arity = Int
 
-data SymKind = Variable | Constructor Arity | PConstructor Arity C.Ter C.Ter
+data SymKind = Variable | Constructor Arity | PConstructor [C.Ident] C.Ter C.Ter
   deriving (Eq,Show)
 
 -- local environment for constructors
@@ -140,13 +140,13 @@ expandConstr a x es = do
   return $ C.mkLams binders $ C.mkApps (C.Con x []) (ts ++ args)
 
 -- TODO: refactor expandConstr and expandPConstr
-expandPConstr :: Arity -> String -> C.Ter -> C.Ter -> [Exp] -> Resolver Ter
+expandPConstr :: [C.Ident] -> String -> C.Ter -> C.Ter -> [Exp] -> Resolver Ter
 expandPConstr a x t1 t2 es =  do
-  let r       = a - length es
+  let r       = length a - length es
       binders = map (('_' :) . show) [1..r]
       args    = map C.Var binders
   ts <- mapM resolveExp es
-  return $ C.mkLams binders $ C.mkApps (C.PCon x [] t1 t2) (ts ++ args)
+  return $ C.mkLams binders $ C.mkApps (C.PCon x [] a t1 t2) (ts ++ args)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
@@ -252,6 +252,7 @@ resolveLabel (Label n vdecl) =
 --   let sums = concat [sum | DeclData _ _ sum <- decls]
 --   sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
 
+-- TODO: refactor resolveMutuals?
 declsLabelsAndHLabels :: [Decl] -> Resolver [(C.Binder,SymKind)]
 declsLabelsAndHLabels [] = return []
 declsLabelsAndHLabels (DeclData _ _ sum:decls) =
@@ -260,13 +261,13 @@ declsLabelsAndHLabels (DeclData _ _ sum:decls) =
        <*> declsLabelsAndHLabels decls
 declsLabelsAndHLabels (DeclHData _ _ hsum:decls) = do
   constrs   <- hLabelsToConstrs hsum
-  let insCs = local (insertBinders constrs)
   bindsyms  <- declsLabelsAndHLabels decls
   pconstrs  <- sequence $
-    [ do bind <- resolveBinder lbl
-         t1   <- lams (vArgs vdecl) (insCs (resolveExp e1))
-         t2   <- lams (vArgs vdecl) (insCs (resolveExp e1))
-         return (bind, PConstructor (length vdecl) t1 t2)
+    [ do vars <- vArgs vdecl
+         bind <- resolveBinder lbl
+         t1   <- local (insertVars vars . insertBinders constrs) (resolveExp e1)
+         t2   <- local (insertVars vars . insertBinders constrs) (resolveExp e2)
+         return (bind, PConstructor (map fst vars) t1 t2)
     | HLabelPath lbl vdecl e1 e2 <- hsum]
   return $ constrs ++ pconstrs ++ bindsyms
 declsLabelsAndHLabels (_:decls) = declsLabelsAndHLabels decls
@@ -281,13 +282,12 @@ resolveHLabels hlabels = do
   constrs <- hLabelsToConstrs hlabels
   let resHLabel (HLabelData n vdecl) =
         C.Label <$> resolveBinder n <*> resolveTele (vTele vdecl)
-      resHLabel (HLabelPath n vdecl e1 e2) =
+      resHLabel (HLabelPath n vdecl e1 e2) = do
         -- endpoints in a path constructor should know the data constructors
-        let args = vArgs vdecl
-            re1  = local (insertBinders constrs) (resolveExp e1)
-            re2  = local (insertBinders constrs) (resolveExp e2)
-        in C.HLabel <$> resolveBinder n <*> resolveTele (vTele vdecl)
-             <*> lams args re1 <*> lams args re2
+        args <- vArgs vdecl
+        let re1 = local (insertVars args . insertBinders constrs) (resolveExp e1)
+            re2 = local (insertVars args . insertBinders constrs) (resolveExp e2)
+        C.HLabel <$> resolveBinder n <*> resolveTele (vTele vdecl) <*> re1 <*> re2
   mapM resHLabel hlabels
 
 
