@@ -3,7 +3,7 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "split", "mutual" ;
+layout "where", "let", "split", "with", "mutual" ;
 layout stop "in" ;
 -- Do not use layout toplevel as it makes pExp fail!
 
@@ -16,6 +16,7 @@ DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
 DeclType.   Decl ::= AIdent ":" Exp ;
 DeclPrim.   Decl ::= "primitive" AIdent ":" Exp ;
 DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
+DeclHData.  Decl ::= "hdata" AIdent [AIdent] "=" [HLabel] ;
 DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
 DeclOpaque. Decl ::= "opaque" AIdent ;
 DeclTransp. Decl ::= "transparent" AIdent ;
@@ -27,6 +28,7 @@ NoWhere.  ExpWhere ::= Exp ;
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
 Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
+HSplit.   Exp  ::= "hsplit" Exp "with" "{" [HBranch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
@@ -34,17 +36,30 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
+-- PathCon.  Exp3 ::= "[" HIdent [Exp] "@" Exp "~" Exp  "]" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
 coercions Exp 3 ;
+
+terminator Exp "";
 
 -- Branches
 Branch.   Branch ::= AIdent [AIdent] "->" ExpWhere ;
 separator Branch ";" ;
 
+-- HBranches (to be adapted)
+HBranchData.  HBranch ::= AIdent [AIdent] "->" ExpWhere ;
+HBranchPath.  HBranch ::= AIdent [AIdent] "@" Exp3 "~" Exp3 "->" ExpWhere ;
+separator HBranch ";" ;
+
 -- Labelled sum alternatives
 Label.    Label   ::= AIdent [VTDecl] ;
 separator Label "|" ;
+
+-- Labelled hsum alternatives (to be adapted)
+HLabelData. HLabel ::= AIdent [VTDecl] ;
+HLabelPath. HLabel ::= AIdent [VTDecl] "@" Exp "~" Exp ;
+separator HLabel "|" ;
 
 -- Telescopes
 VTDecl.    VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;
@@ -57,3 +72,5 @@ terminator nonempty PseudoTDecl "" ;
 
 position token AIdent ((letter|'\''|'_')(letter|digit|'\''|'_')*) ;
 terminator AIdent "" ;
+
+-- position token HIdent ('#'(letter|digit|'\''|'_')*) ;

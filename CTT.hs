@@ -72,7 +72,20 @@ data Ter = App Ter Ter
          | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Binder LblSum
+         -- c Ms N0 N1 connects N0 Ms to N1 Ms
+         | PCon Label [Ter] Ter Ter
+         | HSum Binder [HLabel]
+         | HSplit Loc [HBranch]
          | PN PN
+  deriving Eq
+
+data HLabel = Label Binder Tele | HLabel Binder Tele Ter Ter
+  deriving Eq
+
+data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
+             -- The first two Ters are the corresponding Ters to give the PCon
+             -- c xs @ u ~ v -> e
+             | HBranch Label [Binder] Ter Ter Ter Ter Ter
   deriving Eq
 
 -- Primitive notions
@@ -215,6 +228,7 @@ unApps = aux []
 
 mkApps :: Ter -> [Ter] -> Ter
 mkApps (Con l us) vs = Con l (us ++ vs)
+mkApps (PCon l us t1 t2) vs = PCon l (us ++ vs) t1 t2
 mkApps t ts          = foldl App t ts
 
 mkLams :: [String] -> Ter -> Ter

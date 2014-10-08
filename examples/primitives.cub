@@ -108,7 +108,7 @@ primitive squash : (A : U) -> prop (inh A)
 primitive inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 
 -- primitive inhrec : (A : U) (F : inh A -> U) (f : (a : A) -> F (inc A a))
---   (q : (x0 x1  : inh A) (u0 : F x0) (u1 : F x1) -> IdS (inh A) F x0 x1 (sqash A x0 x1) u0 u1)
+--   (q : (x0 x1  : inh A) (u0 : F x0) (u1 : F x1) -> IdS (inh A) F u0 u1 (sqash A x0 x1) u0 u1)
 --   (x : inh A) -> F x
 
 
