@@ -252,38 +252,43 @@ resolveLabel (Label n vdecl) =
 --   let sums = concat [sum | DeclData _ _ sum <- decls]
 --   sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
 
--- TODO: clean
 declsLabelsAndHLabels :: [Decl] -> Resolver [(C.Binder,SymKind)]
-declsLabelsAndHLabels decls = do
-  let sums  = concat [sum | DeclData _ _ sum <- decls]
-      hsums = concat [hsum | DeclHData _ _ hsum <- decls]
-  sequence $ [ (,Constructor $ length args) <$> resolveBinder lbl
-             | Label lbl args <- sums ] ++
-             [ (,Constructor $ length args) <$> resolveBinder lbl
-             | HLabelData lbl args <- hsums ] ++
-             [ (,) <$> resolveBinder lbl
-                   <*> (PConstructor (length vdecl)
-                        <$> lams (vArgs vdecl) (resolveExp e1)
-                        <*> lams (vArgs vdecl) (resolveExp e1))
-             | HLabelPath lbl vdecl e1 e2 <- hsums]
+declsLabelsAndHLabels [] = return []
+declsLabelsAndHLabels (DeclData _ _ sum:decls) =
+  (++) <$> sequence [ (,Constructor $ length args) <$> resolveBinder lbl
+                    | Label lbl args <- sum ]
+       <*> declsLabelsAndHLabels decls
+declsLabelsAndHLabels (DeclHData _ _ hsum:decls) = do
+  constrs   <- hLabelsToConstrs hsum
+  let insCs = local (insertBinders constrs)
+  bindsyms  <- declsLabelsAndHLabels decls
+  pconstrs  <- sequence $
+    [ do bind <- resolveBinder lbl
+         t1   <- lams (vArgs vdecl) (insCs (resolveExp e1))
+         t2   <- lams (vArgs vdecl) (insCs (resolveExp e1))
+         return (bind, PConstructor (length vdecl) t1 t2)
+    | HLabelPath lbl vdecl e1 e2 <- hsum]
+  return $ constrs ++ pconstrs ++ bindsyms
+declsLabelsAndHLabels (_:decls) = declsLabelsAndHLabels decls
 
 hLabelsToConstrs :: [HLabel] -> Resolver [(C.Binder,SymKind)]
 hLabelsToConstrs hlabels =
   sequence [ (,Constructor $ length args) <$> resolveBinder lbl
            | HLabelData lbl args <- hlabels ]
 
-resolveHLabel :: HLabel -> Resolver C.HLabel
-resolveHLabel (HLabelData n vdecl) =
-  C.Label <$> resolveBinder n <*> resolveTele (vTele vdecl)
-resolveHLabel (HLabelPath n vdecl e1 e2) =
-  let args = vArgs vdecl
-  in C.HLabel <$> resolveBinder n <*> resolveTele (vTele vdecl)
-      <*> lams args (resolveExp e1) <*> lams args (resolveExp e2)
-
 resolveHLabels :: [HLabel] -> Resolver [C.HLabel]
 resolveHLabels hlabels = do
   constrs <- hLabelsToConstrs hlabels
-  
+  let resHLabel (HLabelData n vdecl) =
+        C.Label <$> resolveBinder n <*> resolveTele (vTele vdecl)
+      resHLabel (HLabelPath n vdecl e1 e2) =
+        -- endpoints in a path constructor should know the data constructors
+        let args = vArgs vdecl
+            re1  = local (insertBinders constrs) (resolveExp e1)
+            re2  = local (insertBinders constrs) (resolveExp e2)
+        in C.HLabel <$> resolveBinder n <*> resolveTele (vTele vdecl)
+             <*> lams args re1 <*> lams args re2
+  mapM resHLabel hlabels
 
 
 -- Resolve Data or Def declaration
@@ -293,7 +298,7 @@ resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
 resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
   (n,) <$> lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
 resolveDDecl (DeclHData x@(AIdent (l,n)) args hsum) =
-  (n,) <$> lams args (C.HSum <$> resolveBinder x <*> mapM resolveHLabel hsum)
+  (n,) <$> lams args (C.HSum <$> resolveBinder x <*> resolveHLabels hsum)
 resolveDDecl d = throwError $ "Definition expected" <+> show d
 
 -- Resolve mutual declarations (possibly one)

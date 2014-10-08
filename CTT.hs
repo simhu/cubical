@@ -82,6 +82,15 @@ data Ter = App Ter Ter
 data HLabel = Label Binder Tele | HLabel Binder Tele Ter Ter
   deriving Eq
 
+hLabelToBinderTele :: HLabel -> (Binder,Tele)
+hLabelToBinderTele (Label n tele)      = (n,tele)
+hLabelToBinderTele (HLabel n tele _ _) = (n,tele)
+
+isLabel :: HLabel -> Bool
+isLabel h@Label{} = True
+isLabel _         = False
+
+
 data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
              -- The first two Ters are the corresponding Ters to give the PCon
              -- c xs @ u ~ v -> e
@@ -488,6 +497,10 @@ showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (PN pn)       = showPN pn
+showTer (PCon c es e0 e1) =
+  c <+> showTers es <+> "@" <+> showTer e0 <+> "~" <+> showTer e1
+showTer (HSum l _)    = "hsum" <+> show l
+showTer (HSplit l _)  = "hsplit" <+> show l
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1

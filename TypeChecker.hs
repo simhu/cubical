@@ -62,12 +62,27 @@ getLblType :: String -> Val -> Typing (Tele, Env)
 getLblType c (Ter (Sum _ cas) r) = case getIdent c cas of
   Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
+getLblType c (Ter (HSum _ hlabels) r) =
+  let cas = map hLabelToBinderTele (filter isLabel hlabels)
+  in case getIdent c cas of
+    Just as -> return (as,r)
+    Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
+getHLblType :: String -> Val -> Typing (Tele, Env)
+getHLblType c (Ter (HSum _ hlabels) r) =
+  let cas = map hLabelToBinderTele hlabels
+  in case getIdent c cas of
+    Just as -> return (as,r)
+    Nothing -> throwError ("getHLblType" <+> show c)
+getHLblType c u = throwError ("expected a hdata type for the path constructor"
+                             <+> c <+> "but got" <+> show u)
+
+
 -- Environment for type checker
 data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
-                 , env    :: Env
+                 , env     :: Env
                  , ctxt    :: Ctxt
                  , verbose :: Bool  -- Should it be verbose and print
                                     -- what it typechecks?
@@ -143,6 +158,33 @@ check a t = case (a,t) of
     check a t1
     e <- asks env
     check (app f (eval e t1)) t2
+  (VId u v0 v1,PCon c es t0 t1) -> do
+    (bs,nu) <- getHLblType c u
+    checks (bs,nu) es
+    env <- asks env
+    k   <- asks index
+    let apps = foldl App
+        w0 = eval env (apps t0 es)
+        w1 = eval env (apps t1 es)
+    if conv k v0 w0
+      then unless (conv k v1 w1)
+           (throwError $ "check conv:" <+> show v1 <+> "/=" <+> show w1)
+      else throwError $ "check conv:" <+> show v0 <+> "/=" <+> show w0
+  (VU, HSum _ hlabels) -> forM_ hlabels $ \hlabel -> case hlabel of
+    Label _ tele -> checkTele tele
+    HLabel n tele t0 t1 -> do
+      checkTele tele
+      let apps = foldl App
+          args = 
+      env <- asks env
+      k   <- asks index
+      check (eval env t) (apps t0 
+
+        w0 = eval env (apps t0 es)
+        w1 = eval env (apps t1 es)
+  
+  
+
   (_,Where e d) -> do
     checkDecls d
     local (addDecls d) $ check a e
@@ -152,6 +194,7 @@ check a t = case (a,t) of
     k <- asks index
     unless (conv k v a) $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
+
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
