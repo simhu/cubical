@@ -142,7 +142,49 @@ bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
 	    zero  -> inv Int (inl zero) (inr zero) (push tt)
 	    suc n -> refl Int (inl (suc n))
   push u @ (bfisid (inl zero)) ~ (bfisid (inr zero)) ->
-    mapOnPathD Int (\i -> Id Int (backward (forward i)) i) bfisid (inl zero) (inr zero) (push u)
+    mapOnPathD Int (\i -> Id Int (backward (forward i)) i) bfisid
+      (inl zero) (inr zero) (push u)
 
 intEqZ : Id U Int Z
 intEqZ = isoId Int Z forward backward fbisid bfisid
+
+circle' : U
+circle' = pushout Unit Unit Unit (\x -> tt) (\x -> tt)
+
+forw : circle -> circle'
+forw = hsplit (\_ -> circle') with
+  cbase -> inl tt
+  cloop @ (inl tt) ~ (inr tt) -> push tt
+
+back : circle' -> circle
+back = hsplit (\_ -> circle) with
+  inl u -> cbase
+  inr u -> cbase
+  push u @ cbase ~ cbase -> cloop
+
+fbid : (x : circle') -> Id circle' (forw (back x)) x
+fbid = hsplit (\x -> Id circle' (forw (back x)) x) with
+  inl u -> lem u
+    where lem : (u : Unit) -> Id circle' (forw (back (inl u))) (inl u)
+          lem = split tt -> refl circle' (inl tt)
+  inr u -> lem u
+    where lem : (u : Unit) -> Id circle' (forw (back (inr u))) (inr u)
+          lem = split tt -> push tt
+  push u @ (fbid (inl tt)) ~ (fbid (inr tt)) ->
+    mapOnPathD circle' (\x -> Id circle' (forw (back x)) x) fbid
+      (inl tt) (inr tt) (push u)
+
+bfid : (x : circle) -> Id circle (back (forw x)) x
+bfid = hsplit (\x -> Id circle (back (forw x)) x) with
+  cbase -> refl circle cbase
+  cloop @ (bfid cbase) ~ (bfid cbase) ->
+    mapOnPathD circle (\x -> Id circle (back (forw x)) x) bfid
+      cbase cbase cloop
+
+circleEqCircle' : Id U circle circle'
+circleEqCircle' = isoId circle circle' forw back fbid bfid
+
+
+
+-- primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
+--                        (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (f a1)

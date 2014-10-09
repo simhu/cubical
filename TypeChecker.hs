@@ -199,8 +199,11 @@ check a t = case (a,t) of
       --   check e t0
       --   trace ("right")
       --   check e t1
-  (VPi (Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
-    -- TODO: don't ignore f'?!
+  (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
+    k   <- asks index
+    rho <- asks env
+    unless (conv k f (eval rho f'))
+      (throwError "check HSplit: families don't match")
     let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
         hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
     if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
