@@ -71,7 +71,8 @@ test A a = inc a
 inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 inhrec A B p f = hsplit (\_ -> B) with
    inc a -> f a
-   squash u v @ (inhrec A B p f u) ~ (inhrec A B p f v) -> p (inhrec A B p f u) (inhrec A B p f v)
+   squash u v @ inhrec A B p f u ~ inhrec A B p f v ->
+     p (inhrec A B p f u) (inhrec A B p f v)
 
 testSquash : (A : U) -> prop (inh A)
 testSquash A = squash
@@ -96,10 +97,6 @@ cyl A B f = pushout A B A (\x -> x) f
 -- data Unit = unit
 
 
--- -
--- universalPushoutZ : (A B C X : U) (f : C -> A) (g : C -> B) (f' : A -> X) (g' : B -> X)
---                     (p : Id (C -> X) (\z -> f (f' z)) (\z -> g (g' z)))
-
 zer : Unit -> N
 zer x = zero
 
@@ -118,7 +115,7 @@ forward : Int -> Z
 forward = hsplit (\_ -> Z) with
  inr n -> plus n
  inl n -> minus n
- push u @ (plus zero) ~ (minus zero) -> refl Z (plus zero)
+ push u @ plus zero ~ minus zero -> refl Z (plus zero)
 
 backward : Z -> Int
 backward = split
@@ -141,7 +138,7 @@ bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
           lem = split
 	    zero  -> inv Int (inl zero) (inr zero) (push tt)
 	    suc n -> refl Int (inl (suc n))
-  push u @ (bfisid (inl zero)) ~ (bfisid (inr zero)) ->
+  push u @ bfisid (inl zero) ~ bfisid (inr zero) ->
     mapOnPathD Int (\i -> Id Int (backward (forward i)) i) bfisid
       (inl zero) (inr zero) (push u)
 
@@ -154,7 +151,7 @@ circle' = pushout Unit Unit Unit (\x -> tt) (\x -> tt)
 forw : circle -> circle'
 forw = hsplit (\_ -> circle') with
   cbase -> inl tt
-  cloop @ (inl tt) ~ (inr tt) -> push tt
+  cloop @ inl tt ~ inr tt -> push tt
 
 back : circle' -> circle
 back = hsplit (\_ -> circle) with
@@ -170,20 +167,50 @@ fbid = hsplit (\x -> Id circle' (forw (back x)) x) with
   inr u -> lem u
     where lem : (u : Unit) -> Id circle' (forw (back (inr u))) (inr u)
           lem = split tt -> push tt
-  push u @ (fbid (inl tt)) ~ (fbid (inr tt)) ->
+  push u @ fbid (inl tt) ~ fbid (inr tt) ->
     mapOnPathD circle' (\x -> Id circle' (forw (back x)) x) fbid
       (inl tt) (inr tt) (push u)
 
 bfid : (x : circle) -> Id circle (back (forw x)) x
 bfid = hsplit (\x -> Id circle (back (forw x)) x) with
   cbase -> refl circle cbase
-  cloop @ (bfid cbase) ~ (bfid cbase) ->
+  cloop @ bfid cbase ~ bfid cbase ->
     mapOnPathD circle (\x -> Id circle (back (forw x)) x) bfid
       cbase cbase cloop
 
 circleEqCircle' : Id U circle circle'
 circleEqCircle' = isoId circle circle' forw back fbid bfid
 
+
+
+
+univPOMap : (A B C : U) (f : C -> A) (g : C -> B) (X : U)
+  (i : A -> X) (j : B -> X) (p : (c : C) -> Id X (i (f c)) (j (g c)))
+  (x : pushout A B C f g) -> X
+univPOMap A B C f g X i j p = hsplit (\_ -> X) with
+  inl a -> i a
+  inr b -> j b
+  push c @ i (f c) ~ j (g c) -> p c
+
+univPOMapUnique : (A B C : U) (f : C -> A) (g : C -> B) (X : U)
+  (i : A -> X) (j : B -> X) (p : (c : C) -> Id X (i (f c)) (j (g c)))
+  (psi : pushout A B C f g -> X)
+  (_ : (a : A) -> Id X (psi (inl a)) (i a))
+  (_ : (b : B) -> Id X (psi (inr b)) (j b))
+  (z : pushout A B C f g) -> Id X (psi z) (univPOMap A B C f g X i j p z)
+univPOMapUnique A B C f g X i j p psi psiinl psiinr =
+ let P : U
+     P = pushout A B C f g
+     phi : P -> X
+     phi = univPOMap A B C f g X i j p
+     uni : (z : P) -> Id X (psi z) (phi z)
+     uni = univPOMapUnique A B C f g X i j p psi psiinl psiinr
+ in hsplit (\z -> Id X (psi z) (phi z)) with
+      inl a -> psiinl a
+      inr b -> psiinr b
+      push c @ uni (inl (f c)) ~ uni (inr (g c)) ->
+        mapOnPathD P (\z -> Id X (psi z) (phi z))
+	  uni (inl (f c)) (inr (g c)) (push c)
 
 
 -- primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
