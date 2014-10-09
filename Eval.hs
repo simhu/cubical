@@ -2,6 +2,7 @@
 module Eval ( eval
             , evals
             , app
+            , (@@)
             , normal
             , conv
             , fstSVal
@@ -66,6 +67,7 @@ eval e (PCon n ts ns t0 t1) =
       u0 = Ter (mkLams ns t0) e
       u1 = Ter (mkLams ns t1) e
   in Path i $ VPCon n (map (eval e) ts) (Atom i) u0 u1
+eval e t@(HSplit {})     = Ter t e
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
@@ -128,6 +130,7 @@ instance Nominal Val where
   support (VInhRec b p h a)             = support (b,p,h,a)
 
   support (VPCon _ vs phi u v)          = support (vs,phi,u,v)
+  support (VHSplit u v)                 = support (u,v)
 
   -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
@@ -201,6 +204,7 @@ instance Nominal Val where
          VInhRec b p h a       -> inhRec (acti b) (acti p) (acti h) (acti a)
 
          VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
+         VHSplit u v        -> app (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
   swap u ij@ (i,j) =
@@ -250,6 +254,7 @@ instance Nominal Val where
          VInhRec b p h a   -> VInhRec (sw b) (sw p) (sw h) (sw a)
 
          VPCon n vs phi u v -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
+         VHSplit u v        -> VHSplit (sw u) (sw v)
 
 instance Nominal Hiso where
   support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
@@ -361,9 +366,33 @@ app kan@(Kan i b@(VPi a f) ts li0) ui1 =
            (app li0 ui0)
 app u@(Ter (Split _ _) _) (KanUElem _ v) = app u v
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
-    Just (xs,t)  -> eval (upds e (zip xs us)) t
-    Nothing -> error $ "app: Split with insufficient arguments; " ++
+  Just (xs,t)  -> eval (upds e (zip xs us)) t
+  Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
+
+
+-- TODO: is this correct even for HITs???
+app u@(Ter (HSplit _ _ hbr) e) (KanUElem _ v) = app u v
+
+app (Ter (HSplit _ _ hbr) e) (VCon name us) =
+  case lookup name (zip (map hBranchToLabel hbr) hbr) of
+    Just (Branch _ xs t)  -> eval (upds e (zip xs us)) t
+    _ -> error ("app: HSplit with insufficient arguments;"
+                <+> "missing case for " <+> name)
+
+app (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
+  case lookup name (zip (map hBranchToLabel hbr) hbr) of
+    Just (HBranch _ xs _ _ t) -> eval (upds e (zip xs us)) t @@ phi
+    _ -> error ("app: HSplit with insufficient arguments;"
+                <+> "missing case for " <+> name)
+
+app u@(Ter (HSplit _ f hbr) e) kan@(Kan i v ws w) = -- v should be corr. hsum
+  let j     = fresh (e,kan)
+      wsij  = ws `swap` (i,j)
+      ws'   = Map.mapWithKey (\alpha -> app (u `face` alpha)) wsij
+      w'    = app (u `face` (i ~> 0)) w
+      ffill = app (eval e f) (fill Pos j (v `swap` (i,j)) wsij w)
+  in comp Pos j ffill ws' w'
 
 app g@(UnGlue hisos b) w
     | Map.null hisos         = w
@@ -400,6 +429,9 @@ app (HisoProj hisoProj e) u = trace "app HisoProj" $
 app u@(Ter (Split _ _) _) v
   | isNeutral v = VSplit u v -- v should be neutral
   | otherwise   = error $ "app: (VSplit) " ++ show v ++ " is not neutral"
+app u@(Ter (HSplit _ _ _) _) v
+  | isNeutral v = VHSplit u v -- v should be neutral
+  | otherwise   = error $ "app: (VHSplit) " ++ show v ++ " is not neutral"
 app u@(VExt phi f g p) v = (app p v) @@ phi
 app r s
  | isNeutral r = VApp r s -- r should be neutral
@@ -532,8 +564,9 @@ isNeutral (VSnd v)          = isNeutral v
 isNeutral (VSplit _ v)      = isNeutral v
 isNeutral (Kan _ a ts u)    = isNeutral a || isNeutralSystem ts || isNeutral u
 isNeutral (VCircleRec _ _ _ v) = isNeutral v
-isNeutral (KanUElem _ u)    = isNeutral u  -- TODO: check this!
+isNeutral (KanUElem _ u)       = isNeutral u  -- TODO: check this!
 isNeutral (VInhRec _ _ _ v)    = isNeutral v
+isNeutral (VHSplit _ v)        = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
 isNeutral _                    = False
 
@@ -771,6 +804,13 @@ instance Convertible Val where
     p == p' && conv k e e'
   conv k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
     p == p' && conv k e e'
+  conv k (Ter (HSum p _) e)   (Ter (HSum p' _) e') =
+    p == p' && conv k e e'
+  conv k (Ter (HSplit p _ _) e) (Ter (HSplit p' _ _) e') =
+    p == p' && conv k e e'
+  conv k (VPCon c us phi _ _) (VPCon c' us' phi' _ _) =
+    -- TODO: can we ignore the faces?
+    c == c' && conv k (us,phi) (us',phi')
   conv k (VPi u v) (VPi u' v') =
     let w = mkVar k $ support (u,v,u',v')
     in conv k u u' && conv (k+1) (app v w) (app v' w)
@@ -851,6 +891,7 @@ instance Convertible Val where
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
+  conv k (VHSplit u v)  (VHSplit u' v')  = conv k u u' && conv k v v'
   conv k VCircle        VCircle          = True
   conv k VBase          VBase            = True
   conv k (VLoop phi)    (VLoop phi')     = conv k phi phi'
@@ -944,6 +985,10 @@ instance Normal Val where
   normal k (VFst u) = fstSVal (normal k u)
   normal k (VSnd u) = sndSVal (normal k u)
   normal k (VSplit u v) = VSplit (normal k u) (normal k v)
+
+  normal k (VHSplit u v) = VHSplit (normal k u) (normal k v)
+  normal k (VPCon n us phi u0 u1) =
+    VPCon n (normal k us) phi (normal k u0) (normal k u1)
 
   normal k (VCircleRec u v w x) = VCircleRec u' v' w' x'
     where (u',v',w',x') = normal k (u,v,w,x)

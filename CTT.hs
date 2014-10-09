@@ -390,6 +390,7 @@ data Val = VU
          | VFst Val
          | VSnd Val
          | VSplit Val Val          -- the second Val must be neutral
+         | VHSplit Val Val          -- the second Val must be neutral
          | VCircleRec Val Val Val Val  -- the last Val must be neutral
          | VInhRec Val Val Val Val     -- the last Val must be neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
@@ -588,7 +589,7 @@ showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [
 
 showVal (VPCon c es phi u v)     = -- verbose for now
   c <+> showVals es <+> parens (show phi) <+> "@" <+> showVal u <+> "~" <+> showVal v
-
+showVal (VHSplit u v)            = showVal u <+> showVal v
 
 showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 

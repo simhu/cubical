@@ -97,8 +97,8 @@ addTypeVal :: (Binder,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam v) =
   TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
 
-addTypeVals :: [(Binder,Val)] -> TEnv -> TEnv
-addTypeVals = flip $ foldl (flip addTypeVal)
+-- addTypeVals :: [(Binder,Val)] -> TEnv -> TEnv
+-- addTypeVals = flip $ foldl (flip addTypeVal)
 
 addType :: (Binder,Ter) -> TEnv -> TEnv
 addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval rho a) tenv
@@ -177,20 +177,26 @@ check a t = case (a,t) of
     Label _ tele -> checkTele tele
     HLabel n tele t0 t1 -> do
       checkTele tele
-      rho <- asks env
-      k   <- asks index
-      let d  = support rho
-          l  = length tele
-          us = map (`mkVar` d) [k..k+l-1]
-          e  = eval rho t
-      local (addTypeVals (zip (map fst tele) us)) $ do
-        env' <- asks env
-        trace ("left e = " ++ show e ++ "\n t0 = " ++ show t0 ++ "\n env = " ++ show env')
-        check e t0
-        trace ("right")
-        check e t1
+      -- TODO: Ignore type-checking of t0 and t1 for now.  Broken:
+      -- rho <- asks env
+      -- k   <- asks index
+      -- let d  = support rho
+      --     l  = length tele
+      --     us = map (`mkVar` d) [k..k+l-1]
+      --     e  = eval rho t
+      -- local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
+      --   env' <- asks env
+      --   gam  <- asks ctxt
+      --   trace ("left\n e = " ++ show e ++ "\n t0 = " ++ show t0
+      --          ++ "\n env = " ++ show env'
+      --          ++ "\n gam = " ++ show gam
+      --          ++ "\n tele = " ++ show tele
+      --         )
+      --   check e t0
+      --   trace ("right")
+      --   check e t1
   (VPi (Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
-    -- TODO: don't ignore f'?
+    -- TODO: don't ignore f'?!
     let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
         hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
     if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
@@ -211,8 +217,8 @@ check a t = case (a,t) of
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
   k   <- asks index
-  env <- asks env
-  let d  = support env
+  rho <- asks env
+  let d  = support rho
       l  = length xas
       us = map (`mkVar` d) [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
@@ -220,8 +226,20 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
 checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Typing ()
 checkHBranch (Label _ tele,nu) f (Branch c binders e) =
   checkBranch (tele,nu) f (c,(binders,e))
-checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders u0 u1 e) =
-  undefined
+checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders u0 u1 e) = do
+  k   <- asks index
+  rho <- asks env
+  let d  = support rho
+      l  = length tele
+      us = map (`mkVar` d) [k..k+l-1]
+  local (addBranch (zip binders us) (tele,nu)) $ do
+    rho' <- asks env
+    let u0' = eval rho' u0
+        u1' = eval rho' u1
+        tpc = PCon c (map Var (map fst binders)) (map fst binders) t0 t1
+        pc  = eval rho' tpc
+        i   = fresh (f,rho')
+    check (VId (Path i $ app f (pc @@ i)) u0' u1') e
 
 checkHBranch (hlb,_) _ hbr =
   throwError ("checkHBranch: constructor kinds don't match up in"
