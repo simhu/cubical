@@ -165,10 +165,14 @@ check a t = case (a,t) of
     (bs,nu) <- getHLblType c u
     checks (bs,nu) es
     k   <- asks index
-    env <- asks env
-    let env' = upds env (evals env (zip (map fst bs) es))
+    rho <- asks env
+    let env' = upds nu (evals rho (zip (map fst bs) es))
         w0   = eval env' t0
         w1   = eval env' t1
+    -- trace ("check vid against pcon:\n rho = " ++ show rho
+    --        ++ "\n nu = " ++ show nu
+    --        ++ "\n t = " ++ show t
+    --        ++ "\n map fst bs = " ++ show (map fst bs))
     if conv k v0 w0
       then unless (conv k v1 w1)
            (throwError $ "check conv pcon:" <+> show v1 <+> "/=" <+> show w1)

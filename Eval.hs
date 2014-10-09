@@ -39,6 +39,7 @@ look x (Pair rho (n@(y,l),u))
 look x r@(PDef es r1) = case lookupIdent x es of
   Just (y,t)  -> (y,eval r t)
   Nothing     -> look x r1
+look x Empty = error ("look:" <+> x <+> "not found")
 
 eval :: Env -> Ter -> Val
 eval e U                 = VU
@@ -64,8 +65,8 @@ eval e t@(HSum {})       = Ter t e
 eval e (PCon n ts ns t0 t1) =
   let i = fresh e
       -- TODO: lambda abstract or not?
-      u0 = Ter (mkLams ns t0) e
-      u1 = Ter (mkLams ns t1) e
+      u0 = eval e (mkLams ns t0)
+      u1 = eval e (mkLams ns t1)
   in Path i $ VPCon n (map (eval e) ts) (Atom i) u0 u1
 eval e t@(HSplit {})     = Ter t e
 

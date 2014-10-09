@@ -259,14 +259,15 @@ declsLabelsAndHLabels (DeclData _ _ sum:decls) =
   (++) <$> sequence [ (,Constructor $ length args) <$> resolveBinder lbl
                     | Label lbl args <- sum ]
        <*> declsLabelsAndHLabels decls
-declsLabelsAndHLabels (DeclHData _ _ hsum:decls) = do
+declsLabelsAndHLabels (DeclHData _ args hsum:decls) = do
+  args'     <- mapM resolveBinder args
   constrs   <- hLabelsToConstrs hsum
   bindsyms  <- declsLabelsAndHLabels decls
   pconstrs  <- sequence $
     [ do vars <- vArgs vdecl
          bind <- resolveBinder lbl
-         t1   <- local (insertVars vars . insertBinders constrs) (resolveExp e1)
-         t2   <- local (insertVars vars . insertBinders constrs) (resolveExp e2)
+         t1   <- local (insertVars (args' ++ vars) . insertBinders constrs) (resolveExp e1)
+         t2   <- local (insertVars (args' ++ vars) . insertBinders constrs) (resolveExp e2)
          return (bind, PConstructor (map fst vars) t1 t2)
     | HLabelPath lbl vdecl e1 e2 <- hsum]
   return $ constrs ++ pconstrs ++ bindsyms
