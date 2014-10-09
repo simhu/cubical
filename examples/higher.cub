@@ -1,0 +1,148 @@
+module higher where
+
+import integer
+
+primitive Id : (A : U) (a b : A) -> U
+primitive refl : (A : U) (a : A) -> Id A a a
+
+primitive IdP : (A B : U) -> Id U A B -> A -> B -> U
+
+
+primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
+                      (p : Id A a b) -> Id B (f a) (f b)
+
+
+IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
+IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
+
+primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
+                       (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (f a1)
+
+prop : U -> U
+prop A = (a b : A) -> Id A a b
+
+circle : U
+hdata circle = cbase | cloop @ cbase ~ cbase
+
+test : Id circle cbase cbase
+test = cloop
+
+test2 : circle
+test2 = cbase
+
+circleRec : (F : circle -> U) (b : F cbase)
+                (l : IdS circle F cbase cbase cloop b b) (x : circle) -> F x
+circleRec F b l = hsplit F with
+  cbase -> b
+  cloop @ b ~ b ->  l
+
+testCirc1 : (F : circle -> U) (b : F cbase) (l : IdS circle F cbase cbase cloop b b) ->
+            Id (F cbase) b (circleRec F b l cbase)
+testCirc1 F b l = refl (F cbase) b
+
+testCirc2 : (F : circle -> U) (b : F cbase) (l : IdS circle F cbase cbase cloop b b) ->
+            Id (IdS circle F cbase cbase cloop b b)
+	       l
+	       (mapOnPathD circle F (circleRec F b l) cbase cbase cloop)
+testCirc2 F b l = refl (IdS circle F cbase cbase cloop b b) l
+
+helix : circle -> U
+helix = hsplit (\_ -> U) with
+  cbase -> Z
+  cloop @ Z ~ Z -> sucIdZ
+
+winding : Id circle cbase cbase -> Z
+winding l = transport Z Z (rem l) zeroZ
+  where
+    rem : Id circle cbase cbase -> Id U Z Z
+    rem l = mapOnPath circle U helix cbase cbase l
+
+
+test1 : Z
+test1 = winding cloop
+    
+
+inh : U -> U
+hdata inh A = inc (a : A) | squash (a : inh A) (b : inh A) @ a ~ b
+
+test : (A : U) -> A -> inh A
+test A a = inc a
+
+inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+inhrec A B p f = hsplit (\_ -> B) with
+   inc a -> f a
+   squash u v @ (inhrec A B p f u) ~ (inhrec A B p f v) -> p (inhrec A B p f u) (inhrec A B p f v)
+
+testSquash : (A : U) -> prop (inh A)
+testSquash A = squash
+
+testInh1 : (A : U) (B : U) (p : prop B) (f : A -> B) (a : A) -> Id B (inhrec A B p f (inc a)) (f a)
+testInh1 A B p f a = refl B (f a)
+
+testInh2 : (A : U) (B : U) (p : prop B) (f : A -> B) (u v : inh A) ->
+           Id (Id B (inhrec A B p f u) (inhrec A B p f v))
+              (p (inhrec A B p f u) (inhrec A B p f v))
+	      (mapOnPath (inh A) B (inhrec A B p f) u v (squash u v))
+testInh2 A B p f u v = refl (Id B (inhrec A B p f u) (inhrec A B p f v)) (p (inhrec A B p f u) (inhrec A B p f v))
+
+
+pushout : (A B C : U) (f : C -> A) (g : C -> B) -> U
+hdata pushout A B C f g = inl (a : A) | inr (b : B) | push (c : C) @ inl (f c) ~ inr (g c)
+
+cyl : (A B : U) (f : A -> B) -> U
+cyl A B f = pushout A B A (\x -> x) f
+
+-- Unit : U
+-- data Unit = unit
+
+
+-- -
+-- universalPushoutZ : (A B C X : U) (f : C -> A) (g : C -> B) (f' : A -> X) (g' : B -> X)
+--                     (p : Id (C -> X) (\z -> f (f' z)) (\z -> g (g' z)))
+
+zer : Unit -> N
+zer x = zero
+
+Int : U
+Int = pushout N N Unit zer zer
+
+plus : N -> Z
+plus n = inr n
+
+minus : N -> Z
+minus = split
+  zero  -> inr zero
+  suc n -> inl n
+
+forward : Int -> Z
+forward = hsplit (\_ -> Z) with
+ inr n -> plus n
+ inl n -> minus n
+ push u @ (plus zero) ~ (minus zero) -> refl Z (plus zero)
+
+backward : Z -> Int
+backward = split
+  inr n -> inr n
+  inl n -> inl (suc n)
+
+fbisid : (z : Z) -> Id Z (forward (backward z)) z
+fbisid = split
+  inr n -> refl Z (inr n)
+  inl n -> refl Z (inl n)
+
+testPush : Id Int (inl zero) (inr zero)
+testPush = push tt
+  
+bfisid : (i : Int) -> Id Int (backward (forward i)) i
+bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
+  inr n -> refl Int (inr n)
+  inl n -> lem n
+    where lem : (n : N) -> Id Int (backward (forward (inl n))) (inl n)
+          lem = split
+	    zero  -> inv Int (inl zero) (inr zero) (push tt)
+	    suc n -> refl Int (inl (suc n))
+  push u @ (bfisid (inl zero)) ~ (bfisid (inr zero)) ->
+    mapOnPathD Int (\i -> Id Int (backward (forward i)) i) bfisid (inl zero) (inr zero) (push u)
+
+intEqZ : Id U Int Z
+intEqZ = isoId Int Z forward backward fbisid bfisid
