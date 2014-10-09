@@ -36,7 +36,6 @@ App.      Exp2 ::= Exp2 Exp3 ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
--- PathCon.  Exp3 ::= "[" HIdent [Exp] "@" Exp "~" Exp  "]" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
 coercions Exp 3 ;
@@ -49,7 +48,7 @@ separator Branch ";" ;
 
 -- HBranches (to be adapted)
 HBranchData.  HBranch ::= AIdent [AIdent] "->" ExpWhere ;
-HBranchPath.  HBranch ::= AIdent [AIdent] "@" Exp3 "~" Exp3 "->" ExpWhere ;
+HBranchPath.  HBranch ::= AIdent [AIdent] "@" Exp2 "~" Exp2 "->" ExpWhere ;
 separator HBranch ";" ;
 
 -- Labelled sum alternatives
@@ -72,5 +71,3 @@ terminator nonempty PseudoTDecl "" ;
 
 position token AIdent ((letter|'\''|'_')(letter|digit|'\''|'_')*) ;
 terminator AIdent "" ;
-
--- position token HIdent ('#'(letter|digit|'\''|'_')*) ;
