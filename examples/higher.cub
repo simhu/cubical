@@ -71,7 +71,7 @@ test A a = inc a
 inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
 inhrec A B p f = hsplit \_ -> B with
    inc a -> f a
-   squash u v @ _ ~ _ ->
+   squash u v @ inhrec A B p f u ~ inhrec A B p f v ->
      p (inhrec A B p f u) (inhrec A B p f v)
 
 testSquash : (A : U) -> prop (inh A)
@@ -181,8 +181,26 @@ bfid = hsplit \x -> Id circle (back (forw x)) x with
 circleEqCircle' : Id U circle circle'
 circleEqCircle' = isoId circle circle' forw back fbid bfid
 
+base' : circle'
+base' = inl tt
+
+ccId : Id circle' base' base' ->  Id circle cbase cbase
+ccId = mapOnPath circle' circle (transpInv circle circle' circleEqCircle') base' base'
+
+ccIdInv : Id circle cbase cbase ->  Id circle' base' base'
+ccIdInv = mapOnPath circle circle' (transport circle circle' circleEqCircle') cbase cbase
+
+winding' : Id circle' base' base' -> Z
+winding' l = winding (ccId l)
+
+loop' : Id circle' base' base'
+loop' =  ccIdInv cloop
+
+test1' : Z
+test1' = winding' loop'
 
 
+----
 
 univPOMap : (A B C : U) (f : C -> A) (g : C -> B) (X : U)
   (i : A -> X) (j : B -> X) (p : (c : C) -> Id X (i (f c)) (j (g c)))

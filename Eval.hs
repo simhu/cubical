@@ -731,6 +731,9 @@ comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = trace "comp Sum" $
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
 
+-- TODO: comp whenever possible (like Sum, but more testing)
+comp Pos i v@(Ter (HSum _ _) _) us u = trace "comp HSum" $ Kan i v us u
+
 comp Pos i a ts u =
   error $
   "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
