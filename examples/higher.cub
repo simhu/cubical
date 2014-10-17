@@ -143,57 +143,58 @@ bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
 intEqZ : Id U Int Z
 intEqZ = isoId Int Z forward backward fbisid bfisid
 
-circle' : U
-circle' = pushout Unit Unit Unit (\x -> tt) (\x -> tt)
+-- Oops!  This gives the interval, not the circle!
+-- circle' : U
+-- circle' = pushout Unit Unit Unit (\x -> tt) (\x -> tt)
 
-forw : circle -> circle'
-forw = hsplit (\_ -> circle') with
-  cbase -> inl tt
-  cloop -> push tt
+-- forw : circle -> circle'
+-- forw = hsplit (\_ -> circle') with
+--   cbase -> inl tt
+--   cloop -> push tt
 
-back : circle' -> circle
-back = hsplit (\_ -> circle) with
-  inl u -> cbase
-  inr u -> cbase
-  push u -> cloop
+-- back : circle' -> circle
+-- back = hsplit (\_ -> circle) with
+--   inl u -> cbase
+--   inr u -> cbase
+--   push u -> cloop
 
-fbid : (x : circle') -> Id circle' (forw (back x)) x
-fbid = hsplit (\x -> Id circle' (forw (back x)) x) with
-  inl u -> lem u
-    where lem : (u : Unit) -> Id circle' (forw (back (inl u))) (inl u)
-          lem = split tt -> refl circle' (inl tt)
-  inr u -> lem u
-    where lem : (u : Unit) -> Id circle' (forw (back (inr u))) (inr u)
-          lem = split tt -> push tt
-  push u -> mapOnPathD circle' (\x -> Id circle' (forw (back x)) x) fbid
-              (inl tt) (inr tt) (push u)
+-- fbid : (x : circle') -> Id circle' (forw (back x)) x
+-- fbid = hsplit (\x -> Id circle' (forw (back x)) x) with
+--   inl u -> lem u
+--     where lem : (u : Unit) -> Id circle' (forw (back (inl u))) (inl u)
+--           lem = split tt -> refl circle' (inl tt)
+--   inr u -> lem u
+--     where lem : (u : Unit) -> Id circle' (forw (back (inr u))) (inr u)
+--           lem = split tt -> push tt
+--   push u -> mapOnPathD circle' (\x -> Id circle' (forw (back x)) x) fbid
+--               (inl tt) (inr tt) (push u)
 
-bfid : (x : circle) -> Id circle (back (forw x)) x
-bfid = hsplit (\x -> Id circle (back (forw x)) x) with
-  cbase -> refl circle cbase
-  cloop -> mapOnPathD circle (\x -> Id circle (back (forw x)) x) bfid
-             cbase cbase cloop
+-- bfid : (x : circle) -> Id circle (back (forw x)) x
+-- bfid = hsplit (\x -> Id circle (back (forw x)) x) with
+--   cbase -> refl circle cbase
+--   cloop -> mapOnPathD circle (\x -> Id circle (back (forw x)) x) bfid
+--              cbase cbase cloop
 
-circleEqCircle' : Id U circle circle'
-circleEqCircle' = isoId circle circle' forw back fbid bfid
+-- circleEqCircle' : Id U circle circle'
+-- circleEqCircle' = isoId circle circle' forw back fbid bfid
 
-base' : circle'
-base' = inl tt
+-- base' : circle'
+-- base' = inl tt
 
-ccId : Id circle' base' base' ->  Id circle cbase cbase
-ccId = mapOnPath circle' circle (transpInv circle circle' circleEqCircle') base' base'
+-- ccId : Id circle' base' base' ->  Id circle cbase cbase
+-- ccId = mapOnPath circle' circle (transpInv circle circle' circleEqCircle') base' base'
 
-ccIdInv : Id circle cbase cbase ->  Id circle' base' base'
-ccIdInv = mapOnPath circle circle' (transport circle circle' circleEqCircle') cbase cbase
+-- ccIdInv : Id circle cbase cbase ->  Id circle' base' base'
+-- ccIdInv = mapOnPath circle circle' (transport circle circle' circleEqCircle') cbase cbase
 
-winding' : Id circle' base' base' -> Z
-winding' l = winding (ccId l)
+-- winding' : Id circle' base' base' -> Z
+-- winding' l = winding (ccId l)
 
-loop' : Id circle' base' base'
-loop' =  ccIdInv cloop
+-- loop' : Id circle' base' base'
+-- loop' =  ccIdInv cloop
 
-test1' : Z
-test1' = winding' loop'
+-- test1' : Z
+-- test1' = winding' loop'
 
 
 ----
