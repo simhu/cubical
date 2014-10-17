@@ -747,7 +747,9 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
     Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
   VPCon c ws phi e0 e1 -> case getIdent c (map hLabelToBinderTele hls) of
-    Just as -> VPCon c (comps i as env (zip (repeat Map.empty) ws)) phi e0 e1
+    Just as ->
+      VPCon c (comps i as env (zip (repeat Map.empty) ws)) phi (tr e0) (tr e1)
+      where tr = comp Pos i v Map.empty
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
   Kan j b ws w -> Kan k vi1 ws' (comp' (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
