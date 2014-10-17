@@ -288,6 +288,7 @@ data Val = VU
          -- comp ^i _{ A, ts } (a)
          | Kan Name Val (System Val) Val
          | KanUElem (System Val) Val
+
          | UnKan (System Hiso) Val
 
          | VId Val Val Val
@@ -359,9 +360,8 @@ data Val = VU
          | VSplit Val Val          -- the second Val must be neutral
          | VCircleRec Val Val Val Val  -- the last Val must be neutral
          | VInhRec Val Val Val Val     -- the last Val must be neutral
+         | KanNe Name Val (System Val) Val -- Neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
-         -- | VFillN Val (Box Val)
-         -- | VComN Val (Box Val)
 
          -- for reification
          | VLam String Val
@@ -511,6 +511,8 @@ showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
   "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a
+showVal (KanNe i aType ts a)       =
+  "KanNe" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a
 showVal (KanUElem ts u)          = "KanUElem" <+> show ts <+> showVal u
 showVal (UnKan ts u)             = "UnKan" <+> show ts <+> showVal u
 
