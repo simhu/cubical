@@ -126,8 +126,11 @@ checkDecls d = do
   let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
   trace ("Checking: " ++ unwords idents)
   checkTele tele
-  rho <- asks env
-  local (addTele tele) $ checks (tele,rho) ters
+  -- rho <- asks env
+  -- local (addTele tele) $ checks (tele,rho) ters
+  local (addDecls d) $ do
+    rho <- asks env
+    checks (tele,rho) ters
 
 checkTele :: Tele -> Typing ()
 checkTele []          = return ()
@@ -182,23 +185,23 @@ check a t = case (a,t) of
     HLabel n tele t0 t1 -> do
       checkTele tele
       -- TODO: Ignore type-checking of t0 and t1 for now.  Broken:
-      -- rho <- asks env
-      -- k   <- asks index
-      -- let d  = support rho
-      --     l  = length tele
-      --     us = map (`mkVar` d) [k..k+l-1]
-      --     e  = eval rho t
-      -- local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
-      --   env' <- asks env
-      --   gam  <- asks ctxt
-      --   trace ("left\n e = " ++ show e ++ "\n t0 = " ++ show t0
-      --          ++ "\n env = " ++ show env'
-      --          ++ "\n gam = " ++ show gam
-      --          ++ "\n tele = " ++ show tele
-      --         )
-      --   check e t0
-      --   trace ("right")
-      --   check e t1
+      rho <- asks env
+      k   <- asks index
+      let d  = support rho
+          l  = length tele
+          us = map (`mkVar` d) [k..k+l-1]
+          e  = eval rho t
+      local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
+        env' <- asks env
+        gam  <- asks ctxt
+        trace ("left\n e = " ++ show e ++ "\n t0 = " ++ show t0
+               ++ "\n env = " ++ show env'
+               ++ "\n gam = " ++ show gam
+               ++ "\n tele = " ++ show tele
+              )
+        check e t0
+        trace ("right")
+        check e t1
   (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
     k   <- asks index
     rho <- asks env
@@ -207,7 +210,7 @@ check a t = case (a,t) of
     let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
         hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
     if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
-      then sequence_ [ checkHBranch (hl,nu) f hbr
+      then sequence_ [ checkHBranch (hl,nu) f hbr (eval rho t)
                      | (hbr,hl) <- zip hbranches' hlabels']
       else throwError "hsplit branches do not match the hdata type"
   (_,Where e d) -> do
@@ -230,25 +233,25 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
       us = map (`mkVar` d) [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
-checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Typing ()
-checkHBranch (Label _ tele,nu) f (Branch c binders e) =
+checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Val -> Typing ()
+checkHBranch (Label _ tele,nu) f (Branch c binders e) _ =
   checkBranch (tele,nu) f (c,(binders,e))
-checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders u0 u1 e) = do
+checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders _ _ e) hsplit = do
   k   <- asks index
   rho <- asks env
   let d  = support rho
       l  = length tele
       us = map (`mkVar` d) [k..k+l-1]
+  (u0',u1') <- local (addBranch (zip (map fst tele) us) (tele,nu)) $ do
+    rho' <- asks env
+    return (app hsplit (eval rho' t0),app hsplit (eval rho' t1))
   local (addBranch (zip binders us) (tele,nu)) $ do
     rho' <- asks env
-    let u0' = eval rho' u0
-        u1' = eval rho' u1
-        tpc = PCon c (map Var (map fst binders)) (map fst binders) t0 t1
+    let tpc = PCon c (map Var (map fst binders)) (map fst binders) t0 t1
         pc  = eval rho' tpc
         i   = fresh (f,rho')
     check (VId (Path i $ app f (pc @@ i)) u0' u1') e
-
-checkHBranch (hlb,_) _ hbr =
+checkHBranch (hlb,_) _ hbr _ =
   throwError ("checkHBranch: constructor kinds don't match up in"
              <+> show hlb <+> "and" <+> show hbr)
 
