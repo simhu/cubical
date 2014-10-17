@@ -83,8 +83,7 @@ data HLabel = Label Binder Tele | HLabel Binder Tele Ter Ter
   deriving (Eq,Show)
 
 data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
-             -- c xs @ u ~ v -> e
-             | HBranch Label [Binder] Ter Ter Ter
+             | HBranch Label [Binder] Ter -- Branch for a path constructor
   deriving (Eq,Show)
 
 
@@ -102,7 +101,7 @@ isLabel _         = False
 
 hBranchToLabel :: HBranch -> Label
 hBranchToLabel (Branch l _ _) = l
-hBranchToLabel (HBranch l _ _ _ _) = l
+hBranchToLabel (HBranch l _ _) = l
 
 -- Primitive notions
 data PN = Id | Refl | Sym

@@ -28,7 +28,7 @@ NoWhere.  ExpWhere ::= Exp ;
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
 Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
-HSplit.   Exp  ::= "hsplit" Exp "with" "{" [HBranch] "}" ;
+HSplit.   Exp  ::= "hsplit" Exp3 "with" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
@@ -45,11 +45,6 @@ terminator Exp "";
 -- Branches
 Branch.   Branch ::= AIdent [AIdent] "->" ExpWhere ;
 separator Branch ";" ;
-
--- HBranches (to be adapted)
-HBranchData.  HBranch ::= AIdent [AIdent] "->" ExpWhere ;
-HBranchPath.  HBranch ::= AIdent [AIdent] "@" Exp2 "~" Exp2 "->" ExpWhere ;
-separator HBranch ";" ;
 
 -- Labelled sum alternatives
 Label.    Label   ::= AIdent [VTDecl] ;

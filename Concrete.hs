@@ -206,10 +206,7 @@ resolveExp (Split brs)  = do
 resolveExp (HSplit f hbrs) = do
   hbrs' <- mapM resolveHBranch hbrs
   f'    <- resolveExp f
-  loc   <- getLoc (case hbrs of
-                      HBranchData (AIdent (l,_)) _ _:_ -> l
-                      HBranchPath (AIdent (l,_)) _ _ _ _:_ -> l
-                      _ -> (0,0))
+  loc   <- getLoc (case hbrs of Branch (AIdent (l,_)) _ _:_ -> l ; _ -> (0,0))
   return $ C.HSplit loc f' hbrs'
 resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
@@ -224,18 +221,22 @@ resolveBranch (Branch lbl args e) = do
   re      <- local (insertVars binders) $ resolveWhere e
   return (unAIdent lbl, (binders, re))
 
-resolveHBranch :: HBranch -> Resolver C.HBranch
-resolveHBranch (HBranchData lbl args e) = do
-  binders <- mapM resolveBinder args
-  re      <- local (insertVars binders) $ resolveWhere e
-  return $ C.Branch (unAIdent lbl) binders re
-resolveHBranch (HBranchPath lbl args e1 e2 e) = do
-  binders <- mapM resolveBinder args
-  re1     <- local (insertVars binders) $ resolveExp e1
-  re2     <- local (insertVars binders) $ resolveExp e2
-  re      <- local (insertVars binders) $ resolveWhere e
-  --(t1,t2) <- resolveFaceTers lbl
-  return $ C.HBranch (unAIdent lbl) binders re1 re2 re
+resolveHBranch :: Branch -> Resolver C.HBranch
+resolveHBranch (Branch lbl@(AIdent (l,n)) args e) = do
+  vars <- getVariables
+  case C.getIdent n vars of
+    Just (Constructor _) -> do -- resolve as object branch
+      binders <- mapM resolveBinder args
+      re      <- local (insertVars binders) $ resolveWhere e
+      return $ C.Branch (unAIdent lbl) binders re
+    Just (PConstructor _ _ _) -> do -- resolve as path branch
+      binders <- mapM resolveBinder args
+      re      <- local (insertVars binders) $ resolveWhere e
+      return $ C.HBranch (unAIdent lbl) binders re
+    _ -> do modName <- getModule
+            throwError $ n <+> "at position" <+> show l <+> "in module"
+              <+> modName <+> "is neither a constructor"
+              <+> "nor a path constructor!"
 
 resolveTele :: [(AIdent,Exp)] -> Resolver C.Tele
 resolveTele []        = return []

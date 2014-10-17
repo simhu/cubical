@@ -51,11 +51,6 @@ runDeclss tenv (d:ds) = do
 runInfer :: TEnv -> Ter -> IO (Either String Val)
 runInfer lenv e = runTyping lenv (checkInfer e)
 
-addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Ctxt
-addC gam _             []          = gam
-addC gam ((y,a):as,nu) ((x,u):xus) =
-  let v = eval nu a
-  in addC ((x,v):gam) (as,Pair nu (y,u)) xus
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Val -> Typing (Tele, Env)
@@ -102,6 +97,12 @@ addTypeVal p@(x,_) (TEnv k rho gam v) =
 
 addType :: (Binder,Ter) -> TEnv -> TEnv
 addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval rho a) tenv
+
+addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Ctxt
+addC gam _             []          = gam
+addC gam ((y,a):as,nu) ((x,u):xus) =
+  let v = eval nu a
+  in addC ((x,v):gam) (as,Pair nu (y,u)) xus
 
 addBranch :: [(Binder,Val)] -> (Tele,Env) -> TEnv -> TEnv
 addBranch nvs (tele,env) (TEnv k rho gam v) =
@@ -172,10 +173,6 @@ check a t = case (a,t) of
     let env' = upds nu (evals rho (zip (map fst bs) es))
         w0   = eval env' t0
         w1   = eval env' t1
-    -- trace ("check vid against pcon:\n rho = " ++ show rho
-    --        ++ "\n nu = " ++ show nu
-    --        ++ "\n t = " ++ show t
-    --        ++ "\n map fst bs = " ++ show (map fst bs))
     if conv k v0 w0
       then unless (conv k v1 w1)
            (throwError $ "check conv pcon:" <+> show v1 <+> "/=" <+> show w1)
@@ -184,7 +181,6 @@ check a t = case (a,t) of
     Label _ tele -> checkTele tele
     HLabel n tele t0 t1 -> do
       checkTele tele
-      -- TODO: Ignore type-checking of t0 and t1 for now.  Broken:
       rho <- asks env
       k   <- asks index
       let d  = support rho
@@ -194,13 +190,7 @@ check a t = case (a,t) of
       local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
         env' <- asks env
         gam  <- asks ctxt
-        trace ("left\n e = " ++ show e ++ "\n t0 = " ++ show t0
-               ++ "\n env = " ++ show env'
-               ++ "\n gam = " ++ show gam
-               ++ "\n tele = " ++ show tele
-              )
         check e t0
-        trace ("right")
         check e t1
   (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
     k   <- asks index
@@ -236,21 +226,21 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
 checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Val -> Typing ()
 checkHBranch (Label _ tele,nu) f (Branch c binders e) _ =
   checkBranch (tele,nu) f (c,(binders,e))
-checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders _ _ e) hsplit = do
+checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders e) hsplit = do
   k   <- asks index
   rho <- asks env
-  let d  = support rho
-      l  = length tele
-      us = map (`mkVar` d) [k..k+l-1]
-  (u0',u1') <- local (addBranch (zip (map fst tele) us) (tele,nu)) $ do
-    rho' <- asks env
-    return (app hsplit (eval rho' t0),app hsplit (eval rho' t1))
+  let d    = support rho
+      l    = length tele
+      us   = map (`mkVar` d) [k..k+l-1]
+      rho' = upds nu (zip (map fst tele) us)
+      u0   = app hsplit (eval rho' t0)
+      u1   = app hsplit (eval rho' t1)
   local (addBranch (zip binders us) (tele,nu)) $ do
-    rho' <- asks env
+    rho'' <- asks env
     let tpc = PCon c (map Var (map fst binders)) (map fst binders) t0 t1
-        pc  = eval rho' tpc
-        i   = fresh (f,rho')
-    check (VId (Path i $ app f (pc @@ i)) u0' u1') e
+        pc  = eval rho'' tpc
+        i   = fresh (f,rho'',u0,u1)
+    check (VId (Path i $ app f (pc @@ i)) u0 u1) e
 checkHBranch (hlb,_) _ hbr _ =
   throwError ("checkHBranch: constructor kinds don't match up in"
              <+> show hlb <+> "and" <+> show hbr)

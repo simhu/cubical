@@ -390,7 +390,7 @@ app (Ter (HSplit _ _ hbr) e) (VCon name us) =
 
 app (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (HBranch _ xs _ _ t) -> eval (upds e (zip xs us)) t @@ phi
+    Just (HBranch _ xs t) -> eval (upds e (zip xs us)) t @@ phi
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name)
 
