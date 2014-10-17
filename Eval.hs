@@ -93,6 +93,7 @@ instance Nominal Val where
   support (Ter _ e)                     = support e
   support (VPi v1 v2)                   = support [v1,v2]
   support (Kan i a ts u)                = i `delete` support (a,ts,u)
+  support (KanNe i a ts u)              = i `delete` support (a,ts,u)
   support (KanUElem ts u)               = support (ts,u)
   support (UnKan ts u)                  = support (ts, u)
 
@@ -165,6 +166,11 @@ instance Nominal Val where
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
                     ar = acti . (`swap` (j,k))
+         -- TODO: Check that act on neutral is neutral
+         KanNe j a ts v -> KanNe k (ar a) (ar ts) (ar v)
+              where k   = fresh (u, Atom i, phi)
+                    ar :: Nominal a => a -> a
+                    ar = acti . (`swap` (j,k))
 
          KanUElem ts u -> kanUElem (acti ts) (acti u)
          UnKan ts u    -> UnKan (acti ts) (acti u)
@@ -216,6 +222,7 @@ instance Nominal Val where
          Ter t e -> Ter t (sw e)
          VPi a f -> VPi (sw a) (sw f)
          Kan k a ts v -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
+         KanNe k a ts v -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
 
          KanUElem ts u -> KanUElem (sw ts) (sw u)
          UnKan ts u    -> UnKan (sw ts) (sw u)
@@ -557,19 +564,21 @@ comps i ((x,a):as) e ((ts,u):tsus) =
 comps _ _ _ _ = error "comps: different lengths of types and values"
 
 isNeutral :: Val -> Bool
-isNeutral (VVar _ _)        = True
-isNeutral (VApp u _)        = isNeutral u
-isNeutral (VAppFormula u _) = isNeutral u
-isNeutral (VFst v)          = isNeutral v
-isNeutral (VSnd v)          = isNeutral v
-isNeutral (VSplit _ v)      = isNeutral v
-isNeutral (Kan _ a ts u)    = isNeutral a || isNeutralSystem ts || isNeutral u
-isNeutral (VCircleRec _ _ _ v) = isNeutral v
-isNeutral (KanUElem _ u)       = isNeutral u  -- TODO: check this!
-isNeutral (VInhRec _ _ _ v)    = isNeutral v
+isNeutral (VVar _ _)             = True
+isNeutral (VApp u _)             = isNeutral u
+isNeutral (VAppFormula u _)      = isNeutral u
+isNeutral (VFst v)               = isNeutral v
+isNeutral (VSnd v)               = isNeutral v
+isNeutral (VSplit _ v)           = isNeutral v
+isNeutral (Kan _ a ts u)         = -- TODO: Maybe remove?
+  isNeutral a || isNeutralSystem ts || isNeutral u
+isNeutral (VCircleRec _ _ _ v)   = isNeutral v
+isNeutral (KanUElem _ u)         = isNeutral u  -- TODO: check this!
+isNeutral (VInhRec _ _ _ v)      = isNeutral v
+isNeutral (KanNe _ _ _ _)        = True
 isNeutral (VHSplit _ v)        = isNeutral v
--- isNeutral (VIntRec _ _ _ _ v)  = isNeutral v
-isNeutral _                    = False
+-- isNeutral (VIntRec _ _ _ _ v) = isNeutral v
+isNeutral _                      = False
 
 isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
@@ -723,7 +732,7 @@ comp Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp Pos i v tss w
 comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   trace "comp Neutral"
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
-  Kan i a ts u
+  KanNe i a ts u
 
 comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = trace "comp Sum" $
   case getIdent n nass of
@@ -856,6 +865,21 @@ instance Convertible Val where
          , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
          , conv k (u `swap` (i,j)) (u' `swap` (i',j))]
 
+  conv k (KanNe i a ts u) v' | isIndep k i (a,ts) = trace "conv KanNe regular"
+    conv k u v'
+  conv k v' (KanNe i a ts u) | isIndep k i (a,ts) = trace "conv KanNe regular"
+    conv k v' u
+  conv k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') = trace "conv KanNe" $
+     let j    = fresh (v, v')
+         tsj  = ts  `swap` (i,j)
+         tsj' = ts' `swap` (i',j)
+     in
+     and [ conv k (a `swap` (i,j)) (a' `swap` (i',j))
+         , Map.keysSet tsj == Map.keysSet tsj'
+         , and $ Map.elems $ Map.intersectionWith (conv k) tsj tsj'
+         , conv k (u `swap` (i,j)) (u' `swap` (i',j))]
+
+
   conv k (Glue hisos v) (Glue hisos' v') = conv k hisos hisos' && conv k v v'
 
   conv k (KanUElem us u) v'@(KanUElem us' u') =
@@ -956,6 +980,7 @@ instance Normal Val where
     where v@(VVar name _) = mkVar k $ support e
   normal k (VPi u v) = VPi (normal k u) (normal k v)
   normal k (Kan i u vs v) = comp Pos i (normal k u) (normal k vs) (normal k v)
+  normal k (KanNe i u vs v) = KanNe i (normal k u) (normal k vs) (normal k v)
   normal k (KanUElem us u) = kanUElem (normal k us) (normal k u)
   normal k (UnKan hisos u) = UnKan (normal k hisos) (normal k u)
 
