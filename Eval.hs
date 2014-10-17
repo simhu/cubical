@@ -429,7 +429,8 @@ app (HisoProj hisoProj e) u = trace "app HisoProj" $
     -- g (f x) -> x
     IsRetraction ->
       let ts = Map.fromList [(i ~> 0, u), (i ~> 1, line Neg j (appiso Pos u))]
-      in Path i $ (comp Neg j (e @@ (Atom i :/\: Atom j)) ts (line Pos i u)) `sym` i
+      in Path i $
+           (comp Neg j (e @@ (Atom i :/\: Atom j)) ts (line Pos i u)) `sym` i
   where i:j:_ = freshs (e, u)
         appiso sign v = app (HisoProj (HisoSign sign) e) v
         line sign k v = fill sign k (e @@ k) Map.empty v
@@ -738,10 +739,31 @@ comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = trace "comp Sum" $
   case getIdent n nass of
   Just as -> VCon n $ comps i as env tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
-  Nothing -> error $ "fill: missing constructor in labelled sum " ++ n
+  Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 
--- TODO: comp whenever possible (like Sum, but more testing)
-comp Pos i v@(Ter (HSum _ _) _) us u = trace "comp HSum" $ Kan i v us u
+-- Treat transport in hsums separately.
+comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
+  VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
+    Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
+    Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
+  VPCon c ws phi e0 e1 -> case getIdent c (map hLabelToBinderTele hls) of
+    Just as -> VPCon c (comps i as env (zip (repeat Map.empty) ws)) phi e0 e1
+    Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
+  Kan j b ws w -> Kan k vi1 ws' (comp' (i ~> 1) w)
+    where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
+          k           = gensym (i `delete` support (v,u))
+          comp' alpha = comp Pos i (v `face` alpha) Map.empty
+          wsjk = ws `swap` (j,k)
+          ws' = Map.mapWithKey comp' wsjk
+  u | isNeutral u -> KanNe i v us u
+  u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
+
+comp Pos i v@(Ter (HSum _ _) _) us u = Kan i (vi1) us' (trans i v u)
+  where vi1         = v `face` (i ~> 1)
+        j           = gensym (i `delete` support (v,us,u))
+        comp' alpha = trans j ((v `face` alpha) `act` (i, Atom i:\/: Atom j))
+        us'         = Map.mapWithKey comp' us
+        trans j w   = comp Pos j w Map.empty
 
 comp Pos i a ts u =
   error $
