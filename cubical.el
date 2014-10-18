@@ -1,6 +1,6 @@
 ;; define several class of keywords
-(setq cub-keywords '("data" "import" "mutual" "let" "in" "split" "hsplit"
-		     "with" "module" "where" "U") )
+(setq cub-keywords '("data" "hdata" "import" "mutual" "let" "in" "split"
+		     "hsplit" "with" "module" "where" "U") )
 (setq cub-special '("undefined" "primitive"))
 
 ;; create regex strings
