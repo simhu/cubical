@@ -225,3 +225,121 @@ univPOMapUnique A B C f g X i j p psi psiinl psiinr =
       inr b -> psiinr b
       push c -> mapOnPathD P (\z -> Id X (psi z) (phi z))
                   uni (inl (f c)) (inr (g c)) (push c)
+
+----------------------------------------------------------------------
+
+-- Suspension.
+
+susp : U -> U
+hdata susp A = north | south | merid (a : A) @ north ~ south
+
+-- n-spheres
+sphere : N -> U
+sphere = split
+  zero  -> Bool
+  suc n -> susp (sphere n)
+
+-- The suspension is equal to a pushout with maps into Unit.
+unit : (A : U) -> A -> Unit
+unit _ _ = tt
+
+unitPo : U -> U
+unitPo A = pushout Unit Unit A (unit A) (unit A)
+
+suspToPushout : (A : U) -> susp A -> unitPo A
+suspToPushout A = hsplit (\_ -> unitPo A) with
+  north   -> inl tt
+  south   -> inr tt
+  merid a -> push a
+
+pushoutToSusp : (A : U) -> unitPo A -> susp A
+pushoutToSusp A = hsplit (\_ -> susp A) with
+  inl u  -> north
+  inr u  -> south
+  push a -> merid a
+
+suspEqPushout : (A : U) -> Id U (susp A) (unitPo A)
+suspEqPushout A = isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) spid psid
+  where psid : (x : susp A) -> Id (susp A) (pushoutToSusp A (suspToPushout A x)) x
+        psid = hsplit (\x -> Id (susp A) (pushoutToSusp A (suspToPushout A x)) x) with
+          north   -> refl (susp A) north
+          south   -> refl (susp A) south
+	  merid a -> mapOnPathD (susp A)
+	              (\x -> Id (susp A) (pushoutToSusp A (suspToPushout A x)) x)
+		      psid north south (merid a)
+
+        spid : (x : unitPo A) -> Id (unitPo A) (suspToPushout A (pushoutToSusp A x)) x
+	spid = hsplit (\x -> Id (unitPo A) (suspToPushout A (pushoutToSusp A x)) x) with
+	  inl u  -> trivial u
+	    where trivial : (u : Unit) -> Id (unitPo A) (inl tt) (inl u)
+	          trivial = split tt -> refl (unitPo A) (inl tt)
+          inr u  -> trivial u
+	    where trivial : (u : Unit) -> Id (unitPo A) (inr tt) (inr u)
+	          trivial = split tt -> refl (unitPo A) (inr tt)
+          push a ->  mapOnPathD (unitPo A)
+	              (\x -> Id (unitPo A) (suspToPushout A (pushoutToSusp A x)) x)
+		      spid (inl tt) (inr tt) (push a)
+
+-- The circle is equal to the 1-sphere (aka the suspension of Bool).
+-- (Similar to HoTT Book, Lemma 6.5.1)
+one : N
+one = suc zero
+
+s1ToCircle : sphere one -> circle
+s1ToCircle = hsplit (\_ -> circle) with
+  north   -> cbase
+  south   -> cbase
+  merid b -> path b
+    where path : (b : Bool) ->Id circle cbase cbase
+          path = split
+	    true  -> refl circle cbase
+	    false -> cloop
+
+circleToS1 : circle -> sphere one
+circleToS1 = hsplit (\_ -> sphere one) with
+  cbase -> north
+  cloop -> comp (sphere one) north south north
+             (merid false)
+	     (inv (sphere one) north south (merid true))
+
+coid : (x : sphere one) -> Id (sphere one) (circleToS1 (s1ToCircle x)) x
+coid = let F : sphere one -> U
+           F x = Id (sphere one) (circleToS1 (s1ToCircle x)) x
+  in hsplit F with
+    north -> refl (sphere one) north
+    south -> merid true
+    merid b -> mapOnPathD (sphere one) F coid north south (merid b)
+
+ocid : (x : circle) -> Id circle (s1ToCircle (circleToS1 x)) x
+ocid = let F : circle -> U
+           F x = Id circle (s1ToCircle (circleToS1 x)) x
+  in hsplit F with
+    cbase -> refl circle cbase
+    cloop -> mapOnPathD circle F ocid cbase cbase cloop
+
+
+s1EqCircle : Id U (sphere one) circle
+s1EqCircle = isoId (sphere one) circle s1ToCircle circleToS1 ocid coid
+
+s1ToCId : Id (sphere one) north north -> Id circle cbase cbase
+s1ToCId = mapOnPath (sphere one) circle
+            (transport (sphere one) circle s1EqCircle) north north
+
+s1ToCIdInv : Id circle cbase cbase -> Id (sphere one) north north
+s1ToCIdInv = mapOnPath circle (sphere one)
+            (transpInv (sphere one) circle s1EqCircle) cbase cbase
+
+winding' : Id (sphere one) north north -> Z
+winding' l = winding (s1ToCId l)
+
+loop' :  Id (sphere one) north north
+loop' = s1ToCIdInv cloop
+
+test1' : Z
+test1' = winding' loop'
+
+loop2 : Id (sphere one) north north
+loop2 = comp (sphere one) north north north loop' loop'
+
+test2' : Z
+test2' = winding' loop2
