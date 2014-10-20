@@ -89,14 +89,14 @@ propId A B pA pB f g = isoId A B f g sfg rfg
 
 
 -- The circle.
-primitive S1 : U
+-- primitive S1 : U
 
-primitive base : S1
+-- primitive base : S1
 
-primitive loop : Id S1 base base
+-- primitive loop : Id S1 base base
 
-primitive S1rec : (F : S1 -> U) (b : F base)
-                (l : IdS S1 F base base loop b b) (x : S1) -> F x
+-- primitive S1rec : (F : S1 -> U) (b : F base)
+--                 (l : IdS S1 F base base loop b b) (x : S1) -> F x
 
 -- Propositional reflection.
 -- primitive inh : U -> U

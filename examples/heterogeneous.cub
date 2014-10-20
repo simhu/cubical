@@ -57,16 +57,19 @@ eqFstSnd A B a0 a1 b0 b1 = isEquivEq IdSig SigId f
         g : SigId -> IdSig
         g z =  mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 z.1 b0 b1 z.2
 
+eqSubstSig : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+             Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
+eqSubstSig A F x =
+ J A x (\ y p -> (u : F x) (v : F y) ->
+        Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v))
+   (\u v -> refl U (Id (F x) u v))
 
-eqSubstSig : (A : U) (B : A -> U) (a0 a1 : A) (p:Id A a0 a1) (b0 : B a0) (b1 : B a1) ->
-           Id U (IdS A B a0 a1 p b0 b1) (Id (B a1) (subst A B a0 a1 p b0) b1)
-eqSubstSig A B a0 =
- J A a0 (\ a1 p -> (b0 : B a0) (b1 : B a1) ->
-                    Id U (IdS A B a0 a1 p b0 b1) (Id (B a1) (subst A B a0 a1 p b0) b1))
-        rem
-  where rem :(b0 b1 :B a0) -> Id U (Id (B a0) b0 b1) (Id (B a0) (subst A B a0 a0 (refl A a0) b0) b1)
-        rem b0 b1 = mapOnPath (B a0) U (\ b -> Id (B a0) b b1)
-                     b0 (subst A B a0 a0 (refl A a0) b0) (substeq A B a0 b0)
+idSIntro : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+           Id (F y) (subst A F x y p u) v -> IdS A F x y p u v
+idSIntro A F x y p u v =
+  transpInv (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
+    (eqSubstSig A F x y p u v)
+
 
 pairEq : (A B:U) (a0 a1:A) (b0 b1:B) -> Id A a0 a1 -> Id B b0 b1 ->
          Id (and A B) (a0, b0) (a1, b1)

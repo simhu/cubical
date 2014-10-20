@@ -3,6 +3,7 @@ module circle where
 import integer
 import hedberg
 import discor
+import heterogeneous
 
 -- (Loosely following: "Calculating the fundamental group of the
 -- circle in Homotopy Type Theory", Dan Licata, Mike Shulman, LICS
@@ -27,22 +28,6 @@ substComp A F a b c p q u = J A b
                     (subst A F b c q (subst A F a b p u)))
   (refl (F b) (subst A F a b p u)) c q
 
-
--- Characterizing heterogeneous equality.
-eqSubstSig : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
-             Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
-eqSubstSig A F x =
- J A x (\ y p -> (u : F x) (v : F y) ->
-        Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v))
-   (\u v -> refl U (Id (F x) u v))
-
-idSIntro : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
-           Id (F y) (subst A F x y p u) v -> IdS A F x y p u v
-idSIntro A F x y p u v =
-  transpInv (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
-    (eqSubstSig A F x y p u v)
-
-
 -- The circle.
 S1 : U
 hdata S1 = base | loop @ base ~ base
@@ -58,6 +43,12 @@ invS1 = inv S1 base base
 
 triv : loopS1
 triv = refl S1 base
+
+S1Rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) -> F x
+S1Rec F b l = hsplit F with
+  base -> b
+  loop -> l
+
 
 -- Some properties (not needed atm).
 
