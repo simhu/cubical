@@ -1,0 +1,57 @@
+
+module discor where
+
+-- definition of finite sets and cardinality
+
+import lemId
+import function
+
+inlNotinr : (A B:U) (a:A) (b:B) -> neg (Id (or A B) (inl a) (inr b))
+inlNotinr A B a b h = subst (or A B) T (inl a) (inr b) h tt
+ where
+  T : or A B -> U
+  T = split
+       inl _ -> Unit
+       inr _ -> N0
+
+inrNotinl : (A B:U) (a:A) (b:B) -> neg (Id (or A B) (inr b) (inl a))
+inrNotinl A B a b h = subst (or A B) T (inr b) (inl a) h tt
+ where
+  T : or A B -> U
+  T = split
+       inl _ -> N0
+       inr _ -> Unit
+
+injInl : (A B :U) -> injective A (or A B) (\ x -> inl x)
+injInl A B x0 x1 h = subst (or A B) T (inl x0) (inl x1) h (refl A x0)
+ where
+   T : or A B -> U
+   T = split
+         inl x -> Id A x0 x
+         inr _ -> N0
+
+injInr : (A B :U) -> injective B (or A B) (\ x -> inr x)
+injInr A B x0 x1 h = subst (or A B) T (inr x0) (inr x1) h (refl B x0)
+ where
+   T : or A B -> U
+   T = split
+         inl _ -> N0
+         inr x -> Id B x0 x
+
+orDisc : (A B : U) -> discrete A -> discrete B -> discrete (or A B)
+orDisc A B dA dB = split
+  inl a -> split
+            inl a1 -> rem (dA a a1)
+               where rem : dec (Id A a a1) -> dec (Id (or A B) (inl a) (inl a1))
+                     rem = split
+                            inl p -> inl (mapOnPath A (or A B) (\ x -> inl x) a a1 p)
+                            inr h -> inr (\ p -> h (injInl A B a a1 p))
+            inr b -> inr (inlNotinr A B a b)
+  inr b -> split
+            inl a -> inr (inrNotinl A B a b)
+            inr b1 -> rem (dB b b1)
+               where rem : dec (Id B b b1) -> dec (Id (or A B) (inr b) (inr b1))
+                     rem = split
+                            inl p -> inl (mapOnPath B (or A B) (\ y -> inr y) b b1 p)
+                            inr h -> inr (\ p -> h (injInr A B b b1 p))
+

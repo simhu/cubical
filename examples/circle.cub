@@ -1,6 +1,8 @@
 module circle where
 
 import integer
+import hedberg
+import discor
 
 -- (Loosely following: "Calculating the fundamental group of the
 -- circle in Homotopy Type Theory", Dan Licata, Mike Shulman, LICS
@@ -174,11 +176,24 @@ encodeLoopIt = split
                     leftEqMiddle = substComp S1 cover base base base
                       (loopIt (inl n)) (invS1 loop) zeroZ
 
+ZIsSet : set Z
+ZIsSet = hedberg (or N N) (orDisc N N natDec natDec)
+
 encodeDecode : (x : S1) (c : cover x) -> Id (cover x) (encode x (decode x c)) c
 encodeDecode =
   hsplit (\x ->  (c : cover x) -> Id (cover x) (encode x (decode x c)) c) with
     base -> encodeLoopIt
-    loop -> undefined -- TODO (but not needed for the theorem..)
+    loop -> idSIntro S1 F base base loop encodeLoopIt encodeLoopIt eq
+      where
+        F : S1 -> U
+        F x = (c : cover x) -> Id (cover x) (encode x (decode x c)) c
+        eq : Id ((k:Z) -> Id Z (encode base (loopIt k)) k)
+                (subst S1 F base base loop encodeLoopIt) encodeLoopIt
+        eq = funExt Z (\k -> Id Z (encode base (loopIt k)) k)
+          (subst S1 F base base loop encodeLoopIt) encodeLoopIt
+          (\k -> ZIsSet (encode base (loopIt k)) k
+           (subst S1 F base base loop encodeLoopIt k) (encodeLoopIt k))
+
 
 
 -- Decoding after encoding.
