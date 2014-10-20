@@ -90,8 +90,7 @@ initLoop flags f = do
       (merr,tenv) <- TC.runDeclss TC.verboseEnv [adef | C.ODecls adef <- adefs]
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
-        Nothing  -> return ()
-      putStrLn "File loaded."
+        Nothing  -> putStrLn "File loaded."
       -- Compute names for auto completion
       runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
 
