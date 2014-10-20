@@ -134,6 +134,8 @@ instance Nominal Val where
   support (VPCon _ vs phi u v)          = support (vs,phi,u,v)
   support (VHSplit u v)                 = support (u,v)
 
+  support (UnGlueNe u v)                = support (u,v)
+
   -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
   -- support (Kan Fill a box)              = support (a, box)
@@ -167,7 +169,7 @@ instance Nominal Val where
                     ar :: Nominal a => a -> a
                     ar = acti . (`swap` (j,k))
          -- TODO: Check that act on neutral is neutral
-         KanNe j a ts v -> KanNe k (ar a) (ar ts) (ar v)
+         KanNe j a ts v -> comp Pos k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
                     ar = acti . (`swap` (j,k))
@@ -212,6 +214,8 @@ instance Nominal Val where
 
          VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
          VHSplit u v        -> app (acti u) (acti v)
+
+         UnGlueNe u v       -> app (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
   swap u ij@ (i,j) =
@@ -263,6 +267,8 @@ instance Nominal Val where
 
          VPCon n vs phi u v -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
          VHSplit u v        -> VHSplit (sw u) (sw v)
+
+         UnGlueNe u v       -> UnGlueNe (sw u) (sw v)
 
 instance Nominal Hiso where
   support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
@@ -408,7 +414,7 @@ app g@(UnGlue hisos b) w
     | otherwise              = case w of
        GlueElem us v -> v
        KanUElem _ v  -> app g v
-       _             -> VApp g w
+       _             -> UnGlueNe g w  -- w should be neutral
 
 app g@(UnKan hisos b) w
     | Map.null hisos         = w
@@ -577,7 +583,8 @@ isNeutral (VCircleRec _ _ _ v)   = isNeutral v
 isNeutral (KanUElem _ u)         = isNeutral u  -- TODO: check this!
 isNeutral (VInhRec _ _ _ v)      = isNeutral v
 isNeutral (KanNe _ _ _ _)        = True
-isNeutral (VHSplit _ v)        = isNeutral v
+isNeutral (VHSplit _ v)          = isNeutral v
+isNeutral (UnGlueNe _ v)         = isNeutral v
 -- isNeutral (VIntRec _ _ _ _ v) = isNeutral v
 isNeutral _                      = False
 
@@ -893,7 +900,8 @@ instance Convertible Val where
     conv k u v'
   conv k v' (KanNe i a ts u) | isIndep k i (a,ts) = trace "conv KanNe regular"
     conv k v' u
-  conv k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') = trace "conv KanNe" $
+  conv k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') =
+     trace ("conv KanNe" ++ "\n   v = " ++ show v ++ "\n    v' = " ++ show v')  $
      let j    = fresh (v, v')
          tsj  = ts  `swap` (i,j)
          tsj' = ts' `swap` (i',j)
@@ -919,7 +927,7 @@ instance Convertible Val where
     conv k (ts,u,phi) (ts',u',phi')
 
   conv k (UnKan hisos v) (UnKan hisos' v') = conv k hisos hisos' && conv k v v'
-  conv k (UnGlue hisos v) (UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
+  conv k u@(UnGlue hisos v) u'@(UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
 
   conv k u@(HisoProj{}) u'@(HisoProj{}) = conv (k+1) (app u w) (app u' w)
        where w = mkVar k $ support (u,u')
@@ -951,6 +959,7 @@ instance Convertible Val where
     and [conv k f f', conv k b b', conv k l l', conv k v v']
   conv k (VInhRec b p f v) (VInhRec b' p' f' v') =
      and [conv k b b', conv k p p', conv k f f', conv k v v']
+  conv k (UnGlueNe u v) (UnGlueNe u' v') = conv k u u' && conv k v v'
   -- conv k VI             VI               = True
   -- conv k VI0            VI0              = True
   -- conv k VI1            VI1              = True
@@ -1048,6 +1057,8 @@ instance Normal Val where
 
   normal k (VInhRec b f h u) = VInhRec b' f' h' u'
     where (b',f',h',u') = normal k (b,f,h,u)
+
+  normal k (UnGlueNe u v) = UnGlueNe (normal k u) (normal k v)
 
   normal k u = u
 

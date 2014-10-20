@@ -391,6 +391,7 @@ data Val = VU
          | VSnd Val
          | VSplit Val Val          -- the second Val must be neutral
          | VHSplit Val Val          -- the second Val must be neutral
+         | UnGlueNe Val Val         -- the second Val must be neutral
          | VCircleRec Val Val Val Val  -- the last Val must be neutral
          | VInhRec Val Val Val Val     -- the last Val must be neutral
          | KanNe Name Val (System Val) Val -- Neutral
@@ -590,7 +591,9 @@ showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [
 
 showVal (VPCon c es phi u v)     = -- verbose for now
   c <+> showVals es <+> parens (show phi) <+> "@" <+> showVal u <+> "~" <+> showVal v
-showVal (VHSplit u v)            = showVal u <+> showVal v
+showVal (VHSplit u v)            = showVal u <+> showVal1 v
+
+showVal (UnGlueNe u v)           = showVal1 u <+> showVal1 v
 
 showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 
