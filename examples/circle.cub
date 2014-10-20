@@ -1,0 +1,193 @@
+module circle where
+
+import integer
+
+-- (Loosely following: "Calculating the fundamental group of the
+-- circle in Homotopy Type Theory", Dan Licata, Mike Shulman, LICS
+-- 2013)
+
+-- Some testing and lemmas.
+
+substPi : (A : U) (F G : A -> U) (a b : A) (p : Id A a b) (f : F a -> G a) ->
+  Id (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
+           (\z -> subst A G a b p (f (subst A F b a (inv A a b p) z)))
+substPi A F G a b p f = refl (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
+
+substPathRight : (A : U) (a b c : A) (p : Id A a b) (q : Id A b c) ->
+  Id (Id A a c) (subst A (Id A a) b c q p) (comp A a b c p q)
+substPathRight A a b c p q = refl (Id A a c) (comp A a b c p q)
+
+substComp : (A : U) (F : A -> U) (a b c : A) (p : Id A a b) (q : Id A b c)
+  (u : F a) -> Id (F c) (subst A F a c (comp A a b c p q) u)
+                        (subst A F b c q (subst A F a b p u))
+substComp A F a b c p q u = J A b
+  (\c q -> Id (F c) (subst A F a c (comp A a b c p q) u)
+                    (subst A F b c q (subst A F a b p u)))
+  (refl (F b) (subst A F a b p u)) c q
+
+
+-- Characterizing heterogeneous equality.
+eqSubstSig : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+             Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
+eqSubstSig A F x =
+ J A x (\ y p -> (u : F x) (v : F y) ->
+        Id U (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v))
+   (\u v -> refl U (Id (F x) u v))
+
+idSIntro : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+           Id (F y) (subst A F x y p u) v -> IdS A F x y p u v
+idSIntro A F x y p u v =
+  transpInv (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
+    (eqSubstSig A F x y p u v)
+
+
+-- The circle.
+S1 : U
+hdata S1 = base | loop @ base ~ base
+
+loopS1 : U
+loopS1 = Id S1 base base
+
+compS1 : loopS1 -> loopS1 -> loopS1
+compS1 = comp S1 base base base
+
+invS1 : loopS1 -> loopS1
+invS1 = inv S1 base base
+
+triv : loopS1
+triv = refl S1 base
+
+-- Some properties (not needed atm).
+
+-- (This should be a general lemma.)
+compAssoc : (A : U) (a b c d : A) (p : Id A a b) (q : Id A b c) (r : Id A c d) ->
+  Id (Id A a d) (comp A a c d (comp A a b c p q) r) (comp A a b d p (comp A b c d q r))	  
+compAssoc A a b c d p q r =
+  J A c (\d r -> Id (Id A a d) (comp A a c d (comp A a b c p q) r)
+                               (comp A a b d p (comp A b c d q r)))
+    (refl (Id A a c) (comp A a b c p q)) d r
+
+compLoopS1Assoc : (p q r : loopS1) ->
+  Id loopS1 (compS1 (compS1 p q) r) (compS1 p (compS1 q r))
+compLoopS1Assoc = compAssoc S1 base base base base
+
+
+-- The universal cover of the circle.
+cover : S1 -> U
+cover = hsplit (\_ -> U) with
+  base -> Z
+  loop -> sucIdZ
+
+-- Encoding
+encode : (x : S1) -> Id S1 base x -> cover x
+encode x p = subst S1 cover base x p zeroZ
+
+-- Decoding
+loopIt : Z -> loopS1
+loopIt = split
+  inr n -> pos n
+    where pos : N -> loopS1
+          pos = split
+            zero  -> triv
+            suc n -> compS1 (loopIt (inr n)) loop
+  inl n -> neg n
+    where neg : N -> loopS1
+          neg = split
+            zero  -> invS1 loop
+	    suc n -> compS1 (loopIt (inl n)) (invS1 loop)
+
+compInvLeft : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p)
+compInvLeft A a =
+  J A a (\b p -> Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p))
+    (refl (Id A a a) (refl A a))
+
+compCompInv : (A : U) (a b c : A) (p : Id A a b) (q : Id A b c) ->
+              Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q))
+compCompInv A a b c p =
+  J A b (\c q -> Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q)))
+    (refl (Id A a b) p) c
+
+loopItPred : Id (Z -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop)
+loopItPred =
+  funExt Z (\_ -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop)
+  (split -- let's prove pointwise equality
+    inr n -> pos n
+      where pos : (n : N) -> Id loopS1 (loopIt (inr n))
+                                       (compS1 (loopIt (predZ (inr n))) loop)
+            pos = split
+	      zero  -> -- ts: triv = compS1 (invS1 loop) loop
+                compInvLeft S1 base base loop
+              suc n ->
+                refl loopS1 (compS1 (loopIt (inr n)) loop)
+    inl n -> compCompInv S1 base base base (loopIt (inl n)) (invS1 loop)
+  )
+
+loopItPred' : Id (Z -> loopS1) (\x -> compS1 (loopIt (predZ x)) loop) loopIt
+loopItPred' = inv (Z -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop) loopItPred
+
+decode : (x : S1) -> cover x -> Id S1 base x
+decode = hsplit (\x -> cover x -> Id S1 base x) with
+  base -> loopIt
+  loop -> idSIntro S1 (\x -> cover x -> Id S1 base x) base base loop
+            loopIt loopIt loopItPred'
+
+-- Encoding after decoding.
+encodeLoopIt : (k : Z) -> Id Z (encode base (loopIt k)) k
+encodeLoopIt = split
+  inr n -> pos n
+    where pos : (n : N) -> Id Z (encode base (loopIt (inr n))) (inr n)
+          pos = split
+            zero  -> refl Z zeroZ
+            suc n -> -- ts: encode base (compS1 (loopIt (inr n)) loop) = inr (suc n)
+                     -- lhs: subst S1 cover base base (compS1 (loopIt (inr n)) loop) zeroZ
+                     -- with substComp: subst S1 cover base base loop 
+                     --                   (subst S1 cover base base (loopIt (inr n)) zeroZ) 
+                     -- witg defeq:     sucZ (subst S1 cover base base (loopIt (inr n)) zeroZ)
+                     -- by IH:          sucZ (inr n)
+              comp Z left (sucZ middlePred) (sucZ (inr n))
+                leftEqMiddle (mapOnPath Z Z sucZ middlePred (inr n) (pos n))
+              where left : Z
+                    left = encode base (compS1 (loopIt (inr n)) loop)
+
+                    middlePred : Z
+                    middlePred = subst S1 cover base base (loopIt (inr n)) zeroZ
+
+                    leftEqMiddle : Id Z left (sucZ middlePred)
+                    leftEqMiddle = substComp S1 cover base base base
+                      (loopIt (inr n)) loop zeroZ
+  inl n -> neg n -- Analogously.
+    where
+      neg :(n : N) -> Id Z (encode base (loopIt (inl n))) (inl n)
+      neg = split
+        zero  -> refl Z (inl zero)
+        suc n -> 
+          comp Z left (predZ middleSuc) (predZ (inl n))
+            leftEqMiddle (mapOnPath Z Z predZ middleSuc (inl n) (neg n))
+              where left : Z
+                    left = encode base (compS1 (loopIt (inl n)) (invS1 loop))
+
+                    middleSuc : Z
+                    middleSuc = subst S1 cover base base (loopIt (inl n)) zeroZ
+
+                    leftEqMiddle : Id Z left (predZ middleSuc)
+                    leftEqMiddle = substComp S1 cover base base base
+                      (loopIt (inl n)) (invS1 loop) zeroZ
+
+encodeDecode : (x : S1) (c : cover x) -> Id (cover x) (encode x (decode x c)) c
+encodeDecode =
+  hsplit (\x ->  (c : cover x) -> Id (cover x) (encode x (decode x c)) c) with
+    base -> encodeLoopIt
+    loop -> undefined -- TODO (but not needed for the theorem..)
+
+
+-- Decoding after encoding.
+decodeEncode : (x : S1) (p : Id S1 base x) ->
+               Id (Id S1 base x) (decode x (encode x p)) p
+decodeEncode = J S1 base (\x p -> Id (Id S1 base x) (decode x (encode x p)) p )
+  (refl loopS1 triv)
+
+-- The loop space of S1 is equal to Z (and thus the fundamental group as well).
+loopS1EqZ : Id U loopS1 Z
+loopS1EqZ = isoId loopS1 Z (encode base) (decode base)
+  (encodeDecode base) (decodeEncode base)
