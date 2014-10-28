@@ -15,12 +15,13 @@ test1 : Z
 test1 = winding loop
 
 inh : U -> U
-hdata inh A = inc (a : A) | squash (a : inh A) (b : inh A) @ a ~ b
+hdata inh A = inc (a : A)
+            | squash (a : inh A) (b : inh A) @ a ~ b
 
 test : (A : U) -> A -> inh A
 test A a = inc a
 
-inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+inhrec : (A B : U) -> prop B -> (A -> B) -> inh A -> B
 inhrec A B p f = hsplit (\_ -> B) with
    inc a -> f a
    squash u v -> p (inhrec A B p f u) (inhrec A B p f v)
@@ -36,6 +37,24 @@ testInh2 : (A : U) (B : U) (p : prop B) (f : A -> B) (u v : inh A) ->
               (p (inhrec A B p f u) (inhrec A B p f v))
 	      (mapOnPath (inh A) B (inhrec A B p f) u v (squash u v))
 testInh2 A B p f u v = refl (Id B (inhrec A B p f u) (inhrec A B p f v)) (p (inhrec A B p f u) (inhrec A B p f v))
+
+-- Inverse to inc if A is a proposition
+fromInh : (A : U) (p : prop A) -> inh A -> A
+fromInh A p = inhrec A A p (\x -> x)
+
+incK : (A : U) (p : prop A) (a : inh A) -> Id (inh A) (inc (fromInh A p a)) a
+incK A p a = squash (inc (fromInh A p a)) a
+
+fromInhK : (A : U) (p : prop A) (a : A) -> Id A (fromInh A p (inc a)) a
+fromInhK A p a = refl A a
+
+-- Exist as truncated sigma
+exists : (A : U) (B : A -> U) -> U
+exists A B = inh (Sigma A B)
+
+-- If the exist is a prop then a witness can be extracted
+fromExists : (A : U) (B : A -> U) -> prop (Sigma A B) -> exists A B -> Sigma A B
+fromExists A B = fromInh (Sigma A B)
 
 
 pushout : (A B C : U) (f : C -> A) (g : C -> B) -> U
