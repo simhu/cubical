@@ -188,8 +188,6 @@ check a t = case (a,t) of
           us = map (`mkVar` d) [k..k+l-1]
           e  = eval rho t
       local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
-        env' <- asks env
-        gam  <- asks ctxt
         check e t0
         check e t1
   (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
