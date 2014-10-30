@@ -506,11 +506,11 @@ showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
 showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
-showTer (Sum l _)     = "sum " ++ show l
+showTer (Sum l _)     = fst l
 showTer (PN pn)       = showPN pn
 showTer (PCon c es _ e0 e1) = -- verbose for now
   c <+> showTers es <+> "@" <+> showTer e0 <+> "~" <+> showTer e1
-showTer (HSum l _)    = "hsum" <+> show l
+showTer (HSum l _)    = fst l
 showTer (HSplit l _ _)  = "hsplit" <+> show l
 
 showTers :: [Ter] -> String
@@ -540,11 +540,19 @@ showODecls (ODecls defs) = showDecls defs
 showODecls (Opaque x)    = "opaque"      <+> show x
 showODecls (Transp x)    = "transparent" <+> show x
 
+showSumEnv :: Env -> String
+showSumEnv Empty = ""
+showSumEnv (PDef xas env) = showSumEnv env
+showSumEnv (Pair env (_,u)) = showVal1 u <+> showSumEnv env
+
+
 instance Show Val where
   show = showVal
 
 showVal :: Val -> String
 showVal VU                       = "U"
+showVal (Ter t@Sum{} env)        = show t <+> showSumEnv env
+showVal (Ter t@HSum{} env)       = show t <+> showSumEnv env
 showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
@@ -589,8 +597,8 @@ showVal (VInc u)                 = "inc" <+> showVal1 u
 showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
 showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
 
-showVal (VPCon c es phi u v)     = -- verbose for now
-  c <+> showVals es <+> parens (show phi) <+> "@" <+> showVal u <+> "~" <+> showVal v
+showVal (VPCon c es phi u v)     = -- not verbose for now
+  c <+> showVals es <+> parens (show phi) -- <+> "@" <+> showVal u <+> "~" <+> showVal v
 showVal (VHSplit u v)            = showVal u <+> showVal1 v
 
 showVal (UnGlueNe u v)           = showVal1 u <+> showVal1 v
