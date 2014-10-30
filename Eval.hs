@@ -43,6 +43,7 @@ look x Empty = error ("look:" <+> x <+> "not found")
 
 eval :: Env -> Ter -> Val
 eval e U                 = VU
+eval e pn@(PN (Undef _)) = Ter pn e
 eval e (PN pn)           = evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
   (PN pn,us) -> evalAppPN e pn us
