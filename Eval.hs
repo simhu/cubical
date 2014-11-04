@@ -122,16 +122,6 @@ instance Nominal Val where
 
   support (VExt phi f g p)              = support (phi,f,g,p)
 
-  support VCircle                       = []
-  support VBase                         = []
-  support (VLoop phi)                   = support phi
-  support (VCircleRec f b l s)          = support (f,b,l,s)
-
-  support (VInh v)                      = support v
-  support (VInc v)                      = support v
-  support (VSquash phi v0 v1)           = support (phi,v0,v1)
-  support (VInhRec b p h a)             = support (b,p,h,a)
-
   support (VPCon _ vs phi u v)          = support (vs,phi,u,v)
   support (VHSplit u v)                 = support (u,v)
 
@@ -149,12 +139,6 @@ instance Nominal Val where
   -- support (VPair x a v)                 = support (x, [a,v])
   -- support (VComp box@(Box _ n _ _))     = delete n $ support box
   -- support (VFill x box)                 = delete x $ support box
-  -- support (VInhRec b p h a)             = support [b,p,h,a]
-  -- support VI                            = []
-  -- support VI0                           = []
-  -- support VI1                           = []
-  -- support (VIntRec f s e l u)           = support (f,s,e,l,u)
-  -- support (VLine n)                     = [n]
   -- support v                             = error ("support " ++ show v)
 
 
@@ -203,16 +187,6 @@ instance Nominal Val where
 
          VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
 
-         VCircle    -> VCircle
-         VBase      -> VBase
-         VLoop psi  -> loop (acti psi)
-         VCircleRec f b l s -> circleRec (acti f) (acti b) (acti l) (acti s)
-
-         VInh v                -> VInh (acti v)
-         VInc v                -> VInc (acti v)
-         VSquash psi v0 v1     -> squash (acti psi) (acti v0) (acti v1)
-         VInhRec b p h a       -> inhRec (acti b) (acti p) (acti h) (acti a)
-
          VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
          VHSplit u v        -> app (acti u) (acti v)
 
@@ -255,16 +229,6 @@ instance Nominal Val where
          GlueLineElem ts u psi -> GlueLineElem (sw ts) (sw u) (sw psi)
 
          VExt psi f g p -> VExt (sw psi) (sw f) (sw g) (sw p)
-
-         VCircle    -> VCircle
-         VBase      -> VBase
-         VLoop psi  -> VLoop (sw psi)
-         VCircleRec f b l s -> VCircleRec (sw f) (sw b) (sw l) (sw s)
-
-         VInh v            -> VInh (sw v)
-         VInc v            -> VInc (sw v)
-         VSquash phi v0 v1 -> VSquash (sw phi) (sw v0) (sw v1)
-         VInhRec b p h a   -> VInhRec (sw b) (sw p) (sw h) (sw a)
 
          VPCon n vs phi u v -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
          VHSplit u v        -> VHSplit (sw u) (sw v)
@@ -336,36 +300,6 @@ vext :: Formula -> Val -> Val -> Val -> Val
 vext (Dir Zero) f _ _ = f
 vext (Dir One)  _ g _ = g
 vext phi f g p        = VExt phi f g p
-
-loop :: Formula -> Val
-loop (Dir _) = VBase
-loop phi     = VLoop phi
-
-circleRec :: Val -> Val -> Val -> Val -> Val
-circleRec _ b _ VBase         = b
-circleRec f b l v@(VLoop phi) = l @@ phi
-circleRec f b l v@(Kan i VCircle us u) = comp Pos j ffillu us' u'
-  where j    = fresh (f,b,l,v)
-        usij = us `swap` (i,j)
-        us'  = Map.mapWithKey crec usij
-        u'   = crec (i ~> 0) u
-        ffillu     = app f (fill Pos j VCircle usij u)
-        crec alpha = circleRec (f `face` alpha)
-                       (b `face` alpha) (l `face` alpha)
-circleRec f b l (KanUElem _ u) = circleRec f b l u
-circleRec f b l v = VCircleRec f b l v -- v should be neutral
-
-squash :: Formula -> Val -> Val -> Val
-squash (Dir Zero) u _ = u
-squash (Dir One)  _ v = v
-squash phi        u v = VSquash phi u v
-
-inhRec :: Val -> Val -> Val -> Val -> Val
-inhRec b p f (KanUElem _ u) = inhRec b p f u
-inhRec b p f (VInc a) = app f a
-inhRec b p f (VSquash phi u0 u1) =
-  app (app p (inhRec b p f u0)) (inhRec b p f u1) @@ phi
-inhRec b p f a = VInhRec b p f a -- a should be neutral
 
 -- Application
 app :: Val -> Val -> Val
@@ -538,10 +472,6 @@ evalPN (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
                                   Path i $ VSPair q (Path j (q `connect` (i,j)))
   where q = p @@ i
 evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
-evalPN _       Inh        [a]           = VInh a
-evalPN _       Inc        [_,t]         = VInc t
-evalPN (i:_)   Squash     [_,r,s]       = Path i $ VSquash (Atom i) r s
-evalPN _       InhRec     [_,b,p,phi,a] = inhRec b p phi a
 evalPN (i:_)   IsoId    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
 evalPN (i:j:_) IsoIdRef [a] =
@@ -551,15 +481,6 @@ evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
 evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@ i) (q @@ i)
 evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
   Path i $ app (app f (p @@ i)) (q @@ i)
-evalPN _       Circle     []               = VCircle
-evalPN _       Base       []               = VBase
-evalPN (i:_)   Loop       []               = Path i $ VLoop (Atom i)
-evalPN _       CircleRec  [f,b,l,s]        = circleRec f b l s
--- evalPN _       I          []               = VI
--- evalPN _       I0         []               = VI0
--- evalPN _       I1         []               = VI1
--- evalPN (x:_)   Line       []               = Path x $ VLine x
--- evalPN _       IntRec     [f,s,e,l,u]      = intrec f s e l u
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
 comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
@@ -580,13 +501,10 @@ isNeutral (VSnd v)               = isNeutral v
 isNeutral (VSplit _ v)           = isNeutral v
 isNeutral (Kan _ a ts u)         = -- TODO: Maybe remove?
   isNeutral a || isNeutralSystem ts || isNeutral u
-isNeutral (VCircleRec _ _ _ v)   = isNeutral v
 isNeutral (KanUElem _ u)         = isNeutral u  -- TODO: check this!
-isNeutral (VInhRec _ _ _ v)      = isNeutral v
 isNeutral (KanNe _ _ _ _)        = True
 isNeutral (VHSplit _ v)          = isNeutral v
 isNeutral (UnGlueNe _ v)         = isNeutral v
--- isNeutral (VIntRec _ _ _ _ v) = isNeutral v
 isNeutral _                      = False
 
 isNeutralSystem :: System Val -> Bool
@@ -733,8 +651,6 @@ comp Pos i (GlueLine shape b phi) us u = trace "comp GlueLine"
         ws = Map.mapWithKey (\alpha uAlpha ->
                               unGlueLineElem (phi `face` alpha) uAlpha) us
         w  = unGlueLineElem (phi `face` (i ~> 0)) u
-
-comp Pos i VCircle ts u = Kan i VCircle ts u
 
 comp Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp Pos i v tss w
 
@@ -942,31 +858,13 @@ instance Convertible Val where
   conv k u u'@(VExt phi f g p) = conv (k+1) (app u w) (app u' w)
     where w = mkVar k $ support (u,u')
 
-  conv k (VInh u) (VInh u')                     = conv k u u'
-  conv k (VInc u) (VInc u')                     = conv k u u'
-  conv k (VSquash phi u v) (VSquash phi' u' v') =
-    and [conv k phi phi', conv k u u', conv k v v']
-
   conv k (VVar x phis)  (VVar x' phis')  =
     x == x' && conv k phis phis'
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
   conv k (VHSplit u v)  (VHSplit u' v')  = conv k u u' && conv k v v'
-  conv k VCircle        VCircle          = True
-  conv k VBase          VBase            = True
-  conv k (VLoop phi)    (VLoop phi')     = conv k phi phi'
-  conv k (VCircleRec f b l v) (VCircleRec f' b' l' v') =
-    and [conv k f f', conv k b b', conv k l l', conv k v v']
-  conv k (VInhRec b p f v) (VInhRec b' p' f' v') =
-     and [conv k b b', conv k p p', conv k f f', conv k v v']
   conv k (UnGlueNe u v) (UnGlueNe u' v') = conv k u u' && conv k v v'
-  -- conv k VI             VI               = True
-  -- conv k VI0            VI0              = True
-  -- conv k VI1            VI1              = True
-  -- conv k (VLine x)      (VLine y)        = x == y
-  -- conv k (VIntRec f s e l u) (VIntRec f' s' e' l' u') =
-  --   and [conv k f f', conv k s s', conv k e e', conv k l l', conv k u u']
   conv k _              _                = False
 
 
@@ -1035,14 +933,6 @@ instance Normal Val where
   normal k (VExt phi u v w) = VExt phi u' v' w'
     where (u',v',w') = normal k (u,v,w)
 
-  normal k (VInh u)  = VInh (normal k u)
-  normal k (VInc u)  = VInc (normal k u)
-  normal k (VSquash phi u v) = VSquash phi (normal k u) (normal k v)
-
-  normal _ VCircle = VCircle
-  normal _ VBase   = VBase
-  normal _ (VLoop phi) = VLoop phi
-
   normal k (VApp u v) = app (normal k u) (normal k v)
   normal k (VAppFormula u phi) = normal k u @@ phi
   normal k (VFst u) = fstSVal (normal k u)
@@ -1052,12 +942,6 @@ instance Normal Val where
   normal k (VHSplit u v) = VHSplit (normal k u) (normal k v)
   normal k (VPCon n us phi u0 u1) =
     VPCon n (normal k us) phi (normal k u0) (normal k u1)
-
-  normal k (VCircleRec u v w x) = VCircleRec u' v' w' x'
-    where (u',v',w',x') = normal k (u,v,w,x)
-
-  normal k (VInhRec b f h u) = VInhRec b' f' h' u'
-    where (b',f',h',u') = normal k (b,f,h,u)
 
   normal k (UnGlueNe u v) = UnGlueNe (normal k u) (normal k v)
 

@@ -1,6 +1,6 @@
 OPT=0
-GHC=ghc
-#GHC=cabal exec ghc --
+#GHC=ghc
+GHC=cabal exec ghc --
 
 all:
 	$(GHC) --make -O$(OPT) -o cubical Main.hs

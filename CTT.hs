@@ -105,16 +105,6 @@ hBranchToLabel (HBranch l _ _) = l
 
 -- Primitive notions
 data PN = Id | Refl | Sym
-        -- Inh A is an h-prop stating that A is inhabited.
-        -- Here we take h-prop A as (Pi x y : A) Id A x y.
-        | Inh
-        -- Inc a : Inh A for a:A (A not needed ??)
-        | Inc
-        -- Squash a b : Id (Inh A) a b
-        | Squash
-        -- InhRec B p phi a : B,
-        -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
-        | InhRec
 
         -- (A B : U) -> Id U A B -> A -> B
         -- For TransU we only need the eqproof and the element in A is needed
@@ -200,32 +190,6 @@ data PN = Id | Refl | Sym
         -- (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
         | MapOnPathS -- TODO: AppOnPathS?
 
-        -- S1 : U
-        | Circle
-
-        -- base : S1
-        | Base
-
-        -- loop : Id S1 base base
-        | Loop
-
-        -- S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
-        | CircleRec
-
-        -- I : U
-        | I
-
-        -- I0, I1 : Int
-        | I0 | I1
-
-        -- line : Id Int I0 I1
-        | Line
-
-
-        -- intrec : (F : I -> U) (s : F I0) (e : F I1)
-        --  (l : IdS Int F I0 I1 line s e) (x : I) -> F x
-        | IntRec
-
         -- undefined constant
         | Undef Loc
   deriving (Eq, Show)
@@ -262,10 +226,6 @@ primHandle =
    ("inv"          , 4,  Sym         ),
    ("funExt"        , 5,  Ext          ),
    --("funHExt"       , 5,  HExt          ),
-   -- ("inh"           , 1,  Inh          ),
-   -- ("inc"           , 2,  Inc          ),
-   -- ("squash"        , 3,  Squash       ),
-   -- ("inhrec"        , 5,  InhRec       ),
    ("isoId"         , 6,  IsoId        ),
    ("isoIdRef"      , 1,  IsoIdRef     ),
    ("transport"     , 4,  TransU       ),
@@ -279,16 +239,7 @@ primHandle =
    ("mapOnPath"     , 6,  MapOnPath    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
-   ("mapOnPathS"    , 10, MapOnPathS   ),
-   ("S1"            , 0,  Circle       ),
-   ("base"          , 0,  Base         ),
-   ("loop"          , 0,  Loop         ),
-   ("S1rec"         , 4,  CircleRec    ),
-   ("I"             , 0,  I            ),
-   ("I0"            , 0,  I0           ),
-   ("I1"            , 0,  I1           ),
-   ("line"          , 0,  Line         ),
-   ("intrec"        , 5,  IntRec       )]
+   ("mapOnPathS"    , 10, MapOnPathS   )]
 
 reservedNames :: [String]
 reservedNames = [ s | (s,_,_) <- primHandle ]
@@ -340,15 +291,6 @@ data Val = VU
          | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val
 
-         -- inhabited
-         | VInh Val
-
-         -- inclusion into inhabited
-         | VInc Val
-
-         -- squash type - connects the two values
-         | VSquash Formula Val Val
-
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
          -- | VEquivEq Name Val Val Val Val Val
@@ -369,19 +311,8 @@ data Val = VU
          -- the name is bound
          -- | VFill Name (Box Val)
 
-         -- circle
-         | VCircle
-         | VBase
-         | VLoop Formula
-
          -- Path constructors
          | VPCon Ident [Val] Formula Val Val
-
-         -- interval
-         -- | VI
-         -- | VI0
-         -- | VI1
-         -- | VLine Name           -- connects start and end point along name
 
          -- neutral values
          | VVar String [Formula]
@@ -392,8 +323,6 @@ data Val = VU
          | VSplit Val Val          -- the second Val must be neutral
          | VHSplit Val Val          -- the second Val must be neutral
          | UnGlueNe Val Val         -- the second Val must be neutral
-         | VCircleRec Val Val Val Val  -- the last Val must be neutral
-         | VInhRec Val Val Val Val     -- the last Val must be neutral
          | KanNe Name Val (System Val) Val -- Neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
 
@@ -528,7 +457,7 @@ showTer1 u           = parens $ showTer u
 -- Warning: do not use showPN as a Show instance as it will loop
 showPN :: PN -> String
 showPN (Undef l) = show l
-showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
+showPN pn        = case [s | (s,_,pn') <- primHandle, pn == pn'] of
   [s] -> s
   _   -> error $ "showPN: unknown primitive " ++ show pn
 
@@ -587,15 +516,6 @@ showVal (GlueLine ts u phi)     = "GlueLine" <+> show ts <+> show u <+> show phi
 showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show phi
 
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
-showVal VCircle                  = "S1"
-showVal VBase                    = "base"
-showVal (VLoop x)                = "loop" <+> parens (show x)
-showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
-
-showVal (VInh u)                 = "inh" <+> showVal1 u
-showVal (VInc u)                 = "inc" <+> showVal1 u
-showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
-showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
 
 showVal (VPCon c es phi u v)     = -- not verbose for now
   c <+> showVals es <+> parens (show phi) -- <+> "@" <+> showVal u <+> "~" <+> showVal v
@@ -617,11 +537,6 @@ showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 -- showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 -- showVal (VEquivSquare x y a s t) =
 --   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
--- showVal VI                       = "I"
--- showVal VI0                      = "I0"
--- showVal VI1                      = "I1"
--- showVal (VLine n)                = "line" <+> show n
--- showVal (VIntRec f s e l u)      = "intrec" <+> showVals [f,s,e,l,u]
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

@@ -85,32 +85,3 @@ propId A B pA pB f g = isoId A B f g sfg rfg
 
   rfg : (a:A) -> Id A (g (f a)) a
   rfg a = pA (g (f a)) a
-
-
-
--- The circle.
--- primitive S1 : U
-
--- primitive base : S1
-
--- primitive loop : Id S1 base base
-
--- primitive S1rec : (F : S1 -> U) (b : F base)
---                 (l : IdS S1 F base base loop b b) (x : S1) -> F x
-
--- Propositional reflection.
--- primitive inh : U -> U
-
--- primitive inc : (A : U) -> A -> inh A
-
--- primitive squash : (A : U) -> prop (inh A)
-
--- primitive inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> 
-
--- primitive inhrec : (A : U) (F : inh A -> U) (f : (a : A) -> F (inc A a))
---   (q : (x0 x1  : inh A) (u0 : F x0) (u1 : F x1) -> IdS (inh A) F u0 u1 (sqash A x0 x1) u0 u1)
---   (x : inh A) -> F x
-
-
--- IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
--- IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
