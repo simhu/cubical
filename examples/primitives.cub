@@ -6,26 +6,8 @@ primitive refl : (A : U) (a : A) -> Id A a a
 
 primitive inv : (A : U) (a b : A) -> Id A a b -> Id A b a
 
-Sigma : (A : U) (B : A -> U) -> U
-Sigma A B = (x : A) * B x
-
-fiber : (A B : U) (f : A -> B) (y : B) -> U
-fiber A B f y = Sigma A (\x -> Id B (f x) y)
-
-prop : U -> U
-prop A = (a b : A) -> Id A a b
-
-id : (A : U) -> A -> A
-id A a = a
-
-pathTo : (A:U) -> A -> U
-pathTo A = fiber A A (id A)
-
-sId : (A : U) (a : A) -> pathTo A a
-sId A a = (a, refl A a)
-
 singl : (A : U) -> A -> U
-singl A a = Sigma A (Id A a)
+singl A a = (x: A) * (Id A a x)
 
 primitive contrSingl : (A : U) (a b : A) (p : Id A a b) ->
                        Id (singl A a) (a, refl A a) (b, p)
@@ -34,11 +16,6 @@ primitive transport : (A B : U) -> Id U A B -> A -> B
 
 primitive transpInv : (A B : U) -> Id U A B -> B -> A
 
--- primitive transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
-
-transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
-transportRef A a = refl A a
-
 primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
                       (p : Id A a b) -> Id B (f a) (f b)
 
@@ -46,7 +23,6 @@ primitive appOnPath : (A B : U) (f g : A -> B) (a b : A)
                       (q : Id (A -> B) f g) (p : Id A a b) -> Id B (f a) (g b)
 
 primitive IdP : (A B : U) -> Id U A B -> A -> B -> U
-
 
 IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
 IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
@@ -67,21 +43,8 @@ primitive isoId : (A B : U) (f : A -> B) (g : B -> A)
                    (t : (x:A) -> Id A (g (f x)) x) ->
                    Id U A B
 
-transpIsoId : (A B : U) (f : A -> B) (g : B -> A)
-	           (s : (y:B) -> Id B (f (g y)) y)
-                   (t : (x:A) -> Id A (g (f x)) x) ->
-                   (a : A) -> Id B (transport A B (isoId A B f g s t) a) (f a)
-transpIsoId A B f g s t a = refl B (f a)
+id : (A : U) -> A -> A
+id A a = a
 
 primitive isoIdRef : (A : U) ->
                    Id (Id U A A) (refl U A) (isoId A A (id A) (id A) (refl A) (refl A))
-
-propId : (A B : U) -> prop A -> prop B ->
-         (f : A -> B) (g : B -> A) -> Id U A B
-propId A B pA pB f g = isoId A B f g sfg rfg
- where
-  sfg : (b:B) -> Id B (f (g b)) b
-  sfg b = pB (f (g b)) b
-
-  rfg : (a:A) -> Id A (g (f a)) a
-  rfg a = pA (g (f a)) a

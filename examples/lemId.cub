@@ -48,6 +48,32 @@ idEuclid A a b c p q = transpInv (Id A a b) (Id A a c) rem p
  where rem : Id U (Id A a b) (Id A a c)
        rem = mapOnPath A U (Id A a) b c q
 
+compAssoc : (A : U) (a b c d : A) (p : Id A a b) (q : Id A b c) (r : Id A c d) ->
+  Id (Id A a d) (comp A a c d (comp A a b c p q) r) (comp A a b d p (comp A b c d q r))
+compAssoc A a b c d p q r =
+  J A c (\d r -> Id (Id A a d) (comp A a c d (comp A a b c p q) r)
+                               (comp A a b d p (comp A b c d q r)))
+    (refl (Id A a c) (comp A a b c p q)) d r
+
+compInvLeft : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p)
+compInvLeft A a =
+  J A a (\b p -> Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p))
+    (refl (Id A a a) (refl A a))
+
+compInvLeft' : (A : U) (a b : A) (p : Id A a b) ->
+   Id (Id A b b) (comp A b a b (inv A a b p) p) (refl A b)
+compInvLeft' A a = J A a
+   (\b p -> Id (Id A b b) (comp A b a b (inv A a b p) p) (refl A b))
+   (refl (Id A a a) (refl A a))
+
+compCompInv : (A : U) (a b c : A) (p : Id A a b) (q : Id A b c) ->
+              Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q))
+compCompInv A a b c p =
+  J A b (\c q -> Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q)))
+    (refl (Id A a b) p) c
+
+
 -- similarity with ssreflect?? start to use equality on U
 
 lemUpDown : (A : U) -> (a a' b b' : A) -> Id A a a' -> Id A b b' ->
@@ -127,3 +153,41 @@ eqPropFam : (A : U) (B : A -> U) (h : propFam A B) (au bv : Sigma A B) ->
             Id A au.1 bv.1 -> Id (Sigma A B) au bv
 eqPropFam A B h au bv p =
   eqSigma A B au.1 bv.1 p au.2 bv.2 (h bv.1 (subst A B au.1 bv.1 p au.2) bv.2)
+
+
+substReflIsId : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p
+substReflIsId A a =
+  J A a (\b p -> Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p)
+    (refl (Id A a a) (refl A a))
+
+
+-- Some definitional equalities.
+
+substPi : (A : U) (F G : A -> U) (a b : A) (p : Id A a b) (f : F a -> G a) ->
+  Id (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
+           (\z -> subst A G a b p (f (subst A F b a (inv A a b p) z)))
+substPi A F G a b p f = refl (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
+
+
+-- Trivial, since this is the very definition of comp.
+substPathRight : (A : U) (a1 a2 : A) (p : Id A a1 a2) (c : A) (q : Id A c a1) ->
+  Id (Id A c a2) (subst A (Id A c) a1 a2 p q) (comp A c a1 a2 q p)
+substPathRight A a1 a2 p c q = refl (Id A c a2) (comp A c a1 a2 q p)
+
+
+substComp : (A : U) (F : A -> U) (a b c : A) (p : Id A a b) (q : Id A b c)
+  (u : F a) -> Id (F c) (subst A F a c (comp A a b c p q) u)
+                        (subst A F b c q (subst A F a b p u))
+substComp A F a b c p q u = J A b
+  (\c q -> Id (F c) (subst A F a c (comp A a b c p q) u)
+                    (subst A F b c q (subst A F a b p u)))
+  (refl (F b) (subst A F a b p u)) c q
+
+
+substReflIsRefl : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A b b) (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b)
+substReflIsRefl A a =
+  J A a (\b p -> Id (Id A b b)
+                    (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b))
+    (refl (Id A a a) (refl A a))

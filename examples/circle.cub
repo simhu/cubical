@@ -9,41 +9,6 @@ import heterogeneous
 -- circle in Homotopy Type Theory", Dan Licata, Mike Shulman, LICS
 -- 2013)
 
--- Some testing and lemmas.
-
-substPi : (A : U) (F G : A -> U) (a b : A) (p : Id A a b) (f : F a -> G a) ->
-  Id (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
-           (\z -> subst A G a b p (f (subst A F b a (inv A a b p) z)))
-substPi A F G a b p f = refl (F b -> G b) (subst A (\x -> F x -> G x) a b p f)
-
-
--- Trivial, since this is the very definition of comp.
-substPathRight : (A : U) (a1 a2 : A) (p : Id A a1 a2) (c : A) (q : Id A c a1) ->
-  Id (Id A c a2) (subst A (Id A c) a1 a2 p q) (comp A c a1 a2 q p)
-substPathRight A a1 a2 p c q = refl (Id A c a2) (comp A c a1 a2 q p)
-
-
--- Is there a way to put the parentheses to get this definitional?
--- substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
---   (q : Id B (f a) (g a)) ->
---   Id (Id B (f a') (g a')) 
---      (subst A (\x -> Id B (f x) (g x)) a a' p q)
---      (comp B (f a') (f a) (g a')
---        (inv B (f a) (f a') (mapOnPath A B f a a' p))
---         (comp B (f a) (g a) (g a')
--- 	  q
---           (mapOnPath A B g a a' p)))
--- substPathPi A B f g a =  undefined -- J A a (\a' p -> )
-
-
-substComp : (A : U) (F : A -> U) (a b c : A) (p : Id A a b) (q : Id A b c)
-  (u : F a) -> Id (F c) (subst A F a c (comp A a b c p q) u)
-                        (subst A F b c q (subst A F a b p u))
-substComp A F a b c p q u = J A b
-  (\c q -> Id (F c) (subst A F a c (comp A a b c p q) u)
-                    (subst A F b c q (subst A F a b p u)))
-  (refl (F b) (subst A F a b p u)) c q
-
 -- The circle.
 S1 : U
 hdata S1 = base | loop @ base ~ base
@@ -54,31 +19,21 @@ loopS1 = Id S1 base base
 compS1 : loopS1 -> loopS1 -> loopS1
 compS1 = comp S1 base base base
 
+compLoopS1Assoc : (p q r : loopS1) ->
+  Id loopS1 (compS1 (compS1 p q) r) (compS1 p (compS1 q r))
+compLoopS1Assoc = compAssoc S1 base base base base
+
 invS1 : loopS1 -> loopS1
 invS1 = inv S1 base base
 
 triv : loopS1
 triv = refl S1 base
 
-S1Rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b) (x : S1) -> F x
-S1Rec F b l = hsplit F with
+S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b)
+        (x : S1) -> F x
+S1rec F b l = hsplit F with
   base -> b
   loop -> l
-
-
--- Some properties (not needed atm).
-
--- (This should be a general lemma.)
-compAssoc : (A : U) (a b c d : A) (p : Id A a b) (q : Id A b c) (r : Id A c d) ->
-  Id (Id A a d) (comp A a c d (comp A a b c p q) r) (comp A a b d p (comp A b c d q r))	  
-compAssoc A a b c d p q r =
-  J A c (\d r -> Id (Id A a d) (comp A a c d (comp A a b c p q) r)
-                               (comp A a b d p (comp A b c d q r)))
-    (refl (Id A a c) (comp A a b c p q)) d r
-
-compLoopS1Assoc : (p q r : loopS1) ->
-  Id loopS1 (compS1 (compS1 p q) r) (compS1 p (compS1 q r))
-compLoopS1Assoc = compAssoc S1 base base base base
 
 
 -- The universal cover of the circle.
@@ -104,18 +59,6 @@ loopIt = split
           neg = split
             zero  -> invS1 loop
 	    suc n -> compS1 (loopIt (inl n)) (invS1 loop)
-
-compInvLeft : (A : U) (a b : A) (p : Id A a b) ->
-  Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p)
-compInvLeft A a =
-  J A a (\b p -> Id (Id A b b) (refl A b) (comp A b a b (inv A a b p) p))
-    (refl (Id A a a) (refl A a))
-
-compCompInv : (A : U) (a b c : A) (p : Id A a b) (q : Id A b c) ->
-              Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q))
-compCompInv A a b c p =
-  J A b (\c q -> Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q)))
-    (refl (Id A a b) p) c
 
 loopItPred : Id (Z -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop)
 loopItPred =
@@ -200,7 +143,6 @@ encodeDecode =
           (subst S1 F base base loop encodeLoopIt) encodeLoopIt
           (\k -> ZIsSet (encode base (loopIt k)) k
            (subst S1 F base base loop encodeLoopIt k) (encodeLoopIt k))
-
 
 
 -- Decoding after encoding.

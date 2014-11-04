@@ -3,6 +3,45 @@ module prelude where
 
 import primitives
 
+Sigma : (A : U) (B : A -> U) -> U
+Sigma A B = (x : A) * B x
+
+fiber : (A B : U) (f : A -> B) (y : B) -> U
+fiber A B f y = Sigma A (\x -> Id B (f x) y)
+
+prop : U -> U
+prop A = (a b : A) -> Id A a b
+
+id : (A : U) -> A -> A
+id A a = a
+
+pathTo : (A:U) -> A -> U
+pathTo A = fiber A A (id A)
+
+sId : (A : U) (a : A) -> pathTo A a
+sId A a = (a, refl A a)
+
+transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
+transportRef A a = refl A a
+
+transpIsoId : (A B : U) (f : A -> B) (g : B -> A)
+	           (s : (y:B) -> Id B (f (g y)) y)
+                   (t : (x:A) -> Id A (g (f x)) x) ->
+                   (a : A) -> Id B (transport A B (isoId A B f g s t) a) (f a)
+transpIsoId A B f g s t a = refl B (f a)
+
+
+propId : (A B : U) -> prop A -> prop B ->
+         (f : A -> B) (g : B -> A) -> Id U A B
+propId A B pA pB f g = isoId A B f g sfg rfg
+ where
+  sfg : (b:B) -> Id B (f (g b)) b
+  sfg b = pB (f (g b)) b
+
+  rfg : (a:A) -> Id A (g (f a)) a
+  rfg a = pA (g (f a)) a
+
+
 rel : U -> U
 rel A = A -> A -> U
 
@@ -24,13 +63,6 @@ subst A P a x p = transport (P a) (P x) (mapOnPath A U P a x p)
 substInv : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P x -> P a
 substInv A P a x p = subst A (\ y -> P y -> P a) a x p (\ h -> h)
 
--- substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
---           Id (P a) d (subst A P a a (refl A a) d)
--- substeq A P a d = Jeq A a (\ x q -> P x) d
-
--- substeq : (A : U) (P : A -> U) (a : A) (d : P a) ->
---            Id (P a) d (subst A P a a (refl A a) d)
--- substeq A P a d = transportRef (P a) d
 
 -- Monoids
 Monoid : U -> U
@@ -264,11 +296,9 @@ J A a C d x p = subst (singl A a) T (a, refl A a) (x, p) (contrSingl A a x p) d
  where T : singl A a -> U
        T z = C (z.1) (z.2)
 
--- funExt : (A : U) (B : A -> U) (f g : (a : A) -> B a)
---          (p : ((x : A) -> (Id (B x) (f x) (g x)))) -> Id ((y : A) -> B y) f g
--- funExt A B f g p = funHExt A B f g rem
---   where rem : (a x : A) -> (p : Id A a x) -> (IdS A B a x p (f a) (g x))
---         rem a = J A a (\x p -> (IdS A B a x p (f a) (g x))) (p a)
+defEqJ : (A : U) (a : A) (C : (x : A) -> Id A a x -> U) (d : C a (refl A a)) ->
+         Id (C a (refl A a)) (J A a C d a (refl A a)) d
+defEqJ A a C d = refl (C a (refl A a)) d
 
 sId : (A : U) (a : A) -> pathTo A a
 sId A a = (a, refl A a)

@@ -1,7 +1,7 @@
 module helix where
 
 import integer
-import swap
+import circle
 
 helix : S1 -> U
 helix = S1rec (\_ -> U) Z sucIdZ
@@ -108,11 +108,11 @@ testPeter = mapOnPath S1 N Peter base base loop
 
 -- other eliminations
 
-telim : S1 -> U
-telim = S1rec (\_ -> U) (and N N) eqNN
+-- telim : S1 -> U
+-- telim = S1rec (\_ -> U) (and N N) eqNN
 
-mtelim : Id S1 base base -> Id U (and N N) (and N N)
-mtelim = mapOnPath S1 U telim base base
+-- mtelim : Id S1 base base -> Id U (and N N) (and N N)
+-- mtelim = mapOnPath S1 U telim base base
 
-telimNN : Id S1 base base -> and N N
-telimNN l = transport (and N N) (and N N) (mtelim l) (zero,suc zero)
+-- telimNN : Id S1 base base -> and N N
+-- telimNN l = transport (and N N) (and N N) (mtelim l) (zero,suc zero)

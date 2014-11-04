@@ -32,7 +32,6 @@ univAx A B =
 
 corUnivAx : (A B : U) -> Id U (Id U A B) (Equiv A B)
 corUnivAx A B = isEquivEq (Id U A B) (Equiv A B) (IdToEquiv A B) (univAx A B)
--- isoId (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
 
 -- a simple application
 

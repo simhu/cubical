@@ -13,6 +13,49 @@ swap A B z = (z.2,z.1)
 eqSwap : (A B :U) -> Id U (and A B) (and B A)
 eqSwap A B = isoId (and A B) (and B A) (swap A B) (swap B A) (refl (and B A)) (refl (and A B))
 
+-- simple example with swap and product
+
+eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
+eqPi A B0 B1 eB = mapOnPath (A->U) U (Pi A) B0 B1 rem
+ where rem : Id (A -> U) B0 B1
+       rem = funExt A (\ _ -> U) B0 B1 eB
+
+eqPiTest : Id U ((X : U) -> X -> and X Bool) ((X : U) -> X -> and Bool X)
+eqPiTest = eqPi U (\X -> X -> and X Bool) (\X -> X -> and Bool X) rem1
+ where rem : (X:U) -> Id U (and X Bool) (and Bool X)
+       rem X = eqSwap X Bool
+
+       rem1 : (X:U) -> Id U (X -> and X Bool) (X -> and Bool X)
+       rem1 X = eqPi X (\ _ -> and X Bool) (\ _ -> and Bool X) (\ _ -> rem X)
+
+
+transPiTest : ((X:U) -> X -> and X Bool) -> (X:U) -> X -> and Bool X
+transPiTest = transport (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X)) eqPiTest
+
+testPi1 : N -> and Bool N
+testPi1 = transPiTest (\ X -> \ x -> (x,true)) N
+
+testPi2 : and Bool N
+testPi2 = testPi1 zero
+
+--- simple test
+
+eqNN : Id U (and N N) (and N N)
+eqNN = eqSwap N N
+
+testNN : and N N
+testNN = transport (and N N) (and N N) eqNN (zero,suc zero)
+
+eqUU : Id U (U -> and U U) (U -> and U U)
+eqUU = eqPi U (\ _ -> and U U) (\ _ -> and U U) (\ _ -> eqSwap U U)
+
+testUU : U
+testUU = (transport (U -> and U U) (U -> and U U) eqUU (\ X -> (X,X)) Bool).1
+
+tUU : Id U testUU Bool
+tUU = refl U Bool
+
+
 -- a simple test example
 
 incr : and Bool N -> and Bool N
@@ -44,7 +87,7 @@ test4 = incr2 (true,suc zero)
 -- what happens if we compose eqSwap with its inverse?
 
 eqSwap3 : (A B : U) -> Id U (and A B) (and A B)
-eqSwap3 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B) 
+eqSwap3 A B = comp U (and A B) (and B A) (and A B) (eqSwap A B)
                     (inv U (and A B) (and B A) (eqSwap A B))
 
 incr3 : and Bool N -> and Bool N
@@ -56,32 +99,13 @@ test5 = incr3 (true,zero)
 test6 : and Bool N
 test6 = incr3 (true,suc zero)
 
--- simple example with swap and product
 
-eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
-eqPi A B0 B1 eB = mapOnPath (A->U) U (Pi A) B0 B1 rem
- where rem : Id (A -> U) B0 B1
-       rem = funExt A (\ _ -> U) B0 B1 eB
-
+-- transport with a sigma type over the universe
 eqSig : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Sigma A B0) (Sigma A B1)
 eqSig A B0 B1 eB = mapOnPath (A->U) U (Sigma A) B0 B1 rem
  where rem : Id (A -> U) B0 B1
        rem = funExt A (\ _ -> U) B0 B1 eB
 
-eqPiTest : Id U (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X))
-eqPiTest = eqPi U (\ X -> X -> and X Bool) (\ X -> X -> and Bool X) rem1
- where rem : (X:U) -> Id U (and X Bool) (and Bool X)
-       rem X = eqSwap X Bool
-
-       rem1 : (X:U) -> Id U (X -> and X Bool) (X -> and Bool X)
-       rem1 X = eqPi X (\ _ -> and X Bool) (\ _ -> and Bool X) (\ _ -> rem X)
-
-       
-transPiTest : ((X:U) -> X -> and X Bool) -> (X:U) -> X -> and Bool X
-transPiTest = transport  (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X)) eqPiTest
-
-test12 : and Bool N
-test12 = transPiTest (\ X -> \ x -> (x,true)) N zero
 
 eqSigTest : Id U (Sigma U (\ X -> and X Bool)) (Sigma U (\ X -> and Bool X))
 eqSigTest = eqSig U (\ X -> and X Bool) (\ X -> and Bool X) rem1
@@ -118,20 +142,3 @@ test9 = (transSig2Test (zero,(zero,true))).1
 
 test10 : and Bool N
 test10 =  (transSig2Test (zero,(zero,true))).2
-
---- simple test
-
-eqNN : Id U (and N N) (and N N)
-eqNN = eqSwap N N
-
-testNN : and N N
-testNN = transport (and N N) (and N N) eqNN (zero,suc zero)
-
-eqUU : Id U (U -> and U U) (U -> and U U)
-eqUU = eqPi U (\ _ -> and U U) (\ _ -> and U U) (\ _ -> eqSwap U U)
-
-testUU : U
-testUU = (transport (U -> and U U) (U -> and U U) eqUU (\ X -> (X,X)) Bool).1
-
-tUU : Id U testUU Bool
-tUU = refl U Bool

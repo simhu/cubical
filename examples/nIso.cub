@@ -47,18 +47,18 @@ pBool = vect Bool
 
 notSN : (x:N) -> pBool x -> pBool x
 notSN = split
-         zero -> not
-         suc n -> \ z -> (not z.1,notSN n z.2)
+         zero  -> not
+         suc n -> \z -> (not z.1,notSN n z.2)
 
 sBool : (x:N) -> pBool x
 sBool = split
-        zero -> true
+        zero  -> true
         suc n -> (false,sBool n)
 
 stBool : (x:N) -> pBool x -> Bool
 stBool = split
-           zero -> \ z -> z
-           suc n -> \ z -> andBool z.1 (stBool n z.2)
+           zero  -> \z -> z
+           suc n -> \z -> andBool z.1 (stBool n z.2)
 
 hasSec : U -> U
 hasSec X = Sigma (X->U) (\ P -> (x:X) -> and (P x) (P x -> Bool))

@@ -2,196 +2,16 @@ module susp where
 
 import integer
 import circle
-
-substReflIsId : (A : U) (a b : A) (p : Id A a b) ->
-  Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p
-substReflIsId A a =
-  J A a (\b p -> Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p)
-    (refl (Id A a a) (refl A a))
-
-substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
-  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Id (Id B (f a) (g a'))
-     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
-     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-substPathPi A B f g a = J A a
-  (\a' p ->  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Id (Id B (f a) (g a'))
-     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
-     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
-  rem
-  where rem : (qa : Id B (f a) (g a)) (qa' : Id B (f a) (g a)) ->
-              Id (Id B (f a) (g a))
-                qa (comp B (f a) (f a) (g a) (refl B (f a)) qa') ->
-              Id (Id B (f a) (g a)) qa qa'
-        rem qa qa' = subst (Id B (f a) (g a)) (Id (Id B (f a) (g a)) qa)
-                       (comp B (f a) (f a) (g a) (refl B (f a)) qa') qa'
-                       (compIdl B (f a) (g a) qa')
-
-mapOnPathComp : (A B : U) (f : A -> B) (a b c : A) (p : Id A a b) (q : Id A b c) ->
- Id (Id B (f a) (f c))
-    (mapOnPath A B f a c (comp A a b c p q))
-    (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q))
-mapOnPathComp A B f a b c p = J A b
- (\c q -> Id (Id B (f a) (f c))
-    (mapOnPath A B f a c (comp A a b c p q))
-    (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q)))
- (refl (Id B (f a) (f b)) (mapOnPath A B f a b p)) c
-
-
-
-helix : S1 -> U
-helix = hsplit (\_ -> U) with
-  base -> Z
-  loop -> sucIdZ
-
-winding : loopS1 -> Z
-winding = encode base
-
-test1 : Z
-test1 = winding loop
-
-inh : U -> U
-hdata inh A = inc (a : A) | squash (a : inh A) (b : inh A) @ a ~ b
-
-test : (A : U) -> A -> inh A
-test A a = inc a
-
-inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
-inhrec A B p f = hsplit (\_ -> B) with
-   inc a -> f a
-   squash u v -> p (inhrec A B p f u) (inhrec A B p f v)
-
-testSquash : (A : U) -> prop (inh A)
-testSquash A = squash
-
-testInh1 : (A : U) (B : U) (p : prop B) (f : A -> B) (a : A) -> Id B (inhrec A B p f (inc a)) (f a)
-testInh1 A B p f a = refl B (f a)
-
-testInh2 : (A : U) (B : U) (p : prop B) (f : A -> B) (u v : inh A) ->
-           Id (Id B (inhrec A B p f u) (inhrec A B p f v))
-              (p (inhrec A B p f u) (inhrec A B p f v))
-	      (mapOnPath (inh A) B (inhrec A B p f) u v (squash u v))
-testInh2 A B p f u v = refl (Id B (inhrec A B p f u) (inhrec A B p f v)) (p (inhrec A B p f u) (inhrec A B p f v))
-
-
-pushout : (A B C : U) (f : C -> A) (g : C -> B) -> U
-hdata pushout A B C f g = inl (a : A) | inr (b : B) | push (c : C) @ inl (f c) ~ inr (g c)
-
-cyl : (A B : U) (f : A -> B) -> U
-cyl A B f = pushout A B A (\x -> x) f
-
--- Unit : U
--- data Unit = unit
-
-
-zer : Unit -> N
-zer x = zero
-
-Int : U
-Int = pushout N N Unit zer zer
-
-plus : N -> Z
-plus n = inr n
-
-minus : N -> Z
-minus = split
-  zero  -> inr zero
-  suc n -> inl n
-
-forward : Int -> Z
-forward = hsplit (\_ -> Z) with
- inr n -> plus n
- inl n -> minus n
- push u -> refl Z (plus zero)
-
-backward : Z -> Int
-backward = split
-  inr n -> inr n
-  inl n -> inl (suc n)
-
-fbisid : (z : Z) -> Id Z (forward (backward z)) z
-fbisid = split
-  inr n -> refl Z (inr n)
-  inl n -> refl Z (inl n)
-
-testPush : Id Int (inl zero) (inr zero)
-testPush = push tt
-  
-compInvLeft : (A : U) (a b : A) (p : Id A a b) ->
-   Id (Id A b b) (comp A b a b (inv A a b p) p) (refl A b)
-compInvLeft A a = J A a 
-   (\b p -> Id (Id A b b) (comp A b a b (inv A a b p) p) (refl A b))
-   (refl (Id A a a) (refl A a))
-
-bfisid : (i : Int) -> Id Int (backward (forward i)) i
-bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
-  inl n -> lem n
-    where lem : (n : N) -> Id Int (backward (forward (inl n))) (inl n)
-          lem = split
-	    zero  -> inv Int (inl zero) (inr zero) (push tt)
-	    suc n -> refl Int (inl (suc n))
-  inr n -> refl Int (inr n)
-  push u -> rem u
-
-  -- ts: inv Int (inl zero) (inr zero) (push tt) = refl Int (inr zero)
-            -- / push u : inl zero = inr zero
-
-    where f : Int -> Int
-    	  f x = backward (forward x)
-
-          F : Int -> U
-          F i = Id Int (f i) i
-
-          a : Int
-          a = inl zero
-          
-          a' : Int
-          a' = inr zero
-
-          qa' : Id Int (f a') a'
-          qa' = refl Int (inr zero)
-
-          rem : (u : Unit) -> IdS Int F a a' (push u)
-                                  (inv Int (inl zero) (inr zero) (push tt))
-                                  qa'
-          rem = split
-            tt -> substPathPi Int Int f (\x -> x) a a' p qa qa' lem 
-                   where 
-
-  	    p : Id Int a a'
-    	    p = push tt
-
-            qa : Id Int (f a) a
-            qa = inv Int a a' p
-
-    	    lem : Id (Id Int (f a) a')
-    	       (comp Int (f a) a a' qa p)	
-    	       (comp Int (f a) (f a') a' (mapOnPath Int Int f a a' p) qa')
-            lem = compInvLeft Int a a' p
-
-
-
-
-
--- substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
---   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
---   Id (Id B (f a) (g a'))
---      (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
---      (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
---   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-
-intEqZ : Id U Int Z
-intEqZ = isoId Int Z forward backward fbisid bfisid
+import higher
 
 ----------------------------------------------------------------------
 
 -- Suspension.
 
 susp : U -> U
-hdata susp A = north | south | merid (a : A) @ north ~ south
+hdata susp A = north
+             | south
+             | merid (a : A) @ north ~ south
 
 -- n-spheres
 sphere : N -> U
@@ -218,16 +38,10 @@ pushoutToSusp A = hsplit (\_ -> susp A) with
   inr u  -> south
   push a -> merid a
 
-substReflIsRefl : (A : U) (a b : A) (p : Id A a b) ->
-  Id (Id A b b) (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b)
-substReflIsRefl A a =
-  J A a (\b p -> Id (Id A b b)
-                    (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b))
-    (refl (Id A a a) (refl A a))
-
 
 suspEqPushout : (A : U) -> Id U (susp A) (unitPo A)
-suspEqPushout A = isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) spid psid
+suspEqPushout A =
+  isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) spid psid
   where suspEq : susp A -> U
         suspEq x = Id (susp A) (pushoutToSusp A (suspToPushout A x)) x
 
@@ -235,11 +49,12 @@ suspEqPushout A = isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) 
         psid = hsplit suspEq with
           north   -> refl (susp A) north
           south   -> refl (susp A) south
-	  merid a -> idSIntro (susp A) suspEq north south (merid a)
+          merid a -> idSIntro (susp A) suspEq north south (merid a)
             (refl (susp A) north) (refl (susp A) south) meridRefl
-            where meridRefl : Id (suspEq south) (subst (susp A) suspEq north south (merid a)
-                                                  (refl (susp A) north))
-                                                (refl (susp A) south)
+            where meridRefl : Id (suspEq south)
+                                 (subst (susp A) suspEq north south (merid a)
+                                    (refl (susp A) north))
+                                 (refl (susp A) south)
                   meridRefl = substReflIsRefl (susp A) north south (merid a)
 
         unitPoEq : unitPo A -> U
@@ -247,20 +62,21 @@ suspEqPushout A = isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) 
 
         spid : (x : unitPo A) -> unitPoEq x
         spid = hsplit unitPoEq with
-	  inl u  -> trivial u
-	    where trivial : (u : Unit) -> Id (unitPo A) (inl tt) (inl u)
-	          trivial = split tt -> refl (unitPo A) (inl tt)
+          inl u  -> trivial u
+            where trivial : (u : Unit) -> Id (unitPo A) (inl tt) (inl u)
+                  trivial = split tt -> refl (unitPo A) (inl tt)
           inr u  -> trivial u
-	    where trivial : (u : Unit) -> Id (unitPo A) (inr tt) (inr u)
-	          trivial = split tt -> refl (unitPo A) (inr tt)
+            where trivial : (u : Unit) -> Id (unitPo A) (inr tt) (inr u)
+                  trivial = split tt -> refl (unitPo A) (inr tt)
           push a -> idSIntro (unitPo A) unitPoEq (inl tt) (inr tt) (push a)
             (refl (unitPo A) (inl tt)) (refl (unitPo A) (inr tt)) pushRefl
             where pushRefl : Id (unitPoEq (inr tt))
-	                       (subst (unitPo A) unitPoEq
+                               (subst (unitPo A) unitPoEq
                                 (inl tt) (inr tt) (push a)
                                 (refl (unitPo A) (inl tt)))
                                (refl (unitPo A) (inr tt))
                   pushRefl = substReflIsRefl (unitPo A) (inl tt) (inr tt) (push a)
+
 
 -- The circle (S1) is equal to the 1-sphere (aka the suspension of Bool).
 -- (Similar to HoTT Book, Lemma 6.5.1)
@@ -274,8 +90,8 @@ s1ToCircle = hsplit (\_ -> S1) with
   merid b -> path b
     where path : (b : Bool) ->Id S1 base base
           path = split
-	    true  -> refl S1 base
-	    false -> loop
+            true  -> refl S1 base
+            false -> loop
 
 sone : U
 sone = sphere one
@@ -297,12 +113,11 @@ circleToS1 = hsplit (\_ -> sone) with
   base -> north
   loop -> loopImage
 
- 
 lemLoopImage : Id loopS1 (mapOnPath (sphere one) S1
                           s1ToCircle north north loopImage)
-			 loop
-lemLoopImage = mapOnPathComp (sphere one) S1 s1ToCircle north south north (merid false)
-  (inv (sphere one) north south (merid true))
+                         loop
+lemLoopImage = mapOnPathComp (sphere one) S1 s1ToCircle north south north
+  (merid false) (inv (sphere one) north south (merid true))
 
 ocid : (x : S1) -> Id S1 (s1ToCircle (circleToS1 x)) x
 ocid = let oc : S1 -> S1
@@ -314,23 +129,27 @@ ocid = let oc : S1 -> S1
       where G : loopS1 -> U
             G = Id loopS1 (compS1 triv loop)
 
-	    rem1 : G loop
+            rem1 : G loop
             rem1 = compIdl S1 base base loop
 
-            rem : G (mapOnPath (sphere one) S1 s1ToCircle 
+            rem : G (mapOnPath (sphere one) S1 s1ToCircle
                               north north loopImage)
             rem = substInv loopS1 G (mapOnPath (sphere one) S1
                     s1ToCircle north north loopImage) loop lemLoopImage
-                    rem1 
+                    rem1
 
 co : sone -> sone
 co x = circleToS1 (s1ToCircle x)
 
 invLemma1 : (A : U) (a b c : A) (q : Id A c b) (p : Id A a b) ->
-            Id (Id A a b) (comp A a a b  (refl A a) p) (comp A a c b  (comp A a b c p (inv A c b q)) q)
+            Id (Id A a b)
+               (comp A a a b  (refl A a) p)
+               (comp A a c b  (comp A a b c p (inv A c b q)) q)
 invLemma1 A a b c = J A c
   (\b q -> (p : Id A a b) ->
-    Id (Id A a b) (comp A a a b  (refl A a) p) (comp A a c b  (comp A a b c p (inv A c b q)) q))
+    Id (Id A a b)
+       (comp A a a b  (refl A a) p)
+       (comp A a c b  (comp A a b c p (inv A c b q)) q))
   (compIdl A a c) b
 
 coid : (x : sone) -> Id sone (co x) x
@@ -342,37 +161,40 @@ coid = let F : sone -> U
     merid b -> ind b
       where
         ind : (b : Bool) -> IdS sone F north south (merid b)
-	                        (refl sone north) m1
+                                (refl sone north) m1
         ind = split
           true  -> rem1
             where goal : U
                   goal = IdS sone F north south m1 (refl sone north) m1
-                  rem : Id (Id sone north south) (comp sone north north south (refl sone north) m1) 
-                           (comp sone north north south (refl sone north) m1) 
-                  rem = refl (Id sone north south) (comp sone north north south (refl sone north) m1) 
+                  rem : Id (Id sone north south)
+                           (comp sone north north south (refl sone north) m1)
+                           (comp sone north north south (refl sone north) m1)
+                  rem = refl (Id sone north south)
+                             (comp sone north north south (refl sone north) m1)
                   rem1 : goal
-                  rem1 = substPathPi sone sone co (\ x -> x) north south m1 (refl sone north) m1 rem
+                  rem1 = substPathPi sone sone co (\ x -> x)
+                           north south m1 (refl sone north) m1 rem
 
           false -> rem1
             where goal : U
                   goal = IdS sone F north south m0 (refl sone north) m1
 
-                  rem : Id (Id sone north south) 
-                           (comp sone north north south (refl sone north) m0) 
-                           (comp sone north north south (comp sone north south north m0 invm1) m1)
-                  rem = invLemma1 sone north south north m1 m0 
+                  rem : Id (Id sone north south)
+                           (comp sone north north south (refl sone north) m0)
+                           (comp sone north north south
+                             (comp sone north south north m0 invm1) m1)
+                  rem = invLemma1 sone north south north m1 m0
                   rem1 : goal
-                  rem1 = substPathPi sone sone co (\ x -> x) north south m0 (refl sone north) m1 rem
+                  rem1 = substPathPi sone sone co (\ x -> x)
+                           north south m0 (refl sone north) m1 rem
 
-   -- ts: IdS S1 F base base loop (ocid base) (ocid base)
 
 ptU : U
 ptU = (X : U) * X
 
--- if p : Id U A B and a : A then (A,a) and (B,transport A B p a) are equal
-
 lemPt : (A B:U) (p:Id U A B) (a:A) -> Id ptU (A,a) (B,transport A B p a)
-lemPt A = J U A (\ B p -> (a:A) -> Id ptU (A,a) (B,transport A B p a)) (\ a -> refl ptU (A,a))
+lemPt A = J U A (\ B p -> (a:A) -> Id ptU (A,a) (B,transport A B p a))
+  (\ a -> refl ptU (A,a))
 
 Omega : ptU -> ptU
 Omega X = (Id X.1 X.2 X.2,refl X.1 X.2)
@@ -382,6 +204,18 @@ s1EqCircle = isoId sone S1 s1ToCircle circleToS1 ocid coid
 
 s1PtCircle : Id ptU (sone,north) (S1,base)
 s1PtCircle = lemPt sone S1 s1EqCircle north
+
+helix : S1 -> U
+helix = hsplit (\_ -> U) with
+  base -> Z
+  loop -> sucIdZ
+
+winding : loopS1 -> Z
+winding = encode base
+
+test1 : Z
+test1 = winding loop
+
 
 windingS : Id sone north north -> Z
 windingS  = rem1

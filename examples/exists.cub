@@ -1,6 +1,6 @@
 module exists where
 
-import prelude
+import proptruncation
 
 -- existence: a new modality
 
@@ -10,6 +10,10 @@ exists A B = inh (Sigma A B)
 exElim : (A : U) (B : A -> U) (C : U) -> prop C -> (Sigma A B -> C) ->
          exists A B -> C
 exElim A B C p f = inhrec (Sigma A B) C p f
+
+-- If the exist is a prop then a witness can be extracted
+fromExists : (A : U) (B : A -> U) -> prop (Sigma A B) -> exists A B -> Sigma A B
+fromExists A B pr = exElim A B (Sigma A B) pr (\x -> x)
 
 atmostOne : (A : U) (B : A -> U) -> U
 atmostOne A B = (a b : A) -> B a -> B b -> Id A a b

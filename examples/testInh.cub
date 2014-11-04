@@ -1,5 +1,6 @@
 module testInh where
 
+import proptruncation
 import set
 
 -- test the inh and squash functions

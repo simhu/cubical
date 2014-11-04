@@ -1,75 +1,22 @@
 module higher where
 
 import integer
-import circle
+import heterogeneous
 
-helix : S1 -> U
-helix = hsplit (\_ -> U) with
-  base -> Z
-  loop -> sucIdZ
-
-winding : loopS1 -> Z
-winding = encode base
-
-test1 : Z
-test1 = winding loop
-
-inh : U -> U
-hdata inh A = inc (a : A)
-            | squash (a : inh A) (b : inh A) @ a ~ b
-
-test : (A : U) -> A -> inh A
-test A a = inc a
-
-inhrec : (A B : U) -> prop B -> (A -> B) -> inh A -> B
-inhrec A B p f = hsplit (\_ -> B) with
-   inc a -> f a
-   squash u v -> p (inhrec A B p f u) (inhrec A B p f v)
-
-testSquash : (A : U) -> prop (inh A)
-testSquash A = squash
-
-testInh1 : (A : U) (B : U) (p : prop B) (f : A -> B) (a : A) -> Id B (inhrec A B p f (inc a)) (f a)
-testInh1 A B p f a = refl B (f a)
-
-testInh2 : (A : U) (B : U) (p : prop B) (f : A -> B) (u v : inh A) ->
-           Id (Id B (inhrec A B p f u) (inhrec A B p f v))
-              (p (inhrec A B p f u) (inhrec A B p f v))
-	      (mapOnPath (inh A) B (inhrec A B p f) u v (squash u v))
-testInh2 A B p f u v = refl (Id B (inhrec A B p f u) (inhrec A B p f v)) (p (inhrec A B p f u) (inhrec A B p f v))
-
--- Inverse to inc if A is a proposition
-fromInh : (A : U) (p : prop A) -> inh A -> A
-fromInh A p = inhrec A A p (\x -> x)
-
-incK : (A : U) (p : prop A) (a : inh A) -> Id (inh A) (inc (fromInh A p a)) a
-incK A p a = squash (inc (fromInh A p a)) a
-
-fromInhK : (A : U) (p : prop A) (a : A) -> Id A (fromInh A p (inc a)) a
-fromInhK A p a = refl A a
-
--- Exist as truncated sigma
-exists : (A : U) (B : A -> U) -> U
-exists A B = inh (Sigma A B)
-
--- If the exist is a prop then a witness can be extracted
-fromExists : (A : U) (B : A -> U) -> prop (Sigma A B) -> exists A B -> Sigma A B
-fromExists A B = fromInh (Sigma A B)
-
-
+-- Pushout as a HIT.
 pushout : (A B C : U) (f : C -> A) (g : C -> B) -> U
-hdata pushout A B C f g = inl (a : A) | inr (b : B) | push (c : C) @ inl (f c) ~ inr (g c)
+hdata pushout A B C f g = inl (a : A)
+                        | inr (b : B)
+                        | push (c : C) @ inl (f c) ~ inr (g c)
 
+-- Mapping cylinder as a pushout.
 cyl : (A B : U) (f : A -> B) -> U
 cyl A B f = pushout A B A (\x -> x) f
-
--- Unit : U
--- data Unit = unit
-
 
 zer : Unit -> N
 zer x = zero
 
+-- integers as a pushout
 Int : U
 Int = pushout N N Unit zer zer
 
@@ -99,357 +46,53 @@ fbisid = split
 
 testPush : Id Int (inl zero) (inr zero)
 testPush = push tt
-  
+
 bfisid : (i : Int) -> Id Int (backward (forward i)) i
 bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
-  inr n -> refl Int (inr n)
   inl n -> lem n
     where lem : (n : N) -> Id Int (backward (forward (inl n))) (inl n)
           lem = split
-	    zero  -> inv Int (inl zero) (inr zero) (push tt)
-	    suc n -> refl Int (inl (suc n))
-  push u -> undefined
+            zero  -> inv Int (inl zero) (inr zero) (push tt)
+            suc n -> refl Int (inl (suc n))
+  inr n -> refl Int (inr n)
+  push u -> rem u
+
+  -- ts: inv Int (inl zero) (inr zero) (push tt) = refl Int (inr zero)
+            -- / push u : inl zero = inr zero
+
+    where f : Int -> Int
+          f x = backward (forward x)
+
+          F : Int -> U
+          F i = Id Int (f i) i
+
+          a : Int
+          a = inl zero
+
+          a' : Int
+          a' = inr zero
+
+          qa' : Id Int (f a') a'
+          qa' = refl Int (inr zero)
+
+          rem : (u : Unit) -> IdS Int F a a' (push u)
+                                  (inv Int (inl zero) (inr zero) (push tt))
+                                  qa'
+          rem = split
+            tt -> substPathPi Int Int f (\x -> x) a a' p qa qa' lem
+                   where
+
+            p : Id Int a a'
+            p = push tt
+
+            qa : Id Int (f a) a
+            qa = inv Int a a' p
+
+            lem : Id (Id Int (f a) a')
+               (comp Int (f a) a a' qa p)
+               (comp Int (f a) (f a') a' (mapOnPath Int Int f a a' p) qa')
+            lem = compInvLeft' Int a a' p
+
 
 intEqZ : Id U Int Z
 intEqZ = isoId Int Z forward backward fbisid bfisid
-
--- Oops!  This gives the interval, not the circle!
--- circle' : U
--- circle' = pushout Unit Unit Unit (\x -> tt) (\x -> tt)
-
--- forw : circle -> circle'
--- forw = hsplit (\_ -> circle') with
---   base -> inl tt
---   loop -> push tt
-
--- back : circle' -> circle
--- back = hsplit (\_ -> circle) with
---   inl u -> base
---   inr u -> base
---   push u -> loop
-
--- fbid : (x : circle') -> Id circle' (forw (back x)) x
--- fbid = hsplit (\x -> Id circle' (forw (back x)) x) with
---   inl u -> lem u
---     where lem : (u : Unit) -> Id circle' (forw (back (inl u))) (inl u)
---           lem = split tt -> refl circle' (inl tt)
---   inr u -> lem u
---     where lem : (u : Unit) -> Id circle' (forw (back (inr u))) (inr u)
---           lem = split tt -> push tt
---   push u -> mapOnPathD circle' (\x -> Id circle' (forw (back x)) x) fbid
---               (inl tt) (inr tt) (push u)
-
--- bfid : (x : circle) -> Id circle (back (forw x)) x
--- bfid = hsplit (\x -> Id circle (back (forw x)) x) with
---   base -> refl circle base
---   loop -> mapOnPathD circle (\x -> Id circle (back (forw x)) x) bfid
---              base base loop
-
--- circleEqCircle' : Id U circle circle'
--- circleEqCircle' = isoId circle circle' forw back fbid bfid
-
--- base' : circle'
--- base' = inl tt
-
--- ccId : Id circle' base' base' ->  Id circle base base
--- ccId = mapOnPath circle' circle (transpInv circle circle' circleEqCircle') base' base'
-
--- ccIdInv : Id circle base base ->  Id circle' base' base'
--- ccIdInv = mapOnPath circle circle' (transport circle circle' circleEqCircle') base base
-
--- winding' : Id circle' base' base' -> Z
--- winding' l = winding (ccId l)
-
--- loop' : Id circle' base' base'
--- loop' =  ccIdInv loop
-
--- test1' : Z
--- test1' = winding' loop'
-
-
-----
-
--- proofs not correct.
--- univPOMap : (A B C : U) (f : C -> A) (g : C -> B) (X : U)
---   (i : A -> X) (j : B -> X) (p : (c : C) -> Id X (i (f c)) (j (g c)))
---   (x : pushout A B C f g) -> X
--- univPOMap A B C f g X i j p = hsplit (\_ -> X) with
---   inl a -> i a
---   inr b -> j b
---   push c -> p c
-
--- univPOMapUnique : (A B C : U) (f : C -> A) (g : C -> B) (X : U)
---   (i : A -> X) (j : B -> X) (p : (c : C) -> Id X (i (f c)) (j (g c)))
---   (psi : pushout A B C f g -> X)
---   (_ : (a : A) -> Id X (psi (inl a)) (i a))
---   (_ : (b : B) -> Id X (psi (inr b)) (j b))
---   (z : pushout A B C f g) -> Id X (psi z) (univPOMap A B C f g X i j p z)
--- univPOMapUnique A B C f g X i j p psi psiinl psiinr =
---  let P : U
---      P = pushout A B C f g
---      phi : P -> X
---      phi = univPOMap A B C f g X i j p
---      uni : (z : P) -> Id X (psi z) (phi z)
---      uni = univPOMapUnique A B C f g X i j p psi psiinl psiinr
---  in hsplit (\z -> Id X (psi z) (phi z)) with
---       inl a -> psiinl a
---       inr b -> psiinr b
---       push c -> mapOnPathD P (\z -> Id X (psi z) (phi z))
---                   uni (inl (f c)) (inr (g c)) (push c)
-
-----------------------------------------------------------------------
-
--- Suspension.
-
-susp : U -> U
-hdata susp A = north | south | merid (a : A) @ north ~ south
-
--- n-spheres
-sphere : N -> U
-sphere = split
-  zero  -> Bool
-  suc n -> susp (sphere n)
-
--- The suspension is equal to a pushout with maps into Unit.
-unit : (A : U) -> A -> Unit
-unit _ _ = tt
-
-unitPo : U -> U
-unitPo A = pushout Unit Unit A (unit A) (unit A)
-
-suspToPushout : (A : U) -> susp A -> unitPo A
-suspToPushout A = hsplit (\_ -> unitPo A) with
-  north   -> inl tt
-  south   -> inr tt
-  merid a -> push a
-
-pushoutToSusp : (A : U) -> unitPo A -> susp A
-pushoutToSusp A = hsplit (\_ -> susp A) with
-  inl u  -> north
-  inr u  -> south
-  push a -> merid a
-
-substReflIsRefl : (A : U) (a b : A) (p : Id A a b) ->
-  Id (Id A b b) (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b)
-substReflIsRefl A a =
-  J A a (\b p -> Id (Id A b b)
-                    (subst A (\x -> Id A x x) a b p (refl A a)) (refl A b))
-    (refl (Id A a a) (refl A a))
-
-
-suspEqPushout : (A : U) -> Id U (susp A) (unitPo A)
-suspEqPushout A = isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) spid psid
-  where suspEq : susp A -> U
-        suspEq x = Id (susp A) (pushoutToSusp A (suspToPushout A x)) x
-
-        psid : (x : susp A) -> suspEq x
-        psid = hsplit suspEq with
-          north   -> refl (susp A) north
-          south   -> refl (susp A) south
-	  merid a -> idSIntro (susp A) suspEq north south (merid a)
-            (refl (susp A) north) (refl (susp A) south) meridRefl
-            where meridRefl : Id (suspEq south) (subst (susp A) suspEq north south (merid a)
-                                                  (refl (susp A) north))
-                                                (refl (susp A) south)
-                  meridRefl = substReflIsRefl (susp A) north south (merid a)
-
-        unitPoEq : unitPo A -> U
-        unitPoEq x = Id (unitPo A) (suspToPushout A (pushoutToSusp A x)) x
-
-        spid : (x : unitPo A) -> unitPoEq x
-        spid = hsplit unitPoEq with
-	  inl u  -> trivial u
-	    where trivial : (u : Unit) -> Id (unitPo A) (inl tt) (inl u)
-	          trivial = split tt -> refl (unitPo A) (inl tt)
-          inr u  -> trivial u
-	    where trivial : (u : Unit) -> Id (unitPo A) (inr tt) (inr u)
-	          trivial = split tt -> refl (unitPo A) (inr tt)
-          push a -> idSIntro (unitPo A) unitPoEq (inl tt) (inr tt) (push a)
-            (refl (unitPo A) (inl tt)) (refl (unitPo A) (inr tt)) pushRefl
-            where pushRefl : Id (unitPoEq (inr tt))
-	                       (subst (unitPo A) unitPoEq
-                                (inl tt) (inr tt) (push a)
-                                (refl (unitPo A) (inl tt)))
-                               (refl (unitPo A) (inr tt))
-                  pushRefl = substReflIsRefl (unitPo A) (inl tt) (inr tt) (push a)
-
--- The circle (S1) is equal to the 1-sphere (aka the suspension of Bool).
--- (Similar to HoTT Book, Lemma 6.5.1)
-one : N
-one = suc zero
-
-s1ToCircle : sphere one -> S1
-s1ToCircle = hsplit (\_ -> S1) with
-  north   -> base
-  south   -> base
-  merid b -> path b
-    where path : (b : Bool) ->Id S1 base base
-          path = split
-	    true  -> refl S1 base
-	    false -> loop
-
-loopImage : Id (sphere one) north north
-loopImage = comp (sphere one) north south north
-             (merid false)
-	     (inv (sphere one) north south (merid true))
-
-circleToS1 : S1 -> sphere one
-circleToS1 = hsplit (\_ -> sphere one) with
-  base -> north
-  loop -> loopImage
-
-coid : (x : sphere one) -> Id (sphere one) (circleToS1 (s1ToCircle x)) x
-coid = let F : sphere one -> U
-           F x = Id (sphere one) (circleToS1 (s1ToCircle x)) x
-  in hsplit F with
-    north -> refl (sphere one) north
-    south -> merid true
-    merid b -> ind b
-      where
-        ind : (b : Bool) -> IdS (sphere one) F north south (merid b)
-	                        (refl (sphere one) north) (merid true)
-        ind = split
-          true  -> undefined
-          false -> undefined
-             
-
-
-substReflIsId : (A : U) (a b : A) (p : Id A a b) ->
-  Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p
-substReflIsId A a =
-  J A a (\b p -> Id (Id A a b) (subst A (\x -> Id A a x) a b p (refl A a)) p)
-    (refl (Id A a a) (refl A a))
-
-substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
-  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Id (Id B (f a) (g a'))
-     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
-     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-substPathPi A B f g a = J A a
-  (\a' p ->  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Id (Id B (f a) (g a'))
-     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
-     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
-  rem
-  where rem : (qa : Id B (f a) (g a)) (qa' : Id B (f a) (g a)) ->
-              Id (Id B (f a) (g a))
-                qa (comp B (f a) (f a) (g a) (refl B (f a)) qa') ->
-              Id (Id B (f a) (g a)) qa qa'
-        rem qa qa' = subst (Id B (f a) (g a)) (Id (Id B (f a) (g a)) qa)
-                       (comp B (f a) (f a) (g a) (refl B (f a)) qa') qa'
-                       (compIdl B (f a) (g a) qa')
-
-invLemma : (A : U) (a b c : A) (q : Id A c b) (p : Id A a b) ->
-           Id (Id A a b) (comp A a c b  (comp A a b c p (inv A c b q)) q)
-                         (comp A a a b  (refl A a) p)
-invLemma A a b c = J A c 
-  (\b q -> (p : Id A a b) ->
-    Id (Id A a b) (comp A a c b  (comp A a b c p (inv A c b q)) q)
-       (comp A a a b  (refl A a) p))
-  (compInvIdl A a c) b
-
-
-mapOnPathComp : (A B : U) (f : A -> B) (a b c : A) (p : Id A a b) (q : Id A b c) ->
- Id (Id B (f a) (f c))
-    (mapOnPath A B f a c (comp A a b c p q))
-    (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q))
-mapOnPathComp A B f a b c p = J A b
- (\c q -> Id (Id B (f a) (f c))
-    (mapOnPath A B f a c (comp A a b c p q))
-    (comp B (f a) (f b) (f c) (mapOnPath A B f a b p) (mapOnPath A B f b c q)))
- (refl (Id B (f a) (f b)) (mapOnPath A B f a b p)) c
-
- 
-
--- idSIntro (sphere one) F north south (merid b)
---                  (refl (sphere one) north) (merid true) (ind b)
---      where
---        ind : (b : Bool) ->
---              Id (Id (sphere one) north south)
---                 (subst (sphere one) F north south (merid b)
---                  (refl (sphere one) north))
---                 (merid true)
---        ind = split
---          true  -> substReflIsId (sphere one) north south (merid true)
---          false -> lem
--- 	   where
---             left : Id (sphere one) north south
---             left = comp (sphere one) north north south
---                      (inv (sphere one) north north
---                        (comp (sphere one) north south north
---                          (merid false)
---                          (inv (sphere one) north south (merid true))))
--- 	               (comp (sphere one) north north south
---                          (refl (sphere one) north)
---                          (merid false))
-
--- 	    lem : Id (Id (sphere one) north south) left (merid true)
---             lem = undefined
-
-
-lemLoopImage : Id loopS1 (mapOnPath (sphere one) S1
-                          s1ToCircle north north loopImage)
-			 loop
-lemLoopImage = mapOnPathComp (sphere one) S1 s1ToCircle north south north (merid false)
-  (inv (sphere one) north south (merid true))
-         
-
--- loopImage : Id (sphere one) north north
--- loopImage = comp (sphere one) north south north
---              (merid false)
--- 	     (inv (sphere one) north south (merid true))
- 
-
-
-ocid : (x : S1) -> Id S1 (s1ToCircle (circleToS1 x)) x
-ocid = let oc : S1 -> S1
-           oc x = s1ToCircle (circleToS1 x)
-  in hsplit (\x -> Id S1 (oc x) x) with
-    base -> refl S1 base
-    loop -> substPathPi S1 S1 oc (\x -> x)
-               base base loop (refl S1 base) (refl S1 base) rem
-      where G : loopS1 -> U
-            G = Id loopS1 (compS1 triv loop)
-
-	    rem1 : G loop
-            rem1 = compIdl S1 base base loop
-
-            rem : G (mapOnPath (sphere one) S1 s1ToCircle 
-                              north north loopImage)
-            rem = substInv loopS1 G (mapOnPath (sphere one) S1
-                    s1ToCircle north north loopImage) loop lemLoopImage
-                    rem1 
-
-            
-
-
-   -- ts: IdS S1 F base base loop (ocid base) (ocid base)
-
-
-s1EqCircle : Id U (sphere one) S1
-s1EqCircle = isoId (sphere one) S1 s1ToCircle circleToS1 ocid coid
-
-s1ToCId : Id (sphere one) north north -> Id S1 base base
-s1ToCId = mapOnPath (sphere one) S1
-            (transport (sphere one) S1 s1EqCircle) north north
-
-s1ToCIdInv : Id S1 base base -> Id (sphere one) north north
-s1ToCIdInv = mapOnPath S1 (sphere one)
-            (transpInv (sphere one) S1 s1EqCircle) base base
-
-winding' : Id (sphere one) north north -> Z
-winding' l = winding (s1ToCId l)
-
-loop' :  Id (sphere one) north north
-loop' = s1ToCIdInv loop
-
-test1' : Z
-test1' = winding' loop'
-
-loop2 : Id (sphere one) north north
-loop2 = comp (sphere one) north north north loop' loop'
-
-test2' : Z
-test2' = winding' loop2
