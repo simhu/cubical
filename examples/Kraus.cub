@@ -12,8 +12,8 @@ swZero : N -> N -> N
 swZero = swapF N eqN zero
 
 
-homogeneous : (x:N) -> Id ptU (N,x) (N,zero)
-homogeneous x = homogDec N eqN f0N f1N x zero
+homogeneous : (x:N) -> Id ptU (N,zero) (N,x)
+homogeneous x = inv ptU (N,x) (N,zero) (homogDec N eqN f0N f1N x zero)
 
 -- test : (x:N) -> Id (Id ptU (N,x) (N,zero)) (homogeneous x) (homogeneous x)
 -- test x = refl (Id ptU (N,x) (N,zero)) (homogeneous x)
@@ -28,24 +28,24 @@ propSNzero = singlIsProp ptU (N,zero)
 
 -- we have a map inhI N -> sNzero, with the notation of Nicolai Kraus
 
-flifted : inhI N -> sNzero
-flifted = inhrecI N sNzero propSNzero (\ x -> ((N,x),homogeneous x))
+flifted : inh N -> sNzero
+flifted = inhrec N sNzero propSNzero (\ x -> ((N,x),homogeneous x))
 
-Tmyst : inhI N -> U
+Tmyst : inh N -> U
 Tmyst x = (flifted x).1.1
 
 opaque homogeneous
 
-myst : (x: inhI N) -> Tmyst x
+myst : (x: inh N) -> Tmyst x
 myst x = (flifted x).1.2
 
 transparent homogeneous
 
-mystN : (n: N) -> Tmyst (incI N n)
-mystN n = myst (incI N n)
+mystN : (n: N) -> Tmyst (inc n)
+mystN n = myst (inc n)
 
-propMyst : (n:N) -> Id N (myst (incI N n)) n
+propMyst : (n:N) -> Id N (myst (inc n)) n
 propMyst n = refl N n
 
 testMyst : N -> N
-testMyst n = myst (incI N n)
+testMyst n = myst (inc n)

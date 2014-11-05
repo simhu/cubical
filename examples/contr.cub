@@ -29,10 +29,18 @@ isPropProd A B pB f0 f1 = funExt A B f0 f1 (\ x -> pB x (f0 x) (f1 x))
 idIsEquiv : (A:U) -> isEquiv A A (id A)
 idIsEquiv A = (sId A, tId A)
 
-singlIsProp : (A:U) (a:A) -> prop (pathTo A a)
+-- singlIsProp : (A:U) (a:A) -> prop (pathTo A a)
+-- singlIsProp A a v0 v1 =
+--  comp (pathTo A a) v0 (sId A a) v1
+--       (inv (pathTo A a) (sId A a) v0 (tId A a v0)) (tId A a v1)
+
+tId1 : (A : U) (a : A) (v : singl A a) -> Id (singl A a) (a, refl A a) v
+tId1 A a z = contrSingl A a (z.1) (z.2)
+
+singlIsProp : (A:U) (a:A) -> prop (singl A a)
 singlIsProp A a v0 v1 =
- comp (pathTo A a) v0 (sId A a) v1
-      (inv (pathTo A a) (sId A a) v0 (tId A a v0)) (tId A a v1)
+ comp (singl A a) v0 (a, refl A a) v1
+      (inv (singl A a) (a, refl A a) v0 (tId1 A a v0)) (tId1 A a v1)
 
 -- another definition of contr
 

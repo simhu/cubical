@@ -366,8 +366,8 @@ propUnit = split tt -> split tt -> refl Unit tt
 propPi : (A : U) (B : A -> U) -> ((x : A) -> prop (B x)) -> prop ((x : A) -> B x)
 propPi A B h f0 f1 = funExt A B f0 f1 (\x -> h x (f0 x) (f1 x))
 
--- propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
--- propImply A B h = propPi A (\_ -> B) h
+propImply : (A B : U) -> (A -> prop B) -> prop (A -> B)
+propImply A B h = propPi A (\_ -> B) h
 
 propFam : (A : U) (B : A -> U) -> U
 propFam A B = (a : A) -> prop (B a)
