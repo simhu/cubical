@@ -1,0 +1,47 @@
+module indS1 where
+
+import circle
+import susp
+
+funToL : (X:U) -> (S1 -> X) -> (a:X) * Id X a a
+funToL X f = (f base, mapOnPath S1 X f base base loop)
+
+lToFun : (X:U) -> ((a:X) * Id X a a) -> S1 -> X
+lToFun X z = hsplit (\ _ -> X) with
+ base -> z.1
+ loop -> z.2
+
+loopOf : U -> U
+loopOf X = (a:X) * Id X a a
+
+test1 : (X:U) (z:loopOf X) -> Id (loopOf X) (funToL X (lToFun X z)) z
+test1 X = refl (loopOf X)
+
+test2 : (X:U) (f:S1->X) -> Id (S1->X) (lToFun X (funToL X f)) f
+test2 X f = funExt S1 (\_ -> X) (lToFun X (funToL X f)) f rem
+ where
+  rem : (u:S1) -> Id X (lToFun X (funToL X f) u) (f u)
+  rem = hsplit (\ u -> Id X (lToFun X (funToL X f) u) (f u)) with
+    base -> refl X (f base)
+    loop -> rem1
+       where
+         g : S1 -> X
+         g u = lToFun X (funToL X f) u
+
+         xb : X
+         xb = f base
+
+         qa : Id X xb xb
+         qa = refl X xb
+
+         qa1 : Id X xb xb
+         qa1 = mapOnPath S1 X f base base loop
+
+         rem2 : Id (Id X xb xb) (comp X xb xb xb qa qa1) (comp X xb xb xb qa1 qa)
+         rem2 = compIdl X xb xb qa1
+
+         rem1 : IdS S1 (\ u -> Id X (g u) (f u)) base base loop qa qa
+         rem1 = substPathPi S1 X g f base base loop qa qa rem2
+
+funS1 : (X:U) -> Id U (S1 -> X) (loopOf X)
+funS1 X = isoId (S1 -> X) (loopOf X) (funToL X) (lToFun X) (test1 X) (test2 X)
