@@ -91,6 +91,30 @@ substPathPi A B f g a = J A a
                        (comp B (f a) (f a) (g a) (refl B (f a)) qa') qa'
                        (compIdl B (f a) (g a) qa')
 
+substPathPiInv : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  Id (Id B (f a) (g a'))
+     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
+     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa')
+substPathPiInv A B f g a = J A a (\a' p ->
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  Id (Id B (f a) (g a'))
+     (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
+     (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa'))
+     (\qa qa' -> rem B (f a) (g a) qa qa')
+   where rem : (A : U) (a b : A) (p q : Id A a b) ->
+               Id (Id A a b) p q ->
+                Id (Id A a b) p (comp A a a b (refl A a) q)
+         rem A a b p = J (Id A a b) p
+           (\q al -> Id (Id A a b) p (comp A a a b (refl A a) q))
+           (compInvIdl A a b p)
+
+
+
+
+
 mapOnPathComp : (A B : U) (f : A -> B) (a b c : A) (p : Id A a b) (q : Id A b c) ->
  Id (Id B (f a) (f c))
     (mapOnPath A B f a c (comp A a b c p q))
