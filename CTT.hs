@@ -315,7 +315,7 @@ data Val = VU
          | VPCon Ident [Val] Formula Val Val
 
          -- neutral values
-         | VVar String [Formula]
+         | VVar String  -- [Formula]
          | VApp Val Val            -- the first Val must be neutral
          | VAppFormula Val Formula
          | VFst Val
@@ -333,8 +333,8 @@ data Val = VU
 -- vepair :: Name -> Val -> Val -> Val
 -- vepair x a b = VSPair a (Path x b)
 
-mkVar :: Int -> [Name] -> Val
-mkVar k supp = VVar ('X' : show k) (map Atom supp)
+mkVar :: Int -> Val
+mkVar k = VVar ('X' : show k)
 
 -- fstVal, sndVal, unSquare :: Val -> Val
 -- fstVal (VPair _ a _)     = a
@@ -500,7 +500,7 @@ showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
 showVal (VFst u)                 = showVal u ++ ".1"
 showVal (VSnd u)                 = showVal u ++ ".2"
 
-showVal (VVar x phis)            = x <+> showDim phis
+showVal (VVar x)                 = x
 showVal (VApp u v)               = showVal u <+> showVal1 v
 showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 

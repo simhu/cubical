@@ -108,7 +108,7 @@ instance Nominal Val where
 
   support (VCon _ vs)                   = support vs
 
-  support (VVar _ phis)                 = support phis
+  support (VVar _)                      = []
   support (VApp u v)                    = support (u, v)
   support (VAppFormula u phi)           = support (u, phi)
   support (VSplit u v)                  = support (u, v)
@@ -173,7 +173,7 @@ instance Nominal Val where
 
          VCon c vs  -> VCon c (acti vs)
 
-         VVar x psis       -> VVar x (acti psis)
+         VVar x            -> VVar x
          VAppFormula u psi -> acti u @@ acti psi
          VApp u v          -> app (acti u) (acti v)
          VSplit u v        -> app (acti u) (acti v)
@@ -216,7 +216,7 @@ instance Nominal Val where
 
          VCon c vs  -> VCon c (sw vs)
 
-         VVar x psis       -> VVar x (sw psis)
+         VVar x            -> VVar x
          VAppFormula u psi -> VAppFormula (sw u) (sw psi)
          VApp u v          -> VApp (sw u) (sw v)
          VSplit u v        -> VSplit (sw u) (sw v)
@@ -493,7 +493,7 @@ comps i ((x,a):as) e ((ts,u):tsus) =
 comps _ _ _ _ = error "comps: different lengths of types and values"
 
 isNeutral :: Val -> Bool
-isNeutral (VVar _ _)             = True
+isNeutral (VVar _)               = True
 isNeutral (VApp u _)             = isNeutral u
 isNeutral (VAppFormula u _)      = isNeutral u
 isNeutral (VFst v)               = isNeutral v
@@ -748,15 +748,15 @@ class Convertible a where
 instance Convertible Val where
   conv k VU VU                                  = True
   conv k w@(Ter (Lam x u) e) w'@(Ter (Lam x' u') e') =
-    let v = mkVar k $ support (e, e')
+    let v = mkVar k
     in trace ("conv Lam Lam \n w = " ++ show w ++ " \n w' = " ++ show w')
      conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
   conv k w@(Ter (Lam x u) e) u' =
-    let v = mkVar k $ support (e,u')
+    let v = mkVar k
     in trace ("conv Lam u' \n w = " ++ show w ++ " \n u' = " ++ show u')
         conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
   conv k u' w'@(Ter (Lam x u) e) =
-    let v = mkVar k $ support (u',e)
+    let v = mkVar k
     in trace ("conv u' Lam \n u' = " ++ show u' ++ " \n w' = " ++ show w')
        conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
   conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
@@ -773,7 +773,7 @@ instance Convertible Val where
     -- TODO: can we ignore the faces?
     c == c' && conv k (us,phi) (us',phi')
   conv k (VPi u v) (VPi u' v') =
-    let w = mkVar k $ support (u,v,u',v')
+    let w = mkVar k
     in conv k u u' && conv (k+1) (app v w) (app v' w)
 
   conv k (VId a u v) (VId a' u' v') = conv k (a,u,v) (a',u',v')
@@ -788,7 +788,7 @@ instance Convertible Val where
     where j = fresh (p,v')
 
   conv k (VSigma u v) (VSigma u' v') = conv k u u' && conv (k+1) (app v w) (app v' w)
-    where w = mkVar k $ support (u,v,u',v')
+    where w = mkVar k
   conv k (VFst u) (VFst u')              = conv k u u'
   conv k (VSnd u) (VSnd u')              = conv k u u'
   conv k (VSPair u v)   (VSPair u' v')   = conv k (u,v) (u',v')
@@ -847,19 +847,18 @@ instance Convertible Val where
   conv k u@(UnGlue hisos v) u'@(UnGlue hisos' v') = conv k hisos hisos' && conv k v v'
 
   conv k u@(HisoProj{}) u'@(HisoProj{}) = conv (k+1) (app u w) (app u' w)
-       where w = mkVar k $ support (u,u')
+       where w = mkVar k
 
   conv k (VExt phi f g p) (VExt phi' f' g' p') =
     conv k (phi,f,g,p) (phi',f',g',p')
 
   conv k u@(VExt phi f g p) u' = conv (k+1) (app u w) (app u' w)
-    where w = mkVar k $ support (u,u')
+    where w = mkVar k
 
   conv k u u'@(VExt phi f g p) = conv (k+1) (app u w) (app u' w)
-    where w = mkVar k $ support (u,u')
+    where w = mkVar k
 
-  conv k (VVar x phis)  (VVar x' phis')  =
-    x == x' && conv k phis phis'
+  conv k (VVar x)  (VVar x')             = x == x'
   conv k (VApp u v)     (VApp u' v')     = conv k u u' && conv k v v'
   conv k (VAppFormula u x) (VAppFormula u' x') = conv k u u' && (x == x')
   conv k (VSplit u v)   (VSplit u' v')   = conv k u u' && conv k v v'
@@ -909,7 +908,7 @@ class Normal a where
 instance Normal Val where
   normal _ VU = VU
   normal k (Ter (Lam x u) e) = VLam name $ normal (k+1) (eval (Pair e (x,v)) u)
-    where v@(VVar name _) = mkVar k $ support e
+    where v@(VVar name) = mkVar k
   normal k (VPi u v) = VPi (normal k u) (normal k v)
   normal k (Kan i u vs v) = comp Pos i (normal k u) (normal k vs) (normal k v)
   normal k (KanNe i u vs v) = KanNe i (normal k u) (normal k vs) (normal k v)

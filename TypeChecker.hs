@@ -90,7 +90,7 @@ silentEnv  = TEnv 0 Empty [] False
 
 addTypeVal :: (Binder,Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam v) =
-  TEnv (k+1) (Pair rho (x,mkVar k (support rho))) (p:gam) v
+  TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) v
 
 -- addTypeVals :: [(Binder,Val)] -> TEnv -> TEnv
 -- addTypeVals = flip $ foldl (flip addTypeVal)
@@ -121,7 +121,7 @@ addTele :: Tele -> TEnv -> TEnv
 addTele xas lenv = foldl (flip addType) lenv xas
 
 getFresh :: Typing Val
-getFresh = mkVar <$> asks index <*> (support <$> asks env)
+getFresh = mkVar <$> asks index
 
 checkDecls :: Decls -> Typing ()
 checkDecls d = do
@@ -184,9 +184,8 @@ check a t = case (a,t) of
       checkTele tele
       rho <- asks env
       k   <- asks index
-      let d  = support rho
-          l  = length tele
-          us = map (`mkVar` d) [k..k+l-1]
+      let l  = length tele
+          us = map mkVar [k..k+l-1]
           e  = eval rho t
       local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
         check e t0
@@ -219,7 +218,7 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
   rho <- asks env
   let d  = support rho
       l  = length xas
-      us = map (`mkVar` d) [k..k+l-1]
+      us = map mkVar [k..k+l-1]
   local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
 checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Val -> Typing ()
@@ -228,9 +227,8 @@ checkHBranch (Label _ tele,nu) f (Branch c binders e) _ =
 checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders e) hsplit = do
   k   <- asks index
   rho <- asks env
-  let d    = support rho
-      l    = length tele
-      us   = map (`mkVar` d) [k..k+l-1]
+  let l    = length tele
+      us   = map mkVar [k..k+l-1]
       rho' = upds nu (zip (map fst tele) us)
       u0   = app hsplit (eval rho' t0)
       u1   = app hsplit (eval rho' t1)
