@@ -112,9 +112,9 @@ addBranch nvs (tele,env) (TEnv k rho gam v) =
 addDecls :: Decls -> TEnv -> TEnv
 addDecls d (TEnv k rho gam v) =
   let rho1 = PDef (declDefs d) rho
-      -- es'  = evals rho1 (declDefs d)
-      -- gam' = addC gam (declTele d,rho) es'
-      gam' = gam ++ [(x,eval rho1 a) | (x,a) <- declTele d]
+      es'  = evals rho1 (declDefs d)
+      gam' = addC gam (declTele d,rho) es'
+      --gam' = gam ++ [(x,eval rho1 a) | (x,a) <- declTele d]
   in TEnv k rho1 gam' v
 
 addTele :: Tele -> TEnv -> TEnv
