@@ -70,6 +70,13 @@ idSIntro A F x y p u v =
   transpInv (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
     (eqSubstSig A F x y p u v)
 
+idSElim : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+          IdS A F x y p u v -> Id (F y) (subst A F x y p u) v
+idSElim A F x y p u v =
+  transport (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
+    (eqSubstSig A F x y p u v)
+
+
 substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
   Id (Id B (f a) (g a'))
