@@ -127,6 +127,8 @@ instance Nominal Val where
 
   support (UnGlueNe u v)                = support (u,v)
 
+  support (VLam _ u)                    = support u
+
   -- support (VExt x b f g p)           = support (x, [b,f,g,p])
   -- support (VHExt x b f g p)             = support (x, [b,f,g,p])
   -- support (Kan Fill a box)              = support (a, box)
@@ -309,7 +311,8 @@ app kan@(Kan i b@(VPi a f) ts li0) ui1 =
     let j   = fresh (kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `swap` (i,j)
         u   = fill Neg j aj Map.empty ui1
-        ui0 = u `face` (j ~> 0)
+        --ui0 = u `face` (j ~> 0)
+        ui0 = comp Neg j aj Map.empty ui1
     in comp Pos j (app fj u)
            (Map.intersectionWith app tsj (border u tsj))
            (app li0 ui0)
@@ -347,9 +350,11 @@ app g@(UnGlue hisos b) w
     | Map.null hisos         = w
     | eps `Map.member` hisos = app (hisoF (hisos ! eps)) w
     | otherwise              = case w of
-       GlueElem us v -> v
-       KanUElem _ v  -> app g v
-       _             -> UnGlueNe g w  -- w should be neutral
+       GlueElem us v   -> v
+       KanUElem _ v    -> app g v
+       _ | isNeutral w -> UnGlueNe g w
+       _               -> error $ "app (Unglue):" <+> show w
+                                  <+> "should be neutral!"
 
 app g@(UnKan hisos b) w
     | Map.null hisos         = w
@@ -406,7 +411,8 @@ gradLemma hiso@(Hiso a b f g s t) us v =
         us'     = Map.mapWithKey (\alpha uAlpha ->
                                    app (t `face` alpha) uAlpha @@ i) us
         theta   = fill Pos i a us' (app g v)
-        u       = theta `face` (i ~> 1)
+        --u       = theta `face` (i ~> 1)
+        u       = comp Pos i a us' (app g v)
         ws      = insertSystem (i ~> 0) (app g v) $
                   insertSystem (i ~> 1) (app t u @@ j) $
                   Map.mapWithKey
@@ -429,8 +435,8 @@ eqLemma e ts a = trace ("eqLemma " ++ show a) $ (t, Path j theta'')
         vs      = Map.mapWithKey (\alpha uAlpha ->
                     fill Pos i (ei `face` alpha) Map.empty uAlpha) ts
         theta   = fill Neg i ei vs a
-        --t       = comp Neg i ei vs a
-        t       = theta `face` (i ~> 0)
+        t       = comp Neg i ei vs a
+        --t       = theta `face` (i ~> 0)
         theta'  = fill Pos i ei Map.empty t
         ws      = insertSystem (j ~> 1) theta' $
                   insertSystem (j ~> 0) theta $ vs
@@ -487,7 +493,8 @@ comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
 comps i []         _ []         = []
 comps i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill Pos i (eval e a) ts u
-      vi0 = v `face` (i ~> 1)
+      -- vi0 = v `face` (i ~> 1)
+      vi0 = comp Pos i (eval e a) ts u
       vs  = comps i as (Pair e (x,v)) tsus
   in vi0 : vs
 comps _ _ _ _ = error "comps: different lengths of types and values"
@@ -521,9 +528,9 @@ comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp sign i a ts u | i `notElem` support (a,ts) =
    trace "comp cheaply regular" u
 -- Another possible optimization:
--- comp sign i a ts u | i `notElem` support a && not (Map.null indep) =
---   trace "comp filter"  comp sign i a ts' u
---   where (ts',indep) = Map.partition (\t -> i `elem` support t) ts
+comp sign i a ts u | i `notElem` support a && not (Map.null indep) =
+  trace "comp filter"  comp sign i a ts' u
+  where (ts',indep) = Map.partition (\t -> i `elem` support t) ts
 comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 
 -- If 1 is a key of ts, then it means all the information is already there.
@@ -541,7 +548,8 @@ comp Pos i b@(VSigma a f) ts u = trace "comp VSigma"
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
         fill_u1    = fill Pos i a t1s u1
-        ui1        = fill_u1 `face` (i ~> 1)
+        --ui1        = fill_u1 `face` (i ~> 1)
+        ui1        = comp Pos i a t1s u1
         comp_u2    = comp Pos i (app f fill_u1) t2s u2
 
 comp Pos i a@VPi{} ts u   = Kan i a ts u
@@ -555,16 +563,23 @@ comp Pos i g@(Glue hisos b) ws wi0 =
         vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
 
         v    = fill Pos i b vs vi0           -- in b
-        vi1  = v `face` (i ~> 1)
+        --vi1  = v `face` (i ~> 1)
+        vi1  = comp Pos i b vs vi0           -- in b(i1)
 
         hisosI1 = hisos `face` (i ~> 1)
-        (hisos', hisos'') = Map.partitionWithKey
-                            (\alpha _ -> alpha `Map.member` hisos) hisosI1
+        -- (hisos', hisos'') = Map.partitionWithKey
+        --                     (\alpha _ -> alpha `Map.member` hisos) hisosI1
+
+        hisos'' = Map.filterWithKey (\alpha _ -> not (alpha `Map.member` hisos)) hisosI1
+        hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
 
         us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
                 hisos'
-        usi1'  = Map.map (\u -> u `face` (i ~> 1)) us'
+        usi1'  = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  comp Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
+                hisos'
+        --usi1'  = Map.map (\u -> u `face` (i ~> 1)) us'
 
         ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
                   pathComp Pos i bGamma (vs `face` gamma)
@@ -604,8 +619,12 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
         vi1     =  comp Pos i b vs vi0           -- in b(i1)
 
         hisosI1 = hisos `face` (i ~> 1)
-        (hisos', hisos'') = Map.partitionWithKey
-                            (\alpha _ -> alpha `Map.member` hisos) hisosI1
+
+        hisos'' = Map.filterWithKey (\alpha _ -> not (alpha `Map.member` hisos)) hisosI1
+        hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
+
+        -- (hisos', hisos'') = Map.partitionWithKey
+        --                     (\alpha _ -> alpha `Map.member` hisos) hisosI1
 
         usi1'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                      comp Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
@@ -719,7 +738,7 @@ pathComp Pos i a us u u' = trace "pathComp"
 pathUniv :: Name -> Val -> System Val -> Val -> Val
 pathUniv i e us ui0 = Path k xi1
   where j:k:_ = freshs (Atom i, e, us, ui0)
-        f     = HisoProj (HisoSign Pos) e
+        -- f     = HisoProj (HisoSign Pos) e
         ej    = e @@ j
         ui1   = comp Pos i (e @@ Zero) us ui0
         ws    = Map.mapWithKey (\alpha uAlpha ->
