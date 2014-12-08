@@ -363,7 +363,7 @@ app g@(UnKan hisos b) w
                                  app (hisoF hisoAlpha) (w `face` alpha))
                                hisos) w
 
--- TODO: recheck at least 2 more times (please decrease the counter if
+-- TODO: recheck at least 1 more time (please decrease the counter if
 -- you checked)
 app (HisoProj hisoProj e) u = trace "app HisoProj" $
   case hisoProj of
@@ -571,7 +571,10 @@ comp Pos i g@(Glue hisos b) ws wi0 =
         --                     (\alpha _ -> alpha `Map.member` hisos) hisosI1
 
         hisos'' = Map.filterWithKey (\alpha _ -> not (alpha `Map.member` hisos)) hisosI1
-        hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
+
+        -- set of elements in hisos independent of i
+        --hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
+        hisos'  = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
 
         us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
@@ -620,8 +623,12 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
 
         hisosI1 = hisos `face` (i ~> 1)
 
+        --  {(gamma, sigma gamma (i1)) | gamma elem hisos}
         hisos'' = Map.filterWithKey (\alpha _ -> not (alpha `Map.member` hisos)) hisosI1
-        hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
+
+        -- set of elements in hisos independent of i
+        --hisos'  = Map.filterWithKey (\alpha _ -> not (leq alpha (i ~> 1))) hisos
+        hisos'  = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
 
         -- (hisos', hisos'') = Map.partitionWithKey
         --                     (\alpha _ -> alpha `Map.member` hisos) hisosI1
@@ -728,12 +735,13 @@ pathComp Pos i a us u u' = trace "pathComp"
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
 
--- Lemma 6.1
--- given e (an equality in U), an L-system us (in e0) and ui0 (in e0 (i0))
--- The output is an L-path in e1(i1) between sigma (i1) ui1 and vi1
--- where sigma = HisoProj (ProjSign Pos) e
---       ui1   = comp Pos i (e 1) us ui0
---       vi1   = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
+-- Lemma 6.1 Computes a homotopy between the image of the composition,
+-- and the composition of the image.  Given e (an equality in U), an
+-- L-system us (in e0) and ui0 (in e0 (i0)) The output is an L(i1)-path in
+-- e1(i1) between vi1 and sigma (i1) ui1 where
+--   sigma = HisoProj (ProjSign Pos) e
+--   ui1 = comp Pos i (e 0) us ui0
+--   vi1 = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
 -- Moreover, if e is constant, so is the output.
 pathUniv :: Name -> Val -> System Val -> Val -> Val
 pathUniv i e us ui0 = Path k xi1
@@ -748,13 +756,13 @@ pathUniv i e us ui0 = Path k xi1
         wi1   = comp Pos i ej ws wi0
         wi1'  = fill Pos j (ej `face` (i ~> 1)) Map.empty ui1
         xi1   = comp Pos j (ej `face` (i ~> 1))
-                  (insertsSystem [(k ~> 0, wi1'), (k ~> 1, wi1)] Map.empty) ui1
+                  (insertsSystem [(k ~> 1, wi1'), (k ~> 0, wi1)] Map.empty) ui1
 
 
 -- Lemma 2.2
 -- takes a type A, an L-system of lines ls and a value u
--- s.t. ls alpha @@ 1 = u alpha
--- and returns u' s.t. ls alpha @@ 0 = u' alpha
+-- s.t. ls alpha @@ 0 = u alpha
+-- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: Val -> System Val -> Val -> Val
 compLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
   comp Pos i a (Map.map (@@ i) ls) u  -- TODO also check pathComp; are
