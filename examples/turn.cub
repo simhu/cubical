@@ -24,8 +24,11 @@ lemG1 A a l =
 lp : (x:S1) -> Id S1 x x
 lp = S1rec (\ x -> Id S1 x x) loop (lemG1 S1 base loop)
 
+mult : S1 -> S1 -> S1
+mult x = S1rec (\ _ -> S1) x (lp x)
+
 lp1 : S1 -> S1
-lp1 x = S1rec (\ _ -> S1) x (lp x) x
+lp1 x = mult x x
 
 path : Id S1 base base
 path = mapOnPath S1 S1 lp1 base base loop

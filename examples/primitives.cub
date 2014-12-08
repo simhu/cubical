@@ -12,10 +12,6 @@ singl A a = (x: A) * (Id A a x)
 primitive contrSingl : (A : U) (a b : A) (p : Id A a b) ->
                        Id (singl A a) (a, refl A a) (b, p)
 
-primitive transport : (A B : U) -> Id U A B -> A -> B
-
-primitive transpInv : (A B : U) -> Id U A B -> B -> A
-
 primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
                       (p : Id A a b) -> Id B (f a) (f b)
 
@@ -37,6 +33,10 @@ primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
 primitive funExt : (A : U) (B : A -> U) (f g : (x : A) -> B x) ->
                    ((x : A) -> Id (B x) (f x) (g x)) ->
                    Id ((y : A) -> B y) f g
+
+primitive transport : (A B : U) -> Id U A B -> A -> B
+
+primitive transpInv : (A B : U) -> Id U A B -> B -> A
 
 primitive isoId : (A B : U) (f : A -> B) (g : B -> A)
 	           (s : (y:B) -> Id B (f (g y)) y)
