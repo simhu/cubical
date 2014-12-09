@@ -585,8 +585,8 @@ comp Pos i g@(Glue hisos b) ws wi0 =
         --usi1'  = Map.map (\u -> u `face` (i ~> 1)) us'
 
         ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
-                  pathComp Pos i bGamma (vs `face` gamma)
-                    (fGamma `app` (us' ! gamma)) (v `face` gamma))
+                  pathComp i bGamma (vs `face` gamma)
+                    (v `face` gamma) (fGamma `app` (us' ! gamma)))
                  hisos'
 
         vi1'  = compLine (b `face` (i ~> 1)) ls' vi1
@@ -727,11 +727,9 @@ comp Pos i a ts u =
 -- assumes u and u' : A are solutions of us + (i0 -> u(i0))
 -- (in the Pos case, otherwise we symmetrize)
 -- The output is an L-path in A(i1) between u(i1) and u'(i1)
-pathComp :: Sign -> Name -> Val -> System Val -> (Val -> Val -> Val)
-pathComp Neg i a us u u' =
-  pathComp Pos i (a `sym` i) (us `sym` i) (u `sym` i) (u' `sym` i)
-pathComp Pos i a us u u' = trace "pathComp"
-                           Path j $ comp Pos i a us' (u `face` (i ~> 0))
+pathComp :: Name -> Val -> System Val -> (Val -> Val -> Val)
+pathComp i a us u u' = trace "pathComp"
+                       Path j $ comp Pos i a us' (u `face` (i ~> 0))
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
 
