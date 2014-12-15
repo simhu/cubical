@@ -1,0 +1,93 @@
+module join where
+
+import higher
+
+
+join : U -> U -> U
+join A B = pushout A B (and A B) (\x -> x.1) (\x -> x.2)
+
+
+mapJoin : (A B C D : U) (f : A -> C) (g : B -> D) -> join A B -> join C D
+mapJoin A B C D f g = hsplit (\_ -> join C D) with
+  inl a -> inl (f a)
+  inr b -> inr (g b)
+  push ab -> push (f ab.1, g ab.2)
+
+inlJoin : (A B C : U) -> join A B -> join A (join B C)
+inlJoin A B C = hsplit (\_ -> join A (join B C)) with
+  inl a   -> inl a
+  inr b   -> inr (inl b)
+  push ab -> -- ts: inl ab.1 = inr (inl ab.2)
+    push (ab.1, inl ab.2)              
+
+
+l2r : (A B C : U) -> join (join A B) C -> join A (join B C)
+l2r A B C = hsplit (\_ -> join A (join B C)) with
+  inl jab -> inlJoin A B C jab
+  inr c   -> inr (inr c)
+  push p  -> lem p.2 p.1 -- ts: lem p.1 = inr (inr p.2)
+    where lem : (c : C) (u : join A B) ->
+                Id (join A (join B C)) (inlJoin A B C u) (inr (inr c))
+          lem c = hsplit (\u -> Id (join A (join B C))
+                          (inlJoin A B C u) (inr (inr c))) with
+            inl a -> push (a, inr c)
+            inr b -> mapOnPath (join B C) (join A (join B C)) inr
+                       (inl b) (inr c) (push (b,c))
+            push ab -> let
+
+              F : join A B -> U
+              F u = Id (join A (join B C)) (inlJoin A B C u) (inr (inr c))
+              a : A
+              a = ab.1
+
+              b : B
+              b = ab.2
+              X : U
+              X = join A B
+              
+              Y : U
+              Y = join A (join B C)
+
+              f : X -> Y
+              f = inlJoin A B C
+
+              g : X -> Y
+              g _ = inr (inr c)
+
+              qa : Id Y (f (inl a)) (g (inl a))
+              qa = push (a,inr c)
+
+              qa' : Id Y  (f (inr b)) (g (inr b))
+              qa' = mapOnPath (join B C) (join A (join B C)) inr
+                       (inl b) (inr c) (push (b,c))
+
+              ap : IdS (join B C) (\x -> Id Y (inl a) (inr x)) (inl b) (inr c)
+                       (push (b,c)) (push (a,inl b)) (push (a,inr c))
+              ap = mapOnPathD (join B C) (\x -> Id Y (inl a) (inr x))
+                    (\x -> push (a, x))
+                    (inl b) (inr c) (push (b,c))
+
+              rem2 : Id (Id Y (inl a) (inr (inr c)))
+                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
+                          (push (a,inl b)) qa')
+                        (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
+              rem2 = substPathPiInv (join B C) Y (\_ -> inl a) inr (inl b) (inr c)
+                       (push (b,c)) (push (a,inl b)) (push (a,inr c)) ap
+
+              rem : Id (Id Y (inl a) (inr (inr c))) qa
+                       (comp Y (inl a) (inr (inl b)) (inr (inr c))
+                         (push (a, inl b)) qa')
+              rem = comp (Id Y (inl a) (inr (inr c))) 
+                      qa
+                      (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
+                      (comp Y (inl a) (inr (inl b)) (inr (inr c))
+                         (push (a, inl b)) qa')
+                      (compInvIdl Y (f (inl a)) (g (inl a)) qa)
+                      (inv (Id Y (inl a) (inr (inr c)))
+                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
+                          (push (a,inl b)) qa')
+                        (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
+                      rem2)
+
+              in substPathPi X Y f g (inl a) (inr b) (push ab) qa qa' rem
+   -- ts: IdS (join A B) F a b (push a b) (push (a, inr c)) (ap inr (push (b,c)))
