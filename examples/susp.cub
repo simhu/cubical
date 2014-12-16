@@ -20,6 +20,29 @@ sphere = split
   zero  -> Bool
   suc n -> susp (sphere n)
 
+-- (n+1) -spheres using S1 from circle
+plusOneSphere : N -> U
+plusOneSphere = split
+  zero  -> S1
+  suc n -> susp (plusOneSphere n)
+
+
+-- The suspension is pointed by north.
+ptSusp : (A : U) -> ptType
+ptSusp A = (susp A, north)
+
+ptSphere : N -> ptType
+ptSphere = split
+  zero  -> (Bool,true)
+  suc n -> ptSusp (sphere n)
+
+
+ptPlusOneSphere : N -> ptType
+ptPlusOneSphere = split
+  zero  -> (S1,base)
+  suc n -> ptSusp (plusOneSphere n)
+
+
 -- The suspension is equal to a pushout with maps into Unit.
 unit : (A : U) -> A -> Unit
 unit _ _ = tt
@@ -78,10 +101,6 @@ suspEqPushout A =
                                (refl (unitPo A) (inr tt))
                   pushRefl = substReflIsRefl (unitPo A) (inl tt) (inr tt) (push a)
 
--- The suspension is pointed by north.
-ptSusp : (A : U) -> ptType
-ptSusp A = (susp A, north)
-
 -- Pointed map into the loop space of the suspension.
 sigma : (A : ptType) -> ptMap A (Omega (ptSusp A.1))
 sigma A = (sig,sig0)
@@ -100,7 +119,10 @@ sigma A = (sig,sig0)
 one : N
 one = suc zero
 
-s1ToCircle : sphere one -> S1
+sone : U
+sone = sphere one
+
+s1ToCircle : sone -> S1
 s1ToCircle = hsplit (\_ -> S1) with
   north   -> base
   south   -> base
@@ -110,8 +132,11 @@ s1ToCircle = hsplit (\_ -> S1) with
             true  -> refl S1 base
             false -> loop
 
-sone : U
-sone = sphere one
+ptS1 : ptType
+ptS1 = (S1,base)
+
+ptS1ToCircle : ptMap (sone,north) ptS1
+ptS1ToCircle = (s1ToCircle,refl S1 base)
 
 m0 : Id sone north south
 m0 = merid false
@@ -125,10 +150,13 @@ invm1 = inv sone north south m1
 loopImage : Id sone north north
 loopImage = comp sone north south north m0 invm1
 
-circleToS1 : S1 -> sphere one
+circleToS1 : S1 -> sone
 circleToS1 = hsplit (\_ -> sone) with
   base -> north
   loop -> loopImage
+
+ptCircleToS1 : ptMap ptS1 (sone, north)
+ptCircleToS1 = (circleToS1,refl sone north)
 
 lemLoopImage : Id loopS1 (mapOnPath (sphere one) S1
                           s1ToCircle north north loopImage)
@@ -206,6 +234,15 @@ coid = let F : sone -> U
                            north south m0 (refl sone north) m1 rem
 
 
+s1EqCircle : Id U sone S1
+s1EqCircle = isoId sone S1 s1ToCircle circleToS1 ocid coid
+
+eqSphereHierarchy : (n : N) -> Id U (sphere (suc n)) (plusOneSphere n)
+eqSphereHierarchy = split
+  zero  -> s1EqCircle
+  suc n -> mapOnPath U U susp (sphere (suc n)) (plusOneSphere n) 
+             (eqSphereHierarchy n)
+
 -- TODO: reorganize rest of the file!
 
 ptU : U
@@ -217,9 +254,6 @@ lemPt A = J U A (\ B p -> (a:A) -> Id ptU (A,a) (B,transport A B p a))
 
 Omega : ptU -> ptU
 Omega X = (Id X.1 X.2 X.2,refl X.1 X.2)
-
-s1EqCircle : Id U sone S1
-s1EqCircle = isoId sone S1 s1ToCircle circleToS1 ocid coid
 
 s1PtCircle : Id ptU (sone,north) (S1,base)
 s1PtCircle = lemPt sone S1 s1EqCircle north

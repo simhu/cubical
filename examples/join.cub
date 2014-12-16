@@ -1,7 +1,8 @@
 module join where
 
 import higher
-
+import pointed
+import susp
 
 join : U -> U -> U
 join A B = pushout A B (and A B) (\x -> x.1) (\x -> x.2)
@@ -90,4 +91,101 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
                       rem2)
 
               in substPathPi X Y f g (inl a) (inr b) (push ab) qa qa' rem
-   -- ts: IdS (join A B) F a b (push a b) (push (a, inr c)) (ap inr (push (b,c)))
+
+
+--  Suspension and join with the booleans
+suspJoin : (A : U) -> susp A -> join Bool A
+suspJoin A = hsplit (\_ -> join Bool A) with
+  north   -> inl true
+  south   -> inl false
+  merid a -> comp (join Bool A) (inl true) (inr a) (inl false)
+              (push (true,a))
+              (inv (join Bool A) (inl false) (inr a) (push (false,a)))
+
+suspJoinInv : (A : U) -> join Bool A -> susp A
+suspJoinInv A = hsplit (\_ -> susp A) with
+  inl b -> cases b
+    where cases : Bool -> susp A
+          cases = split
+            true  -> north
+            false -> south
+  inr a -> south
+  push ba -> cases ba.2 ba.1
+    where cases : (a : A) (b : Bool) ->
+                    Id (susp A) (suspJoinInv A (inl b)) south
+          cases a = split
+            true  -> merid a
+            false -> refl (susp A) south
+
+ptJoin : ptType -> U -> ptType
+ptJoin pA B = (join pA.1 B, inl (pt pA))
+
+ptBool : ptType
+ptBool = (Bool,true)
+
+ptSuspJoin : (A : U) -> ptMap (ptSusp A) (ptJoin ptBool A)
+ptSuspJoin A = (suspJoin A, refl (join Bool A) (inl true))
+
+ptSuspJoinInv : (A : U) -> ptMap (ptJoin ptBool A) (ptSusp A)
+ptSuspJoinInv A = (suspJoinInv A, refl (susp A) north)
+
+--
+
+ptBoolJoinBool : ptType
+ptBoolJoinBool = ptJoin ptBool Bool
+
+bjbToS1 : ptMap ptBoolJoinBool ptS1
+bjbToS1 = ptMapComp ptBoolJoinBool (ptSusp Bool) ptS1
+  (ptSuspJoinInv Bool) ptS1ToCircle
+
+bjbToS1Inv : ptMap ptS1 ptBoolJoinBool
+bjbToS1Inv = ptMapComp ptS1 (ptSusp Bool) ptBoolJoinBool
+  ptCircleToS1 (ptSuspJoin Bool)
+
+
+one : N
+one = suc zero
+
+two : N
+two = suc one
+
+three : N
+three = suc (two)
+
+S2 : U
+S2 = plusOneSphere one
+
+ptS2 : ptType
+ptS2 = ptPlusOneSphere one
+
+S3 : U
+S3 = plusOneSphere two
+
+ptS3 : ptType
+ptS3 = ptPlusOneSphere two
+
+
+
+
+-- The map e^-1 from 7.3
+s3ToS1JoinS1Inv : ptMap (ptJoin (ptS1) S1) ptS3
+s3ToS1JoinS1Inv =
+  (\x -> suspJoinInv S2
+    (mapJoin Bool (join Bool S1) Bool S2 (\b -> b) (suspJoinInv S1)
+      (l2r Bool Bool S1
+        (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv.1 (\z -> z) x)))
+  ,refl S3 north)
+
+
+-- The main map alpha from 8
+alpha : join S1 S1 -> S2
+alpha = hsplit (\_ -> S2) with
+  inl x   -> south
+  inr y   -> south
+  push xy -> comp S2 south north south
+              (inv S2 north south (merid xy.2))
+              (merid xy.1)
+
+ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
+ptAlpha = (alpha, inv S2 north south (merid base))
+
