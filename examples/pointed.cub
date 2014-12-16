@@ -2,17 +2,20 @@ module pointed where
 
 import lemId
 
+-- Pointed types
 ptType : U
 ptType = (X : U) * X
 
 pt : (Z : ptType) -> Z.1
 pt Z = Z.2
 
-Omega : ptType -> ptType
-Omega Z = (Id Z.1 (pt Z) (pt Z),refl Z.1 (pt Z))
-
+-- Maps between pointed types
 ptMap : ptType -> ptType -> U
 ptMap A B = (f : A.1 -> B.1) * Id B.1 (f (pt A)) (pt B)
+
+-- The loop space of a pointed type
+Omega : ptType -> ptType
+Omega Z = (Id Z.1 (pt Z) (pt Z),refl Z.1 (pt Z))
 
 mapOmega : (A B : ptType) (h : ptMap A B) -> ptMap (Omega A) (Omega B)
 mapOmega A B h = (omf,omf0)
@@ -36,3 +39,14 @@ mapOmega A B h = (omf,omf0)
         omf0 : Id (Omega B).1 (omf (refl A.1 a)) (refl B.1 b)
         omf0 = compInvLeft' B.1 (f a) b f0
 
+-- Iterated loop space
+itOmega : N -> ptType -> ptType
+itOmega = split
+  zero  -> \A -> A
+  suc n -> \A -> Omega (itOmega n A)
+
+itMapOmega : (n : N) (A B : ptType) (h : ptMap A B) ->
+  ptMap (itOmega n A) (itOmega n B)
+itMapOmega = split
+  zero  -> \A B h -> h
+  suc n -> \A B h -> mapOmega (itOmega n A) (itOmega n B) (itMapOmega n A B h)

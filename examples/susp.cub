@@ -82,7 +82,7 @@ suspEqPushout A =
 ptSusp : (A : U) -> ptType
 ptSusp A = (susp A, north)
 
--- Pointed map into the loop space the suspension.
+-- Pointed map into the loop space of the suspension.
 sigma : (A : ptType) -> ptMap A (Omega (ptSusp A.1))
 sigma A = (sig,sig0)
   where sig : A.1 -> Id (susp A.1) north north
