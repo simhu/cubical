@@ -67,6 +67,20 @@ compInvLeft' A a = J A a
    (\b p -> Id (Id A b b) (comp A b a b (inv A a b p) p) (refl A b))
    (refl (Id A a a) (refl A a))
 
+compInvRight : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A a a) (refl A a) (comp A a b a p (inv A a b p))
+compInvRight A a =
+  J A a (\b p -> Id (Id A a a) (refl A a) (comp A a b a p (inv A a b p)))
+    (refl (Id A a a) (refl A a))
+
+compInvRight' : (A : U) (a b : A) (p : Id A a b) ->
+  Id (Id A a a) (comp A a b a p (inv A a b p)) (refl A a)
+compInvRight' A a =
+  J A a (\b p -> Id (Id A a a) (comp A a b a p (inv A a b p)) (refl A a))
+    (refl (Id A a a) (refl A a))
+
+
+
 compCompInv : (A : U) (a b c : A) (p : Id A a b) (q : Id A b c) ->
               Id (Id A a b) p (comp A a c b (comp A a b c p q) (inv A b c q))
 compCompInv A a b c p =
