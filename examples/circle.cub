@@ -155,3 +155,6 @@ decodeEncode = J S1 base (\x p -> Id (Id S1 base x) (decode x (encode x p)) p )
 loopS1EqZ : Id U loopS1 Z
 loopS1EqZ = isoId loopS1 Z (encode base) (decode base)
   (encodeDecode base) (decodeEncode base)
+
+loopS1IsSet : set loopS1
+loopS1IsSet = substInv U set loopS1 Z loopS1EqZ ZIsSet

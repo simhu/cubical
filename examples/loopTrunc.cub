@@ -1,0 +1,22 @@
+module loopTrunc where
+
+import trunc
+
+-- TODO: better counting...
+truncType : (n : N) -> U
+truncType n = (X : U) * truncated n X
+
+truncPath : (A : ptType) (n : N) (todo : truncated (suc n) (truncType n)) -> trunc (suc n) A.1 -> truncType n
+truncPath A n todo =
+  truncRec (suc n) A.1 (truncType n) todo
+    (\x -> (trunc n (Id A.1 (pt A) x),truncIsTrunc n (Id A.1 (pt A) x)))
+
+
+kappa : (n : N) (A : ptType) (todo : truncated (suc n) (truncType n)) ->
+        (Omega (ptTrunc (suc n) A)).1 -> trunc n (Omega A).1
+kappa n A todo p = subst (trunc (suc n) A.1) (\x -> (truncPath A n todo x).1)
+  (pt (ptTrunc (suc n) A)) (pt (ptTrunc (suc n) A)) p (inc (refl A.1 (pt A)))
+
+kappaIsPt : (n : N) (A : ptType) (todo : truncated (suc n) (truncType n)) ->
+            isPtMap (Omega (ptTrunc (suc n) A)) (ptTrunc n (Omega A)) (kappa n A todo)
+kappaIsPt n A todo = refl (trunc n (Omega A).1) (inc (refl A.1 (pt A)))

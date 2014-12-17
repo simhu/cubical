@@ -33,7 +33,7 @@ mapOmega A B h = (omf,omf0)
         a = pt A
         b : B.1
         b = pt B
-        
+
         f : A.1 -> B.1
         f = h.1
         f0 : Id B.1 (f a) b
@@ -55,11 +55,11 @@ itOmega = split
   zero  -> \A -> A
   suc n -> \A -> itOmega n (Omega A)
 
--- itMapOmega : (n : N) (A B : ptType) (h : ptMap A B) ->
---   ptMap (itOmega n A) (itOmega n B)
--- itMapOmega = split
---   zero  -> \A B h -> h
---   suc n -> \A B h -> mapOmega (itOmega n A) (itOmega n B) (itMapOmega n A B h)
+itMapOmega : (n : N) (A B : ptType) (h : ptMap A B) ->
+  ptMap (itOmega n A) (itOmega n B)
+itMapOmega = split
+  zero  -> \A B h -> h
+  suc n -> \A B h -> itMapOmega n (Omega A) (Omega B) (mapOmega A B h)
 
 -- Looping a fibration (9.2)
 
@@ -71,25 +71,50 @@ fibOmega B P f p = IdS B.1 P (pt B) (pt B) p f f
 
 totalFibOmega : (B : ptType) (P : B.1 -> U) (f : P (pt B)) ->
   (Sigma (Omega B).1 (fibOmega B P f)) -> (Omega (Sigma B.1 P, (pt B, f))).1
-totalFibOmega B P f = pairPath B.1 P (pt B) (pt B) f f
+totalFibOmega B P f p = pairPath B.1 P (pt B) (pt B) f f p.1 p.2
 
 itFibOmega : (n : N) (B : ptType) (P : B.1 -> U) (f : P (pt B)) -> (itOmega n B).1 -> U
 itFibOmega = split
   zero  -> \B P f -> P
   suc n -> \B P f -> itFibOmega n (Omega B) (fibOmega B P f) (refl (P (pt B)) f)
 
--- TODO: better name!
-isContr : U -> U
-isContr A = (a : A) * ((x : A) -> Id A a x)
+itTotalFibOmega : (n : N) (B : ptType) (P : B.1 -> U) (f : P (pt B)) ->
+  (Sigma (itOmega n B).1 (itFibOmega n B P f)) -> (itOmega n (Sigma B.1 P, (pt B, f))).1
+itTotalFibOmega = split
+  zero  -> \B P f x -> x
+  suc n -> \B P f x -> let
+    BOm : ptType
+    BOm = Omega B
 
-truncated : U -> N -> U
-truncated A = split
-  zero  -> isContr A
-  suc n -> (x y : A) -> truncated (Id A x y) n
+    POm : BOm.1 -> U
+    POm = fibOmega B P f
+
+    fOm : Id (P (pt B)) f f
+    fOm = refl (P (pt B)) f
+
+    ih : (Sigma (itOmega n BOm).1 (itFibOmega n BOm POm fOm)) ->
+         (itOmega n (Sigma BOm.1 POm, (pt BOm, fOm))).1
+    ih = itTotalFibOmega n (Omega B) (fibOmega B P f) (refl (P (pt B)) f)
+    in (itMapOmega n (Sigma BOm.1 POm, (pt BOm, fOm))
+                     (Omega (Sigma B.1 P, (pt B, f)))
+                     (totalFibOmega B P f,
+                       refl (Omega (Sigma B.1 P, (pt B, f))).1
+                         (refl (Sigma B.1 P) (pt B, f)))).1
+                  (ih x)
+
+
+-- TODO: better name!
+-- isContr : U -> U
+-- isContr A = (a : A) * ((x : A) -> Id A a x)
+
+inhOrTrunc : U -> N -> U
+inhOrTrunc A = split
+  zero  -> A
+  suc n -> (x y : A) -> inhOrTrunc (Id A x y) n
 
 truncFibOmega : (B : ptType) (P : B.1 -> U) (f : P (pt B)) (n : N) ->
-  truncated (P (pt B)) (suc n) ->
-  (p : (Omega B).1) -> truncated (fibOmega B P f p) n
-truncFibOmega B P f n tr p = substInv U (\X -> truncated X n)
+  inhOrTrunc (P (pt B)) (suc n) ->
+  (p : (Omega B).1) -> inhOrTrunc (fibOmega B P f p) n
+truncFibOmega B P f n tr p = substInv U (\X -> inhOrTrunc X n)
   (IdS B.1 P (pt B) (pt B) p f f) (Id (P (pt B)) (subst B.1 P (pt B) (pt B) p f) f)
   (eqSubstSig B.1 P (pt B) (pt B) p f f) (tr (subst B.1 P (pt B) (pt B) p f) f)

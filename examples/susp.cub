@@ -240,7 +240,7 @@ s1EqCircle = isoId sone S1 s1ToCircle circleToS1 ocid coid
 eqSphereHierarchy : (n : N) -> Id U (sphere (suc n)) (plusOneSphere n)
 eqSphereHierarchy = split
   zero  -> s1EqCircle
-  suc n -> mapOnPath U U susp (sphere (suc n)) (plusOneSphere n) 
+  suc n -> mapOnPath U U susp (sphere (suc n)) (plusOneSphere n)
              (eqSphereHierarchy n)
 
 -- TODO: reorganize rest of the file!

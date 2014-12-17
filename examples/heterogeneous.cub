@@ -38,11 +38,11 @@ composeMapOnPath : (A : U) (B : A -> U) (u v : Sigma A B) ->
 composeMapOnPath A B u v p = refl (Id U (B u.1) (B v.1))
           (mapOnPath (Sigma A B) U (\x -> B x.1) u v p)
 
-pairPath : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
-           (Sigma (Id A a0 a1) (\p -> IdS A B a0 a1 p b0 b1)) ->
+pairPath : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1)
+           (p : Id A a0 a1) -> IdS A B a0 a1 p b0 b1 ->
            (Id (Sigma A B) (a0, b0) (a1, b1))
-pairPath A B a0 a1 b0 b1 z =
-  mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 z.1 b0 b1 z.2
+pairPath A B a0 a1 b0 b1 p q =
+  mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 p b0 b1 q
 
 eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
            Id U
@@ -154,6 +154,34 @@ funExt3 C B F a =
           (h : (x : F a) (y : F b) (z : IdS C F a b p x y) -> Id B (f x) (g y))
           -> IdS C (\z -> F z -> B) a b p f g)
     (\f g h -> funExt (F a) (\_ -> B) f g (\x -> h x x (refl (F a) x)))
+
+lemPiFib : (A B : U) (C : A -> B -> U) (a0 a1:A) (p : Id A a0 a1)
+           (f0 : (y:B) -> C a0 y) (f1 : (y:B) -> C a1 y) ->
+           ((y:B) -> IdS A (\ x -> C x y) a0 a1 p (f0 y) (f1 y)) ->
+           IdS A (\ x -> (y:B) -> C x y) a0 a1 p f0 f1
+lemPiFib A B C a0 =
+  J A a0 (\ a1 p -> (f0 : (y:B) -> C a0 y) (f1 : (y:B) -> C a1 y) ->
+                  ((y:B) -> IdS A (\ x -> C x y) a0 a1 p (f0 y) (f1 y)) ->
+                  IdS A (\ x -> (y:B) -> C x y) a0 a1 p f0 f1)
+    rem
+ where
+   rem : (f0 f1 : (y:B) -> C a0 y) ->
+         ((y:B) -> Id (C a0 y) (f0 y) (f1 y)) -> Id ((y:B) -> C a0 y) f0 f1
+   rem = funExt B (C a0)
+
+
+funExtDepInv : (A B : U) (C : A -> B -> U) (a0 a1:A) (p : Id A a0 a1) 
+           (f0 : (y:B) -> C a0 y) (f1 : (y:B) -> C a1 y) -> 
+           IdS A (\ x -> (y:B) -> C x y) a0 a1 p f0 f1 ->
+           (y:B) -> IdS A (\ x -> C x y) a0 a1 p (f0 y) (f1 y)
+funExtDepInv A B C a0 = J A a0 (\ a1 p ->  (f0 : (y:B) -> C a0 y) (f1 : (y:B) -> C a1 y) -> 
+                                  IdS A (\ x -> (y:B) -> C x y) a0 a1 p f0 f1 ->
+                                  (y:B) -> IdS A (\ x -> C x y) a0 a1 p (f0 y) (f1 y)) rem
+ where
+  rem :   (f0 f1 : (y:B) -> C a0 y) -> 
+           Id ((y:B) -> C a0 y) f0 f1 ->
+           (y:B) -> Id (C a0 y) (f0 y) (f1 y)
+  rem f0 f1 p y = mapOnPath (Pi B (C a0)) (C a0 y) (\ f -> f y) f0 f1 p
 
 
 mapOnPathComp : (A B : U) (f : A -> B) (a b c : A) (p : Id A a b) (q : Id A b c) ->

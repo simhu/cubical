@@ -39,6 +39,10 @@ compIdl A b c q =
 compInv : (A : U) -> (a b c : A) -> Id A a b -> Id A a c -> Id A b c
 compInv A a b c p r = subst A (\ x -> Id A x c) a b p r
 
+compInvLemma : (A: U) (a b:A) (p:Id A a b) -> Id (Id A b b) (compInv A a b b p p) (refl A b)
+compInvLemma A a = J A a (\ b p -> Id (Id A b b) (compInv A a b b p p) (refl A b)) (refl (Id A a a) (refl A a))
+
+
 -- compInvIdl' : (A : U) (a b : A) (p : Id A a b) ->
 --                Id (Id A a b) p (compInv A a a b (refl A a) p)
 -- compInvIdl' A a b p = substeq A (\x -> Id A x b) a p
@@ -47,6 +51,18 @@ idEuclid : (A : U) -> euclidean A (Id A)
 idEuclid A a b c p q = transpInv (Id A a b) (Id A a c) rem p
  where rem : Id U (Id A a b) (Id A a c)
        rem = mapOnPath A U (Id A a) b c q
+
+
+lemIdEuclid : (A:U) (b c:A)  (r : Id A b c) (a:A) (p : Id A a b) (q : Id A a c) ->
+              Id (Id A a b) p (idEuclid A a b c q r) -> Id (Id A a c) q (comp A a b c p r)
+lemIdEuclid A b =
+ J A b (\ c r -> (a:A) (p : Id A a b) (q : Id A a c) ->
+                 Id (Id A a b) p (idEuclid A a b c q r) -> Id (Id A a c) q (comp A a b c p r))
+       rem
+ where
+  rem : (a:A) (p q : Id A a b) -> Id (Id A a b) p q -> Id (Id A a b) q p
+  rem a = inv (Id A a b)
+
 
 compAssoc : (A : U) (a b c d : A) (p : Id A a b) (q : Id A b c) (r : Id A c d) ->
   Id (Id A a d) (comp A a c d (comp A a b c p q) r) (comp A a b d p (comp A b c d q r))
@@ -104,6 +120,12 @@ compDown : (A : U) -> (a a' b b' : A) ->
            Id A a a' -> Id A b b' -> Id A a' b' -> Id A a b
 compDown A a a' b b' p q =
   transpInv (Id A a b) (Id A a' b') (lemUpDown A a a' b b' p q)
+
+compIdlLemma : (A:U) -> (b c :A) -> (q q':Id A b c) ->
+          Id (Id A b c) q q' -> Id (Id A b c) (comp A b b c (refl A b) q) (comp A b b c (refl A b) q')
+compIdlLemma A b c q q' h =
+ compDown (Id A b c) (comp A b b c (refl A b) q) q (comp A b b c (refl A b) q') q' (compIdl A b c q) (compIdl A b c q') h
+
 
 lemInv : (A : U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
