@@ -1,6 +1,6 @@
 module gradLemma where
 
-import axChoice
+import function1
 
 corrstId : (A : U) (a : A) -> prop (fiber A A (id A) a)
 corrstId A a v0 v1 =

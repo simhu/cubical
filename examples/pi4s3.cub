@@ -1,0 +1,29 @@
+module pi4s3 where
+
+import hopf
+import truncHopf
+import loopTrunc
+
+firstMap : Z -> (itOmega three ptS2).1
+firstMap n =
+  (itMapOmega three (ptJoin ptS1 S1) ptS2 ptAlpha).1
+    ((itMapOmega three ptS3 (ptJoin ptS1 S1) s3ToS1JoinS1).1
+      ((itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
+        ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt n))))
+
+lastMap : (itOmega three (ptJoin ptS1 S1)).1 -> Z
+lastMap x = encode base (pi2S2
+  (kappaOne (Omega ptS2)
+    ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
+      (pi3S3 
+        ((itMapOmega three (ptJoin ptS1 S1) ptS3 s3ToS1JoinS1Inv).1 x)))))
+
+composition : Z -> Z
+composition n = lastMap (hopfLoop (firstMap n))
+
+oneZ : Z
+oneZ = sucZ zeroZ
+
+brunerie : Z
+brunerie = composition oneZ
+

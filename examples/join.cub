@@ -254,6 +254,14 @@ s3ToS1JoinS1Inv =
         (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv.1 (\z -> z) x)))
   ,refl S3 north)
 
+-- The map e from 7.3
+s3ToS1JoinS1 : ptMap ptS3 (ptJoin (ptS1) S1)
+s3ToS1JoinS1 =
+  (\x -> mapJoin (join Bool Bool) S1 S1 S1 bjbToS1.1 (\z -> z)
+          (r2l Bool Bool S1
+            (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
+              (suspJoin S2 x)))
+  ,refl (join S1 S1) (inl base))
 
 -- The main map alpha from 8
 alpha : join S1 S1 -> S2

@@ -1,6 +1,5 @@
 module collection where
 
-import axChoice
 import sigma
 import univalence
 
