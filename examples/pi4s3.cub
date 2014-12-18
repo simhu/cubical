@@ -24,6 +24,53 @@ composition n = lastMap (hopfLoop (firstMap n))
 oneZ : Z
 oneZ = sucZ zeroZ
 
+test : (itOmega three ptS2).1
+test = firstMap oneZ
+
+test1 : (itOmega three ptS3).1
+test1 = (itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
+          ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt oneZ))
+
+test11 : (itOmega three (ptJoin ptS1 S1)).1
+test11 = (itMapOmega three ptS3 (ptJoin ptS1 S1) s3ToS1JoinS1).1 test1
+
+
+test2 : (itOmega three (ptJoin ptS1 S1)).1
+test2 = hopfLoop test
+
+test3 : Z -> Z
+test3 n = encode base (pi2S2 (inc ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt n))))
+
+test35 : Z -> Z
+test35 n =
+  encode base
+    (pi2S2
+      (kappaOne (Omega ptS2)
+        ((mapOmega (Omega ptS2) (ptTrunc two (Omega ptS2)) (inc, refl (trunc two (Omega ptS2).1) (inc (refl S2 north)))).1
+          ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
+            (loopIt n)))))
+
+test36 : Z -> Z
+test36 n =
+  encode base
+    (pi2S2
+      (kappaOne (Omega ptS2)
+        ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
+          ((itMapOmega two ptS2 (ptTrunc three ptS2) (inc, refl (trunc three S2) (inc north))).1
+            ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
+              (loopIt n))))))
+
+test4 : Z -> Z
+test4 n =
+  encode base
+    (pi2S2
+      ((kappaOne (Omega ptS2)
+        ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
+          (pi3S3 
+            ((itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
+              ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
+                (loopIt n))))))))
+
 brunerie : Z
 brunerie = composition oneZ
 

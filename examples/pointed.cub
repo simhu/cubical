@@ -39,15 +39,19 @@ mapOmega A B h = (omf,omf0)
         f0 : Id B.1 (f a) b
         f0 = h.2
 
+        kanOp : (A : U) (a b : A) (f0 : Id A a b) (p : Id A a a) -> Id A b b
+        kanOp A a = J A a (\b f0 -> (p : Id A a a) -> Id A b b)
+                      (\p -> p)
+
+        kanOpRefl : (A : U) (a b : A) (f0 : Id A a b) -> Id (Id A b b) (kanOp A a b f0 (refl A a)) (refl A b)
+        kanOpRefl A a = J A a (\b f0 -> Id (Id A b b) (kanOp A a b f0 (refl A a)) (refl A b))
+                          (refl (Id A a a) (refl A a))
+
         omf : (Omega A).1 -> (Omega B).1
-        omf p = comp (B.1) b (f a) b
-                  (comp (B.1) b (f a) (f a)
-                    (inv (B.1) (f a) b f0)
-                    (mapOnPath (A.1) (B.1) f (pt A) (pt A) p))
-                  f0
+        omf p = kanOp B.1 (f a) b f0 (mapOnPath (A.1) (B.1) f a a p)
 
         omf0 : Id (Omega B).1 (omf (refl A.1 a)) (refl B.1 b)
-        omf0 = compInvLeft' B.1 (f a) b f0
+        omf0 = kanOpRefl B.1 (f a) b f0
 
 -- Iterated loop space
 itOmega : N -> ptType -> ptType
