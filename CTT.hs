@@ -95,6 +95,11 @@ hLabelToBinder :: HLabel -> Binder
 hLabelToBinder (Label n _)      = n
 hLabelToBinder (HLabel n _ _ _) = n
 
+mapHLabelToBinderTele :: [HLabel] -> [(Binder,(Tele,Ter,Ter))]
+mapHLabelToBinderTele [] = []
+mapHLabelToBinderTele (Label _ _ : s) = mapHLabelToBinderTele s
+mapHLabelToBinderTele (HLabel n tele u v : s) = (n, (tele, u, v)) : (mapHLabelToBinderTele s)
+
 isLabel :: HLabel -> Bool
 isLabel h@Label{} = True
 isLabel _         = False

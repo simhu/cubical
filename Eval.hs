@@ -68,6 +68,13 @@ eval e (PCon n ts ns t0 t1) =
       -- TODO: lambda abstract or not?
       u0 = eval e (mkLams ns t0)
       u1 = eval e (mkLams ns t1)
+
+      -- -- The code below should be correct, but because of the other bug, we
+      -- -- leave the incorrect thing for now
+      -- us = map (eval e) ts
+      -- upe = upds e (zip (map noLoc ns) us)
+      -- u0 = eval upe t0
+      -- u1 = eval upe t1
   in Path i $ VPCon n (map (eval e) ts) (Atom i) u0 u1
 eval e t@(HSplit {})     = Ter t e
 
@@ -75,8 +82,8 @@ evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
 
 pathCon :: Ident -> [Val] -> Formula -> Val -> Val -> Val
-pathCon n vs (Dir Zero) u _ = apps u vs
-pathCon n vs (Dir One)  _ u = apps u vs
+pathCon n vs (Dir Zero) u _ = apps u vs  -- Should be [u]
+pathCon n vs (Dir One)  _ u = apps u vs  -- Should be [u]
 pathCon n vs phi        u v = VPCon n vs phi u v
 
 fstSVal, sndSVal :: Val -> Val
@@ -342,7 +349,7 @@ app u@(Ter (HSplit _ f hbr) e) kan@(Kan i v ws w) = -- v should be corr. hsum
   let j     = fresh (e,kan)
       wsij  = ws `swap` (i,j)
       ws'   = Map.mapWithKey (\alpha -> app (u `face` alpha)) wsij
-      w'    = app (u `face` (i ~> 0)) w
+      w'    = app u w  -- app (u `face` (i ~> 0)) w
       ffill = app (eval e f) (fill Pos j (v `swap` (i,j)) wsij w)
   in comp Pos j ffill ws' w'
 
@@ -498,6 +505,15 @@ comps i ((x,a):as) e ((ts,u):tsus) =
       vs  = comps i as (Pair e (x,v)) tsus
   in vi0 : vs
 comps _ _ _ _ = error "comps: different lengths of types and values"
+
+fills :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
+fills i []         _ []         = []
+fills i ((x,a):as) e ((ts,u):tsus) =
+  let v  = fill Pos i (eval e a) ts u
+      -- vi0 = v `face` (i ~> 1)
+      vs  = fills i as (Pair e (x,v)) tsus
+  in v : vs
+fills _ _ _ _ = error "fills: different lengths of types and values"
 
 isNeutral :: Val -> Bool
 isNeutral (VVar _)               = True
@@ -696,10 +712,39 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
-  VPCon c ws phi e0 e1 -> case getIdent c (map hLabelToBinderTele hls) of
-    Just as ->
-      VPCon c (comps i as env (zip (repeat Map.empty) ws)) phi (tr e0) (tr e1)
-      where tr = comp Pos i v Map.empty
+  VPCon c ws0 phi _ _ {-e0 e1-} -> case getIdent c (mapHLabelToBinderTele hls) of
+    Just (as, t, t') ->
+      (Path k ltt') @@ phi
+      where  -- The following seems correct when [phi] is a variable, but
+             -- otherwise we need to do an induction on [phi]
+        tr = comp Pos i v Map.empty
+        trfill = fill Pos i v Map.empty
+        ws1 = comps i as env (zip (repeat Map.empty) ws)
+        ns = map fst as
+        env0 = env `face` (i ~> 0)
+        env1 = env `face` (i ~> 1)
+        upEnv0 = upds env0 (zip ns ws0)
+        upEnv1 = upds env1 (zip ns ws1)
+        tv0 = eval upEnv0 t
+        tv1 = eval upEnv1 t
+        t'v0 = eval upEnv0 t'
+        t'v1 = eval upEnv1 t'
+        ws = fills i as env (zip (repeat Map.empty) ws)
+        upEnv = upds env (zip ns ws)
+        tv = eval upEnv t
+        t'v = eval upEnv t'
+        j = fresh (u, v, Atom i)
+        k = fresh (u, v, Atom i, Atom j)
+
+        ts = insertSystem (j ~> 0) tv $ insertSystem (j ~> 1) (trfill tv0) $ Map.empty
+        lt = comp Pos i v ts tv0
+
+        t's = insertSystem (j ~> 0) t'v $ insertSystem (j ~> 1) (trfill t'v0) $ Map.empty
+        lt' = comp Pos i v t's t'v0
+
+        tt's = insertSystem (k ~> 0) lt $ insertSystem (k ~> 1) lt' $ Map.empty
+        ltt' = comp Pos j (v `face` (i ~> 1)) tt's (VPCon c ws1 (Atom k) (tr tv0) (tr t'v0))
+
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
   Kan j b ws w -> comp Pos k vi1 ws' (comp' (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
@@ -771,6 +816,7 @@ class Convertible a where
   conv   :: Int -> a -> a -> Bool
 
 instance Convertible Val where
+  conv _ u v | u == v = True
   conv k VU VU                                  = True
   conv k w@(Ter (Lam x u) e) w'@(Ter (Lam x' u') e') =
     let v = mkVar k
