@@ -28,6 +28,3 @@ kappaOne A = kappa one A groupoidSET
 
 kappaTwo : (A : ptType) -> (Omega (ptTrunc three A)).1 -> trunc two (Omega A).1
 kappaTwo A = kappa two A twogroupoidGROUPOID
-
-ptKappaTwo : (A : ptType) -> ptMap (Omega (ptTrunc three A)) (ptTrunc two (Omega A))
-ptKappaTwo A = (kappaTwo A, kappaIsPt two A twogroupoidGROUPOID)

@@ -201,24 +201,13 @@ ptJoin pA B = (join pA.1 B, inl (pt pA))
 ptBool : ptType
 ptBool = (Bool,true)
 
-ptSuspJoin : (A : U) -> ptMap (ptSusp A) (ptJoin ptBool A)
-ptSuspJoin A = (suspJoin A, refl (join Bool A) (inl true))
-
-ptSuspJoinInv : (A : U) -> ptMap (ptJoin ptBool A) (ptSusp A)
-ptSuspJoinInv A = (suspJoinInv A, refl (susp A) north)
-
 --
 
-ptBoolJoinBool : ptType
-ptBoolJoinBool = ptJoin ptBool Bool
+bjbToS1 : join Bool Bool -> S1
+bjbToS1 x = s1ToCircle (suspJoinInv Bool x)
 
-bjbToS1 : ptMap ptBoolJoinBool ptS1
-bjbToS1 = ptMapComp ptBoolJoinBool (ptSusp Bool) ptS1
-  (ptSuspJoinInv Bool) ptS1ToCircle
-
-bjbToS1Inv : ptMap ptS1 ptBoolJoinBool
-bjbToS1Inv = ptMapComp ptS1 (ptSusp Bool) ptBoolJoinBool
-  ptCircleToS1 (ptSuspJoin Bool)
+bjbToS1Inv : S1 -> join Bool Bool
+bjbToS1Inv x = suspJoin Bool (circleToS1 x)
 
 
 one : N
@@ -246,31 +235,42 @@ ptS3 = ptPlusOneSphere two
 
 
 -- The map e^-1 from 7.3
-s3ToS1JoinS1Inv : ptMap (ptJoin (ptS1) S1) ptS3
-s3ToS1JoinS1Inv =
-  (\x -> suspJoinInv S2
+s3ToS1JoinS1Inv : join S1 S1 -> S3
+s3ToS1JoinS1Inv x =
+  suspJoinInv S2
     (mapJoin Bool (join Bool S1) Bool S2 (\b -> b) (suspJoinInv S1)
       (l2r Bool Bool S1
-        (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv.1 (\z -> z) x)))
-  ,refl S3 north)
+        (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv (\z -> z) x)))
+
 
 -- The map e from 7.3
-s3ToS1JoinS1 : ptMap ptS3 (ptJoin (ptS1) S1)
-s3ToS1JoinS1 =
-  (\x -> mapJoin (join Bool Bool) S1 S1 S1 bjbToS1.1 (\z -> z)
-          (r2l Bool Bool S1
-            (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
-              (suspJoin S2 x)))
-  ,refl (join S1 S1) (inl base))
+s3ToS1JoinS1 : S3 -> join S1 S1
+s3ToS1JoinS1 x =
+  mapJoin (join Bool Bool) S1 S1 S1 bjbToS1 (\z -> z)
+    (r2l Bool Bool S1
+      (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
+        (suspJoin S2 x)))
 
--- The main map alpha from 8
+-- -- The main map alpha from 8
+-- alpha : join S1 S1 -> S2
+-- alpha = hsplit (\_ -> S2) with
+--   inl x   -> south
+--   inr y   -> south
+--   push xy -> comp S2 south north south
+--               (inv S2 north south (merid xy.2))
+--               (merid xy.1)
+--
+-- ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
+-- ptAlpha = (alpha, inv S2 north south (merid base))
+
+
+-- A modified version of the main map alpha from 8, which is equal to the
+-- other one but pointed by reflexivity
+
 alpha : join S1 S1 -> S2
 alpha = hsplit (\_ -> S2) with
-  inl x   -> south
-  inr y   -> south
-  push xy -> comp S2 south north south
-              (inv S2 north south (merid xy.2))
-              (merid xy.1)
-
-ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
-ptAlpha = (alpha, inv S2 north south (merid base))
+  inl x   -> north
+  inr y   -> north
+  push xy -> comp S2 north north north
+               (idEuclid S2 north north south (merid base) (merid xy.2))
+               (idEuclid S2 north north south (merid xy.1) (merid base))

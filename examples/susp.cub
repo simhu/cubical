@@ -135,9 +135,6 @@ s1ToCircle = hsplit (\_ -> S1) with
 ptS1 : ptType
 ptS1 = (S1,base)
 
-ptS1ToCircle : ptMap (sone,north) ptS1
-ptS1ToCircle = (s1ToCircle,refl S1 base)
-
 m0 : Id sone north south
 m0 = merid false
 
@@ -154,9 +151,6 @@ circleToS1 : S1 -> sone
 circleToS1 = hsplit (\_ -> sone) with
   base -> north
   loop -> loopImage
-
-ptCircleToS1 : ptMap ptS1 (sone, north)
-ptCircleToS1 = (circleToS1,refl sone north)
 
 lemLoopImage : Id loopS1 (mapOnPath (sphere one) S1
                           s1ToCircle north north loopImage)

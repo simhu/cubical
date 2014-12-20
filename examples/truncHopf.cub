@@ -39,20 +39,20 @@ auxComp a b p p0 q = comp trS2 (inc a) (inc b) (inc b)
 auxCompId : (a b : S2) (p p0 q : Id S2 a b) -> U
 auxCompId a b p p0 q = Id (Id trS2 (inc a) (inc b)) (auxComp a b p p0 q) (auxComp a b q p0 p)
 
-alpha : (a b : S2) (p0 q : Id S2 a b) -> auxCompId a b p0 p0 q
-alpha a = J S2 a (\b p0 -> (q : Id S2 a b) -> auxCompId a b p0 p0 q)
+alphaAuxCompId : (a b : S2) (p0 q : Id S2 a b) -> auxCompId a b p0 p0 q
+alphaAuxCompId a = J S2 a (\b p0 -> (q : Id S2 a b) -> auxCompId a b p0 p0 q)
   (\q -> compIdl trS2 (inc a) (inc a) (apInc S2 a a q))
 
-beta : (a b : S2) (p0 p : Id S2 a b) -> auxCompId a b p p0 p0
-beta a = J S2 a (\b p0 -> (p : Id S2 a b) -> auxCompId a b p p0 p0)
+betaAuxCompId : (a b : S2) (p0 p : Id S2 a b) -> auxCompId a b p p0 p0
+betaAuxCompId a = J S2 a (\b p0 -> (p : Id S2 a b) -> auxCompId a b p p0 p0)
            (\p -> compInvIdl trS2 (inc a) (inc a) (apInc S2 a a p))
 
 alphaEqBetaDiag : (a b : S2) (p0 : Id S2 a b) ->
-                  Id (auxCompId a b p0 p0 p0) (alpha a b p0 p0) (beta a b p0 p0)
+                  Id (auxCompId a b p0 p0 p0) (alphaAuxCompId a b p0 p0) (betaAuxCompId a b p0 p0)
 alphaEqBetaDiag a =
- J S2 a (\b p0 -> Id (auxCompId a b p0 p0 p0) (alpha a b p0 p0) (beta a b p0 p0))
+ J S2 a (\b p0 -> Id (auxCompId a b p0 p0 p0) (alphaAuxCompId a b p0 p0) (betaAuxCompId a b p0 p0))
    (refl (auxCompId a a (refl S2 a) (refl S2 a) (refl S2 a))
-     (alpha a a (refl S2 a) (refl S2 a)))
+     (alphaAuxCompId a a (refl S2 a) (refl S2 a)))
 
 
 
@@ -63,8 +63,8 @@ alphaEqBetaDiag a =
 multTwoMeridMerid : (x y : S1) -> Id idIncNS (meridIncSouth x y) (meridIncSouth y x)
 multTwoMeridMerid =
   lemSetTorus E sE
-    (\x -> alpha north south (merid base) (merid x))
-    (\x -> beta north south (merid base) (merid x))
+    (\x -> alphaAuxCompId north south (merid base) (merid x))
+    (\x -> betaAuxCompId north south (merid base) (merid x))
     (alphaEqBetaDiag north south (merid base))
   where E : S1 -> S1 -> U
         E x y = Id idIncNS (meridIncSouth x y) (meridIncSouth y x)

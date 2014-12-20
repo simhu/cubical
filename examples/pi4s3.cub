@@ -4,73 +4,98 @@ import hopf
 import truncHopf
 import loopTrunc
 
-firstMap : Z -> (itOmega three ptS2).1
-firstMap n =
-  (itMapOmega three (ptJoin ptS1 S1) ptS2 ptAlpha).1
-    ((itMapOmega three ptS3 (ptJoin ptS1 S1) s3ToS1JoinS1).1
-      ((itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
-        ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt n))))
+-- Let’s define the twelve maps first
 
-lastMap : (itOmega three (ptJoin ptS1 S1)).1 -> Z
-lastMap x = encode base (pi2S2
-  (kappaOne (Omega ptS2)
-    ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
-      (pi3S3 
-        ((itMapOmega three (ptJoin ptS1 S1) ptS3 s3ToS1JoinS1Inv).1 x)))))
+f0 : Z -> loopS1
+f0 = loopIt
+
+f1 : loopS1 -> (itOmega two ptS2).1
+f1 = (mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
+
+f2 : (itOmega two ptS2).1 -> (itOmega three ptS3).1
+f2 = (itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
+
+f3 : (itOmega three ptS3).1 -> (itOmega three (ptJoin ptS1 S1)).1
+f3 = itMapOmegaRefl three ptS3 (join S1 S1) s3ToS1JoinS1
+
+f4 : (itOmega three (ptJoin ptS1 S1)).1 -> (itOmega three ptS2).1
+f4 = itMapOmegaRefl three (ptJoin ptS1 S1) S2 alpha
+
+f5 : (itOmega three ptS2).1 -> (itOmega three (ptJoin ptS1 S1)).1
+f5 = hopfLoop
+
+f6 : (itOmega three (ptJoin ptS1 S1)).1 -> (itOmega three ptS3).1
+f6 = itMapOmegaRefl three (ptJoin ptS1 S1) S3 s3ToS1JoinS1Inv
+
+f7 : (itOmega three ptS3).1 -> (itOmega two (ptTrunc three ptS2)).1
+f7 = pi3S3
+
+f8 : (itOmega two (ptTrunc three ptS2)).1 -> (Omega (ptTrunc two (Omega ptS2))).1
+f8 = mapOmegaRefl (Omega (trS2,inc north)) (trunc two (Omega ptS2).1) (kappaTwo ptS2)
+
+f9 : (Omega (ptTrunc two (Omega ptS2))).1 -> trunc one (itOmega two ptS2).1
+f9 = kappaOne (Omega ptS2)
+
+fA : trunc one (itOmega two ptS2).1 -> loopS1
+fA = pi2S2
+
+fB : loopS1 -> Z
+fB = encode base
 
 composition : Z -> Z
-composition n = lastMap (hopfLoop (firstMap n))
+composition n = fB (fA (f9 (f8 (f7 (f6 (f5 (f4 (f3 (f2 (f1 (f0 n)))))))))))
 
 oneZ : Z
 oneZ = sucZ zeroZ
 
-test : (itOmega three ptS2).1
-test = firstMap oneZ
-
-test1 : (itOmega three ptS3).1
-test1 = (itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
-          ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt oneZ))
-
-test11 : (itOmega three (ptJoin ptS1 S1)).1
-test11 = (itMapOmega three ptS3 (ptJoin ptS1 S1) s3ToS1JoinS1).1 test1
-
-
-test2 : (itOmega three (ptJoin ptS1 S1)).1
-test2 = hopfLoop test
-
-test3 : Z -> Z
-test3 n = encode base (pi2S2 (inc ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1 (loopIt n))))
-
-test35 : Z -> Z
-test35 n =
-  encode base
-    (pi2S2
-      (kappaOne (Omega ptS2)
-        ((mapOmega (Omega ptS2) (ptTrunc two (Omega ptS2)) (inc, refl (trunc two (Omega ptS2).1) (inc (refl S2 north)))).1
-          ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
-            (loopIt n)))))
-
-test36 : Z -> Z
-test36 n =
-  encode base
-    (pi2S2
-      (kappaOne (Omega ptS2)
-        ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
-          ((itMapOmega two ptS2 (ptTrunc three ptS2) (inc, refl (trunc three S2) (inc north))).1
-            ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
-              (loopIt n))))))
-
-test4 : Z -> Z
-test4 n =
-  encode base
-    (pi2S2
-      ((kappaOne (Omega ptS2)
-        ((mapOmega (Omega (trS2,inc north)) (ptTrunc two (Omega ptS2)) (ptKappaTwo ptS2)).1
-          (pi3S3 
-            ((itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
-              ((mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
-                (loopIt n))))))))
-
 brunerie : Z
 brunerie = composition oneZ
 
+
+-- WORKS
+test0To1 : (itOmega two ptS2).1
+test0To1 = f1 (f0 oneZ)
+
+-- WORKS
+test0To2 : (itOmega three ptS3).1
+test0To2 = f2 test0To1
+
+-- FAIL (this is the old test11)
+test0To3 : (itOmega three (ptJoin ptS1 S1)).1
+test0To3 = f3 test0To2
+
+-- FAIL (requires the previous one)
+test0To4 : (itOmega three ptS2).1
+test0To4 = f4 test0To3
+
+-- FAIL (requires the previous one)
+test0To5 : (itOmega three (ptJoin ptS1 S1)).1
+test0To5 = f5 test0To4
+
+
+
+-- WORKS
+testShortcut2To9 : Z
+testShortcut2To9 = fB (fA (shortcut2To9 (f1 (f0 oneZ))))
+  where
+    shortcut2To9 : (itOmega two ptS2).1 -> trunc one (itOmega two ptS2).1
+    shortcut2To9 = inc
+
+-- WORKS
+testShortcut2To8 : Z
+testShortcut2To8 = fB (fA (f9 (shortcut2To8 (f1 (f0 oneZ)))))
+  where
+    shortcut2To8 : (itOmega two ptS2).1 -> (Omega (ptTrunc two (Omega ptS2))).1
+    shortcut2To8 = mapOmegaRefl (Omega ptS2) (trunc two (Omega ptS2).1) inc
+
+-- WORK (but takes a long time)
+testShortcut2To7 : Z
+testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
+  where
+    shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
+    shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
+
+-- FAIL (after 1 hour and 43 minutes)
+-- cubical: comp HSum: KanUElem fromList [(fromList [(i0,1)],inc (<i1> north))] inc (<i0> north) should be neutral
+testShortcut3To6 : Z
+testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
