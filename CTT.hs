@@ -86,6 +86,10 @@ data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
              | HBranch Label [Binder] Ter -- Branch for a path constructor
   deriving (Eq,Show)
 
+mapHLabelToBinderTele :: [HLabel] -> [(Binder,(Tele,Ter,Ter))]
+mapHLabelToBinderTele [] = []
+mapHLabelToBinderTele (Label _ _ : s) = mapHLabelToBinderTele s
+mapHLabelToBinderTele (HLabel n tele u v : s) = (n, (tele, u, v)) : (mapHLabelToBinderTele s)
 
 hLabelToBinderTele :: HLabel -> (Binder,Tele)
 hLabelToBinderTele (Label n tele)      = (n,tele)
@@ -94,11 +98,6 @@ hLabelToBinderTele (HLabel n tele _ _) = (n,tele)
 hLabelToBinder :: HLabel -> Binder
 hLabelToBinder (Label n _)      = n
 hLabelToBinder (HLabel n _ _ _) = n
-
-mapHLabelToBinderTele :: [HLabel] -> [(Binder,(Tele,Ter,Ter))]
-mapHLabelToBinderTele [] = []
-mapHLabelToBinderTele (Label _ _ : s) = mapHLabelToBinderTele s
-mapHLabelToBinderTele (HLabel n tele u v : s) = (n, (tele, u, v)) : (mapHLabelToBinderTele s)
 
 isLabel :: HLabel -> Bool
 isLabel h@Label{} = True
@@ -290,8 +289,8 @@ data Val = VU
          | UnGlue (System Hiso) Val
          | GlueElem (System Val) Val
          | HisoProj HisoProj Val
-         | GlueLine (System ()) Val Formula
-         | GlueLineElem (System ()) Val Formula
+         | GlueLine Val Formula Formula
+         | GlueLineElem Val Formula Formula
 
          | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val
@@ -509,16 +508,16 @@ showVal (VVar x)                 = x
 showVal (VApp u v)               = showVal u <+> showVal1 v
 showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 
-showVal (VCon c us)              = c <+> showVals us
-showVal (VSplit u v)             = showVal u <+> showVal1 v
+showVal (VCon c us)             = c <+> showVals us
+showVal (VSplit u v)            = showVal u <+> showVal1 v
 
 showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
 showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
 showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
-showVal (GlueLine ts u phi)     = "GlueLine" <+> show ts <+> show u <+> show phi
-showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show phi
+showVal (GlueLine v phi psi)     = "GlueLine" <+> show v <+> show phi <+> show psi
+showVal (GlueLineElem u phi psi) = "GlueLineElem" <+> show u <+> show phi <+> show psi
 
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 

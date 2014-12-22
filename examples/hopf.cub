@@ -14,7 +14,7 @@ tm : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
              Id (join S1 S1) (inl y) (inr y')
 tm x y y' p =
   comp (join S1 S1) (inl y) (inr (mult x y)) (inr y')
-    (push (y,mult x y))
+    (push y (mult x y))
     (mapOnPath S1 (join S1 S1) inr (mult x y) y'
       (idSElim S2 Hopf north south (merid x) y y' p))
 

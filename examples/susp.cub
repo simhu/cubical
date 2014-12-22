@@ -2,7 +2,7 @@ module susp where
 
 import integer
 import circle
-import higher
+-- import higher
 import pointed
 
 ----------------------------------------------------------------------
@@ -43,63 +43,6 @@ ptPlusOneSphere = split
   suc n -> ptSusp (plusOneSphere n)
 
 
--- The suspension is equal to a pushout with maps into Unit.
-unit : (A : U) -> A -> Unit
-unit _ _ = tt
-
-unitPo : U -> U
-unitPo A = pushout Unit Unit A (unit A) (unit A)
-
-suspToPushout : (A : U) -> susp A -> unitPo A
-suspToPushout A = hsplit (\_ -> unitPo A) with
-  north   -> inl tt
-  south   -> inr tt
-  merid a -> push a
-
-pushoutToSusp : (A : U) -> unitPo A -> susp A
-pushoutToSusp A = hsplit (\_ -> susp A) with
-  inl u  -> north
-  inr u  -> south
-  push a -> merid a
-
-
-suspEqPushout : (A : U) -> Id U (susp A) (unitPo A)
-suspEqPushout A =
-  isoId (susp A) (unitPo A) (suspToPushout A) (pushoutToSusp A) spid psid
-  where suspEq : susp A -> U
-        suspEq x = Id (susp A) (pushoutToSusp A (suspToPushout A x)) x
-
-        psid : (x : susp A) -> suspEq x
-        psid = hsplit suspEq with
-          north   -> refl (susp A) north
-          south   -> refl (susp A) south
-          merid a -> idSIntro (susp A) suspEq north south (merid a)
-            (refl (susp A) north) (refl (susp A) south) meridRefl
-            where meridRefl : Id (suspEq south)
-                                 (subst (susp A) suspEq north south (merid a)
-                                    (refl (susp A) north))
-                                 (refl (susp A) south)
-                  meridRefl = substReflIsRefl (susp A) north south (merid a)
-
-        unitPoEq : unitPo A -> U
-        unitPoEq x = Id (unitPo A) (suspToPushout A (pushoutToSusp A x)) x
-
-        spid : (x : unitPo A) -> unitPoEq x
-        spid = hsplit unitPoEq with
-          inl u  -> trivial u
-            where trivial : (u : Unit) -> Id (unitPo A) (inl tt) (inl u)
-                  trivial = split tt -> refl (unitPo A) (inl tt)
-          inr u  -> trivial u
-            where trivial : (u : Unit) -> Id (unitPo A) (inr tt) (inr u)
-                  trivial = split tt -> refl (unitPo A) (inr tt)
-          push a -> idSIntro (unitPo A) unitPoEq (inl tt) (inr tt) (push a)
-            (refl (unitPo A) (inl tt)) (refl (unitPo A) (inr tt)) pushRefl
-            where pushRefl : Id (unitPoEq (inr tt))
-                               (subst (unitPo A) unitPoEq
-                                (inl tt) (inr tt) (push a)
-                                (refl (unitPo A) (inl tt)))
-                               (refl (unitPo A) (inr tt))
-                  pushRefl = substReflIsRefl (unitPo A) (inl tt) (inr tt) (push a)
 
 -- Pointed map into the loop space of the suspension.
 sigma : (A : ptType) -> ptMap A (Omega (ptSusp A.1))

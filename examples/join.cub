@@ -1,48 +1,44 @@
 module join where
 
-import higher
+-- import higher
 import pointed
 import susp
 
 join : U -> U -> U
-join A B = pushout A B (and A B) (\x -> x.1) (\x -> x.2)
-
+-- join A B = pushout A B (and A B) (\x -> x.1) (\x -> x.2)
+hdata join A B = inl (a:A) | inr (b:B) | push (a:A) (b:B) @ (inl a) ~ (inr b)
 
 mapJoin : (A B C D : U) (f : A -> C) (g : B -> D) -> join A B -> join C D
 mapJoin A B C D f g = hsplit (\_ -> join C D) with
   inl a -> inl (f a)
   inr b -> inr (g b)
-  push ab -> push (f ab.1, g ab.2)
+  push a b -> push (f a) (g b)
 
 inlJoin : (A B C : U) -> join A B -> join A (join B C)
 inlJoin A B C = hsplit (\_ -> join A (join B C)) with
   inl a   -> inl a
   inr b   -> inr (inl b)
-  push ab -> -- ts: inl ab.1 = inr (inl ab.2)
-    push (ab.1, inl ab.2)
+  push a b -> -- ts: inl a = inr (inl b)
+    push a (inl b) 
 
 
 l2r : (A B C : U) -> join (join A B) C -> join A (join B C)
 l2r A B C = hsplit (\_ -> join A (join B C)) with
   inl jab -> inlJoin A B C jab
   inr c   -> inr (inr c)
-  push p  -> lem p.2 p.1 -- ts: lem p.1 = inr (inr p.2)
+  push p q  -> lem q p -- ts: lem p.1 = inr (inr p.2)
     where lem : (c : C) (u : join A B) ->
                 Id (join A (join B C)) (inlJoin A B C u) (inr (inr c))
           lem c = hsplit (\u -> Id (join A (join B C))
                           (inlJoin A B C u) (inr (inr c))) with
-            inl a -> push (a, inr c)
+            inl a -> push a (inr c)
             inr b -> mapOnPath (join B C) (join A (join B C)) inr
-                       (inl b) (inr c) (push (b,c))
-            push ab -> let
+                       (inl b) (inr c) (push b c)
+            push a b -> let
 
               F : join A B -> U
               F u = Id (join A (join B C)) (inlJoin A B C u) (inr (inr c))
-              a : A
-              a = ab.1
 
-              b : B
-              b = ab.2
               X : U
               X = join A B
 
@@ -56,53 +52,53 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
               g _ = inr (inr c)
 
               qa : Id Y (f (inl a)) (g (inl a))
-              qa = push (a,inr c)
+              qa = push a (inr c)
 
               qa' : Id Y  (f (inr b)) (g (inr b))
               qa' = mapOnPath (join B C) (join A (join B C)) inr
-                       (inl b) (inr c) (push (b,c))
+                       (inl b) (inr c) (push b c)
 
               ap : IdS (join B C) (\x -> Id Y (inl a) (inr x)) (inl b) (inr c)
-                       (push (b,c)) (push (a,inl b)) (push (a,inr c))
+                       (push b c) (push a (inl b)) (push a (inr c))
               ap = mapOnPathD (join B C) (\x -> Id Y (inl a) (inr x))
-                    (\x -> push (a, x))
-                    (inl b) (inr c) (push (b,c))
+                    (\x -> push a x)
+                    (inl b) (inr c) (push b c)
 
               rem2 : Id (Id Y (inl a) (inr (inr c)))
                         (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                          (push (a,inl b)) qa')
+                          (push a (inl b)) qa')
                         (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
               rem2 = substPathPiInv (join B C) Y (\_ -> inl a) inr (inl b) (inr c)
-                       (push (b,c)) (push (a,inl b)) (push (a,inr c)) ap
+                       (push b c) (push a (inl b)) (push a (inr c)) ap
 
               rem : Id (Id Y (inl a) (inr (inr c))) qa
                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                         (push (a, inl b)) qa')
+                         (push a (inl b)) qa')
               rem = comp (Id Y (inl a) (inr (inr c)))
                       qa
                       (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
                       (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                         (push (a, inl b)) qa')
+                         (push a (inl b)) qa')
                       (compInvIdl Y (f (inl a)) (g (inl a)) qa)
                       (inv (Id Y (inl a) (inr (inr c)))
                         (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                          (push (a,inl b)) qa')
+                          (push a (inl b)) qa')
                         (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
                       rem2)
 
-              in substPathPi X Y f g (inl a) (inr b) (push ab) qa qa' rem
+              in substPathPi X Y f g (inl a) (inr b) (push a b) qa qa' rem
 
 inrJoin : (A B C : U) -> join B C -> join (join A B) C
 inrJoin A B C = hsplit (\_ -> join (join A B) C) with
   inl b   -> inl (inr b)
   inr c   -> inr c
-  push bc -> push (inr bc.1, bc.2)
+  push b c -> push (inr b) c
 
 r2l : (A B C : U) -> join A (join B C) -> join (join A B) C
 r2l A B C = hsplit (\_ -> join (join A B) C) with
   inl a  -> inl (inl a)
   inr bc -> inrJoin A B C bc
-  push abc -> lem abc.1 abc.2
+  push a bc -> lem a bc
     where
       lem : (a : A) (u : join B C) ->
             Id (join (join A B) C) (inl (inl a)) (inrJoin A B C u)
@@ -110,23 +106,23 @@ r2l A B C = hsplit (\_ -> join (join A B) C) with
          hsplit (\u -> Id (join (join A B) C)
                           (inl (inl a)) (inrJoin A B C u)) with
            inl b -> mapOnPath (join A B) (join (join A B) C)
-                      inl (inl a) (inr b) (push (a,b))
-           inr c -> push (inl a,c)
-           push bc -> substPathPi jBC jjABC (\_ -> inl (inl a)) (inrJoin A B C)
-                        (inl b) (inr c) (push (b,c))
+                      inl (inl a) (inr b) (push a b)
+           inr c -> push (inl a) c
+           push b c -> substPathPi jBC jjABC (\_ -> inl (inl a)) (inrJoin A B C)
+                        (inl b) (inr c) (push b c)
                         (mapOnPath (join A B) (join (join A B) C)
-                             inl (inl a) (inr b) (push (a,b)))
-                        (push (inl a,c))
+                             inl (inl a) (inr b) (push a b))
+                        (push (inl a) c)
                         (op jjABC (inl (inl a)) (inl (inr b)) (inr c)
-                          (push (inl a,c))
+                          (push (inl a) c)
                           (mapOnPath (join A B) (join (join A B) C)
-                              inl (inl a) (inr b) (push (a,b)))
-                          (push (inr b,c))
+                              inl (inl a) (inr b) (push a b))
+                          (push (inr b) c)
                           out)
-           -- ts: IdS (join B C) G (inl b) (inr c) (push (b,c))
+           -- ts: IdS (join B C) G (inl b) (inr c) (push b c)
            --         (mapOnPath (join A B) (join (join A B) C)
-           --                 inl (inl a) (inr b) (push (a,b)))
-           --         (push (inl a,c))
+           --                 inl (inl a) (inr b) (push a b))
+           --         (push (inl a) c)
              where
                jAB : U
                jAB = join A B
@@ -139,27 +135,23 @@ r2l A B C = hsplit (\_ -> join (join A B) C) with
                         (inl (inl a)) (inrJoin A B C u)
                jjABC : U
                jjABC = join (join A B) C
-               b : B
-               b = bc.1
-               c : C
-               c = bc.2
 
                F : jAB -> U
                F w = Id jjABC (inl w) (inr c)
 
-               appush2 : IdS jAB F (inl a) (inr b) (push (a,b))
-                             (push (inl a,c)) (push (inr b,c))
+               appush2 : IdS jAB F (inl a) (inr b) (push a b)
+                             (push (inl a) c) (push (inr b) c)
                appush2 = mapOnPathD jAB F
-                 (\w -> push (w,c)) (inl a) (inr b) (push (a,b))
+                 (\w -> push w c) (inl a) (inr b) (push a b)
 
                out : Id (Id jjABC (inl (inl a)) (inr c))
-                        (push (inl a,c))
+                        (push (inl a) c)
                         (comp jjABC (inl (inl a)) (inl (inr b)) (inr c)
-                          (mapOnPath jAB jjABC inl (inl a) (inr b) (push (a,b)))
-                          (push (inr b,c)))
+                          (mapOnPath jAB jjABC inl (inl a) (inr b) (push a b))
+                          (push (inr b) c))
                out = substPathPiInv jAB jjABC inl (\_ -> inr c)
-                       (inl a) (inr b) (push (a,b))
-                       (push (inl a,c)) (push (inr b,c)) appush2
+                       (inl a) (inr b) (push a b)
+                       (push (inl a) c) (push (inr b) c) appush2
 
                op : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
                     (r : Id A b c) ->
@@ -177,8 +169,8 @@ suspJoin A = hsplit (\_ -> join Bool A) with
   north   -> inl true
   south   -> inl false
   merid a -> comp (join Bool A) (inl true) (inr a) (inl false)
-              (push (true,a))
-              (inv (join Bool A) (inl false) (inr a) (push (false,a)))
+              (push true a)
+              (inv (join Bool A) (inl false) (inr a) (push false a))
 
 suspJoinInv : (A : U) -> join Bool A -> susp A
 suspJoinInv A = hsplit (\_ -> susp A) with
@@ -188,7 +180,7 @@ suspJoinInv A = hsplit (\_ -> susp A) with
             true  -> north
             false -> south
   inr a -> south
-  push ba -> cases ba.2 ba.1
+  push b a -> cases a b
     where cases : (a : A) (b : Bool) ->
                     Id (susp A) (suspJoinInv A (inl b)) south
           cases a = split
@@ -242,35 +234,32 @@ s3ToS1JoinS1Inv x =
       (l2r Bool Bool S1
         (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv (\z -> z) x)))
 
-
 -- The map e from 7.3
 s3ToS1JoinS1 : S3 -> join S1 S1
 s3ToS1JoinS1 x =
   mapJoin (join Bool Bool) S1 S1 S1 bjbToS1 (\z -> z)
-    (r2l Bool Bool S1
-      (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
-        (suspJoin S2 x)))
+          (r2l Bool Bool S1
+            (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
+              (suspJoin S2 x)))
 
 -- -- The main map alpha from 8
 -- alpha : join S1 S1 -> S2
 -- alpha = hsplit (\_ -> S2) with
 --   inl x   -> south
 --   inr y   -> south
---   push xy -> comp S2 south north south
---               (inv S2 north south (merid xy.2))
---               (merid xy.1)
---
--- ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
--- ptAlpha = (alpha, inv S2 north south (merid base))
-
+--   push x y -> comp S2 south north south
+--               (inv S2 north south (merid y))
+--               (merid x)
 
 -- A modified version of the main map alpha from 8, which is equal to the
 -- other one but pointed by reflexivity
-
 alpha : join S1 S1 -> S2
 alpha = hsplit (\_ -> S2) with
   inl x   -> north
   inr y   -> north
-  push xy -> comp S2 north north north
-               (idEuclid S2 north north south (merid base) (merid xy.2))
-               (idEuclid S2 north north south (merid xy.1) (merid base))
+  push x y -> comp S2 north north north
+               (idEuclid S2 north north south (merid base) (merid y))
+               (idEuclid S2 north north south (merid x) (merid base))
+
+ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
+ptAlpha = (alpha, refl S2 north)

@@ -69,10 +69,10 @@ loopN = split
   zero -> refl S1 base
   suc n -> compS1 loop (loopN n)
 
-loopZ : Z -> loopS1
-loopZ = split
-  inl n -> invS1 (loopN (suc n))
-  inr n -> loopN n
+-- loopZ : Z -> loopS1
+-- loopZ = split
+--   inl n -> invS1 (loopN (suc n))
+--   inr n -> loopN n
 
 -- loopZpred : (n : Z) -> Id loopS1 (loopZ (predZ n)) (compS1 (invS1 loop) (loopZ n))
 -- loopZpred n = undefined

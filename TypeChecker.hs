@@ -166,12 +166,12 @@ check a t = case (a,t) of
     check a t1
     e <- asks env
     check (app f (eval e t1)) t2
-  (VId (Path i u) v0 v1,PCon c es _ t0 t1) -> do -- TODO: what about the <i> ?
+  (VId (Path i u) v0 v1,PCon c es ns t0 t1) -> do -- TODO: what about the <i> ?
     (bs,nu) <- getHLblType c u
     checks (bs,nu) es
     k   <- asks index
     rho <- asks env
-    let env' = upds nu (evals rho (zip (map fst bs) es))
+    let env' = upds rho (evals rho (zip (map noLoc ns) es)) -- upds nu (evals rho (zip (map fst bs) es)) -- 
         w0   = eval env' t0
         w1   = eval env' t1
     if conv k v0 w0

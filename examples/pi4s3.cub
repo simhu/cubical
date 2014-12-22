@@ -19,7 +19,7 @@ f3 : (itOmega three ptS3).1 -> (itOmega three (ptJoin ptS1 S1)).1
 f3 = itMapOmegaRefl three ptS3 (join S1 S1) s3ToS1JoinS1
 
 f4 : (itOmega three (ptJoin ptS1 S1)).1 -> (itOmega three ptS2).1
-f4 = itMapOmegaRefl three (ptJoin ptS1 S1) S2 alpha
+f4 = itMapOmegaRefl three (ptJoin ptS1 S1) S2 ptAlpha.1
 
 f5 : (itOmega three ptS2).1 -> (itOmega three (ptJoin ptS1 S1)).1
 f5 = hopfLoop
@@ -60,15 +60,15 @@ test0To1 = f1 (f0 oneZ)
 test0To2 : (itOmega three ptS3).1
 test0To2 = f2 test0To1
 
--- FAIL (this is the old test11)
+-- WORKS
 test0To3 : (itOmega three (ptJoin ptS1 S1)).1
 test0To3 = f3 test0To2
 
--- FAIL (requires the previous one)
+-- WORKS
 test0To4 : (itOmega three ptS2).1
 test0To4 = f4 test0To3
 
--- FAIL (requires the previous one)
+-- NOT SURE (takes a long time)
 test0To5 : (itOmega three (ptJoin ptS1 S1)).1
 test0To5 = f5 test0To4
 
@@ -88,14 +88,13 @@ testShortcut2To8 = fB (fA (f9 (shortcut2To8 (f1 (f0 oneZ)))))
     shortcut2To8 : (itOmega two ptS2).1 -> (Omega (ptTrunc two (Omega ptS2))).1
     shortcut2To8 = mapOmegaRefl (Omega ptS2) (trunc two (Omega ptS2).1) inc
 
--- WORK (but takes a long time)
+-- WORKS (but takes a long time)
 testShortcut2To7 : Z
 testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
   where
     shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
     shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
 
--- FAIL (after 1 hour and 43 minutes)
--- cubical: comp HSum: KanUElem fromList [(fromList [(i0,1)],inc (<i1> north))] inc (<i0> north) should be neutral
+-- FAIL (gives 0 instead of +1 or -1)
 testShortcut3To6 : Z
 testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))

@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# Language CPP #-}
 module Eval ( eval
             , evals
             , app
@@ -66,24 +66,24 @@ eval e t@(HSum {})       = Ter t e
 eval e (PCon n ts ns t0 t1) =
   let i = fresh e
       -- TODO: lambda abstract or not?
-      u0 = eval e (mkLams ns t0)
-      u1 = eval e (mkLams ns t1)
+--      u0 = eval e (mkLams ns t0)
+--      u1 = eval e (mkLams ns t1)
 
       -- -- The code below should be correct, but because of the other bug, we
       -- -- leave the incorrect thing for now
-      -- us = map (eval e) ts
-      -- upe = upds e (zip (map noLoc ns) us)
-      -- u0 = eval upe t0
-      -- u1 = eval upe t1
-  in Path i $ VPCon n (map (eval e) ts) (Atom i) u0 u1
+      us = map (eval e) ts
+      upe = upds e (zip (map noLoc ns) us)
+      u0 = eval upe t0
+      u1 = eval upe t1
+  in Path i $ VPCon n us (Atom i) u0 u1
 eval e t@(HSplit {})     = Ter t e
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
 
 pathCon :: Ident -> [Val] -> Formula -> Val -> Val -> Val
-pathCon n vs (Dir Zero) u _ = apps u vs  -- Should be [u]
-pathCon n vs (Dir One)  _ u = apps u vs  -- Should be [u]
+pathCon n vs (Dir Zero) u _ = u -- apps u vs  -- Should be [u]
+pathCon n vs (Dir One)  _ v = v -- apps v vs  -- Should be [u]
 pathCon n vs phi        u v = VPCon n vs phi u v
 
 fstSVal, sndSVal :: Val -> Val
@@ -124,8 +124,8 @@ instance Nominal Val where
   support (UnGlue ts u)                 = support (ts, u)
   support (GlueElem ts u)               = support (ts, u)
   support (HisoProj _ e)                = support e
-  support (GlueLine ts u phi)           = support (ts,u,phi)
-  support (GlueLineElem ts u phi)       = support (ts,u,phi)
+  support (GlueLine t phi psi)          = support (t,phi,psi)
+  support (GlueLineElem t phi psi)      = support (t,phi,psi)
 
   support (VExt phi f g p)              = support (phi,f,g,p)
 
@@ -191,8 +191,8 @@ instance Nominal Val where
          UnGlue ts u       -> UnGlue (acti ts) (acti u)
          GlueElem ts u     -> glueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
-         GlueLine ts u psi -> glueLine (acti ts) (acti u) (acti psi)
-         GlueLineElem ts u psi -> glueLineElem (acti ts) (acti u) (acti psi)
+         GlueLine t phi psi -> glueLine (acti t) (acti phi) (acti psi)
+         GlueLineElem t phi psi -> glueLineElem (acti t) (acti phi) (acti psi)
 
          VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
 
@@ -234,8 +234,8 @@ instance Nominal Val where
          UnGlue ts u       -> UnGlue (sw ts) (sw u)
          GlueElem ts u     -> GlueElem (sw ts) (sw u)
          HisoProj n e      -> HisoProj n (sw e)
-         GlueLine ts u psi -> GlueLine (sw ts) (sw u) (sw psi)
-         GlueLineElem ts u psi -> GlueLineElem (sw ts) (sw u) (sw psi)
+         GlueLine t phi psi -> GlueLine (sw t) (sw phi) (sw psi)
+         GlueLineElem t phi psi -> GlueLineElem (sw t) (sw phi) (sw psi)
 
          VExt psi f g p -> VExt (sw psi) (sw f) (sw g) (sw p)
 
@@ -273,11 +273,14 @@ glueElem us v | Map.null us         = v
 glueElem us v | eps `Map.member` us = us ! eps
 glueElem us v = GlueElem us v
 
-glueLine :: System () -> Val -> Formula -> Val
-glueLine ts b (Dir Zero) = b
-glueLine ts b (Dir One)  = glue hisos b
-  where hisos = Map.mapWithKey (\alpha _ -> idHiso (b `face` alpha)) ts
-glueLine ts b phi = GlueLine ts b phi
+-- TO CHECK: this is confluent
+
+glueLine :: Val -> Formula -> Formula -> Val
+glueLine t _ (Dir Zero) = t
+glueLine t (Dir _) _ = t
+glueLine t phi (Dir One)  = glue hisos t
+  where hisos = mkSystem (map (\ alpha -> (alpha,idHiso (t `face` alpha))) (invFormula phi Zero))
+glueLine t phi psi = GlueLine t phi psi
 
 idHiso :: Val -> Hiso
 idHiso a = Hiso a a idV idV refl refl
@@ -285,16 +288,27 @@ idHiso a = Hiso a a idV idV refl refl
         refl = Ter (Lam (noLoc "x") (App (App (PN Refl) (Var "y")) (Var "x")))
                  (Pair Empty ((noLoc "y"),a))
 
-glueLineElem :: System () -> Val -> Formula -> Val
-glueLineElem ts v (Dir Zero) = v
-glueLineElem ts v (Dir One)  = glueElem (border v ts) v
-glueLineElem ts v phi        = GlueLineElem ts  v phi
+glueLineElem :: Val -> Formula -> Formula -> Val
+glueLineElem u (Dir _) _    = u
+glueLineElem u _ (Dir Zero) = u
+glueLineElem u phi (Dir One)  = glueElem ss u
+ where ss = mkSystem (map (\alpha -> (alpha,u `face` alpha)) (invFormula phi Zero))
+glueLineElem u phi psi      = GlueLineElem u phi psi
 
-unGlueLineElem :: Formula -> Val -> Val
-unGlueLineElem (Dir Zero) v                    = v
-unGlueLineElem (Dir One)  (GlueElem _ v)       = v
-unGlueLineElem phi        (GlueLineElem _ v _) = v
-unGlueLineElem phi        v = error $ "unGlueLineElem: " <+> show phi <+> show v
+
+unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
+unGlueLine b phi psi alpha u =
+ case (phi `face` alpha,psi `face` alpha,u `face` alpha) of
+   (Dir _,_,t) -> t
+   (_,Dir Zero,t) -> t
+   (phia,Dir One,t) -> 
+      let ba     = b `face` alpha
+          hisos  = mkSystem (map (\ alpha' -> (alpha',idHiso (ba `face` alpha'))) (invFormula phia Zero))
+      in app (UnGlue hisos ba) t
+   (_,_,GlueLineElem w _ _ ) -> w
+   (_,_,KanUElem _ (GlueLineElem w _ _ )) -> w
+   (_,_,t) ->  error ("UnGlueLine, should be GlueLineElem " <+> show t)
+
 
 kanUElem :: System Val -> Val -> Val
 kanUElem us v | Map.null us         = v
@@ -337,13 +351,13 @@ app (Ter (HSplit _ _ hbr) e) (VCon name us) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
     Just (Branch _ xs t)  -> eval (upds e (zip xs us)) t
     _ -> error ("app: HSplit with insufficient arguments;"
-                <+> "missing case for " <+> name)
+                <+> "missing case for " <+> name <+> show hbr)
 
 app (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
     Just (HBranch _ xs t) -> eval (upds e (zip xs us)) t @@ phi
     _ -> error ("app: HSplit with insufficient arguments;"
-                <+> "missing case for " <+> name)
+                <+> "missing case for " <+> name <+> show hbr)
 
 app u@(Ter (HSplit _ f hbr) e) kan@(Kan i v ws w) = -- v should be corr. hsum
   let j     = fresh (e,kan)
@@ -487,14 +501,21 @@ evalPN (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
 evalPN (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
 evalPN (i:_)   IsoId    [a,b,f,g,s,t]   =
   Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
-evalPN (i:j:_) IsoIdRef [a] =
-  Path j $ Path i $ GlueLine (mkSystem [(i ~> 0,())]) a (Atom j)
+evalPN (i:j:_) IsoIdRef [a] = Path j $ Path i $ GlueLine a (Atom i) (Atom j)
 evalPN (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
 evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
 evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@ i) (q @@ i)
 evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
   Path i $ app (app f (p @@ i)) (q @@ i)
 evalPN _       u          _                = error ("evalPN " ++ show u)
+
+-- we add as a primitive that (A B:U) -> prop A -> prop (Id U A B), i, j free
+-- propId a b pa x y i j = Path j rem
+--  where comp Pos i v 
+--       v = apps VId [VU,a,b]
+  
+
+
 
 comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
 comps i []         _ []         = []
@@ -683,16 +704,23 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
     in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
      kanUElem usi1 vi1''
 
-comp Pos i VU ts u = Kan i VU ts u
 
-comp Pos i (GlueLine shape b phi) us u = trace "comp GlueLine"
-  glueLineElem shapei1 v phii1
-  where shapei1 = shape `face` (i ~> 1)
-        phii1   = phi `face` (i ~> 1)
-        v = comp Pos i b ws w
-        ws = Map.mapWithKey (\alpha uAlpha ->
-                              unGlueLineElem (phi `face` alpha) uAlpha) us
-        w  = unGlueLineElem (phi `face` (i ~> 0)) u
+
+-- unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
+
+comp Pos i (GlueLine b phi psi) us u = glueLineElem vm phii1 psii1
+  where
+         phii1   = phi `face` (i ~> 1)
+         psii1   = psi `face` (i ~> 1)
+         lss = mkSystem (map (\ alpha -> (alpha,(phi `face` alpha,b `face` alpha,us `face` alpha,u `face` alpha))) fs)
+         ls = Map.mapWithKey (\alpha vAlpha -> auxGlueLine i vAlpha (v `face` alpha)) lss
+         v = comp Pos i b ws w
+         ws = Map.mapWithKey (\alpha uAlpha -> unGlueLine b phi psi alpha uAlpha) us
+         w  = unGlueLine b phi psi (i ~> 0) u
+         vm = compLine (b `face` (i ~>1)) ls v
+         fs = filter (i `Map.notMember`) (invFormula psi One)
+
+comp Pos i VU ts u = Kan i VU ts u
 
 comp Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp Pos i v tss w
 
@@ -708,43 +736,16 @@ comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = trace "comp Sum" $
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 
 -- Treat transport in hsums separately.
-comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
+comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of	
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
-  VPCon c ws0 phi _ _ {-e0 e1-} -> case getIdent c (mapHLabelToBinderTele hls) of
-    Just (as, t, t') ->
-      (Path k ltt') @@ phi
+  VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of -- u should be independent of i, so i # phi
+    Just (as, _,_) ->VPCon c ws1 phi (tr e0) (tr e1)
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
         tr = comp Pos i v Map.empty
-        trfill = fill Pos i v Map.empty
-        ws1 = comps i as env (zip (repeat Map.empty) ws)
-        ns = map fst as
-        env0 = env `face` (i ~> 0)
-        env1 = env `face` (i ~> 1)
-        upEnv0 = upds env0 (zip ns ws0)
-        upEnv1 = upds env1 (zip ns ws1)
-        tv0 = eval upEnv0 t
-        tv1 = eval upEnv1 t
-        t'v0 = eval upEnv0 t'
-        t'v1 = eval upEnv1 t'
-        ws = fills i as env (zip (repeat Map.empty) ws)
-        upEnv = upds env (zip ns ws)
-        tv = eval upEnv t
-        t'v = eval upEnv t'
-        j = fresh (u, v, Atom i)
-        k = fresh (u, v, Atom i, Atom j)
-
-        ts = insertSystem (j ~> 0) tv $ insertSystem (j ~> 1) (trfill tv0) $ Map.empty
-        lt = comp Pos i v ts tv0
-
-        t's = insertSystem (j ~> 0) t'v $ insertSystem (j ~> 1) (trfill t'v0) $ Map.empty
-        lt' = comp Pos i v t's t'v0
-
-        tt's = insertSystem (k ~> 0) lt $ insertSystem (k ~> 1) lt' $ Map.empty
-        ltt' = comp Pos j (v `face` (i ~> 1)) tt's (VPCon c ws1 (Atom k) (tr tv0) (tr t'v0))
-
+        ws1 = comps i as env (zip (repeat Map.empty) ws0)
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
   Kan j b ws w -> comp Pos k vi1 ws' (comp' (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
@@ -753,6 +754,7 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
           wsjk = ws `swap` (j,k)
           ws' = Map.mapWithKey comp' wsjk
   u | isNeutral u -> KanNe i v us u
+  KanUElem _ u1 -> comp Pos i v us u1
   u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
 
 comp Pos i v@(Ter (HSum _ _) _) us u = Kan i (vi1) us' (trans i v u)
@@ -810,6 +812,12 @@ compLine :: Val -> System Val -> Val -> Val
 compLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
   comp Pos i a (Map.map (@@ i) ls) u  -- TODO also check pathComp; are
                                       -- the dirs correct?
+  where i = fresh (a, ls, u)
+
+-- the same but now computing the line
+fillLine :: Val -> System Val -> Val -> Val
+fillLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
+  Path i (fill Pos i a (Map.map (@@ i) ls) u)
   where i = fresh (a, ls, u)
 
 class Convertible a where
@@ -997,8 +1005,8 @@ instance Normal Val where
   normal k (Glue hisos u) = glue (normal k hisos) (normal k u)
   normal k (UnGlue hisos u) = UnGlue (normal k hisos) (normal k u)
   normal k (GlueElem us u) = glueElem (normal k us) u
-  normal k (GlueLine shape u phi) = glueLine shape (normal k u) phi
-  normal k (GlueLineElem shape u phi) = glueLineElem shape (normal k u) phi
+  normal k (GlueLine u phi psi) = glueLine (normal k u) phi psi
+  normal k (GlueLineElem u phi psi) = glueLineElem (normal k u) phi psi
 
   normal k (VExt phi u v w) = VExt phi u' v' w'
     where (u',v',w') = normal k (u,v,w)
@@ -1036,3 +1044,32 @@ instance Normal a => Normal [a] where
 instance Normal Hiso where
   normal k (Hiso a b f g s t) = Hiso a' b' f' g' s' t'
     where [a',b',f',g',s',t'] = normal k [a,b,f,g,s,t]
+
+-- auxiliary function needed for composition for GlueLine
+
+auxGlueLine :: Name -> (Formula,Val,System Val,Val) -> Val -> Val
+auxGlueLine i (Dir _,b,ws,wi0) vi1 = Path j vi1 where j = fresh vi1
+auxGlueLine i (phi,b,ws,wi0) vi1   = fillLine (b `face` (i ~> 1)) ls' vi1
+  where unglue = UnGlue hisos b
+        hisos = mkSystem (map (\ alpha -> (alpha,idHiso (b `face` alpha))) (invFormula phi Zero))
+        vs   = Map.mapWithKey
+                 (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
+        vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
+
+        v    = fill Pos i b vs vi0           -- in b
+
+        -- set of elements in hisos independent of i
+        hisos'  = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
+
+        us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
+                hisos'
+        usi1'  = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  comp Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
+                hisos'
+
+        ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
+                  pathComp i bGamma (vs `face` gamma)
+                    (v `face` gamma) (fGamma `app` (us' ! gamma)))
+                 hisos'
+

@@ -2,6 +2,7 @@ module collection where
 
 import sigma
 import univalence
+import retract
 
 lem1 : (A B:U) -> set B -> set (A -> B)
 lem1 A B sB = setPi A (\ _ -> B) (\ _ -> sB)
@@ -21,12 +22,19 @@ lem5 A B gB t u =
  substInv U set  (Id (Equiv A B) t u) (Id (A -> B) t.1 u.1) (lem3 A B t u) (lem2 A B gB t.1 u.1)
 
 lem6 : (A B : U) -> set B -> set (Id U A B)
-lem6 A B sB = 
- substInv U set (Id U A B) (Equiv A B) (corUnivAx A B) (lem4 A B sB)
+lem6 A B sB = retractSet (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (secIdEquiv A B) 
+                         (lem4 A B sB)
+-- substInv U set (Id U A B) (Equiv A B) (corUnivAx A B) (lem4 A B sB)
+
+retractGroupoid : (A B : U)  (f : A -> B) (g : B -> A) (rfg : retract A B f g) -> groupoid B -> groupoid A
+retractGroupoid A B f g rfg gB x y =
+ retractSet (Id A x y) (Id B (f x) (f y)) (mapOnPath A B f x y) (retractInv A B f g rfg x y)
+             (retractId A B f g rfg x y) (gB (f x) (f y))
 
 lem7 : (A B : U) -> groupoid B -> groupoid (Id U A B)
-lem7 A B gB = 
- substInv U groupoid (Id U A B) (Equiv A B) (corUnivAx A B) (lem5 A B gB)
+lem7 A B gB = retractGroupoid (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (secIdEquiv A B) 
+                              (lem5 A B gB)
+-- substInv U groupoid (Id U A B) (Equiv A B) (corUnivAx A B) (lem5 A B gB)
 
 
 -- the collection of all sets
