@@ -34,7 +34,8 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
             inl a -> push a (inr c)
             inr b -> mapOnPath (join B C) (join A (join B C)) inr
                        (inl b) (inr c) (push b c)
-            push a b -> let
+            push a b -> substPathPi X Y f g (inl a) (inr b) (push a b) qa qa' rem
+             where
 
               F : join A B -> U
               F u = Id (join A (join B C)) (inlJoin A B C u) (inr (inr c))
@@ -71,22 +72,19 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
               rem2 = substPathPiInv (join B C) Y (\_ -> inl a) inr (inl b) (inr c)
                        (push b c) (push a (inl b)) (push a (inr c)) ap
 
+              op : (A : U) (a b : A) (q p : Id A a b) -> Id (Id A a b) p (comp A a a b (refl A a) q)
+                   -> Id (Id A a b) q p
+              op A a = J A a (\b q -> (p : Id A a b) -> Id (Id A a b) p (comp A a a b (refl A a) q)
+                                   -> Id (Id A a b) q p)
+                         (\p -> inv (Id A a a) p (refl A a))
+
               rem : Id (Id Y (inl a) (inr (inr c))) qa
                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
                          (push a (inl b)) qa')
-              rem = comp (Id Y (inl a) (inr (inr c)))
-                      qa
-                      (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
-                      (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                         (push a (inl b)) qa')
-                      (compInvIdl Y (f (inl a)) (g (inl a)) qa)
-                      (inv (Id Y (inl a) (inr (inr c)))
-                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                          (push a (inl b)) qa')
-                        (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
-                      rem2)
+              rem = op Y (inl a) (inr (inr c)) qa
+                         (comp Y (inl a) (inr (inl b)) (inr (inr c)) (push a (inl b)) qa')
+                         rem2
 
-              in substPathPi X Y f g (inl a) (inr b) (push a b) qa qa' rem
 
 inrJoin : (A B C : U) -> join B C -> join (join A B) C
 inrJoin A B C = hsplit (\_ -> join (join A B) C) with
@@ -252,14 +250,12 @@ s3ToS1JoinS1 x =
 --               (merid x)
 
 -- A modified version of the main map alpha from 8, which is equal to the
--- other one but pointed by reflexivity
+-- other one (to be checked) but pointed by reflexivity
 alpha : join S1 S1 -> S2
 alpha = hsplit (\_ -> S2) with
   inl x   -> north
   inr y   -> north
-  push x y -> comp S2 north north north
-               (idEuclid S2 north north south (merid base) (merid y))
-               (idEuclid S2 north north south (merid x) (merid base))
+  push x y -> idEuclid S2 north north south (merid x) (merid y)
 
 ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
 ptAlpha = (alpha, refl S2 north)

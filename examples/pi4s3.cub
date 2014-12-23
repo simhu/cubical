@@ -72,6 +72,14 @@ test0To4 = f4 test0To3
 test0To5 : (itOmega three (ptJoin ptS1 S1)).1
 test0To5 = f5 test0To4
 
+-- NOT SURE (takes a long time)
+test0To6 : (itOmega three ptS3).1
+test0To6 = f6 test0To5
+
+-- NOT SURE (takes a long time)
+test0To7 : (itOmega two (ptTrunc three ptS2)).1
+test0To7 = f7 test0To6
+
 
 
 -- WORKS
@@ -95,6 +103,10 @@ testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
     shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
     shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
 
--- FAIL (gives 0 instead of +1 or -1)
+-- WORKS
 testShortcut3To6 : Z
 testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
+
+
+testShortcut4To5 : Z
+testShortcut4To5 = fB (fA (f9 (f8 (f7 (f6 (f3 (f2 (f1 (f0 oneZ)))))))))
