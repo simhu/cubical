@@ -126,12 +126,9 @@ tHopf3 = hsplit (\_ -> U) with
   south   -> trS2
   merid x -> isEquivEq trS2 trS2 (multTwoTilde x) (multTwoTildeEquiv x)
 
-tHopf3Omega2 : (itOmega two ptS3).1 -> U
-tHopf3Omega2 = itFibOmega two ptS3 tHopf3 (inc north)
-
 -- e_3 from 10.2
 pi3S3 : (itOmega three ptS3).1 -> (itOmega two (trS2,inc north)).1
-pi3S3 p = subst (itOmega two ptS3).1 tHopf3Omega2 point point p
-   (refl (Id trS2 (inc north) (inc north)) (refl trS2 (inc north)))
-  where point : (itOmega two ptS3).1
-        point = pt (itOmega two ptS3)
+pi3S3 = itMapOmegaRefl two (Omega ptS3) trS2 pi3S3'
+  where
+    pi3S3' : (Omega ptS3).1 -> trS2
+    pi3S3' p = subst S3 tHopf3 north north p (inc north)
