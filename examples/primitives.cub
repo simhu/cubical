@@ -48,3 +48,14 @@ id A a = a
 
 primitive isoIdRef : (A : U) ->
                    Id (Id U A A) (refl U A) (isoId A A (id A) (id A) (refl A) (refl A))
+
+-- added as an experiment
+
+subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+subst A P a x p = transport (P a) (P x) (mapOnPath A U P a x p)
+
+comp : (A : U) -> (a b c : A) -> Id A a b -> Id A b c -> Id A a c
+comp A a b c p q = subst A (Id A a) b c q p
+
+primitive lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
+                       Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'

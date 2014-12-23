@@ -4,8 +4,8 @@ import prelude
 
 -- general lemmas about Identity type
 
-comp : (A : U) -> (a b c : A) -> Id A a b -> Id A b c -> Id A a c
-comp A a b c p q = subst A (Id A a) b c q p
+-- comp : (A : U) -> (a b c : A) -> Id A a b -> Id A b c -> Id A a c
+-- comp A a b c p q = subst A (Id A a) b c q p
 
 -- compInvIdr : (A : U) -> (a b : A) -> (p : Id A a b) ->
 --              Id (Id A a b) p (comp A a b b p (refl A b))
@@ -123,9 +123,7 @@ compDown A a a' b b' p q =
 
 compIdlLemma : (A:U) -> (b c :A) -> (q q':Id A b c) ->
           Id (Id A b c) q q' -> Id (Id A b c) (comp A b b c (refl A b) q) (comp A b b c (refl A b) q')
-compIdlLemma A b c q q' h =
- compDown (Id A b c) (comp A b b c (refl A b) q) q (comp A b b c (refl A b) q') q' (compIdl A b c q) (compIdl A b c q') h
-
+compIdlLemma A b c = mapOnPath (Id A b c) (Id A b c) (comp A b b c (refl A b)) 
 
 lemInv : (A : U) -> (a b c : A) -> (p : Id A a b) -> (q : Id A b c) ->
          Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
@@ -149,24 +147,24 @@ lemInv A a b c p q =
                         (rem2 c q)
                         (rem1 c q)
 
-lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
-   Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
-lemSimpl A a b c p q q' h =
- compDown (Id A b c)
-           q (compInv A a b c p (comp A a b c p q))
-           q' (compInv A a b c p (comp A a b c p q'))
-           rem rem1 rem2
- where
-   rem : Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
-   rem = lemInv A a b c p q
+-- lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
+--   Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
+-- lemSimpl A a b c p q q' h =
+-- compDown (Id A b c)
+--           q (compInv A a b c p (comp A a b c p q))
+--           q' (compInv A a b c p (comp A a b c p q'))
+--           rem rem1 rem2
+--  where
+--   rem : Id (Id A b c) q (compInv A a b c p (comp A a b c p q))
+--   rem = lemInv A a b c p q
+--
+--   rem1 : Id (Id A b c) q' (compInv A a b c p (comp A a b c p q'))
+--   rem1 = lemInv A a b c p q'
 
-   rem1 : Id (Id A b c) q' (compInv A a b c p (comp A a b c p q'))
-   rem1 = lemInv A a b c p q'
-
-   rem2 : Id (Id A b c) (compInv A a b c p (comp A a b c p q))
-                        (compInv A a b c p (comp A a b c p q'))
-   rem2 = mapOnPath (Id A a c) (Id A b c) (compInv A a b c p)
-               (comp A a b c p q) (comp A a b c p q') h
+--   rem2 : Id (Id A b c) (compInv A a b c p (comp A a b c p q))
+--                        (compInv A a b c p (comp A a b c p q'))
+--   rem2 = mapOnPath (Id A a c) (Id A b c) (compInv A a b c p)
+--               (comp A a b c p q) (comp A a b c p q') h
 
 eqSigma : (A : U) (B : A -> U) (a b : A) (p : Id A a b)
           (u : B a) (v : B b) (q : Id (B b) (subst A B a b p u) v) ->

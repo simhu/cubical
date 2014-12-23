@@ -194,6 +194,12 @@ data PN = Id | Refl | Sym
         -- (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
         | MapOnPathS -- TODO: AppOnPathS?
 
+        -- lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
+        --   Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
+        | LemSimpl
+
+
+
         -- undefined constant
         | Undef Loc
   deriving (Eq, Show)
@@ -241,6 +247,7 @@ primHandle =
    -- ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
    ("mapOnPath"     , 6,  MapOnPath    ),
+   ("lemSimpl"     , 8,  LemSimpl    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
    ("mapOnPathS"    , 10, MapOnPathS   )]

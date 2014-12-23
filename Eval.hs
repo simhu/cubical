@@ -507,6 +507,12 @@ evalPN (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app f (p @@ i)
 evalPN (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (p @@ i) (q @@ i)
 evalPN (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
   Path i $ app (app f (p @@ i)) (q @@ i)
+evalPN (i:j:k:_) LemSimpl [v,a,b,c,p,q,q',s] = 
+  Path j $ Path k $ comp Pos i v ss a 
+   where ss = mkSystem [(j ~> 0,fill Pos k v (mkSystem [(i ~> 0,a),(i ~> 1,q @@ j)]) (p @@ i)),
+                        (j ~> 1,fill Pos k v (mkSystem [(i ~> 0,a),(i ~> 1,(q' @@ j))]) (p @@ i)),
+                        (k ~> 0,p @@ i),
+                        (k ~> 1,(s @@ j) @@ i)]
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
 -- we add as a primitive that (A B:U) -> prop A -> prop (Id U A B), i, j free
