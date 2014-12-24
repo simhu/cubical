@@ -3,6 +3,7 @@ module join where
 -- import higher
 import pointed
 import susp
+import square
 
 join : U -> U -> U
 -- join A B = pushout A B (and A B) (\x -> x.1) (\x -> x.2)
@@ -21,6 +22,45 @@ inlJoin A B C = hsplit (\_ -> join A (join B C)) with
   push a b -> -- ts: inl a = inr (inl b)
     push a (inl b) 
 
+opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+     (r : Id A b c) ->
+     Square A a b a c (refl A a) r q p ->
+     Square A a c b c q (refl A c) p r
+opl2r A a b c p q r = op' a b q c p r where
+
+  op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
+         Square A a b a c (refl A a) r q p ->
+         Square A a c b c q (refl A c) p r
+  op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
+                         Square A a b a c (refl A a) r q p ->
+                         Square A a c b c q (refl A c) p r)
+            (\c p r -> op2 a c r p) where
+
+    op2 : (a c : A) (r p : Id A a c) ->
+            Square A a a a c (refl A a) r (refl A a) p ->
+            Id (Id A a c) p r
+    op2 a = J A a (\c r -> (p : Id A a c) ->
+                           Square A a a a c (refl A a) r (refl A a) p ->
+                           Id (Id A a c) p r)
+              (\p -> inv (Id A a a) (refl A a) p)
+
+-- -- Version of [opl2r] using transpose. We should use that when [transpose]
+-- -- will be a primitive
+-- opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+--      (r : Id A b c) ->
+--      Square A a b a c (refl A a) r q p ->
+--      Square A a c b c q (refl A c) p r
+-- opl2r A a b c p q r x = transpose A a c p b c r q (refl A c) (op' a c p b q r x)  where
+
+--   op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+--        (r : Id A b c) ->
+--        Square A a b a c (refl A a) r q p ->
+--        Square A a b c c p r q (refl A c)
+--   op' a = J A a (\c p ->  (b : A) (q : Id A a b)
+--                    (r : Id A b c) ->
+--                    Square A a b a c (refl A a) r q p ->
+--                    Square A a b c c p r q (refl A c))
+--             (\b q r x -> x)
 
 l2r : (A B C : U) -> join (join A B) C -> join A (join B C)
 l2r A B C = hsplit (\_ -> join A (join B C)) with
@@ -34,7 +74,7 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
             inl a -> push a (inr c)
             inr b -> mapOnPath (join B C) (join A (join B C)) inr
                        (inl b) (inr c) (push b c)
-            push a b -> substPathPi X Y f g (inl a) (inr b) (push a b) qa qa' rem
+            push a b -> substPathPiSquare X Y f g (inl a) (inr b) (push a b) qa qa' rem
              where
 
               F : join A B -> U
@@ -65,32 +105,51 @@ l2r A B C = hsplit (\_ -> join A (join B C)) with
                     (\x -> push a x)
                     (inl b) (inr c) (push b c)
 
-              rem2 : Id (Id Y (inl a) (inr (inr c)))
-                        (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                          (push a (inl b)) qa')
-                        (comp Y (inl a) (inl a) (inr (inr c)) (refl Y (inl a)) qa)
-              rem2 = substPathPiInv (join B C) Y (\_ -> inl a) inr (inl b) (inr c)
+              rem2 : Square Y (inl a) (inr (inl b)) (inl a) (inr (inr c))
+                        (refl Y (inl a))
+                        qa'
+                        (push a (inl b))
+                        qa
+              rem2 = substPathPiInvSquare (join B C) Y (\_ -> inl a) inr (inl b) (inr c)
                        (push b c) (push a (inl b)) (push a (inr c)) ap
 
-              op : (A : U) (a b : A) (q p : Id A a b) -> Id (Id A a b) p (comp A a a b (refl A a) q)
-                   -> Id (Id A a b) q p
-              op A a = J A a (\b q -> (p : Id A a b) -> Id (Id A a b) p (comp A a a b (refl A a) q)
-                                   -> Id (Id A a b) q p)
-                         (\p -> inv (Id A a a) p (refl A a))
-
-              rem : Id (Id Y (inl a) (inr (inr c))) qa
-                       (comp Y (inl a) (inr (inl b)) (inr (inr c))
-                         (push a (inl b)) qa')
-              rem = op Y (inl a) (inr (inr c)) qa
-                         (comp Y (inl a) (inr (inl b)) (inr (inr c)) (push a (inl b)) qa')
-                         rem2
-
+              rem : Square Y (inl a) (inr (inr c)) (inr (inl b)) (inr (inr c))
+                       (push a (inl b))
+                       (refl Y (inr (inr c)))
+                       qa
+                       qa'
+              rem = opl2r Y (inl a) (inr (inl b)) (inr (inr c))
+                       qa (push a (inl b)) qa'
+                       rem2
 
 inrJoin : (A B C : U) -> join B C -> join (join A B) C
 inrJoin A B C = hsplit (\_ -> join (join A B) C) with
   inl b   -> inl (inr b)
   inr c   -> inr c
   push b c -> push (inr b) c
+
+-- TODO: have a smaller proof term
+opr2l : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+     (r : Id A b c) ->
+     Square A a c b c q (refl A c) p r ->
+     Square A a b a c (refl A a) r q p
+opr2l A a b c p q r = op' a b q c p r where
+
+  op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
+         Square A a c b c q (refl A c) p r ->
+         Square A a b a c (refl A a) r q p
+  op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
+                         Square A a c b c q (refl A c) p r ->
+                         Square A a b a c (refl A a) r q p)
+            (\c p r -> op2 a c r p) where
+
+    op2 : (a c : A) (r p : Id A a c) ->
+            Id (Id A a c) p r ->
+            Square A a a a c (refl A a) r (refl A a) p
+    op2 a = J A a (\c r -> (p : Id A a c) ->
+                           Id (Id A a c) p r ->
+                           Square A a a a c (refl A a) r (refl A a) p)
+              (\p -> inv (Id A a a) p (refl A a))
 
 r2l : (A B C : U) -> join A (join B C) -> join (join A B) C
 r2l A B C = hsplit (\_ -> join (join A B) C) with
@@ -106,12 +165,12 @@ r2l A B C = hsplit (\_ -> join (join A B) C) with
            inl b -> mapOnPath (join A B) (join (join A B) C)
                       inl (inl a) (inr b) (push a b)
            inr c -> push (inl a) c
-           push b c -> substPathPi jBC jjABC (\_ -> inl (inl a)) (inrJoin A B C)
+           push b c -> substPathPiSquare jBC jjABC (\_ -> inl (inl a)) (inrJoin A B C)
                         (inl b) (inr c) (push b c)
                         (mapOnPath (join A B) (join (join A B) C)
                              inl (inl a) (inr b) (push a b))
                         (push (inl a) c)
-                        (op jjABC (inl (inl a)) (inl (inr b)) (inr c)
+                        (opr2l jjABC (inl (inl a)) (inl (inr b)) (inr c)
                           (push (inl a) c)
                           (mapOnPath (join A B) (join (join A B) C)
                               inl (inl a) (inr b) (push a b))
@@ -142,23 +201,14 @@ r2l A B C = hsplit (\_ -> join (join A B) C) with
                appush2 = mapOnPathD jAB F
                  (\w -> push w c) (inl a) (inr b) (push a b)
 
-               out : Id (Id jjABC (inl (inl a)) (inr c))
+               out : Square jjABC (inl (inl a)) (inr c) (inl (inr b)) (inr c)
+                        (mapOnPath jAB jjABC inl (inl a) (inr b) (push a b))
+                        (refl jjABC (inr c))
                         (push (inl a) c)
-                        (comp jjABC (inl (inl a)) (inl (inr b)) (inr c)
-                          (mapOnPath jAB jjABC inl (inl a) (inr b) (push a b))
-                          (push (inr b) c))
-               out = substPathPiInv jAB jjABC inl (\_ -> inr c)
+                        (push (inr b) c)
+               out = substPathPiInvSquare jAB jjABC inl (\_ -> inr c)
                        (inl a) (inr b) (push a b)
                        (push (inl a) c) (push (inr b) c) appush2
-
-               op : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
-                    (r : Id A b c) ->
-                    Id (Id A a c) p (comp A a b c q r) ->
-                    Id (Id A a c) (comp A a b c q r) (comp A a a c (refl A a) p)
-               op A a b = J A a (\c p ->  (q : Id A a b) (r : Id A b c) ->
-                    Id (Id A a c) p (comp A a b c q r) ->
-                    Id (Id A a c) (comp A a b c q r) (comp A a a c (refl A a) p))
-                    (\q r -> inv (Id A a a) (refl A a) (comp A a b a q r))
 
 
 --  Suspension and join with the booleans

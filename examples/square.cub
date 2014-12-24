@@ -1,0 +1,60 @@
+module square where
+
+import prelude
+import heterogeneous
+
+Square : (A:U) (a0 b0 a1 b1:A) 
+         (u : Id A a0 a1) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) -> U
+Square A a0 b0 a1 b1 u v = 
+ IdS (and A A) (\ z -> Id A (z.1) (z.2)) (a0,b0) (a1,b1) (pairEq A A a0 a1 b0 b1 u v)
+
+substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
+substPathPiSquare A B f g a =
+  J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+      Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
+      IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
+    (\qa qa' x -> x)
+
+substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa'
+substPathPiInvSquare A B f g a =
+  J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+      IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+      Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa')
+    (\qa qa' x -> x)
+
+
+transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+            Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
+transpose A a0 = J A a0
+ (\ a1 u ->  (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+              Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v)
+ rem
+ where
+   rf0 : Id A a0 a0
+   rf0 = refl A a0
+   rem2 : (b0 : A) (r0 : Id A a0 b0) (r1 : Id A a0 b0) -> 
+              Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0)
+   rem2 = J A a0 (\ b0 r0 -> (r1 : Id A a0 b0) -> 
+                  Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0))
+          rem3
+      where
+        rem3 : (r1 : Id A a0 a0) -> Id (Id A a0 a0) rf0 r1 -> Square A a0 a0 a0 a0 rf0 r1 rf0 rf0
+        rem3 = J (Id A a0 a0) rf0 (\ r1 p -> Square A a0 a0 a0 a0 rf0 r1 rf0 rf0)
+                 (refl (Id A a0 a0) rf0)
+
+   rem : (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a0 b1) ->
+              Square A a0 b0 a0 b1 rf0 v r0 r1 -> Square A a0 a0 b0 b1 r0 r1 rf0 v
+   rem b0 = J A b0
+     ( \ b1 v ->  (r0 : Id A a0 b0) (r1 : Id A a0 b1) ->
+                   Square A a0 b0 a0 b1 rf0 v r0 r1 -> Square A a0 a0 b0 b1 r0 r1 rf0 v)
+     rem1
+      where
+       rem1 : (r0 : Id A a0 b0) (r1 : Id A a0 b0) ->
+              Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0)
+       rem1 = rem2 b0 
