@@ -110,3 +110,26 @@ testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
 
 testShortcut4To5 : Z
 testShortcut4To5 = fB (fA (f9 (f8 (f7 (f6 (f3 (f2 (f1 (f0 oneZ)))))))))
+
+
+dummyHopf : S2 -> U
+dummyHopf = hsplit (\_ -> U) with
+  north -> S1
+  south -> S1
+  merid _ -> undefined
+
+
+totalDummyHopfToJoin : (Sigma S2 dummyHopf) -> join S1 S1
+totalDummyHopfToJoin xy = t xy.1 xy.2 where
+
+  t : (x : S2) -> dummyHopf x -> join S1 S1
+  t = hsplit (\x -> (dummyHopf x -> join S1 S1)) with
+      north   -> inl
+      south   -> inr
+      merid _ -> undefined
+
+fast : (itOmega three (Sigma S2 dummyHopf, (north, base))).1
+fast = itTotalFibOmega three ptS2 dummyHopf base (test0To4, undefined)
+
+slow : (itOmega three (ptJoin ptS1 S1)).1
+slow = itMapOmegaRefl three (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast

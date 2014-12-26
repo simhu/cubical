@@ -555,6 +555,7 @@ isNeutral (KanUElem _ u)         = isNeutral u  -- TODO: check this!
 isNeutral (KanNe _ _ _ _)        = True
 isNeutral (VHSplit _ v)          = isNeutral v
 isNeutral (UnGlueNe _ v)         = isNeutral v
+isNeutral (Ter (PN (Undef _)) _) = True
 isNeutral _                      = False
 
 isNeutralSystem :: System Val -> Bool
