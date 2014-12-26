@@ -48,8 +48,8 @@ rel A = A -> A -> U
 euclidean : (A : U) -> rel A -> U
 euclidean A R = (a b c : A) -> R a c -> R b c -> R a b
 
-and : (A B : U) -> U
-and A B = Sigma A (\_ -> B)
+-- and : (A B : U) -> U
+-- and A B = Sigma A (\_ -> B)
 
 Pi : (A:U) -> (A -> U) -> U
 Pi A B = (x:A) -> B x

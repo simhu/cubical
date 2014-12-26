@@ -59,3 +59,37 @@ comp A a b c p q = subst A (Id A a) b c q p
 
 primitive lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
                        Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
+
+-- Transposition
+
+and : (A B : U) -> U
+and A B = (x : A) * B
+
+pairEq : (A B:U) (a0 a1:A) (b0 b1:B) -> Id A a0 a1 -> Id B b0 b1 ->
+         Id (and A B) (a0, b0) (a1, b1)
+pairEq A B a0 a1 b0 b1 p q =
+ appOnPath B (and A B) f0 f1 b0 b1 rem q
+  where f0 : B -> and A B
+        f0 y = (a0, y)
+        f1 : B -> and A B
+        f1 y = (a1, y)
+        rem : Id (B -> and A B) f0 f1
+        rem = mapOnPath A (B -> and A B) (\ x y -> (x, y)) a0 a1 p
+
+Square : (A:U) (a0 b0 a1 b1:A) 
+         (u : Id A a0 a1) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) -> U
+Square A a0 b0 a1 b1 u v = 
+ IdS (and A A) (\ z -> Id A (z.1) (z.2)) (a0,b0) (a1,b1) (pairEq A A a0 a1 b0 b1 u v)
+
+primitive transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+                      (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+                      Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
+
+-- IdSElim
+
+primitive idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
+                     -> IdP A B p x y -> Id B (transport A B p x) y
+
+idSElim : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+            IdS A F x y p u v -> Id (F y) (subst A F x y p u) v
+idSElim A F x y p u v = idSElim' (F x) (F y) (mapOnPath A U F x y p) u v

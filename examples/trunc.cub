@@ -82,7 +82,7 @@ lem1Trunc = split
 
 -- The n-truncation is n-truncated.
 truncIsTrunc : (n : N) (A : U) -> truncated n (trunc n A)
-truncIsTrunc n A = lem1Trunc n (trunc n A) (\f -> (hub f, spoke f))
+truncIsTrunc n A = undefined -- lem1Trunc n (trunc n A) (\f -> (hub f, spoke f))
 
 -- lem1Trunc : (n:N) (A:U) -> ((f : sphere n -> A) -> filler A n f) -> truncated n A
 
@@ -216,8 +216,8 @@ lem2Trunc = split
 truncRec : (n : N) (A B : U) -> truncated n B -> (A -> B) -> trunc n A -> B
 truncRec n A B tr g = hsplit (\_ -> B) with
   inc a -> g a
-  hub f -> (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).1
-  spoke f t -> (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).2 t
+  hub f -> undefined -- (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).1
+  spoke f t -> undefined -- (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).2 t
 
 -- cumulativity of truncation
 

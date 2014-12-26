@@ -198,7 +198,14 @@ data PN = Id | Refl | Sym
         --   Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
         | LemSimpl
 
+        -- transpose :  (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+        --              (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+        --               Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
+        | Transpose
 
+        -- idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
+        --            -> IdP A B p x y -> Id B (transport A B p x) y
+        | IdSElim
 
         -- undefined constant
         | Undef Loc
@@ -247,7 +254,9 @@ primHandle =
    -- ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
    ("mapOnPath"     , 6,  MapOnPath    ),
-   ("lemSimpl"     , 8,  LemSimpl    ),
+   ("lemSimpl"      , 8,  LemSimpl    ),
+   ("transpose"     , 10, Transpose    ),
+   ("idSElim'"      , 6, IdSElim    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
    ("mapOnPathS"    , 10, MapOnPathS   )]

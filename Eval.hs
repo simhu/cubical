@@ -513,6 +513,11 @@ evalPN (i:j:k:_) LemSimpl [v,a,b,c,p,q,q',s] =
                         (j ~> 1,fill Pos k v (mkSystem [(i ~> 0,a),(i ~> 1,(q' @@ j))]) (p @@ i)),
                         (k ~> 0,p @@ i),
                         (k ~> 1,(s @@ j) @@ i)]
+evalPN (i:j:_) Transpose [t,a0,a1,u,b0,b1,v,r0,r1,x] =
+   Path j $ Path i $ ((x @@ i) @@ j)
+evalPN (i:j:_) IdSElim [a,b,p,u,v,x] =
+   Path j $ comp Pos i (p @@ i) ss u
+     where ss = mkSystem [(j ~> 1, x @@ i)]
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
 -- we add as a primitive that (A B:U) -> prop A -> prop (Id U A B), i, j free

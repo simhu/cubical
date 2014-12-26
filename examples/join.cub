@@ -22,45 +22,45 @@ inlJoin A B C = hsplit (\_ -> join A (join B C)) with
   push a b -> -- ts: inl a = inr (inl b)
     push a (inl b) 
 
-opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
-     (r : Id A b c) ->
-     Square A a b a c (refl A a) r q p ->
-     Square A a c b c q (refl A c) p r
-opl2r A a b c p q r = op' a b q c p r where
-
-  op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
-         Square A a b a c (refl A a) r q p ->
-         Square A a c b c q (refl A c) p r
-  op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
-                         Square A a b a c (refl A a) r q p ->
-                         Square A a c b c q (refl A c) p r)
-            (\c p r -> op2 a c r p) where
-
-    op2 : (a c : A) (r p : Id A a c) ->
-            Square A a a a c (refl A a) r (refl A a) p ->
-            Id (Id A a c) p r
-    op2 a = J A a (\c r -> (p : Id A a c) ->
-                           Square A a a a c (refl A a) r (refl A a) p ->
-                           Id (Id A a c) p r)
-              (\p -> inv (Id A a a) (refl A a) p)
-
--- -- Version of [opl2r] using transpose. We should use that when [transpose]
--- -- will be a primitive
 -- opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
 --      (r : Id A b c) ->
 --      Square A a b a c (refl A a) r q p ->
 --      Square A a c b c q (refl A c) p r
--- opl2r A a b c p q r x = transpose A a c p b c r q (refl A c) (op' a c p b q r x)  where
+-- opl2r A a b c p q r = op' a b q c p r where
 
---   op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
---        (r : Id A b c) ->
---        Square A a b a c (refl A a) r q p ->
---        Square A a b c c p r q (refl A c)
---   op' a = J A a (\c p ->  (b : A) (q : Id A a b)
---                    (r : Id A b c) ->
---                    Square A a b a c (refl A a) r q p ->
---                    Square A a b c c p r q (refl A c))
---             (\b q r x -> x)
+--   op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
+--          Square A a b a c (refl A a) r q p ->
+--          Square A a c b c q (refl A c) p r
+--   op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
+--                          Square A a b a c (refl A a) r q p ->
+--                          Square A a c b c q (refl A c) p r)
+--             (\c p r -> op2 a c r p) where
+
+--     op2 : (a c : A) (r p : Id A a c) ->
+--             Square A a a a c (refl A a) r (refl A a) p ->
+--             Id (Id A a c) p r
+--     op2 a = J A a (\c r -> (p : Id A a c) ->
+--                            Square A a a a c (refl A a) r (refl A a) p ->
+--                            Id (Id A a c) p r)
+--               (\p -> inv (Id A a a) (refl A a) p)
+
+-- Version of [opl2r] using transpose. We should use that when [transpose]
+-- will be a primitive
+opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+     (r : Id A b c) ->
+     Square A a b a c (refl A a) r q p ->
+     Square A a c b c q (refl A c) p r
+opl2r A a b c p q r x = transpose A a c p b c r q (refl A c) (op' a c p b q r x)  where
+
+  op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+       (r : Id A b c) ->
+       Square A a b a c (refl A a) r q p ->
+       Square A a b c c p r q (refl A c)
+  op' a = J A a (\c p ->  (b : A) (q : Id A a b)
+                   (r : Id A b c) ->
+                   Square A a b a c (refl A a) r q p ->
+                   Square A a b c c p r q (refl A c))
+            (\b q r x -> x)
 
 l2r : (A B C : U) -> join (join A B) C -> join A (join B C)
 l2r A B C = hsplit (\_ -> join A (join B C)) with
@@ -128,28 +128,46 @@ inrJoin A B C = hsplit (\_ -> join (join A B) C) with
   inr c   -> inr c
   push b c -> push (inr b) c
 
--- TODO: have a smaller proof term
+-- -- TODO: have a smaller proof term
+-- opr2l : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+--      (r : Id A b c) ->
+--      Square A a c b c q (refl A c) p r ->
+--      Square A a b a c (refl A a) r q p
+-- opr2l A a b c p q r = op' a b q c p r where
+
+--   op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
+--          Square A a c b c q (refl A c) p r ->
+--          Square A a b a c (refl A a) r q p
+--   op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
+--                          Square A a c b c q (refl A c) p r ->
+--                          Square A a b a c (refl A a) r q p)
+--             (\c p r -> op2 a c r p) where
+
+--     op2 : (a c : A) (r p : Id A a c) ->
+--             Id (Id A a c) p r ->
+--             Square A a a a c (refl A a) r (refl A a) p
+--     op2 a = J A a (\c r -> (p : Id A a c) ->
+--                            Id (Id A a c) p r ->
+--                            Square A a a a c (refl A a) r (refl A a) p)
+--               (\p -> inv (Id A a a) p (refl A a))
+
+-- Version of [opl2r] using transpose. We should use that when [transpose]
+-- will be a primitive
 opr2l : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
      (r : Id A b c) ->
      Square A a c b c q (refl A c) p r ->
      Square A a b a c (refl A a) r q p
-opr2l A a b c p q r = op' a b q c p r where
+opr2l A a b c p q r x = transpose A a b q a c p (refl A a) r (op' a c p b q r x)  where
 
-  op' : (a b : A) (q : Id A a b) (c : A) (p : Id A a c) (r : Id A b c) ->
-         Square A a c b c q (refl A c) p r ->
-         Square A a b a c (refl A a) r q p
-  op' a = J A a (\b q -> (c : A) (p : Id A a c) (r : Id A b c) ->
-                         Square A a c b c q (refl A c) p r ->
-                         Square A a b a c (refl A a) r q p)
-            (\c p r -> op2 a c r p) where
-
-    op2 : (a c : A) (r p : Id A a c) ->
-            Id (Id A a c) p r ->
-            Square A a a a c (refl A a) r (refl A a) p
-    op2 a = J A a (\c r -> (p : Id A a c) ->
-                           Id (Id A a c) p r ->
-                           Square A a a a c (refl A a) r (refl A a) p)
-              (\p -> inv (Id A a a) p (refl A a))
+  op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+       (r : Id A b c) ->
+       Square A a c b c q (refl A c) p r ->
+       Square A a a b c q p (refl A a) r
+  op' a = J A a (\c p ->  (b : A) (q : Id A a b)
+                   (r : Id A b c) ->
+                   Square A a c b c q (refl A c) p r ->
+                   Square A a a b c q p (refl A a) r)
+            (\b q r x -> x)
 
 r2l : (A B C : U) -> join A (join B C) -> join (join A B) C
 r2l A B C = hsplit (\_ -> join (join A B) C) with

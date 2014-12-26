@@ -82,11 +82,13 @@ idSIntro A F x y p u v =
 --   transport (IdS A F x y p u v) (Id (F y) (subst A F x y p u) v)
 --     (eqSubstSig A F x y p u v)
 
-idSElim : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
-            IdS A F x y p u v -> Id (F y) (subst A F x y p u) v
-idSElim A F x = J A x
-  (\ y p ->  (u : F x) (v : F y) -> IdS A F x y p u v -> Id (F y) (subst A F x y p u) v)
-  (\ u v h -> h)
+-- idSElim : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+--             IdS A F x y p u v -> Id (F y) (subst A F x y p u) v
+-- idSElim A F x = J A x
+--   (\ y p ->  (u : F x) (v : F y) -> IdS A F x y p u v -> Id (F y) (subst A F x y p u) v)
+--   (\ u v h -> h)
+
+-- idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B) -> IdP A B p x y -> Id B (transport A B p x) y
 
 
 substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
@@ -195,16 +197,16 @@ mapOnPathComp A B f a b c p = J A b
  (refl (Id B (f a) (f b)) (mapOnPath A B f a b p)) c
 
 
-pairEq : (A B:U) (a0 a1:A) (b0 b1:B) -> Id A a0 a1 -> Id B b0 b1 ->
-         Id (and A B) (a0, b0) (a1, b1)
-pairEq A B a0 a1 b0 b1 p q =
- appOnPath B (and A B) f0 f1 b0 b1 rem q
-  where f0 : B -> and A B
-        f0 y = (a0, y)
-        f1 : B -> and A B
-        f1 y = (a1, y)
-        rem : Id (B -> and A B) f0 f1
-        rem = mapOnPath A (B -> and A B) (\ x y -> (x, y)) a0 a1 p
+-- pairEq : (A B:U) (a0 a1:A) (b0 b1:B) -> Id A a0 a1 -> Id B b0 b1 ->
+--          Id (and A B) (a0, b0) (a1, b1)
+-- pairEq A B a0 a1 b0 b1 p q =
+--  appOnPath B (and A B) f0 f1 b0 b1 rem q
+--   where f0 : B -> and A B
+--         f0 y = (a0, y)
+--         f1 : B -> and A B
+--         f1 y = (a1, y)
+--         rem : Id (B -> and A B) f0 f1
+--         rem = mapOnPath A (B -> and A B) (\ x y -> (x, y)) a0 a1 p
 
 test : (A B:U) (a0 a1:A) (b0 b1:B) (p:Id A a0 a1) (q:Id B b0 b1) ->
          Id (Id A a0 a1)
