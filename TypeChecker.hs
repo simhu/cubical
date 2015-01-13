@@ -171,7 +171,8 @@ check a t = case (a,t) of
     checks (bs,nu) es
     k   <- asks index
     rho <- asks env
-    let env' = upds rho (evals rho (zip (map noLoc ns) es)) -- upds nu (evals rho (zip (map fst bs) es)) -- 
+    let env' = -- upds rho (evals rho (zip (map noLoc ns) es)) should be the same
+          upds nu (evals rho (zip (map fst bs) es))
         w0   = eval env' t0
         w1   = eval env' t1
     if conv k v0 w0
@@ -234,7 +235,7 @@ checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders e) hsplit = do
       u1   = app hsplit (eval rho' t1)
   local (addBranch (zip binders us) (tele,nu)) $ do
     rho'' <- asks env
-    let tpc = PCon c (map Var (map fst binders)) (map fst binders) t0 t1
+    let tpc = PCon c (map Var (map fst binders)) (map (fst . fst) tele) t0 t1
         pc  = eval rho'' tpc
         i   = fresh (f,rho'',u0,u1)
     check (VId (Path i $ app f (pc @@ i)) u0 u1) e
