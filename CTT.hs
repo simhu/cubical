@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE BangPatterns, TupleSections #-}
 module CTT where
 
 import Control.Applicative
@@ -385,8 +385,8 @@ data Hiso = Hiso { hisoA :: Val
 -- | Environments
 
 data Env = Empty
-         | Pair Env (Binder,Val)
-         | PDef [(Binder,Ter)] Env
+         | Pair !Env (Binder,Val)
+         | PDef [(Binder,Ter)] !Env
   deriving Eq
 
 instance Show Env where
@@ -401,7 +401,7 @@ upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
-lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
+lookupIdent x defs = listToMaybe [ ((y,l),t) | ((y,l),t) <- defs, x == y ]
 
 getIdent :: Ident -> [(Binder,a)] -> Maybe a
 getIdent x defs = snd <$> lookupIdent x defs
@@ -411,8 +411,8 @@ getBinder x defs = fst <$> lookupIdent x defs
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
-mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
-mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
+mapEnv f (Pair !e (x,v)) = Pair (mapEnv f e) (x,f v)
+mapEnv f (PDef ts !e)    = PDef ts (mapEnv f e)
 
 -- mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
 -- mapEnvM _ Empty          = pure Empty
