@@ -1,4 +1,4 @@
-OPT=0
+OPT=2
 GHC=ghc
 #GHC=cabal exec ghc --
 
@@ -7,8 +7,8 @@ all:
 debug:
 	$(GHC) --make -Ddebugmode -O$(OPT) -o cubical Main.hs
 profile:
-	$(GHC) --make -Ddebugmode -O$(OPT) -prof -rtsopts -fprof-auto -caf-all\
-		-o cubical Main.hs
+	$(GHC) --make -O$(OPT) -prof -rtsopts -auto-all -caf-all -fprof-auto -o cubical Main.hs
+
 bnfc:
 	bnfc --haskell -d Exp.cf
 	happy -gca Exp/Par.y
