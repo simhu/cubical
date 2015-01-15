@@ -282,7 +282,7 @@ data HisoProj = HisoSign Sign -- Pos is f, Neg is g
   deriving (Show, Eq)
 
 data Val = VU
-         | Ter Ter Env
+         | Ter Ter (Env,Val -> Val)
          | VPi Val Val
 
          -- comp ^i _{ A, ts } (a)
@@ -348,11 +348,39 @@ data Val = VU
 
          -- for reification
          | VLam String Val
-  deriving Eq
 
--- vepair :: Name -> Val -> Val -> Val
--- vepair x a b = VSPair a (Path x b)
-
+instance Eq Val where
+  VU == VU = True
+  Ter t (e,f) == Ter t' (e',f') = t == t' && mapEnv f e == mapEnv f' e'
+  VPi u v == VPi u' v' = u == u' && v == v'
+  Kan n v s u == Kan n' v' s' u' = n == n' && v == v' && s == s' && u == u'
+  KanUElem s v == KanUElem s' v' = s == s' && v == v'
+  UnKan s v == UnKan s' v' = s == s' && v == v'
+  VId a b c == VId a' b' c' = a == a' && b == b' && c == c'
+  Path s v == Path s' v' = s == s' && v == v'
+  VSigma s v == VSigma s' v' = s == s' && v == v'
+  VSPair s v == VSPair s' v' = s == s' && v == v'
+  VCon s v == VCon s' v' = s == s' && v == v'
+  Glue s v == Glue s' v' = s == s' && v == v'
+  UnGlue s v == UnGlue s' v' = s == s' && v == v'
+  GlueElem s v == GlueElem s' v' = s == s' && v == v'
+  HisoProj s v == HisoProj s' v' = s == s' && v == v'
+  GlueLine a b c == GlueLine a' b' c' = a == a' && b == b' && c == c'
+  GlueLineElem a b c == GlueLineElem a' b' c' = a == a' && b == b' && c == c'
+  VExt a b c d == VExt a' b' c' d' = a == a' && b == b' && c == c' && d == d'
+  VPCon a b c d e == VPCon a' b' c' d' e' = a == a' && b == b' && c == c' && d == d' && e == e'
+  VVar u == VVar u' = u == u'
+  VApp s v == VApp s' v' = s == s' && v == v'
+  VAppFormula s v == VAppFormula s' v' = s == s' && v == v'
+  VFst u == VFst u' = u == u'
+  VSnd u == VSnd u' = u == u'
+  VSplit s v == VSplit s' v' = s == s' && v == v'
+  VHSplit s v == VHSplit s' v' = s == s' && v == v'
+  UnGlueNe s v == UnGlueNe s' v' = s == s' && v == v'
+  KanNe a b c d == KanNe a' b' c' d' = a == a' && b == b' && c == c' && d == d'
+  VLam s v == VLam s' v' = s == s' && v == v'
+  _ == _ = False
+           
 mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
 
@@ -500,9 +528,9 @@ instance Show Val where
 
 showVal :: Val -> String
 showVal VU                       = "U"
-showVal (Ter t@Sum{} env)        = show t <+> showSumEnv env
-showVal (Ter t@HSum{} env)       = show t <+> showSumEnv env
-showVal (Ter t env)              = show t <+> show env
+showVal (Ter t@Sum{} (env,f))        = show t <+> showSumEnv (mapEnv f env)
+showVal (Ter t@HSum{} (env,f))       = show t <+> showSumEnv (mapEnv f env)
+showVal (Ter t (env,f))              = show t <+> showSumEnv (mapEnv f env)
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
   "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a

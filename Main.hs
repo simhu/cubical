@@ -92,8 +92,30 @@ initLoop flags f = do
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> putStrLn "File loaded."
       -- Compute names for auto completion
-      runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
+      -- test "test0To1" names tenv
+      -- test "test0To2" names tenv
+      -- test "test0To3" names tenv
+      -- test "test0To4" names tenv
+      test "test0To5" names tenv
+      
+test str names tenv@(TC.TEnv _ rho _ _) = case pExp (lexer str) of
+        Bad err -> do putStrLn ("Parse error: " ++ err)
+                      -- loop flags f names tenv
+        Ok  exp ->
+          case runResolver $ local (insertBinders names) $ resolveExp exp of
+            Left  err  -> do putStrLn ("Resolver failed: " ++ err)
+                             -- loop flags f names tenv
+            Right body -> do
+              x <- liftIO $ TC.runInfer tenv body
+              case x of
+                Left err -> do putStrLn ("Could not type-check: " ++ err)
+                               -- loop flags f names tenv
+                Right _  -> do
+                  let e = E.eval rho body
+                  putStrLn ("EVAL: " ++ show e)
+          
 
+                
 -- The main loop
 loop :: [Flag] -> FilePath -> [(C.Binder,SymKind)] -> TC.TEnv -> Interpreter ()
 loop flags f names tenv@(TC.TEnv _ rho _ _) = do
