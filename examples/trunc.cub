@@ -82,7 +82,7 @@ lem1Trunc = split
 
 -- The n-truncation is n-truncated.
 truncIsTrunc : (n : N) (A : U) -> truncated n (trunc n A)
-truncIsTrunc n A = undefined -- lem1Trunc n (trunc n A) (\f -> (hub f, spoke f))
+truncIsTrunc n A = lem1Trunc n (trunc n A) (\f -> (hub f, spoke f))
 
 -- lem1Trunc : (n:N) (A:U) -> ((f : sphere n -> A) -> filler A n f) -> truncated n A
 
@@ -216,8 +216,8 @@ lem2Trunc = split
 truncRec : (n : N) (A B : U) -> truncated n B -> (A -> B) -> trunc n A -> B
 truncRec n A B tr g = hsplit (\_ -> B) with
   inc a -> g a
-  hub f -> undefined -- (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).1
-  spoke f t -> undefined -- (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).2 t
+  hub f -> (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).1
+  spoke f t -> (lem2Trunc n B tr (\x -> truncRec n A B tr g (f x))).2 t
 
 -- cumulativity of truncation
 
@@ -226,129 +226,64 @@ cumTrunc = split
  zero -> propUIP
  suc n -> \ A h x y -> cumTrunc n (Id A x y) (h x y)
 
+-- try to follow Theorem 7.3.2
 
--- filler :  (B:U) (n:N) (f:sphere n -> B) -> U
--- filler B n f = (hubf : B) * (t : sphere n) -> Id B hubf (f t)
+idSIntroInv : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+                   Id (F x) u (substInv A F x y p v) -> IdS A F x y p u v
+idSIntroInv A F x = 
+ J A x (\ y p -> (u : F x) (v : F y) -> Id (F x) u (substInv A F x y p v) -> IdS A F x y p u v) rem
+  where rem : (u v : F x) -> Id (F x) u v -> Id (F x) u v
+        rem u v h = h
 
-lemFiller : (B:U) (n:N) (tB : truncated n B) (f:sphere n -> B) -> prop (filler B n f)
-lemFiller B n tB f fl fl' = rem5
- where
-   hub : B
-   hub = fl.1
+elimTrunc : (A :U) (n:N) (P:trunc n A -> U) (tP : (x:trunc n A) -> truncated n (P x)) ->
+            ((a:A) -> P (inc a)) -> (x:trunc n A) -> P x
+elimTrunc A n P tP g = rem 
+ where  
 
-   hub' : B
-   hub' = fl'.1
+   h' : (r : sphere n -> trunc n A) -> ((x:sphere n) -> P (r x)) -> P (hub r)
+   h' r r' = u
+     where
+        hr : trunc n A
+        hr = hub r
 
-   spoke : (t:sphere n) -> Id B hub (f t)
-   spoke = fl.2
+        sr : (x:sphere n) -> Id (trunc n A) hr (r x)
+        sr = spoke r
 
-   spoke' : (t:sphere n) -> Id B hub' (f t)
-   spoke' = fl'.2
+        t : (x:sphere n) -> P hr
+        t x = substInv (trunc n A) P hr (r x) (sr x) (r' x)
 
-   rem : truncated (suc n) B
-   rem = cumTrunc n B tB
-
-   T : U
-   T = Id B hub hub'
-
-   k : sphere n -> T
-   k t = idEuclid B hub hub' (f t) (spoke t) (spoke' t)
-
-   rem1 : filler T n k
-   rem1 = lem2Trunc n T (rem hub hub') k
-
-   hubk : T
-   hubk = rem1.1
-
-   spokek : (t:sphere n) -> Id T hubk (k t)
-   spokek = rem1.2
-
-   rem2 : (t : sphere n) -> Id (Id B hub (f t)) (spoke t) (comp B hub hub' (f t) hubk (spoke' t))
-   rem2 t = lemIdEuclid B hub' (f t) (spoke' t) hub hubk (spoke t) (spokek t)
-
-   rem3 : (t : sphere n) -> IdS B (\x  -> Id B x (f t)) hub hub' hubk (spoke t) (spoke' t)
-   rem3 t = substPathPi B B (\ x -> x) (\ x -> f t) hub hub' hubk (spoke t) (spoke' t) (rem2 t)
-
-   rem4 : IdS B (\ x -> (t : sphere n) -> Id B x (f t)) hub hub' hubk spoke spoke'
-   rem4 = funExtDep B (sphere n) (\ x t -> Id B x (f t)) hub hub' hubk spoke spoke' rem3
-
-   rem5 : Id (filler B n f) fl fl'
-   rem5 = pairPath B  (\ x -> (t : sphere n) -> Id B x (f t)) hub hub' spoke spoke' hubk rem4
-
-mapFiller : (A B :U) (n:N) (g : A -> B) (f : sphere n -> A) -> filler A n f -> filler B n (\ t -> g (f t))
-mapFiller A B n g f fl = (g fl.1,\ t -> mapOnPath A B g fl.1 (f t) (fl.2 t))
-
--- lemFamProp : (A B :U) (C : A -> B -> U) (pB: (x:A) -> prop (Sigma B (C x))) (a0 a1:A) (p : Id A a0 a1)
---             (bc0 : Sigma B (C a0)) (bc1 : Sigma B (C a1)) ->
---             (q: Id B bc0.1 bc1.1) * IdS (and A B) bc0.1 bc1.1 q bc0
-
---    rem : IdS (trunc n A) F (hub f) (f t) (spoke f t)
---              (lem3Trunc A B n tB g h egh (hub f))
---              (lem3Trunc A B n tB g h egh (f t))
-
-lem2IdEuclid : (A:U) (a b c d:A) (s:Id A c d) (q : Id A b d) (p:Id A a b) (r:Id A a c) ->
-               Id (Id A a c) r (comp A a b c p (idEuclid A b c d q s)) -> Id (Id A a d) (comp A a b d p q) (comp A a c d r s)
-lem2IdEuclid A a b c =
-  J A c (\d s -> (q : Id A b d) (p:Id A a b) (r:Id A a c) ->
-         Id (Id A a c) r (comp A a b c p (idEuclid A b c d q s)) ->
-         Id (Id A a d) (comp A a b d p q) (comp A a c d r s))
-      (\q p r -> inv (Id A a c) r (comp A a b c p q))
+        u : P hr
+        u = (lem2Trunc n (P hr) (tP hr) t).1
 
 
-lem1Filler : (A B:U) (n:N) (tB : truncated n B) (g h : A -> B) (f:sphere n -> A) (fl : filler A n f) ->
-             (egh : (t: sphere n) -> Id B (g (f t)) (h (f t))) ->
-                (p : Id B (g fl.1) (h fl.1)) * (t:sphere n) -> IdS A (\ x -> Id B (g x) (h x)) fl.1 (f t) (fl.2 t) p (egh t)
-lem1Filler A B n tB g h f fl egh = (rem1,rem6)
- where
-  Tg : U
-  Tg = filler B n (\ x -> g (f x))
+   v : (r : sphere n -> trunc n A) (r':(x:sphere n) -> P (r x)) -> 
+             (x : sphere n) -> IdS (trunc n A) P (hub r) (r x) (spoke r x) (h' r r') (r' x)
+   v r r' x = idSIntroInv (trunc n A) P hr (r x) (sr x) (h' r r') (r' x) ((lem2Trunc n (P hr) (tP hr) t).2 x)
+     where
+        hr : trunc n A
+        hr = hub r
 
-  Th : U
-  Th = filler B n (\ x -> h (f x))
+        sr : (x:sphere n) -> Id (trunc n A) hr (r x)
+        sr = spoke r
 
-  gfiller : Tg
-  gfiller = mapFiller A B n g f fl
+        t : (x:sphere n) -> P hr
+        t x = substInv (trunc n A) P hr (r x) (sr x) (r' x)
 
-  hfiller : Th
-  hfiller = mapFiller A B n h f fl
+--        u : P hr
+--        u = (lem2Trunc n (P hr) (tP hr) t).1
 
-  gfiller' : Tg
-  gfiller' = (hfiller.1,rem)
-    where rem : (t:sphere n) -> Id B hfiller.1 (g (f t))
-          rem t = idEuclid B hfiller.1 (g (f t)) (h (f t)) (hfiller.2 t) (egh t)
-
-  rem : Id Tg gfiller gfiller'
-  rem = lemFiller B n tB (\ x -> g (f x)) gfiller gfiller'
-
-  F : B -> U
-  F y = (t:sphere n) -> Id B y (g (f t))
-
-  rem1 : Id B (g fl.1) (h fl.1)
-  rem1 = eqFst B F gfiller gfiller' rem
-
-  rem2 : IdS B F (g fl.1) (h fl.1) rem1 gfiller.2 gfiller'.2
-  rem2 = eqSnd B F gfiller gfiller' rem
-
-  rem3 : (t:sphere n) -> IdS B (\ y -> Id B y (g (f t)))  (g fl.1) (h fl.1) rem1 (gfiller.2 t) (gfiller'.2 t)
-  rem3 = funExtDepInv B (sphere n) (\ y t -> Id B y (g (f t)))  (g fl.1) (h fl.1) rem1 gfiller.2 gfiller'.2 rem2
-
-  rem4 : (t:sphere n) -> Id (Id B (g fl.1) (g (f t)))  (gfiller.2 t) (comp B (g fl.1) (h fl.1) (g (f t)) rem1 (gfiller'.2 t))
-  rem4 t = sPConstInv B (g (f t)) (g fl.1) (h fl.1) rem1 (gfiller.2 t) (gfiller'.2 t) (rem3 t)
-
-
-  rem5 : (t:sphere n) -> Id (Id B (g fl.1) (h (f t)))
-                            (comp B (g fl.1) (h fl.1) (h (f t)) rem1 (mapOnPath A B h fl.1 (f t) (fl.2 t)))
-                            (comp B (g fl.1) (g (f t)) (h (f t)) (mapOnPath A B g fl.1 (f t) (fl.2 t)) (egh t))
-  rem5 t = lem2IdEuclid B (g fl.1) (h fl.1) (g (f t)) (h (f t)) (egh t)
-             (mapOnPath A B h fl.1 (f t) (fl.2 t)) rem1 (mapOnPath A B g fl.1 (f t) (fl.2 t)) (rem4 t)
-
-  rem6 : (t:sphere n) -> IdS A (\ x -> Id B (g x) (h x)) fl.1 (f t) (fl.2 t) rem1 (egh t)
-  rem6 t = substPathPi A B g h  fl.1 (f t) (fl.2 t) rem1 (egh t) (rem5 t)
+   rem : (x:trunc n A) -> P x
+   rem = hsplit P with
+     inc a -> g a
+     hub f -> h' f (\ x -> rem (f x))
+     spoke f t -> v f (\ x -> rem (f x)) t
+ 
 
 
 lem3Trunc : (A B :U) (n:N) (tB : truncated n B) (g h : trunc n A -> B) ->
             ((a:A) -> Id B (g (inc a)) (h (inc a))) -> (x:trunc n A) -> Id B (g x) (h x)
-lem3Trunc A B n tB g h egh = hsplit (\ x -> Id B (g x) (h x)) with
-  inc a -> egh a
-  hub f -> (lem1Filler (trunc n A) B n tB g h f (hub f, spoke f) (\t -> lem3Trunc A B n tB g h egh (f t))).1
-  spoke f t -> (lem1Filler (trunc n A) B n tB g h f (hub f, spoke f) (\t -> lem3Trunc A B n tB g h egh (f t))).2 t
+lem3Trunc A B n tB g h egh =  elimTrunc A n (\ x -> Id B (g x) (h x)) rem egh
+ where
+   rem : (x:trunc n A) -> truncated n (Id B (g x) (h x))
+   rem x = cumTrunc n B tB (g x) (h x)
+
