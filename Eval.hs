@@ -327,7 +327,7 @@ vext phi f g p        = VExt phi f g p
 
 -- Application
 app :: Val -> Val -> Val
-app (Ter (Lam x t) (e,f)) u            = eval (Pair (mapEnv f e) (x,f u)) t
+app (Ter (Lam x t) (e,f)) u            = eval (Pair (mapEnv f e) (x,u)) t
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
   trace ("app (Kan VPi)") $
     let j   = fresh (kan,ui1)
@@ -842,15 +842,15 @@ instance Convertible Val where
   conv k w@(Ter (Lam x u) (e,f)) w'@(Ter (Lam x' u') (e',f')) =
     let v = mkVar k
     in trace ("conv Lam Lam \n w = " ++ show w ++ " \n w' = " ++ show w')
-     conv (k+1) (eval (mapEnv f (Pair e (x,v))) u) (eval (mapEnv f' (Pair e' (x',v))) u')
+     conv (k+1) (eval (Pair (mapEnv f e) (x,v)) u) (eval (Pair (mapEnv f' e') (x',v)) u')
   conv k w@(Ter (Lam x u) (e,f)) u' =
     let v = mkVar k
     in trace ("conv Lam u' \n w = " ++ show w ++ " \n u' = " ++ show u')
-        conv (k+1) (eval (mapEnv f (Pair e (x,v))) u) (app u' v)
+        conv (k+1) (eval (Pair (mapEnv f e) (x,v)) u) (app u' v)
   conv k u' w'@(Ter (Lam x u) (e,f)) =
     let v = mkVar k
     in trace ("conv u' Lam \n u' = " ++ show u' ++ " \n w' = " ++ show w')
-       conv (k+1) (app u' v) (eval (mapEnv f (Pair e (x,v))) u)
+       conv (k+1) (app u' v) (eval (Pair (mapEnv f e) (x,v)) u)
   conv k (Ter (Split p _) (e,f)) (Ter (Split p' _) (e',f')) =
     p == p' && conv k (mapEnv f e) (mapEnv f' e')
   conv k (Ter (Sum p _) (e,f))   (Ter (Sum p' _) (e',f')) =
@@ -999,7 +999,7 @@ class Normal a where
 -- Does neither normalize formulas nor environments.
 instance Normal Val where
   normal _ VU = VU
-  normal k (Ter (Lam x u) (e,f)) = VLam name $ normal (k+1) (eval (mapEnv f (Pair e (x,v))) u)
+  normal k (Ter (Lam x u) (e,f)) = VLam name $ normal (k+1) (eval (Pair (mapEnv f e) (x,v)) u)
     where v@(VVar name) = mkVar k
   normal k (VPi u v) = VPi (normal k u) (normal k v)
   normal k (Kan i u vs v) = comp Pos i (normal k u) (normal k vs) (normal k v)
