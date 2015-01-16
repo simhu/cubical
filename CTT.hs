@@ -398,7 +398,7 @@ instance Show Env where
       showEnv1 e                = show e
 
 upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
+upds = foldl' Pair
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = listToMaybe [ ((y,l),t) | ((y,l),t) <- defs, x == y ]
@@ -411,8 +411,8 @@ getBinder x defs = fst <$> lookupIdent x defs
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
-mapEnv f (Pair !e (x,v)) = Pair (mapEnv f e) (x,f v)
-mapEnv f (PDef ts !e)    = PDef ts (mapEnv f e)
+mapEnv f (Pair !e (x,v)) = Pair (mapEnv f e) $! (x,f v)
+mapEnv f (PDef ts !e)    = PDef ts $! (mapEnv f e)
 
 -- mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
 -- mapEnvM _ Empty          = pure Empty
