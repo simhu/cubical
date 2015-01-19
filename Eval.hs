@@ -118,7 +118,7 @@ sndSVal u | isNeutral u = VSnd u
 
 instance Nominal Val where
   support VU                            = []
-  support (Ter _ (e,f))                     = support (mapEnv f e)
+  support (Ter _ (e,f))                 = support (mapEnv f e)
   support (VPi v1 v2)                   = support [v1,v2]
   support (Kan i a ts u)                = i `delete` support (a,ts,u)
   support (KanNe i a ts u)              = i `delete` support (a,ts,u)
@@ -349,7 +349,7 @@ vext phi f g p        = VExt phi f g p
 app :: Val -> Val -> Val
 app (Ter (Lam x t) (e,f)) u            = eval (Pair (mapEnv f e) (x,u)) t
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
-  DT.trace "app Kan VPi" $
+  trace "app Kan VPi" $
     let j   = fresh (kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `swap` (i,j)
         u   = fill Neg j aj Map.empty ui1
@@ -360,7 +360,7 @@ app kan@(Kan i b@(VPi a f) ts li0) ui1 =
            (app li0 ui0)
 app u@(Ter (Split _ _) _) (KanUElem _ v) = app u v
 app (Ter (Split _ nvs) (e,f)) (VCon name us) = case lookup name nvs of
-  Just (xs,t)  -> eval (mapEnv f (upds e (zip xs us))) t
+  Just (xs,t)  -> eval (upds (mapEnv f e) (zip xs us)) t
   Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
 
@@ -370,13 +370,13 @@ app u@(Ter (HSplit _ _ hbr) e) (KanUElem _ v) = app u v
 
 app (Ter (HSplit _ _ hbr) (e,f)) (VCon name us) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (Branch _ xs t)  -> eval (mapEnv f (upds e (zip xs us))) t
+    Just (Branch _ xs t)  -> eval (upds (mapEnv f e) (zip xs us)) t
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name <+> show hbr)
 
 app (Ter (HSplit _ _ hbr) (e,f)) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (HBranch _ xs t) -> eval (mapEnv f (upds e (zip xs us))) t @@ phi
+    Just (HBranch _ xs t) -> eval (upds (mapEnv f e) (zip xs us)) t @@ phi
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name <+> show hbr)
 
@@ -407,7 +407,7 @@ app g@(UnKan hisos b) w
 
 -- TODO: recheck at least 1 more time (please decrease the counter if
 -- you checked)
-app (HisoProj hisoProj e) u = DT.trace "app HisoProj" $
+app (HisoProj hisoProj e) u = trace "app HisoProj" $
   case hisoProj of
     HisoSign sign -> comp sign i (e @@ i) Map.empty u
     -- f (g y) -> y
@@ -448,7 +448,7 @@ v @@ phi          = VAppFormula v (toFormula phi)
 gradLemma :: Hiso -> System Val -> Val -> (Val, Val)
 gradLemma hiso@(Hiso a b f g s t) us v =
 --  trace ("gradLemma \n b = " ++ show b ++ "\n v = " ++ show v)
-  DT.trace "gradLemma" $
+  trace "gradLemma" $
     (u, Path i theta'')
   where i:j:_   = freshs (hiso, us, v)
         us'     = Map.mapWithKey (\alpha uAlpha ->
@@ -472,7 +472,7 @@ gradLemma hiso@(Hiso a b f g s t) us v =
 
 -- any equality defines an equivalence Lemma 4.2
 eqLemma :: Val -> System Val -> Val -> (Val, Val)
-eqLemma e ts a = DT.trace "eqLemma" $
+eqLemma e ts a = trace "eqLemma" $
                  (t, Path j theta'')
   where i:j:_  = freshs (e, ts, a)
         ei      = e @@ i
@@ -609,13 +609,13 @@ comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i (KanUElem _ a) ts u = comp Pos i a ts u
-comp Pos i vid@(VId a u v) ts w = DT.trace "comp VId" $
+comp Pos i vid@(VId a u v) ts w = trace "comp VId" $
     Path j $ comp Pos i (a @@ j) ts' (w @@ j)
   where j   = fresh (Atom i, vid, ts, w)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
               Map.map (@@ j) ts
-comp Pos i b@(VSigma a f) ts u = DT.trace "comp VSigma" $
+comp Pos i b@(VSigma a f) ts u = trace "comp VSigma" $
   VSPair ui1 comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
@@ -627,7 +627,7 @@ comp Pos i b@(VSigma a f) ts u = DT.trace "comp VSigma" $
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
 comp Pos i g@(Glue hisos b) ws wi0 =
-  DT.trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
+  trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
     glueElem usi1 vi1''
   where unglue = UnGlue hisos b
         vs   = Map.mapWithKey
@@ -736,14 +736,14 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
                     else fst (uls'' ! gamma))
                   hisosI1
 
-    in DT.trace "comp Kan VU" $ -- Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
+    in trace "comp Kan VU" $ -- Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
      kanUElem usi1 vi1''
 
 
 
 -- unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
 
-comp Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
+comp Pos i (GlueLine b phi psi) us u = trace "comp GlueLine" $
                                        glueLineElem vm phii1 psii1
   where
          phii1   = phi `face` (i ~> 1)
@@ -765,7 +765,7 @@ comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
   KanNe i a ts u
 
-comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = DT.trace "comp Sum" $
+comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = trace "comp Sum" $
   case getIdent n nass of
   Just as -> VCon n $ comps i as (mapEnv f env) tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
@@ -814,7 +814,7 @@ comp Pos i a ts u =
 -- (in the Pos case, otherwise we symmetrize)
 -- The output is an L-path in A(i1) between u(i1) and u'(i1)
 pathComp :: Name -> Val -> System Val -> (Val -> Val -> Val)
-pathComp i a us u u' = DT.trace "pathComp" $
+pathComp i a us u u' = trace "pathComp" $
                        Path j $ comp Pos i a us' (u `face` (i ~> 0))
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
@@ -828,7 +828,7 @@ pathComp i a us u u' = DT.trace "pathComp" $
 --   vi1 = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
 -- Moreover, if e is constant, so is the output.
 pathUniv :: Name -> Val -> System Val -> Val -> Val
-pathUniv i e us ui0 = DT.trace "pathUniv" $
+pathUniv i e us ui0 = trace "pathUniv" $
                       Path k xi1
   where j:k:_ = freshs (Atom i, e, us, ui0)
         -- f     = HisoProj (HisoSign Pos) e
@@ -849,14 +849,14 @@ pathUniv i e us ui0 = DT.trace "pathUniv" $
 -- s.t. ls alpha @@ 0 = u alpha
 -- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: Val -> System Val -> Val -> Val
-compLine a ls u = DT.trace "compLine" $
+compLine a ls u = trace "compLine" $
   comp Pos i a (Map.map (@@ i) ls) u  -- TODO also check pathComp; are
                                       -- the dirs correct?
   where i = fresh (a, ls, u)
 
 -- the same but now computing the line
 fillLine :: Val -> System Val -> Val -> Val
-fillLine a ls u = DT.trace "fillLine" $
+fillLine a ls u = trace "fillLine" $
   Path i (fill Pos i a (Map.map (@@ i) ls) u)
   where i = fresh (a, ls, u)
 
