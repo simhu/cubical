@@ -772,7 +772,8 @@ comp Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
 
 comp Pos i v@(Ter (HSum _ _) _) us u = Kan i (vi1) us' (trans i v u)
   where vi1         = v `face` (i ~> 1)
-        j           = gensym (i `delete` support (v,us,u))
+        j  =   gensym  (support (v,us,u, Atom i))
+        -- j           = gensym (i `delete` support (v,us,u))
         comp' alpha = trans j ((v `face` alpha) `act` (i, Atom i:\/: Atom j))
         us'         = Map.mapWithKey comp' us
         trans j w   = comp Pos j w Map.empty
