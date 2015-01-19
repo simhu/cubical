@@ -51,6 +51,7 @@ oneZ = sucZ zeroZ
 brunerie : Z
 brunerie = composition oneZ
 
+-- TERMINATING ON THIS BRANCH:
 
 -- WORKS
 test0To1 : (itOmega two ptS2).1
@@ -68,7 +69,34 @@ test0To3 = f3 test0To2
 test0To4 : (itOmega three ptS2).1
 test0To4 = f4 test0To3
 
--- NOT SURE (takes a long time)
+-- WORKS 26s
+testShortcut2To9 : Z
+testShortcut2To9 = fB (fA (shortcut2To9 (f1 (f0 oneZ))))
+  where
+    shortcut2To9 : (itOmega two ptS2).1 -> trunc one (itOmega two ptS2).1
+    shortcut2To9 = inc
+
+-- WORKS ~10min
+testShortcut3To6 : Z
+testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
+
+-- WORKS ~1min
+testShortcut2To8 : Z
+testShortcut2To8 = fB (fA (f9 (shortcut2To8 (f1 (f0 oneZ)))))
+  where
+    shortcut2To8 : (itOmega two ptS2).1 -> (Omega (ptTrunc two (Omega ptS2))).1
+    shortcut2To8 = mapOmegaRefl (Omega ptS2) (trunc two (Omega ptS2).1) inc
+
+-- WORKS ~9min
+testShortcut2To7 : Z
+testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
+  where
+    shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
+    shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
+
+-- NOT? TERMINATING ON THIS BRANCH:
+
+-- NOT SURE (takes a long time) killed after 7hrs
 test0To5 : (itOmega three (ptJoin ptS1 S1)).1
 test0To5 = f5 test0To4
 
@@ -80,44 +108,15 @@ test0To6 = f6 test0To5
 test0To7 : (itOmega two (ptTrunc three ptS2)).1
 test0To7 = f7 test0To6
 
-
-
--- WORKS
-testShortcut2To9 : Z
-testShortcut2To9 = fB (fA (shortcut2To9 (f1 (f0 oneZ))))
-  where
-    shortcut2To9 : (itOmega two ptS2).1 -> trunc one (itOmega two ptS2).1
-    shortcut2To9 = inc
-
--- WORKS
-testShortcut2To8 : Z
-testShortcut2To8 = fB (fA (f9 (shortcut2To8 (f1 (f0 oneZ)))))
-  where
-    shortcut2To8 : (itOmega two ptS2).1 -> (Omega (ptTrunc two (Omega ptS2))).1
-    shortcut2To8 = mapOmegaRefl (Omega ptS2) (trunc two (Omega ptS2).1) inc
-
--- WORKS (but takes a long time)
-testShortcut2To7 : Z
-testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
-  where
-    shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
-    shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
-
--- WORKS
-testShortcut3To6 : Z
-testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
-
-
-testShortcut4To5 : Z
+-- NOT SURE (run out of memory after 55min)
+testShortcut4To5 : Z 
 testShortcut4To5 = fB (fA (f9 (f8 (f7 (f6 (f3 (f2 (f1 (f0 oneZ)))))))))
-
 
 dummyHopf : S2 -> U
 dummyHopf = hsplit (\_ -> U) with
   north -> S1
   south -> S1
   merid _ -> undefined
-
 
 totalDummyHopfToJoin : (Sigma S2 dummyHopf) -> join S1 S1
 totalDummyHopfToJoin xy = t xy.1 xy.2 where
