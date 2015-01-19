@@ -105,10 +105,10 @@ initLoop flags f = do
       -- test "fast" names tenv
 
       -- Don't work:
-      test "test0To5" names tenv
+      -- test "test0To5" names tenv
       -- test "test0To6" names tenv
       -- test "test0To7" names tenv
-      -- test "testShortcut4To5" names tenv
+      test "testShortcut4To5" names tenv
       -- test "slow" names tenv
       
       -- getLine >>= \input -> test input names tenv

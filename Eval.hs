@@ -349,7 +349,7 @@ vext phi f g p        = VExt phi f g p
 app :: Val -> Val -> Val
 app (Ter (Lam x t) (e,f)) u            = eval (Pair (mapEnv f e) (x,u)) t
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
-  trace "app Kan VPi" $
+  -- DT.trace "app Kan VPi" $
     let j   = fresh (kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `swap` (i,j)
         u   = fill Neg j aj Map.empty ui1
@@ -407,7 +407,7 @@ app g@(UnKan hisos b) w
 
 -- TODO: recheck at least 1 more time (please decrease the counter if
 -- you checked)
-app (HisoProj hisoProj e) u = trace "app HisoProj" $
+app (HisoProj hisoProj e) u = -- DT.trace "app HisoProj" $
   case hisoProj of
     HisoSign sign -> comp sign i (e @@ i) Map.empty u
     -- f (g y) -> y
@@ -598,24 +598,27 @@ fill Pos i a ts u =  trace "fill Pos" $
 
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
 comp sign i a ts u | i `notElem` support (a,ts) =
-   trace "comp cheaply regular" u
+   -- DT.trace "comp cheaply regular" $
+   u
 -- Another possible optimization:
 comp sign i a ts u | i `notElem` support a && not (Map.null indep) =
-  trace "comp filter"  comp sign i a ts' u
+  -- DT.trace "comp filter" $
+  comp sign i a ts' u
   where (ts',indep) = Map.partition (\t -> i `elem` support t) ts
 comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
-comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
+comp Pos i a ts u | eps `Map.member` ts = -- DT.trace "easy case of comp" $
+                                          (ts ! eps) `act` (i,Dir 1)
 comp Pos i (KanUElem _ a) ts u = comp Pos i a ts u
-comp Pos i vid@(VId a u v) ts w = trace "comp VId" $
+comp Pos i vid@(VId a u v) ts w = -- DT.trace "comp VId" $
     Path j $ comp Pos i (a @@ j) ts' (w @@ j)
   where j   = fresh (Atom i, vid, ts, w)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
               Map.map (@@ j) ts
-comp Pos i b@(VSigma a f) ts u = trace "comp VSigma" $
+comp Pos i b@(VSigma a f) ts u = -- DT.trace "comp VSigma" $
   VSPair ui1 comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
@@ -743,7 +746,7 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
 
 -- unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
 
-comp Pos i (GlueLine b phi psi) us u = trace "comp GlueLine" $
+comp Pos i (GlueLine b phi psi) us u = -- DT.trace "comp GlueLine" $
                                        glueLineElem vm phii1 psii1
   where
          phii1   = phi `face` (i ~> 1)
@@ -765,14 +768,16 @@ comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
   KanNe i a ts u
 
-comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = trace "comp Sum" $
+comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = -- DT.trace "comp Sum" $
   case getIdent n nass of
   Just as -> VCon n $ comps i as (mapEnv f env) tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 
 -- Treat transport in hsums separately.
-comp Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of	
+comp Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us =
+  DT.trace "comp HSum us empty" $
+  case u of	
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps i as (mapEnv f env) (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
@@ -794,6 +799,7 @@ comp Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
   u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
 
 comp Pos i v@(Ter (HSum _ _) _) us u =
+  -- DT.trace "comp HSum us nonempty" $
   if i `notElem` support us'
   then transp i v u
   else Kan i (vi1) us' (transp i v u)
