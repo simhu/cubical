@@ -34,36 +34,55 @@ trace s e = if debug then DT.trace s e else e
 
 look :: Ident -> Env -> (Binder, Val)
 look x (Pair rho (n@(y,l),u))
-  | x == y    = (n, u)
+  | x == y    = -- DT.trace ("look1 " ++ show y) $
+                (n, u)
   | otherwise = look x rho
 look x r@(PDef es r1) = case lookupIdent x es of
-  Just (y,t)  -> (y,eval r t)
+  Just (y,t)  -> -- DT.trace ("look3 " ++ show y) $
+                 (y,eval r t)
   Nothing     -> look x r1
 look x Empty = error ("look:" <+> x <+> "not found")
 
 eval :: Env -> Ter -> Val
-eval e U                 = VU
-eval e pn@(PN (Undef _)) = Ter pn (e,id)
-eval e (PN pn)           = evalAppPN e pn []
+eval e U                 = -- DT.trace "U" $
+                           VU
+eval e pn@(PN (Undef _)) = -- DT.trace "undef" $
+                           Ter pn (e,id)
+eval e (PN pn)           = -- DT.trace "pn" $
+                           evalAppPN e pn []
 eval e t@(App r s)       = case unApps t of
-  (PN pn,us) -> evalAppPN e pn us
-  _          -> app (eval e r) (eval e s)
-eval e (Var i)           = snd $ look i e
-eval e (Pi a b)          = VPi (eval e a) (eval e b)
-eval e (Lam x t)         = Ter (Lam x t) (e,id) -- stop at lambdas
-eval e (Where t decls)   = eval (PDef (declDefs decls) e) t
+  (PN pn,us) -> -- DT.trace "appPN" $
+                evalAppPN e pn us
+  _          -> -- DT.trace "app" $
+                app (eval e r) (eval e s)
+eval e (Var i)           = -- DT.trace ("look " ++ i) $
+                           snd $ look i e
+eval e (Pi a b)          = -- DT.trace "pi" $
+                           VPi (eval e a) (eval e b)
+eval e (Lam x t)         = -- DT.trace "lam" $
+                           Ter (Lam x t) (e,id) -- stop at lambdas
+eval e (Where t decls)   = -- DT.trace "where" $
+                           eval (PDef (declDefs decls) e) t
 
-eval e (Sigma a b)       = VSigma (eval e a) (eval e b)
-eval e (SPair a b)       = VSPair (eval e a) (eval e b)
-eval e (Fst a)           = fstSVal $ eval e a
-eval e (Snd a)           = sndSVal $ eval e a
+eval e (Sigma a b)       = -- DT.trace "sigma" $
+                           VSigma (eval e a) (eval e b)
+eval e (SPair a b)       = -- DT.trace "spair" $
+                           VSPair (eval e a) (eval e b)
+eval e (Fst a)           = -- DT.trace "fst" $
+                           fstSVal $ eval e a
+eval e (Snd a)           = -- DT.trace "snd" $
+                           sndSVal $ eval e a
 
-eval e (Sum pr ntss)     = Ter (Sum pr ntss) (e,id)
-eval e (Con name ts)     = VCon name $ map (eval e) ts
-eval e (Split pr alts)   = Ter (Split pr alts) (e,id)
+eval e (Sum pr ntss)     = -- DT.trace "sum" $
+                           Ter (Sum pr ntss) (e,id)
+eval e (Con name ts)     = -- DT.trace "con" $
+                           VCon name $ map (eval e) ts
+eval e (Split pr alts)   = -- DT.trace "split" $
+                           Ter (Split pr alts) (e,id)
 
-eval e t@(HSum {})       = Ter t (e,id)
-eval e (PCon n ts ns t0 t1) =
+eval e t@(HSum {})       = -- DT.trace "hsum" $
+                           Ter t (e,id)
+eval e (PCon n ts ns t0 t1) = -- DT.trace "pcon"  $
   let i = fresh e
       -- TODO: lambda abstract or not?
 --      u0 = eval e (mkLams ns t0)
@@ -76,7 +95,8 @@ eval e (PCon n ts ns t0 t1) =
       u0 = eval upe t0
       u1 = eval upe t1
   in Path i $ VPCon n us (Atom i) u0 u1
-eval e t@(HSplit {})     = Ter t (e,id)
+eval e t@(HSplit {})     = -- DT.trace "hsplit" $
+                           Ter t (e,id)
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env = map (second (eval env))
@@ -329,7 +349,7 @@ vext phi f g p        = VExt phi f g p
 app :: Val -> Val -> Val
 app (Ter (Lam x t) (e,f)) u            = eval (Pair (mapEnv f e) (x,u)) t
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
-  trace ("app (Kan VPi)") $
+  DT.trace "app Kan VPi" $
     let j   = fresh (kan,ui1)
         (aj,fj,tsj) = (a,f,ts) `swap` (i,j)
         u   = fill Neg j aj Map.empty ui1
@@ -387,7 +407,7 @@ app g@(UnKan hisos b) w
 
 -- TODO: recheck at least 1 more time (please decrease the counter if
 -- you checked)
-app (HisoProj hisoProj e) u = trace "app HisoProj" $
+app (HisoProj hisoProj e) u = DT.trace "app HisoProj" $
   case hisoProj of
     HisoSign sign -> comp sign i (e @@ i) Map.empty u
     -- f (g y) -> y
@@ -427,7 +447,8 @@ v @@ phi          = VAppFormula v (toFormula phi)
 -- an theta is a L path if L-border theta is constant
 gradLemma :: Hiso -> System Val -> Val -> (Val, Val)
 gradLemma hiso@(Hiso a b f g s t) us v =
-  trace ("gradLemma \n b = " ++ show b ++ "\n v = " ++ show v)
+--  trace ("gradLemma \n b = " ++ show b ++ "\n v = " ++ show v)
+  DT.trace "gradLemma" $
     (u, Path i theta'')
   where i:j:_   = freshs (hiso, us, v)
         us'     = Map.mapWithKey (\alpha uAlpha ->
@@ -451,7 +472,8 @@ gradLemma hiso@(Hiso a b f g s t) us v =
 
 -- any equality defines an equivalence Lemma 4.2
 eqLemma :: Val -> System Val -> Val -> (Val, Val)
-eqLemma e ts a = trace ("eqLemma " ++ show a) $ (t, Path j theta'')
+eqLemma e ts a = DT.trace "eqLemma" $
+                 (t, Path j theta'')
   where i:j:_  = freshs (e, ts, a)
         ei      = e @@ i
         vs      = Map.mapWithKey (\alpha uAlpha ->
@@ -587,13 +609,13 @@ comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i (KanUElem _ a) ts u = comp Pos i a ts u
-comp Pos i vid@(VId a u v) ts w = trace "comp VId" $
+comp Pos i vid@(VId a u v) ts w = DT.trace "comp VId" $
     Path j $ comp Pos i (a @@ j) ts' (w @@ j)
   where j   = fresh (Atom i, vid, ts, w)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
               Map.map (@@ j) ts
-comp Pos i b@(VSigma a f) ts u = trace "comp VSigma"
+comp Pos i b@(VSigma a f) ts u = DT.trace "comp VSigma" $
   VSPair ui1 comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
@@ -605,7 +627,7 @@ comp Pos i b@(VSigma a f) ts u = trace "comp VSigma"
 comp Pos i a@VPi{} ts u   = Kan i a ts u
 
 comp Pos i g@(Glue hisos b) ws wi0 =
-  trace ("comp Glue \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
+  DT.trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
     glueElem usi1 vi1''
   where unglue = UnGlue hisos b
         vs   = Map.mapWithKey
@@ -714,14 +736,15 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
                     else fst (uls'' ! gamma))
                   hisosI1
 
-    in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
+    in DT.trace "comp Kan VU" $ -- Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
      kanUElem usi1 vi1''
 
 
 
 -- unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
 
-comp Pos i (GlueLine b phi psi) us u = glueLineElem vm phii1 psii1
+comp Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
+                                       glueLineElem vm phii1 psii1
   where
          phii1   = phi `face` (i ~> 1)
          psii1   = psi `face` (i ~> 1)
@@ -742,7 +765,7 @@ comp Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
   KanNe i a ts u
 
-comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = trace "comp Sum" $
+comp Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = DT.trace "comp Sum" $
   case getIdent n nass of
   Just as -> VCon n $ comps i as (mapEnv f env) tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
@@ -789,7 +812,7 @@ comp Pos i a ts u =
 -- (in the Pos case, otherwise we symmetrize)
 -- The output is an L-path in A(i1) between u(i1) and u'(i1)
 pathComp :: Name -> Val -> System Val -> (Val -> Val -> Val)
-pathComp i a us u u' = trace "pathComp"
+pathComp i a us u u' = DT.trace "pathComp" $
                        Path j $ comp Pos i a us' (u `face` (i ~> 0))
   where j   = fresh (Atom i, a, us, u, u')
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
@@ -803,7 +826,8 @@ pathComp i a us u u' = trace "pathComp"
 --   vi1 = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
 -- Moreover, if e is constant, so is the output.
 pathUniv :: Name -> Val -> System Val -> Val -> Val
-pathUniv i e us ui0 = Path k xi1
+pathUniv i e us ui0 = DT.trace "pathUniv" $
+                      Path k xi1
   where j:k:_ = freshs (Atom i, e, us, ui0)
         -- f     = HisoProj (HisoSign Pos) e
         ej    = e @@ j
@@ -823,14 +847,14 @@ pathUniv i e us ui0 = Path k xi1
 -- s.t. ls alpha @@ 0 = u alpha
 -- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: Val -> System Val -> Val -> Val
-compLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
+compLine a ls u = DT.trace "compLine" $
   comp Pos i a (Map.map (@@ i) ls) u  -- TODO also check pathComp; are
                                       -- the dirs correct?
   where i = fresh (a, ls, u)
 
 -- the same but now computing the line
 fillLine :: Val -> System Val -> Val -> Val
-fillLine a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
+fillLine a ls u = DT.trace "fillLine" $
   Path i (fill Pos i a (Map.map (@@ i) ls) u)
   where i = fresh (a, ls, u)
 
