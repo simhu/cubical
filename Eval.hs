@@ -532,10 +532,10 @@ comps :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
 comps i []         _ []         = []
 comps i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill Pos i (eval e a) ts u
-      -- vi0 = v `face` (i ~> 1)
-      vi0 = comp Pos i (eval e a) ts u
+      -- vi1 = v `face` (i ~> 1)
+      vi1 = comp Pos i (eval e a) ts u
       vs  = comps i as (Pair e (x,v)) tsus
-  in vi0 : vs
+  in vi1 : vs
 comps _ _ _ _ = error "comps: different lengths of types and values"
 
 fills :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
@@ -748,7 +748,7 @@ comp Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = trace "comp Sum" $
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 
 -- Treat transport in hsums separately.
-comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of	
+comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
@@ -756,25 +756,28 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
     Just (as, _,_) ->VPCon c ws1 phi (tr e0) (tr e1)
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
-        tr = comp Pos i v Map.empty
+        tr  = comp Pos i v Map.empty
         ws1 = comps i as env (zip (repeat Map.empty) ws0)
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
-  Kan j b ws w -> comp Pos k vi1 ws' (comp' (i ~> 1) w)
+  Kan j b ws w -> comp Pos k vi1 ws' (transp (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
-          k           = gensym (i `delete` support (v,u))
-          comp' alpha = comp Pos i (v `face` alpha) Map.empty
-          wsjk = ws `swap` (j,k)
-          ws' = Map.mapWithKey comp' wsjk
+          k   = gensym (support (v,u,Atom i))
+          transp alpha = comp Pos i (v `face` alpha) Map.empty
+          wsjk         = ws `swap` (j,k)
+          ws'          = Map.mapWithKey transp wsjk
   u | isNeutral u -> KanNe i v us u
   KanUElem _ u1 -> comp Pos i v us u1
   u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
 
-comp Pos i v@(Ter (HSum _ _) _) us u = Kan i (vi1) us' (trans i v u)
+comp Pos i v@(Ter (HSum _ _) _) us u =
+  if i `notElem` support us'
+  then transp i v u
+  else Kan i (vi1) us' (transp i v u)
   where vi1         = v `face` (i ~> 1)
-        j           = gensym (i `delete` support (v,us,u))
-        comp' alpha = trans j ((v `face` alpha) `act` (i, Atom i:\/: Atom j))
+        j           = gensym (support (v,us,u,Atom i))
+        comp' alpha = transp j ((v `face` alpha) `act` (i, Atom i:\/: Atom j))
         us'         = Map.mapWithKey comp' us
-        trans j w   = comp Pos j w Map.empty
+        transp j w  = comp Pos j w Map.empty
 
 comp Pos i a ts u =
   error $
