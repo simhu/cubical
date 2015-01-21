@@ -1,0 +1,55 @@
+module indSusp where
+
+import circle
+import susp
+
+suspOf : U -> U -> U
+suspOf A X = (u:X) * (v:X) * (A -> Id X u v)
+
+funToL : (A X:U) -> (susp A -> X) -> suspOf A X
+funToL A X f = (f north,(f south,\ a ->  mapOnPath (susp A) X f north south (merid a)))
+
+lToFun : (A X:U) -> (suspOf A X) -> susp A -> X
+lToFun A X z = hsplit (\ _ -> X) with
+ north -> z.1
+ south -> z.2.1
+ merid a -> z.2.2 a
+
+test1 : (A X:U) (z:suspOf A X) -> Id (suspOf A X) (funToL A X (lToFun A X z)) z
+test1 A X = refl (suspOf A X)
+
+test2 : (A X:U) (f:susp A ->X) -> Id (susp A ->X) (lToFun A X (funToL A X f)) f
+test2 A X f = funExt (susp A) (\_ -> X) (lToFun A X (funToL A X f)) f rem
+ where
+  rem : (u:susp A) -> Id X (lToFun A X (funToL A X f) u) (f u)
+  rem = hsplit (\ u -> Id X (lToFun A X (funToL A X f) u) (f u)) with
+    north -> refl X (f north)
+    south -> refl X (f south)
+    merid a -> undefined
+       where
+         g : susp A -> X
+         g = lToFun A X (funToL A X f)
+
+         xN : X
+         xN = f north
+
+         xS : X
+         xS = f south
+
+         qaN : Id X xN xN
+         qaN = refl X xN
+
+         qaS : Id X xS xS
+         qaS = refl X xS
+
+         qa1 : A -> Id X xN xS
+         qa1 a = mapOnPath (susp A) X f north south (merid a)
+
+         rem2 : (a : A) -> Id (Id X xN xS) (comp X xN xN xS qaN (qa1 a)) (comp X xN xS xS (qa1 a) qaS)
+         rem2 a = compIdl X xN xS (qa1 a)
+
+         rem1 : (a : A) -> IdS (susp A) (\ u -> Id X (g u) (f u)) north south (merid a) qaN qaS
+         rem1 a = substPathPi (susp A) X g f north south (merid a) qaN qaS (rem2 a)
+
+funSusp : (A X:U) -> Id U (susp A -> X) (suspOf A X)
+funSusp A X = isoId (susp A -> X) (suspOf A X) (funToL A X) (lToFun A X) (test1 A X) (test2 A X)
