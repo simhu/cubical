@@ -45,3 +45,23 @@ test2 X f = funExt S1 (\_ -> X) (lToFun X (funToL X f)) f rem
 
 funS1 : (X:U) -> Id U (S1 -> X) (loopOf X)
 funS1 X = isoId (S1 -> X) (loopOf X) (funToL X) (lToFun X) (test1 X) (test2 X)
+
+-- is X is a set then Id U (loopOf X) X
+
+lemLoopSet : (X:U) -> set X -> Id U (loopOf X) X
+lemLoopSet X sX = isoId (loopOf X) X f g s t
+ where
+   f : loopOf X -> X
+   f z = z.1
+
+   g : X -> loopOf X
+   g x = (x,refl X x)
+
+   s : (y : X) -> Id X (f (g y)) y
+   s y = refl X y
+
+   t : (z : loopOf X) -> Id (loopOf X) (g (f z)) z
+   t z = idSigProp X (\ x -> Id X x x) (\ x -> sX x x)  (g (f z)) z (refl X z.1)
+
+lemS1Set : (X : U) -> set X -> Id U (S1 -> X) X
+lemS1Set X sX = comp U (S1 -> X) (loopOf X) X (funS1 X) (lemLoopSet X sX)
