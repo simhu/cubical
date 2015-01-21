@@ -287,3 +287,47 @@ lem3Trunc A B n tB g h egh =  elimTrunc A n (\ x -> Id B (g x) (h x)) rem egh
    rem : (x:trunc n A) -> truncated n (Id B (g x) (h x))
    rem x = cumTrunc n B tB (g x) (h x)
 
+
+setr : U -> U
+setr = trunc (suc zero) 
+
+grt : U -> U
+grt = trunc (suc (suc zero))
+
+univTrunc : (A B : U) (n : N) -> truncated n B -> Id U (trunc n A -> B) (A -> B)
+univTrunc A B n tB = isoId (trunc n A -> B) (A -> B) F G s t
+ where
+   F : (trunc n A -> B) -> A -> B
+   F h a = h (inc a)
+
+   G : (A -> B) -> trunc n A -> B
+   G = elimTrunc A n (\ _ -> B) (\ _ -> tB)
+
+   s : (h : A -> B) -> Id (A -> B) (F (G h)) h
+   s h = funExt A (\ _ -> B) (F (G h)) h (\ x -> refl B (h x))
+
+   t : (h : trunc n A -> B) -> Id (trunc n A -> B) (G (F h)) h
+   t h = funExt (trunc n A) (\ _ -> B) (G (F h)) h rem
+     where
+      P : trunc n A -> U
+      P x = Id B (G (F h) x) (h x)
+
+      tP : (x : trunc n A) -> truncated n (P x)
+      tP x = cumTrunc n B tB (G (F h) x) (h x)
+
+      rem : (x:trunc n A) -> P x
+      rem = elimTrunc A n P tP (\ a -> refl B (h (inc a)))
+
+truncatedPi : (A : U) (B : A -> U) (n : N) -> ((x : A) -> truncated n (B x)) ->
+              truncated n (Pi A B)
+truncatedPi A B = split
+  zero  -> propPi A B
+  suc n -> \h f g ->
+    let rem1 : truncated n ((x : A) -> Id (B x) (f x) (g x))
+        rem1 = truncatedPi A (\x -> Id (B x) (f x) (g x)) n (\x -> h x (f x) (g x))
+
+        rem : truncated n (Id (Pi A B) f g)
+        rem = substInv U (truncated n) (Id (Pi A B) f g)
+                       ((x : A) -> Id (B x) (f x) (g x)) (idPi A B f g) rem1
+    in rem
+

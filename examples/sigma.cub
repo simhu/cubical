@@ -134,6 +134,9 @@ lemSigProp A B pB t u =
  comp U (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2) (Id A t.1 u.1)
     (idSigma A B t u) (lem2 A B pB t.1 u.1 t.2 u.2)
 
+idSigProp : (A:U)(B:A->U)(pB: (x:A) -> prop (B x))(t u : Sigma A B) -> Id A t.1 u.1 -> Id (Sigma A B) t u
+idSigProp A B pB t u h = fun2 A B t u (h,pB u.1  (subst A B t.1 u.1 h t.2) u.2)
+
 setGroupoid : (A:U) -> set A -> groupoid A
 setGroupoid A sA a0 a1 = propUIP (Id A a0 a1) (sA a0 a1)
 

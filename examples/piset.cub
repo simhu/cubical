@@ -5,7 +5,8 @@ import set
 Pi : (A:U) -> (A -> U) -> U
 Pi A B = (x:A) -> B x
 
-appPi : (A:U) (B:A->U) (f g : Pi A B) -> Id (Pi A B) f g -> (x:A) -> Id (B x) (f x) (g x)
+appPi : (A : U) (B : A -> U) (f g : Pi A B) -> Id (Pi A B) f g ->
+        (x : A) -> Id (B x) (f x) (g x)
 appPi A B f g p x = mapOnPath (Pi A B) (B x) (\ h -> h x) f g p
 
 test2 :  (A:U) (B:A->U) (f g : Pi A B) (q : (x:A) -> Id (B x) (f x) (g x)) ->
@@ -16,7 +17,8 @@ test1 : (A:U) (B:A->U) (f g : Pi A B) (p : Id (Pi A B) f g) ->
        Id (Id (Pi A B) f g) (funExt A B f g (appPi A B f g p)) p
 test1 A B f g p = refl (Id (Pi A B) f g) p
 
-idPi :  (A:U) (B:A->U) (f g : Pi A B) -> Id U (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+idPi : (A : U) (B : A -> U) (f g : Pi A B) ->
+       Id U (Id (Pi A B) f g) ((x : A) -> Id (B x) (f x) (g x))
 idPi A B f g = 
  isoId  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
   (appPi A B f g) (funExt A B f g) (test2 A B f g) (test1 A B f g)
@@ -28,7 +30,8 @@ setPi A B h f g = rem
   rem1 = propPi A (\ x -> Id (B x) (f x) (g x)) (\ x -> h x (f x) (g x))
 
   rem : prop (Id (Pi A B) f g)
-  rem = substInv U prop  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x)) (idPi A B f g) rem1
+  rem = substInv U prop (Id (Pi A B) f g)
+                 ((x:A) -> Id (B x) (f x) (g x)) (idPi A B f g) rem1
 
 groupoid : U -> U
 groupoid A = (x y : A) -> set (Id A x y)
