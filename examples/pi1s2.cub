@@ -30,3 +30,6 @@ propi1S2 = substInv U prop pi1S2 Unit pi1S2Unit propUnit
 
 test : Id pi1S2 triv loop
 test = propi1S2 triv loop
+
+test1 : Id pi1S2 triv triv
+test1 = propi1S2 triv triv
