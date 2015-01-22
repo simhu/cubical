@@ -3,6 +3,7 @@ module Main where
 import Control.Monad.Trans.Reader
 import Control.Monad.Error
 import Data.List
+import Data.Time
 import System.Directory
 import System.FilePath
 import System.Environment
@@ -23,12 +24,13 @@ import qualified Eval as E
 type Interpreter a = InputT IO a
 
 -- Flag handling
-data Flag = Help | Version
+data Flag = Help | Version | Time
   deriving (Eq,Show)
 
 options :: [OptDescr Flag]
-options = [ Option ""  ["help"]    (NoArg Help)    "print help"
-          , Option ""  ["version"] (NoArg Version) "print version number" ]
+options = [ Option ""    ["help"]    (NoArg Help)    "print help"
+          , Option "-t"  ["time"]    (NoArg Time)    "measure time spent computing"
+          , Option ""    ["version"] (NoArg Version) "print version number" ]
 
 -- Version number, welcome message, usage and prompt strings
 version, welcome, usage, prompt :: String
@@ -182,8 +184,11 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
                 Left err -> do outputStrLn ("Could not type-check: " ++ err)
                                loop flags f names tenv
                 Right _  -> do
+                  start <- liftIO getCurrentTime
                   let e = E.eval rho body
                   outputStrLn ("EVAL: " ++ show e)
+                  stop <- liftIO getCurrentTime
+                  when (Time `elem` flags) $ outputStrLn ("Time: " ++ show (diffUTCTime stop start))
                   loop flags f names tenv
 
 -- (not ok,loaded,already loaded defs) -> to load ->
