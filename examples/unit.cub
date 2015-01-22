@@ -1,0 +1,30 @@
+module unit where
+
+import hedberg
+
+lemUn1 : (A:U) (a:A) -> ((x:A) -> Id A x a) -> Id U Unit A
+lemUn1 A a h = isoId Unit A f g s t 
+ where
+  f : Unit -> A
+  f = split tt -> a
+
+  g : A -> Unit
+  g x = tt
+
+  s : (y:A) -> Id A (f (g y)) y
+  s y = inv A y a (h y)
+
+  t : (x:Unit) -> Id Unit (g (f x)) x
+  t = split tt -> refl Unit tt
+
+lemUn2 : Id U Unit (Id Unit tt tt)
+lemUn2 = lemUn1 (Id Unit tt tt) (refl Unit tt) rem
+  where
+   T : U
+   T = Id Unit tt tt
+
+   rem : (z:T) -> Id T z (refl Unit tt)
+   rem z = unitIsSet tt tt z (refl Unit tt)
+
+lemUn3 : (x:Unit) -> Id U Unit (Id Unit x x)
+lemUn3 = split tt -> lemUn2
