@@ -9,6 +9,7 @@ import System.FilePath
 import System.Environment
 import System.Console.GetOpt
 import System.Console.Haskeline
+import Text.Printf
 
 import Exp.Lex
 import Exp.Par
@@ -188,7 +189,15 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
                   let e = E.eval rho body
                   outputStrLn ("EVAL: " ++ show e)
                   stop <- liftIO getCurrentTime
-                  when (Time `elem` flags) $ outputStrLn ("Time: " ++ show (diffUTCTime stop start))
+                  let time = diffUTCTime stop start
+                      secs = read (takeWhile (/='.') (init (show time)))
+                      rest = read ('0':dropWhile (/='.') (init (show time)))
+                      mins = secs `quot` 60
+                      sec  = printf "%.3f" (fromInteger (secs `rem` 60) + rest :: Float)
+                  when (Time `elem` flags) $
+                    outputStrLn $ "Time: " ++ show mins ++ "m" ++ sec ++ "s"
+                  -- Only print in seconds:
+                  -- when (Time `elem` flags) $ outputStrLn $ "Time: " ++ show time
                   loop flags f names tenv
 
 -- (not ok,loaded,already loaded defs) -> to load ->
