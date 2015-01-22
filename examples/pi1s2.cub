@@ -1,0 +1,32 @@
+module pi1s2 where
+
+import trunc
+import truncS2
+import unit
+
+pi1S2 : U
+pi1S2 = setr (Id S2 north north)
+
+corr7312 : Id U pi1S2 (Id (grt S2) (inc north) (inc north))
+corr7312 = thm7312 S2 (suc zero) north north
+
+unitgrtS2 : Id U Unit (grt S2)
+unitgrtS2 = lemUn1 (grt S2) (inc north) corr2
+
+corrgrtS2 : Id U Unit (Id (grt S2) (inc north) (inc north))
+corrgrtS2 = subst U (\X -> (x : X) -> Id U Unit (Id X x x)) Unit (grt S2) unitgrtS2 lemUn3 (inc north)
+
+pi1S2Unit : Id U pi1S2 Unit
+pi1S2Unit = idEuclid U pi1S2 Unit (Id (grt S2) (inc north) (inc north)) corr7312 corrgrtS2
+
+triv : pi1S2
+triv = inc (refl S2 north)
+
+loop : pi1S2
+loop = inc (comp S2 north south north (merid base) (inv S2 north south (merid base)))
+
+propi1S2 : prop pi1S2
+propi1S2 = substInv U prop pi1S2 Unit pi1S2Unit propUnit
+
+test : Id pi1S2 triv loop
+test = propi1S2 triv loop
