@@ -1,0 +1,77 @@
+module truncS2 where
+
+import truncS1
+import indSusp
+
+S2 : U
+S2 = susp S1
+
+lemGrp1 : (X : U) -> groupoid X -> Id U (suspOf S1 X) ((u:X) * (v : X) * Id X u v)
+lemGrp1 X gX = mapOnPath (X -> X -> U) U (\ R -> (u:X) * (v:X) * R u v) P Q rem1
+ where
+   P : X -> X -> U
+   P u v = S1 -> Id X u v
+
+   Q : X -> X -> U
+   Q u v = Id X u v
+
+   rem : (u v:X) -> Id U (P u v) (Q u v)
+   rem u v = lemS1Set (Id X u v) (gX u v)
+
+   rem1 : Id (X -> X -> U) P Q
+   rem1 = funExt X (\ _ -> X -> U) P Q lem2
+       where lem2 : (u:X) -> Id (X -> U) (P u) (Q u)
+             lem2 u = funExt X (\ _ -> U) (P u) (Q u) (rem u)
+
+lemIdSig : (X:U) -> Id U ((u:X) * (v:X) * Id X u v) X
+lemIdSig X = isoId  ((u:X) * (v:X) * Id X u v) X f g s t
+ where
+  Z : U 
+  Z = (u:X) * (v:X) * Id X u v
+
+  f : Z -> X
+  f z = z.1
+
+  g : X -> Z
+  g x = (x,(x,refl X x))
+
+  s : (y:X) -> Id X (f (g y)) y
+  s y = refl X y
+
+  t : (z:Z) -> Id Z (g (f z)) z
+  t z = mapOnPath (singl X z.1) Z (\ s -> (z.1,s)) (z.1,refl X z.1) z.2 (contrSingl X z.1 z.2.1 z.2.2)
+
+lemGrp2 : (X : U) -> groupoid X -> Id U (suspOf S1 X) X
+lemGrp2 X gX = comp U (suspOf S1 X) ((u:X) * (v:X) * Id X u v) X (lemGrp1 X gX) (lemIdSig X)
+
+lemGrp3 : (X : U) -> groupoid X -> Id U (S2 -> X) X
+lemGrp3 X gX = comp U (S2 -> X) (suspOf S1 X) X (funSusp S1 X) (lemGrp2 X gX)
+
+lemGrp4 : (X : U) -> groupoid X -> Id U (grt S2 -> X) X
+lemGrp4 X gX = comp U (grt S2 -> X) (S2 -> X) X rem (lemGrp3 X gX)
+ where rem : Id U (grt S2 -> X) (S2 -> X)
+       rem = univTrunc S2 X (suc (suc zero)) gX
+
+corr : Id U (grt S2 -> grt S2) (grt S2)
+corr = lemGrp4 (grt S2) (truncIsTrunc (suc (suc zero)) S2)
+
+corr1 : Id (grt S2 -> grt S2) (\ x -> x) (\ x -> inc north)
+corr1 = lemTransport (grt S2 -> grt S2) (grt S2) corr  (\ x -> x) (\ x -> inc north) (refl (grt S2) (inc north))
+
+corr2 : (x:grt S2) -> Id (grt S2) x (inc north)
+corr2 x = mapOnPath (grt S2 -> grt S2) (grt S2) (\ f -> f x) (\ z -> z) (\ z -> inc north) corr1
+
+propGrtS2 : prop (grt S2)
+propGrtS2 x y = idEuclid (grt S2) x y (inc north) (corr2 x) (corr2 y)
+
+-- EVAL: <i1> Kan i0 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,1)],Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,1)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc north)
+test : Id (grt S2) (inc north) (inc south)
+test = propGrtS2 (inc north) (inc south)
+
+-- EVAL: <i0> Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,0)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north)
+test1 : Id (grt S2) (inc south) (inc north)
+test1 = corr2 (inc south)
+
+-- EVAL: <i0> inc north
+test2 : Id (grt S2) (inc north) (inc north)
+test2 = corr2 (inc north)
