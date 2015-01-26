@@ -1,6 +1,6 @@
 module hopf where
 
-import mult
+import mult2
 import join
 import trunc
 
@@ -8,7 +8,7 @@ Hopf : S2 -> U
 Hopf = hsplit (\ _ -> U) with
  north -> S1
  south -> S1
- merid x -> isEquivEq S1 S1 (mult x) undefined --(multIsEquiv x)
+ merid x -> eqS1 x -- isEquivEq S1 S1 (mult x) (multIsEquiv x)
 
 tm : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
              Id (join S1 S1) (inl y) (inr y')
@@ -65,7 +65,7 @@ fibContrHopfThree p =
 hopfLoop : (itOmega three ptS2).1 -> (itOmega three (ptJoin ptS1 S1)).1
 hopfLoop p =
   itMapOmegaRefl three (Sigma S2 Hopf, (north,base)) (join S1 S1) totalHopfToJoin
-    (itTotalFibOmega three ptS2 Hopf base (p, undefined)) --fibContrHopfThree p))
+    (itTotalFibOmega three ptS2 Hopf base (p, fibContrHopfThree p))
 
 
 -- e'_2 from 12
