@@ -95,28 +95,36 @@ initLoop flags f = do
       case merr of
         Just err -> putStrLn $ "Type checking failed: " ++ err
         Nothing  -> putStrLn "File loaded."
-      l <- getLine
+      -- l <- getLine
+      -- test l names tenv
+  
+
       -- Works:
-      -- test "test0To1" names tenv
-      -- test "test0To2" names tenv
-      -- test "test0To3" names tenv
-      -- test "test0To4" names tenv
-      -- test "testShortcut2To9" names tenv
-      -- test "testShortcut3To6" names tenv
-      -- test "testShortcut2To8" names tenv
-      -- test "testShortcut2To7" names tenv
-      -- test "fast" names tenv
+      -- test flags "test0To1" names tenv
+      -- test flags "test0To2" names tenv
+      -- test flags "test0To3" names tenv
+      -- test flags "test0To4" names tenv
+      -- test flags "testShortcut2To9" names tenv
+      -- test flags "testShortcut3To6" names tenv
+      -- test flags "testShortcut2To8" names tenv
+      -- test flags "testShortcut2To7" names tenv
+      -- test flags "fast" names tenv
 
       -- Don't work:
-      -- test "test0To5" names tenv
-      -- test "test0To6" names tenv
-      -- test "test0To7" names tenv
-      test "testShortcut4To5" names tenv
-      -- test "slow" names tenv
-      
-      -- getLine >>= \input -> test input names tenv
+      -- test flags "test0To5" names tenv
+      -- test flags "test0To6" names tenv
+      -- test flags "test0To7" names tenv
+      -- test flags "testShortcut4To5" names tenv
+      -- test flags "slow" names tenv
 
-test str names tenv@(TC.TEnv _ rho _ _) = do
+      -- truncS2
+      test flags "test2" names tenv
+      test flags "test1" names tenv
+      test flags "test" names tenv
+      test flags "test3" names tenv
+      
+
+test flags str names tenv@(TC.TEnv _ rho _ _) = do
   putStrLn str
   case pExp (lexer str) of
         Bad err -> do putStrLn ("Parse error: " ++ err)
@@ -132,7 +140,20 @@ test str names tenv@(TC.TEnv _ rho _ _) = do
                                -- loop flags f names tenv
                 Right _  -> do
                   let e = E.eval rho body
+                  start <- getCurrentTime
+                  let e = E.eval rho body
                   putStrLn ("EVAL: " ++ show (length (show e)))
+                  stop <- getCurrentTime
+                  let time = diffUTCTime stop start
+                      secs = read (takeWhile (/='.') (init (show time)))
+                      rest = read ('0':dropWhile (/='.') (init (show time)))
+                      mins = secs `quot` 60
+                      sec  = printf "%.3f" (fromInteger (secs `rem` 60) + rest :: Float)
+                  when (Time `elem` flags) $
+                    putStrLn $ "Time: " ++ show mins ++ "m" ++ sec ++ "s"
+
+
+--                  putStrLn ("EVAL: " ++ show (length (show e)))
           
 
                 

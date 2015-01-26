@@ -65,13 +65,47 @@ propGrtS2 : prop (grt S2)
 propGrtS2 x y = idEuclid (grt S2) x y (inc north) (corr2 x) (corr2 y)
 
 -- EVAL: <i1> Kan i0 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,1)],Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,1)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc north)
+-- Time: 37m23.261s
+
+-- On optimization_experiments branch:
+-- EVAL: 743
+-- Time: 185m21.264s
 test : Id (grt S2) (inc north) (inc south)
 test = propGrtS2 (inc north) (inc south)
 
 -- EVAL: <i0> Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,0)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north)
+-- Time: 16m7.346s
+
+-- On optimization_experiments branch:
+-- EVAL: 654
+-- Time: 92m29.992s
+
 test1 : Id (grt S2) (inc south) (inc north)
 test1 = corr2 (inc south)
 
 -- EVAL: <i0> inc north
+-- Time: 17m50.481s
+
+-- On optimization_experiments branch:
+-- EVAL: 14
+-- Time: 92m24.429s
+
 test2 : Id (grt S2) (inc north) (inc north)
 test2 = corr2 (inc north)
+
+-- an application
+stwo : U
+stwo = susp sone
+
+-- s2EqStwo : Id U stwo S2
+-- s2EqStwo = mapOnPath U U susp sone S1 s1EqCircle
+
+corr3 : (x:grt stwo) -> Id (grt stwo) x (inc north)
+corr3 = substInv U (\ X -> (x:grt (susp X)) -> Id (grt (susp X)) x (inc north)) sone S1 s1EqCircle corr2
+
+-- On optimization_experiments branch:
+-- EVAL: 14
+-- Time: 92m39.034s
+
+test3 : Id (grt stwo) (inc north) (inc north)
+test3 = corr3 (inc north)

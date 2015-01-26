@@ -316,20 +316,17 @@ glueLineElem u phi (Dir One)  = glueElem ss u
  where ss = mkSystem (map (\alpha -> (alpha,u `face` alpha)) (invFormula phi Zero))
 glueLineElem u phi psi      = GlueLineElem u phi psi
 
-
-unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
-unGlueLine b phi psi alpha u =
- case (phi `face` alpha,psi `face` alpha,u `face` alpha) of
-   (Dir _,_,t) -> t
-   (_,Dir Zero,t) -> t
-   (phia,Dir One,t) -> 
-      let ba     = b `face` alpha
-          hisos  = mkSystem (map (\ alpha' -> (alpha',idHiso (ba `face` alpha'))) (invFormula phia Zero))
-      in app (UnGlue hisos ba) t
+unGlueLine :: Val -> Formula -> Formula -> Val -> Val
+unGlueLine b phi psi u = DT.trace "unGlueLine" $
+ case (phi,psi,u) of
+   (Dir _,_,_) -> u
+   (_,Dir Zero,_) -> u
+   (_,Dir One,_) ->
+      let hisos  = mkSystem (map (\ alpha -> (alpha,idHiso (b `face` alpha))) (invFormula phi Zero))
+      in app (UnGlue hisos b) u
    (_,_,GlueLineElem w _ _ ) -> w
    (_,_,KanUElem _ (GlueLineElem w _ _ )) -> w
-   (_,_,t) ->  error ("UnGlueLine, should be GlueLineElem " <+> show t)
-
+   (_,_,_) ->  error ("UnGlueLine, should be GlueLineElem " <+> show u)
 
 kanUElem :: System Val -> Val -> Val
 kanUElem us v | Map.null us         = v
@@ -742,20 +739,20 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
     in trace "comp Kan VU" $ -- Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
      kanUElem usi1 vi1''
 
-
-
--- unGlueLine :: Val -> Formula -> Formula -> Face -> Val -> Val
-
-comp Pos i (GlueLine b phi psi) us u = -- DT.trace "comp GlueLine" $
-                                       glueLineElem vm phii1 psii1
+comp Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
+  glueLineElem vm phii1 psii1
   where
          phii1   = phi `face` (i ~> 1)
          psii1   = psi `face` (i ~> 1)
-         lss = mkSystem (map (\ alpha -> (alpha,(phi `face` alpha,b `face` alpha,us `face` alpha,u `face` alpha))) fs)
+         phii0   = phi `face` (i ~> 0)
+         psii0   = psi `face` (i ~> 0)
+         bi1 = b `face`  (i ~> 1)
+         bi0 = b `face`  (i ~> 0)
+         lss = mkSystem (map (\ alpha -> (alpha,(face phi alpha,face b alpha,face us alpha,face u alpha))) fs)
          ls = Map.mapWithKey (\alpha vAlpha -> auxGlueLine i vAlpha (v `face` alpha)) lss
          v = comp Pos i b ws w
-         ws = Map.mapWithKey (\alpha uAlpha -> unGlueLine b phi psi alpha uAlpha) us
-         w  = unGlueLine b phi psi (i ~> 0) u
+         ws = Map.mapWithKey (\alpha -> unGlueLine (face b alpha) (face phi alpha) (face psi alpha)) us
+         w  = unGlueLine bi0 phii0 psii0 u
          vm = compLine (b `face` (i ~>1)) ls v
          fs = filter (i `Map.notMember`) (invFormula psi One)
 
