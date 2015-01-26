@@ -111,12 +111,13 @@ testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
 testShortcut4To5 : Z
 testShortcut4To5 = fB (fA (f9 (f8 (f7 (f6 (f3 (f2 (f1 (f0 oneZ)))))))))
 
+---
 
 dummyHopf : S2 -> U
 dummyHopf = hsplit (\_ -> U) with
   north -> S1
   south -> S1
-  merid _ -> undefined
+  merid x -> eqS1 x --refl U S1
 
 
 totalDummyHopfToJoin : (Sigma S2 dummyHopf) -> join S1 S1
@@ -133,3 +134,79 @@ fast = itTotalFibOmega three ptS2 dummyHopf base (test0To4, undefined)
 
 slow : (itOmega three (ptJoin ptS1 S1)).1
 slow = itMapOmegaRefl three (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast
+
+-- fast2 : (itOmega two (Sigma S2 dummyHopf, (north, base))).1
+-- fast2 = itTotalFibOmega two ptS2 dummyHopf base (, undefined)
+
+-- slow2 : (itOmega two (ptJoin ptS1 S1)).1
+-- slow2 = itMapOmegaRefl two (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast2
+
+fast1 : (itOmega one (Sigma S2 dummyHopf, (north, base))).1
+fast1 = itTotalFibOmega one ptS2 dummyHopf base (comp S2 north south north (merid base) (inv S2 north south (merid base)), undefined)
+
+slow1 : (itOmega one (ptJoin ptS1 S1)).1
+slow1 = itMapOmegaRefl one (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast1
+
+---
+
+testFib : S1 -> U
+testFib = hsplit (\_ -> U) with
+  base -> Unit
+  loop -> refl U Unit --undefined
+
+totalMap : Sigma S1 testFib -> Unit
+totalMap xy = t xy.1 xy.2 where
+
+  t : (x : S1) -> testFib x -> Unit
+  t = hsplit (\x -> (testFib x -> Unit)) with
+        base -> (\t -> tt)
+        loop -> undefined
+
+fastS1 : (Omega (Sigma S1 testFib, (base , tt))).1
+fastS1 = pairPath S1 testFib base base tt tt (compS1 loop (compS1 loop loop)) undefined
+
+slowS1 : (Omega (Unit, tt)).1
+slowS1 = mapOmegaRefl (Sigma S1 testFib, (base , tt)) Unit totalMap fastS1
+
+---
+
+neg : Bool -> Bool
+neg = split
+  true -> false
+  false -> true
+
+negNeg : (b : Bool) -> Id Bool (neg (neg b)) b
+negNeg = split
+  true -> refl Bool true
+  false -> refl Bool false
+
+doubleCov : S1 -> U
+doubleCov = hsplit (\_ -> U) with
+  base -> Bool
+  loop -> isoId Bool Bool neg neg negNeg negNeg
+
+mapFromDoubleCov : Sigma S1 doubleCov -> S1
+mapFromDoubleCov xy = t xy.1 xy.2 where
+  h : (b b' : Bool) (p : IdS S1 doubleCov base base loop b b') -> Id S1 base base
+  h = split
+        true -> \b' p -> refl S1 base
+        false -> \b' p -> loop
+
+  t : (x : S1) -> doubleCov x -> S1
+  t = hsplit (\x -> (doubleCov x -> S1)) with
+        base -> (\b -> base)
+        loop -> funExt3 S1 S1 doubleCov base base loop (\b -> base) (\b -> base) h
+
+mapToDoubleCov : S1 -> Sigma S1 doubleCov
+mapToDoubleCov = hsplit (\_ -> Sigma S1 doubleCov) with
+  base -> (base, true)
+  loop -> comp (Sigma S1 doubleCov) (base, true) (base, false) (base, true) p1 p2 where
+
+       p1 : Id (Sigma S1 doubleCov) (base, true) (base, false)
+       p1 = pairPath S1 doubleCov base base true false loop (idSIntro S1 doubleCov base base loop true false (refl Bool false))
+
+       p2 : Id (Sigma S1 doubleCov) (base, false) (base, true)
+       p2 = pairPath S1 doubleCov base base false true loop (idSIntro S1 doubleCov base base loop false true (refl Bool true))
+
+S1toS1 : S1 -> S1
+S1toS1 x = mapFromDoubleCov (mapToDoubleCov x)
