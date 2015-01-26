@@ -1065,8 +1065,7 @@ auxGlueLine i (Dir _,b,ws,wi0) vi1 = Path j vi1 where j = fresh vi1
 auxGlueLine i (phi,b,ws,wi0) vi1   = fillLine (b `face` (i ~> 1)) ls' vi1
   where unglue = UnGlue hisos b
         hisos = mkSystem (map (\ alpha -> (alpha,idHiso (b `face` alpha))) (invFormula phi Zero))
-        vs   = Map.mapWithKey
-                 (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
+        vs   = Map.mapWithKey (\alpha -> app (unglue `face` alpha)) ws
         vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
 
         v    = fill Pos i b vs vi0           -- in b
@@ -1077,12 +1076,8 @@ auxGlueLine i (phi,b,ws,wi0) vi1   = fillLine (b `face` (i ~> 1)) ls' vi1
         us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
                 hisos'
-        usi1'  = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
-                  comp Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
-                hisos'
 
-        ls'    = Map.mapWithKey (\gamma (Hiso aGamma bGamma fGamma _ _ _) ->
-                  pathComp i bGamma (vs `face` gamma)
-                    (v `face` gamma) (fGamma `app` (us' ! gamma)))
+        ls'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  pathComp i aGamma (vs `face` gamma) (v `face` gamma) (us' ! gamma))
                  hisos'
 
