@@ -1,0 +1,218 @@
+module moebius where
+
+import prelude
+import circle
+import square
+import mult2
+
+-- The other version of the circle.
+S1' : U
+hdata S1' = base1 | base2 | loop1 @ base1 ~ base2 | loop2 @ base2 ~ base1
+
+-- The double covering space
+
+neg : Bool -> Bool
+neg = split
+  true -> false
+  false -> true
+
+negNeg : (b : Bool) -> Id Bool (neg (neg b)) b
+negNeg = split
+  true -> refl Bool true
+  false -> refl Bool false
+
+doubleCov : S1 -> U
+doubleCov = hsplit (\_ -> U) with
+  base -> Bool
+  loop -> isoId Bool Bool neg neg negNeg negNeg
+
+M : U
+M = Sigma S1 doubleCov
+
+-- The map from M to S1'
+
+BoolToS1' : Bool -> S1'
+BoolToS1' = split
+  true -> base1
+  false -> base2
+
+haux : (b : Bool) -> Id S1' (BoolToS1' b) (BoolToS1' (subst S1 doubleCov base base loop b))
+haux = split
+  true  -> loop1
+  false -> loop2
+
+aux : (x : S1) -> doubleCov x -> S1'
+aux = hsplit (\x -> (doubleCov x -> S1')) with
+  base -> BoolToS1'
+  loop -> funExt1 S1 S1' doubleCov base base loop BoolToS1' BoolToS1' haux
+
+mapFromDoubleCov : M -> S1'
+mapFromDoubleCov xy = aux xy.1 xy.2
+
+-- Some reduction rules for that map
+
+p1 : Id M (base, true) (base, false)
+p1 = pairPathSubst S1 doubleCov base base loop true
+
+p2 : Id M (base, false) (base, true)
+p2 = pairPathSubst S1 doubleCov base base loop false
+
+mapFromDoubleCovBeta1 : Id (Id S1' base1 base2) (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1) loop1
+mapFromDoubleCovBeta1 = compIdl S1' base1 base2 loop1
+
+mapFromDoubleCovBeta2 : Id (Id S1' base2 base1) (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2) loop2
+mapFromDoubleCovBeta2 = compIdl S1' base2 base1 loop2
+
+-- The map from S1' to M
+
+mapToDoubleCov : S1' -> M
+mapToDoubleCov = hsplit (\_ -> M) with
+  base1 -> (base, true)
+  base2 -> (base, false)
+  loop1 -> p1
+  loop2 -> p2
+
+-- First composition
+
+S1toS1Inv : (x : S1') -> Id S1' (mapFromDoubleCov (mapToDoubleCov x)) x
+S1toS1Inv = hsplit (\ x -> Id S1' (mapFromDoubleCov (mapToDoubleCov x)) x) with
+  base1 -> refl S1' base1
+  base2 -> refl S1' base2
+  loop1 -> substPathPiSquareTranspose S1' S1' (\x -> mapFromDoubleCov (mapToDoubleCov x)) (\x -> x) base1 base2 loop1 (refl S1' base1) (refl S1' base2)
+                                      mapFromDoubleCovBeta1
+  loop2 -> substPathPiSquareTranspose S1' S1' (\x -> mapFromDoubleCov (mapToDoubleCov x)) (\x -> x) base2 base1 loop2 (refl S1' base2) (refl S1' base1)
+                                      mapFromDoubleCovBeta2
+
+hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
+hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
+
+lemma : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a') (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+  -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+  -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q'
+lemma A B f g a = J A a (\a' p -> (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+                              -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+                              -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q')
+                   (hdegenSquareInv B (f a) (g a))
+
+
+rem : (b : Bool) -> Id M (mapToDoubleCov (BoolToS1' b)) (base, b)
+rem = split
+  true -> refl M (base, true)
+  false -> refl M (base, false)
+
+MtoMInvaux : (x : S1) (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y)) (x, y)
+MtoMInvaux = hsplit (\ x -> (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y)) (x, y)) with
+  base -> rem
+  loop -> funExtFull S1 doubleCov (\ x y -> Id M (mapToDoubleCov (aux x y)) (x, y)) base base loop rem rem rem2  where
+
+    rem2 : (b : Bool) -> Id (Id M (mapToDoubleCov (BoolToS1' (neg b))) (base, neg b))
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, b) (base, subst S1 doubleCov base base loop b)
+                                   (pairPathSubst S1 doubleCov base base loop b) (rem b))
+                            (rem (neg b))
+    rem2 = split
+      true  -> rem3 where
+
+        rem4 : Id (Id M (base, true) (base, false))
+                  (mapOnPath S1' M mapToDoubleCov base1 base2 (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1))
+                  p1
+        rem4 = mapOnPath (Id S1' base1 base2) (Id M (base, true) (base, false))
+                         (mapOnPath S1' M mapToDoubleCov base1 base2)
+                         (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1) loop1
+                         mapFromDoubleCovBeta1
+
+        rem3 : Id (Id M (base, false) (base, false))
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, true) (base, false)
+                                   p1 (refl M (base, true)))
+                            (refl M (base, false))
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, true) (base, false) p1 (refl M (base, true)) (refl M (base, false)) rem4
+
+      false -> rem3 where
+
+        rem4 : Id (Id M (base, false) (base, true))
+                  (mapOnPath S1' M mapToDoubleCov base2 base1 (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2))
+                  p2
+        rem4 = mapOnPath (Id S1' base2 base1) (Id M (base, false) (base, true))
+                         (mapOnPath S1' M mapToDoubleCov base2 base1)
+                         (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2) loop2
+                         mapFromDoubleCovBeta2
+
+        rem3 : Id (Id M (base, true) (base, true))
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, false) (base, true)
+                                   p2 (refl M (base, false)))
+                            (refl M (base, true))
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, false) (base, true) p2 (refl M (base, false)) (refl M (base, true)) rem4
+
+MtoMInv : (xy : M) -> Id M (mapToDoubleCov (mapFromDoubleCov xy)) xy
+MtoMInv xy = MtoMInvaux xy.1 xy.2
+
+theorem : Id U S1' M 
+theorem = isoId S1' M mapToDoubleCov mapFromDoubleCov MtoMInv S1toS1Inv
+
+---
+
+to : S1 -> S1'
+to = hsplit (\_ -> S1') with
+  base -> base1
+  loop -> comp S1' base1 base2 base1 loop1 loop2
+
+from : S1' -> S1
+from = hsplit (\_ -> S1) with
+  base1 -> base
+  base2 -> base
+  loop1 -> loop
+  loop2 -> refl S1 base
+
+fromTo : (x : S1) -> Id S1 (from (to x)) x
+fromTo = hsplit (\x -> Id S1 (from (to x)) x) with
+  base -> refl S1 base
+  loop -> substPathPiSquareTranspose S1 S1 (\x -> from (to x)) (\x -> x) base base loop (refl S1 base) (refl S1 base) (refl (Id S1 base base) loop)
+
+toFrom : (x : S1') -> Id S1' (to (from x)) x
+toFrom = hsplit (\x -> Id S1' (to (from x)) x) with
+  base1 -> refl S1' base1
+  base2 -> inv S1' base2 base1 loop2
+  loop1 -> substPathPi S1' S1' (\x -> to (from x)) (\x -> x) base1 base2 loop1 (refl S1' base1) (inv S1' base2 base1 loop2) (lemma S1' base1 base2 loop1 base1 loop2)
+         where
+
+    lemma : (A : U) (a b : A) (p : Id A a b) (c : A) (q : Id A b c) -> Id (Id A a b) (comp A a a b (refl A a) p) (comp A a c b (comp A a b c p q) (inv A b c q))
+    lemma A a = J A a (\b p -> (c : A) (q : Id A b c) -> Id (Id A a b) (comp A a a b (refl A a) p) (comp A a c b (comp A a b c p q) (inv A b c q)))
+                (J A a (\c q -> Id (Id A a a) (refl A a) (comp A a c a (comp A a a c (refl A a) q) (inv A a c q)))
+                 (refl (Id A a a) (refl A a)))
+
+  loop2 -> substPathPi S1' S1' (\x -> to (from x)) (\x -> x) base2 base1 loop2 (inv S1' base2 base1 loop2) (refl S1' base1) (compInvLeft' S1' base2 base1 loop2)
+
+theorem2 : Id U S1 S1'
+theorem2 = isoId S1 S1' to from toFrom fromTo
+
+theorem3 : Id U S1 M
+theorem3 = comp U S1 S1' M theorem2 theorem
+
+winding : loopS1 -> Z
+winding = encode base
+
+winding' : Id M (base, true) (base, true) -> Z
+winding' l = winding (mapOnPath M S1 (transpInv S1 M theorem3) (base, true) (base, true) l)
+
+multS : M -> M -> M
+multS = subst U (\ X -> X -> X -> X) S1 M theorem3 mult
+
+invMultS : M -> M -> M
+invMultS = subst U (\ X -> X -> X -> X) S1 M theorem3 invMult
+
+invSqS : M -> M
+invSqS x = invMultS x (invMultS x (base, true))
+
+SqS : M -> M
+SqS x = multS x (multS x (base, true))
+
+test1S : Z
+test1S = winding' (mapOnPath M M invSqS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+test2S : Z
+test2S = winding' (mapOnPath M M SqS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+test3S : Z
+test3S = winding' (comp M (base, true) (base, false) (base, true) p1 p2)
+
+test4S : Z
+test4S = winding' (mapOnPath M M (\x -> multS x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))

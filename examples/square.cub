@@ -13,6 +13,16 @@ substPathPiSquare A B f g a =
       IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
     (\qa qa' x -> x)
 
+substPathPiSquareTranspose : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  Square B (f a) (f a') (g a) (g a') qa qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
+substPathPiSquareTranspose A B f g a a' p qa qa' alpha = substPathPiSquare A B f g a a' p qa qa' (transpose B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) alpha)
+  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
+  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
+  --   (\qa qa' x -> x)
+
 substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
