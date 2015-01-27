@@ -196,6 +196,12 @@ winding' l = winding (mapOnPath M S1 (transpInv S1 M theorem3) (base, true) (bas
 multS : M -> M -> M
 multS = subst U (\ X -> X -> X -> X) S1 M theorem3 mult
 
+mult' : M -> M -> M
+mult' a b = mapToDoubleCov (to (mult (from (mapFromDoubleCov a)) (from (mapFromDoubleCov b))))
+
+equal : (a b : M) -> Id M (multS a b) (mult' a b)
+equal a b = refl M (mult' a b)
+
 invMultS : M -> M -> M
 invMultS = subst U (\ X -> X -> X -> X) S1 M theorem3 invMult
 
@@ -217,6 +223,12 @@ test3S = winding' (comp M (base, true) (base, false) (base, true) p1 p2)
 test4S : Z
 test4S = winding' (mapOnPath M M (\x -> multS x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
 
+test4Smult' : Z
+test4Smult' = winding' (mapOnPath M M (\x -> mult' x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+-- test4SEq : Id Z test4S (posZ zero)
+-- test4SEq = refl Z test4Smult'
+
 test4S' : Z
 test4S' = winding' (mapOnPath M M (multS (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
 
@@ -226,8 +238,14 @@ test5S = winding' (mapOnPath M M (\x -> multS (base, true) (multS (base, true) x
 test6S : Z
 test6S = winding' (mapOnPath M M (\x -> multS x x) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
 
+test6Smult' : Z
+test6Smult' = winding' (mapOnPath M M (\x -> mult' x x) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
 invS : M -> M
 invS = subst U (\ X -> X -> X) S1 M theorem3 invS1
+
+test7Smult' : Z
+test7Smult' = winding' (mapOnPath M M (\x -> mult' (mult' x (invS x)) (mult' (invS x) (invS x))) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
 
 testInvS : Z
 testInvS = winding' (mapOnPath M M invS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
