@@ -44,6 +44,11 @@ pairPath : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1)
 pairPath A B a0 a1 b0 b1 p q =
   mapOnPathS A B (Sigma A B) (\a b -> (a, b)) a0 a1 p b0 b1 q
 
+pairPathSubst : (A : U) (B : A -> U) (a0 a1 : A) (p : Id A a0 a1)
+           (b : B a0) ->
+           Id (Sigma A B) (a0, b) (a1, subst A B a0 a1 p b)
+pairPathSubst A B a0 = J A a0 (\a1 p -> (b : B a0) -> Id (Sigma A B) (a0, b) (a1, subst A B a0 a1 p b)) (\b -> refl (Sigma A B) (a0, b))
+
 eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
            Id U
              (Id (Sigma A B) (a0, b0) (a1, b1))
@@ -153,6 +158,45 @@ funExt3 C B F a =
           (h : (x : F a) (y : F b) (z : IdS C F a b p x y) -> Id B (f x) (g y))
           -> IdS C (\z -> F z -> B) a b p f g)
     (\f g h -> funExt (F a) (\_ -> B) f g (\x -> h x x (refl (F a) x)))
+
+funExt1 : (C B : U) (F : C -> U) (a b : C) (p : Id C a b)
+          (f : F a -> B) (g : F b -> B)
+          (h : (x : F a) -> Id B (f x) (g (subst C F a b p x)))
+          -> IdS C (\z -> F z -> B) a b p f g
+funExt1 C B F a =
+  J C a (\b p -> (f : F a -> B) (g : F b -> B)
+          (h : (x : F a) -> Id B (f x) (g (subst C F a b p x)))
+          -> IdS C (\z -> F z -> B) a b p f g)
+    (\f g h -> funExt (F a) (\_ -> B) f g h)
+
+-- funExt1Beta :
+
+-- funExtFullFun : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b) (x : B a)
+--               -> C a x -> C b (subst A B a b p x)
+-- funExtFullFun A B C a = J A a (\b p -> (x : B a) -> C a x -> C b (subst A B a b p x)) (\x c -> c)
+
+funExtFullFun : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b) (x : B a)
+              -> C a x -> C b (subst A B a b p x)
+funExtFullFun A B C a b p x u =
+  subst (Sigma A B) (\xy -> C xy.1 xy.2) (a, x) (b, subst A B a b p x) (pairPathSubst A B a b p x) u
+
+funExtFull : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b)
+          (f : (x : B a) -> C a x) (g : (y : B b) -> C b y)
+          (h : (x : B a) -> Id (C b (subst A B a b p x)) (funExtFullFun A B C a b p x (f x)) (g (subst A B a b p x)))
+          -> IdS A (\z -> (w : B z) -> C z w) a b p f g
+funExtFull A B C a =
+  J A a (\b p -> (f : (x : B a) -> C a x) (g : (y : B b) -> C b y)
+                 (h : (x : B a) -> Id (C b (subst A B a b p x)) (funExtFullFun A B C a b p x (f x)) (g (subst A B a b p x)))
+                 -> IdS A (\z -> (w : B z) -> C z w) a b p f g)
+  (\f g h -> funExt (B a) (\ x -> C a x) f g h)
+
+-- funExtFullBeta : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b)
+--           (f : (x : B a) -> C a x) (g : (y : B b) -> C b y)
+--           (h : (x : B a) (y : B b) (z : IdS A B a b p x y) -> IdS (Sigma A B) (\ xy -> C xy.1 xy.2) (a, x) (b, y) (pairPath A B a b x y p z) (f x) (g y))
+--           (x : B a) (y : B a) (z : IdS A B a b p x y) -> funExtFull A B C a b p f g h
+--           -> IdS A (\z -> (w : B z) -> C z w) a b p f g
+
+
 
 lemPiFib : (A B : U) (C : A -> B -> U) (a0 a1:A) (p : Id A a0 a1)
            (f0 : (y:B) -> C a0 y) (f1 : (y:B) -> C a1 y) ->

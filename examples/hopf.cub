@@ -10,35 +10,12 @@ Hopf = hsplit (\ _ -> U) with
  south -> S1
  merid x -> eqS1 x -- isEquivEq S1 S1 (mult x) (multIsEquiv x)
 
-tm : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
-             Id (join S1 S1) (inl y) (inr y')
-tm x y y' p =
-  comp (join S1 S1) (inl y) (inr (mult x y)) (inr y')
-    (push y (mult x y))
-    (mapOnPath S1 (join S1 S1) inr (mult x y) y'
-      (idSElim S2 Hopf north south (merid x) y y' p))
-
-tm1 : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
-             Id (join S1 S1) (inl y) (inr (mult x y))
-tm1 x y y' p =
-  push y (mult x y)
-
-tm2 : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
-             Id S1 (mult x y) y'
-tm2 x y y' p =
-  idSElim S2 Hopf north south (merid x) y y' p
-
-tm3 : (x : S1) (y y' : S1) (p : IdS S2 Hopf north south (merid x) y y') ->
-             Id (join S1 S1) (inr (mult x y)) (inr y')
-tm3 x y y' p =
-  mapOnPath S1 (join S1 S1) inr (mult x y) y' (tm2 x y y' p)
-
 t : (x : S2) -> Hopf x -> join S1 S1
 t = hsplit (\x -> (Hopf x -> join S1 S1)) with
       north   -> inl
       south   -> inr
-      merid x -> funExt3 S2 (join S1 S1) Hopf north south (merid x)
-                   inl inr (tm x)
+      merid x -> funExt1 S2 (join S1 S1) Hopf north south (merid x)
+                   inl inr (\y -> push y (mult x y))
 
 totalHopfToJoin : ((x : S2) * Hopf x) -> join S1 S1
 totalHopfToJoin xy = t xy.1 xy.2
