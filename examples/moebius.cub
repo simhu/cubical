@@ -106,7 +106,7 @@ MtoMInvaux = hsplit (\ x -> (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y))
   loop -> funExtFull S1 doubleCov (\ x y -> Id M (mapToDoubleCov (aux x y)) (x, y)) base base loop rem rem rem2  where
 
     rem2 : (b : Bool) -> Id (Id M (mapToDoubleCov (BoolToS1' (neg b))) (base, neg b))
-                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, b) (base, subst S1 doubleCov base base loop b)
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, b) (base, neg b)
                                    (pairPathSubst S1 doubleCov base base loop b) (rem b))
                             (rem (neg b))
     rem2 = split
@@ -216,3 +216,21 @@ test3S = winding' (comp M (base, true) (base, false) (base, true) p1 p2)
 
 test4S : Z
 test4S = winding' (mapOnPath M M (\x -> multS x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+test4S' : Z
+test4S' = winding' (mapOnPath M M (multS (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+test5S : Z
+test5S = winding' (mapOnPath M M (\x -> multS (base, true) (multS (base, true) x)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+test6S : Z
+test6S = winding' (mapOnPath M M (\x -> multS x x) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+invS : M -> M
+invS = subst U (\ X -> X -> X) S1 M theorem3 invS1
+
+testInvS : Z
+testInvS = winding' (mapOnPath M M invS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+testInv2S : Z
+testInv2S = winding' (mapOnPath M M (\x -> invS (invS x)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
