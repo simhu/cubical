@@ -47,6 +47,9 @@ fromScur = hsplit (\x -> (y : singleCov x) -> S1) with
 fromS : MS -> S1
 fromS xy = fromScur xy.1 xy.2
 
+fromSBeta : Id (Id S1 base base) (mapOnPath MS S1 fromS baseS baseS loopS) loop
+fromSBeta = compIdl S1 base base loop
+
 fromToS : (x : S1) -> Id S1 (fromS (toS x)) x
 fromToS = hsplit (\x -> Id S1 (fromS (toS x)) x) with
   base -> refl S1 base
@@ -55,12 +58,30 @@ fromToS = hsplit (\x -> Id S1 (fromS (toS x)) x) with
 toFromScurBase : (y : Unit) -> Id MS (toS (fromScurBase y)) (base, y)
 toFromScurBase = split tt -> refl MS (base, tt)
 
+hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
+hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
+
+lemma : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a') (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+  -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+  -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q'
+lemma A B f g a = J A a (\a' p -> (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+                              -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+                              -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q')
+                   (hdegenSquareInv B (f a) (g a))
+
 toFromScurLoop : (y : Unit) -> Id (Id MS (toS (fromScurBase (idUnit y))) (base, idUnit y))
                             (subst MS (\xy -> Id MS (toS (fromScur xy.1 xy.2)) xy) (base, y) (base, idUnit y)
                                    (pairPathSubst S1 singleCov base base loop y) (toFromScurBase y))
                             (toFromScurBase (idUnit y))
-toFromScurLoop = undefined
+toFromScurLoop = split tt -> rem where
 
+  rem : Id (Id MS baseS baseS)
+           (subst MS (\xy -> Id MS (toS (fromScur xy.1 xy.2)) xy) baseS baseS loopS (refl MS baseS))
+           (refl MS baseS)
+  rem = lemma MS MS (\xy -> toS (fromS xy)) (\xy -> xy) baseS baseS loopS (refl MS baseS) (refl MS baseS) rem2  where
+
+    rem2 : Id (Id MS baseS baseS) (mapOnPath S1 MS toS base base (mapOnPath MS S1 fromS baseS baseS loopS)) loopS
+    rem2 = mapOnPath (Id S1 base base) (Id MS baseS baseS) (mapOnPath S1 MS toS base base) (mapOnPath MS S1 fromS baseS baseS loopS) loop fromSBeta
 
 toFromScur : (x : S1) (y : singleCov x) -> Id MS (toS (fromScur x y)) (x, y)
 toFromScur = hsplit (\x -> (y : singleCov x) -> Id MS (toS (fromScur x y)) (x, y)) with
@@ -86,3 +107,26 @@ multMS = subst U (\X -> X -> X -> X) S1 MS theoremS mult
 
 test4MS : Z
 test4MS = windingMS (mapOnPath MS MS (\x -> multMS x baseS) baseS baseS loopS)
+
+
+
+
+
+rem1 : (A B : U) (p : Id U A B) (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))
+rem1 A = J U A (\ B p -> (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))) (\ a -> refl U (Id A a a))
+
+rem1IdP : (A B : U) (p : Id U A B) (a:A) (q : Id A a a) ->
+     IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q)
+rem1IdP A =
+  J U A (\ B p -> (a:A) (q : Id A a a) ->
+     IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q))
+     (\ a q -> refl (Id A a a) q)
+
+invTmS : Id U MS S1
+invTmS = inv U S1 MS theoremS
+
+bS : MS
+bS = (base,tt)
+
+testS : IdP (Id MS bS bS) (Id S1 base base) (rem1 MS S1 invTmS bS) loopS (mapOnPath MS S1 (transport MS S1 invTmS) bS bS loopS)
+testS = rem1IdP MS S1 invTmS bS loopS
