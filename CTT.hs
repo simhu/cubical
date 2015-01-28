@@ -203,6 +203,15 @@ data PN = Id | Refl | Sym
         --               Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
         | Transpose
 
+        -- eqTransport : (A B : U) (p : Id U A B) (u : A) -> IdP A B p u (transport A B p u)
+        | EqTransport
+
+        -- rem1IdP : (A B : U) (p : Id U A B) (u:A) (q : Id A u u)
+        --           -> SquareOverLine A B p u u q (transport A B p u) (transport A B p u) (mapOnPath A B (transport A B p) u u q)
+        --                  (eqTransport A B p u) (eqTransport A B p u)
+
+        | Rem1IdP
+
         -- idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
         --            -> IdP A B p x y -> Id B (transport A B p x) y
         | IdSElim
@@ -256,7 +265,9 @@ primHandle =
    ("mapOnPath"     , 6,  MapOnPath    ),
    ("lemSimpl"      , 8,  LemSimpl    ),
    ("transpose"     , 10, Transpose    ),
-   ("idSElim'"      , 6, IdSElim    ),
+   ("eqTransport"   , 4,  EqTransport    ),
+   ("rem1IdP"      , 5,  Rem1IdP    ),
+   ("idSElim'"      , 6,  IdSElim    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
    ("mapOnPathS"    , 10, MapOnPathS   )]

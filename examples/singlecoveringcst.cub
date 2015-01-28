@@ -1,23 +1,14 @@
-module singlecovering where
+module singlecoveringcst where
 
 import prelude
 import circle
 import square
 import mult2
 
-idUnit : Unit -> Unit
-idUnit = split tt -> tt
-
-idUnitInvol : (x : Unit) -> Id Unit (idUnit (idUnit x)) x
-idUnitInvol = split tt -> refl Unit tt
-
-eqUnit : Id U Unit Unit
-eqUnit = isoId Unit Unit idUnit idUnit idUnitInvol idUnitInvol
-
 singleCov : S1 -> U
 singleCov = hsplit (\_ -> U) with
   base -> Unit
-  loop -> eqUnit
+  loop -> refl U Unit
 
 MS : U
 MS = Sigma S1 singleCov
@@ -33,19 +24,8 @@ toS = hsplit (\_ -> MS) with
   base -> baseS
   loop -> loopS
 
-fromScurBase : (y : Unit) -> S1
-fromScurBase = split tt -> base
-
-fromScurLoop : (y : Unit) -> Id S1 (fromScurBase y) (fromScurBase (subst S1 singleCov base base loop y))
-fromScurLoop = split tt -> loop
-
-fromScur : (x : S1) (y : singleCov x) -> S1
-fromScur = hsplit (\x -> (y : singleCov x) -> S1) with
-  base -> fromScurBase
-  loop -> funExt1 S1 S1 singleCov base base loop fromScurBase fromScurBase fromScurLoop
-
 fromS : MS -> S1
-fromS xy = fromScur xy.1 xy.2
+fromS xy = xy.1
 
 fromSBeta : Id (Id S1 base base) (mapOnPath MS S1 fromS baseS baseS loopS) loop
 fromSBeta = compIdl S1 base base loop
@@ -55,8 +35,8 @@ fromToS = hsplit (\x -> Id S1 (fromS (toS x)) x) with
   base -> refl S1 base
   loop -> substPathPiSquareTranspose S1 S1 (\x -> fromS (toS x)) (\x -> x) base base loop (refl S1 base) (refl S1 base) (compIdl S1 base base loop)
 
-toFromScurBase : (y : Unit) -> Id MS (toS (fromScurBase y)) (base, y)
-toFromScurBase = split tt -> refl MS (base, tt)
+toFromScurBase : (y : Unit) -> Id MS (toS base) (base, y)
+toFromScurBase = split tt -> refl MS baseS
 
 hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
 hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
@@ -69,24 +49,25 @@ lemma A B f g a = J A a (\a' p -> (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'
                               -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q')
                    (hdegenSquareInv B (f a) (g a))
 
-toFromScurLoop : (y : Unit) -> Id (Id MS (toS (fromScurBase (idUnit y))) (base, idUnit y))
-                            (subst MS (\xy -> Id MS (toS (fromScur xy.1 xy.2)) xy) (base, y) (base, idUnit y)
+toFromScurLoop : (y : Unit) -> Id (Id MS baseS (base, y))
+                            (subst MS (\xy -> Id MS (toS xy.1) xy) (base, y) (base, y)
                                    (pairPathSubst S1 singleCov base base loop y) (toFromScurBase y))
-                            (toFromScurBase (idUnit y))
+                            (toFromScurBase y)
 toFromScurLoop = split tt -> rem where
 
   rem : Id (Id MS baseS baseS)
-           (subst MS (\xy -> Id MS (toS (fromScur xy.1 xy.2)) xy) baseS baseS loopS (refl MS baseS))
+           (subst MS (\xy -> Id MS (toS xy.1) xy) baseS baseS loopS (refl MS baseS))
            (refl MS baseS)
-  rem = lemma MS MS (\xy -> toS (fromS xy)) (\xy -> xy) baseS baseS loopS (refl MS baseS) (refl MS baseS) rem2  where
+  rem = lemma MS MS (\xy -> toS xy.1) (\xy -> xy) baseS baseS loopS (refl MS baseS) (refl MS baseS) rem2  where
 
     rem2 : Id (Id MS baseS baseS) (mapOnPath S1 MS toS base base (mapOnPath MS S1 fromS baseS baseS loopS)) loopS
     rem2 = mapOnPath (Id S1 base base) (Id MS baseS baseS) (mapOnPath S1 MS toS base base) (mapOnPath MS S1 fromS baseS baseS loopS) loop fromSBeta
 
-toFromScur : (x : S1) (y : singleCov x) -> Id MS (toS (fromScur x y)) (x, y)
-toFromScur = hsplit (\x -> (y : singleCov x) -> Id MS (toS (fromScur x y)) (x, y)) with
+
+toFromScur : (x : S1) (y : singleCov x) -> Id MS (toS x) (x, y)
+toFromScur = hsplit (\x -> (y : singleCov x) -> Id MS (toS x) (x, y)) with
   base -> toFromScurBase
-  loop -> funExtFull S1 singleCov (\ x y -> Id MS (toS (fromScur x y)) (x, y)) base base loop toFromScurBase toFromScurBase toFromScurLoop
+  loop -> funExtFull S1 singleCov (\ x y -> Id MS (toS x) (x, y)) base base loop toFromScurBase toFromScurBase toFromScurLoop
 
 toFromS : (x : MS) -> Id MS (toS (fromS x)) x
 toFromS xy = toFromScur xy.1 xy.2
@@ -102,8 +83,6 @@ windingMS l = winding (mapOnPath MS S1 (transpInv S1 MS theoremS) baseS baseS l)
 
 multMS : MS -> MS -> MS
 multMS = subst U (\X -> X -> X -> X) S1 MS theoremS mult
-
-
 
 test4MS : Z
 test4MS = windingMS (mapOnPath MS MS (\x -> multMS x baseS) baseS baseS loopS)

@@ -146,7 +146,7 @@ MtoMInv : (xy : M) -> Id M (mapToDoubleCov (mapFromDoubleCov xy)) xy
 MtoMInv xy = MtoMInvaux xy.1 xy.2
 
 theorem : Id U S1' M 
-theorem = isoId S1' M mapToDoubleCov mapFromDoubleCov undefined undefined -- MtoMInv S1toS1Inv
+theorem = isoId S1' M mapToDoubleCov mapFromDoubleCov MtoMInv S1toS1Inv
 
 ---
 
@@ -182,7 +182,7 @@ toFrom = hsplit (\x -> Id S1' (to (from x)) x) with
   loop2 -> substPathPi S1' S1' (\x -> to (from x)) (\x -> x) base2 base1 loop2 (inv S1' base2 base1 loop2) (refl S1' base1) (compInvLeft' S1' base2 base1 loop2)
 
 theorem2 : Id U S1 S1'
-theorem2 = isoId S1 S1' to from undefined undefined --toFrom fromTo
+theorem2 = isoId S1 S1' to from toFrom fromTo
 
 theorem3 : Id U S1 M
 theorem3 = comp U S1 S1' M theorem2 theorem
@@ -281,3 +281,26 @@ testInvS = winding' (mapOnPath M M invS (base, true) (base, true) (comp M (base,
 
 testInv2S : Z
 testInv2S = winding' (mapOnPath M M (\x -> invS (invS x)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+
+
+bM : M
+bM = (base, true)
+
+loopM : Id M bM bM
+loopM = comp M (base, true) (base, false) (base, true) p1 p2
+
+-- rem1 : (A B : U) (p : Id U A B) (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))
+-- rem1 A = J U A (\ B p -> (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))) (\ a -> refl U (Id A a a))
+
+-- rem1IdP : (A B : U) (p : Id U A B) (a:A) (q : Id A a a) ->
+--      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q)
+-- rem1IdP A =
+--   J U A (\ B p -> (a:A) (q : Id A a a) ->
+--      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q))
+--      (\ a q -> refl (Id A a a) q)
+
+invTm : Id U M S1'
+invTm = inv U S1' M theorem
+
+-- test3M : IdP (Id M bM bM) (Id S1' base1 base1) (rem1 M S1' invTm bM) loopM (mapOnPath M S1' (transport M S1' invTm) bM bM loopM)
+-- test3M = rem1IdP M S1' invTm bM loopM

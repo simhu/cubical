@@ -324,6 +324,14 @@ vext phi f g p        = VExt phi f g p
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
+app kan@(Kan i b@(VPi a f) ts li0) ui1 | i `notElem` support ui1 =
+  trace ("app (Kan VPi)") $
+    let u   = fill Neg i a Map.empty ui1
+        --ui0 = u `face` (j ~> 0)
+        ui0 = comp Neg i a Map.empty ui1
+    in comp Pos i (app f u)
+           (Map.intersectionWith app ts (border u ts))
+           (app li0 ui0)
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
   trace ("app (Kan VPi)") $
     let j   = fresh (kan,ui1)
@@ -415,6 +423,7 @@ apps = foldl app
 
 (@@) :: ToFormula a => Val -> a -> Val
 (Path i u) @@ phi = u `act` (i, toFormula phi)
+(KanUElem _ u) @@ phi = u @@ phi
 v @@ phi          = VAppFormula v (toFormula phi)
 
 
@@ -515,8 +524,18 @@ evalPN (i:j:_) Transpose [t,a0,a1,u,b0,b1,v,r0,r1,x] =
 evalPN (i:j:_) IdSElim [a,b,p,u,v,x] =
    Path j $ comp Pos i (p @@ i) ss u
      where ss = mkSystem [(j ~> 1, x @@ i)]
+evalPN (i:_) EqTransport [a,b,p,u] = Path i $ fill Pos i (p @@ i) Map.empty u
+evalPN (i:j:_) Rem1IdP [a,b,p,u,q] =
+   Path i $ Path j $ fill Pos i (p @@ i) Map.empty (q @@ j)
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
+{-
+
+Id (<i0> Id p (q @ Atom i0) (comp Pos i (p @@ i) Map.empty (q @ Atom i0)))
+   (Path i $ fill Pos i (p @@ i) Map.empty u)
+   (Path i $ fill Pos i (p @@ i) Map.empty u)
+
+-}
 -- we add as a primitive that (A B:U) -> prop A -> prop (Id U A B), i, j free
 -- propId a b pa x y i j = Path j rem
 --  where comp Pos i v 
