@@ -152,26 +152,26 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
     Just (':':'c':'d':' ':str) -> do lift (setCurrentDirectory str)
                                      loop flags f names tenv
     Just ":h"  -> outputStrLn help >> loop flags f names tenv
-    Just (':':'n':' ':str) ->
-      case pExp (lexer str) of
-      Bad err -> outputStrLn ("Parse error: " ++ err) >> loop flags f names tenv
-      Ok  exp ->
-        case runResolver $ local (insertBinders names) $ resolveExp exp of
-          Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
-                           loop flags f names tenv
-          Right body -> do
-          x <- liftIO $ TC.runInfer tenv body
-          case x of
-            Left err -> do outputStrLn ("Could not type-check: " ++ err)
-                           loop flags f names tenv
-            Right _  -> do
-              let e = E.normal 0 (E.eval rho body)
-              outputStrLn ("NORMEVAL: " ++ show e)
-              loop flags f names tenv
+    -- Just (':':'n':' ':str) ->
+    --   case pExp (lexer str) of
+    --   Bad err -> outputStrLn ("Parse error: " ++ err) >> loop flags f names tenv
+    --   Ok  exp ->
+    --     case runResolver $ local (insertBinders names) $ resolveExp exp of
+    --       Left  err  -> do outputStrLn ("Resolver failed: " ++ err)
+    --                        loop flags f names tenv
+    --       Right body -> do
+    --       x <- liftIO $ TC.runInfer tenv body
+    --       case x of
+    --         Left err -> do outputStrLn ("Could not type-check: " ++ err)
+    --                        loop flags f names tenv
+    --         Right _  -> do
+    --           let e = E.normal 0 (E.eval rho body)
+    --           outputStrLn ("NORMEVAL: " ++ show e)
+    --           loop flags f names tenv
     Just str' ->
       let (msg,str,mod) = case str' of
-            (':':'n':' ':str) ->
-              ("NORMEVAL: ",str,E.normal 0 :: C.Val->C.Val)
+            -- (':':'n':' ':str) ->
+            --   ("NORMEVAL: ",str,E.normal 0 :: C.Val->C.Val)
             str -> ("EVAL: ",str,id)
       in case pExp (lexer str) of
         Bad err -> do outputStrLn ("Parse error: " ++ err)
@@ -187,7 +187,7 @@ loop flags f names tenv@(TC.TEnv _ rho _ _) = do
                                loop flags f names tenv
                 Right _  -> do
                   start <- liftIO getCurrentTime
-                  let e = E.eval rho body
+                  let e = E.eval [] rho body
                   outputStrLn ("EVAL: " ++ show e)
                   stop <- liftIO getCurrentTime
                   let time = diffUTCTime stop start

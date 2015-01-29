@@ -96,12 +96,12 @@ addTypeVal p@(x,_) (TEnv k rho gam v) =
 -- addTypeVals = flip $ foldl (flip addTypeVal)
 
 addType :: (Binder,Ter) -> TEnv -> TEnv
-addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval rho a) tenv
+addType (x,a) tenv@(TEnv _ rho _ _) = addTypeVal (x,eval [] rho a) tenv
 
 addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Ctxt
 addC gam _             []          = gam
 addC gam ((y,a):as,nu) ((x,u):xus) =
-  let v = eval nu a
+  let v = eval [] nu a
   in addC ((x,v):gam) (as,Pair nu (y,u)) xus
 
 addBranch :: [(Binder,Val)] -> (Tele,Env) -> TEnv -> TEnv
@@ -112,7 +112,7 @@ addBranch nvs (tele,env) (TEnv k rho gam v) =
 addDecls :: Decls -> TEnv -> TEnv
 addDecls d (TEnv k rho gam v) =
   let rho1 = PDef (declDefs d) rho
-      es'  = evals rho1 (declDefs d)
+      es'  = evals [] rho1 (declDefs d)
       gam' = addC gam (declTele d,rho) es'
       --gam' = gam ++ [(x,eval rho1 a) | (x,a) <- declTele d]
   in TEnv k rho1 gam' v
@@ -161,22 +161,22 @@ check a t = case (a,t) of
        else throwError "case branches do not match the data type"
   (VPi a f,Lam x t)  -> do
     var <- getFresh
-    local (addTypeVal (x,a)) $ check (app f var) t
+    local (addTypeVal (x,a)) $ check (app [] f var) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
     e <- asks env
-    check (app f (eval e t1)) t2
+    check (app [] f (eval [] e t1)) t2
   (VId (Path i u) v0 v1,PCon c es ns t0 t1) -> do -- TODO: what about the <i> ?
     (bs,nu) <- getHLblType c u
     checks (bs,nu) es
     k   <- asks index
     rho <- asks env
     let env' = -- upds rho (evals rho (zip (map noLoc ns) es)) should be the same
-          upds nu (evals rho (zip (map fst bs) es))
-        w0   = eval env' t0
-        w1   = eval env' t1
-    if conv k v0 w0
-      then unless (conv k v1 w1)
+          upds nu (evals [] rho (zip (map fst bs) es))
+        w0   = eval [] env' t0
+        w1   = eval [] env' t1
+    if conv [] k v0 w0
+      then unless (conv [] k v1 w1)
            (throwError $ "check conv pcon:" <+> show v1 <+> "/=" <+> show w1)
       else throwError $ "check conv pcon:" <+> show v0 <+> "/=" <+> show w0
   (VU,HSum _ hlabels) -> forM_ hlabels $ \hlabel -> case hlabel of
@@ -187,19 +187,19 @@ check a t = case (a,t) of
       k   <- asks index
       let l  = length tele
           us = map mkVar [k..k+l-1]
-          e  = eval rho t
+          e  = eval [] rho t
       local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
         check e t0
         check e t1
   (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
     k   <- asks index
     rho <- asks env
-    unless (conv k f (eval rho f'))
+    unless (conv [] k f (eval [] rho f'))
       (throwError "check HSplit: families don't match")
     let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
         hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
     if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
-      then sequence_ [ checkHBranch (hl,nu) f hbr (eval rho t)
+      then sequence_ [ checkHBranch (hl,nu) f hbr (eval [] rho t)
                      | (hbr,hl) <- zip hbranches' hlabels']
       else throwError "hsplit branches do not match the hdata type"
   (_,Where e d) -> do
@@ -209,7 +209,7 @@ check a t = case (a,t) of
   _ -> do
     v <- checkInfer t
     k <- asks index
-    unless (conv k v a) $
+    unless (conv [] k v a) $
       throwError $ "check conv: " ++ show v ++ " /= " ++ show a
 
 
@@ -217,10 +217,9 @@ checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
   k   <- asks index
   rho <- asks env
-  let d  = support rho
-      l  = length xas
+  let l  = length xas
       us = map mkVar [k..k+l-1]
-  local (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
+  local (addBranch (zip xs us) (xas,nu)) $ check (app [] f (VCon c us)) e
 
 checkHBranch :: (HLabel,Env) -> Val -> HBranch -> Val -> Typing ()
 checkHBranch (Label _ tele,nu) f (Branch c binders e) _ =
@@ -231,14 +230,14 @@ checkHBranch (HLabel _ tele t0 t1,nu) f (HBranch c binders e) hsplit = do
   let l    = length tele
       us   = map mkVar [k..k+l-1]
       rho' = upds nu (zip (map fst tele) us)
-      u0   = app hsplit (eval rho' t0)
-      u1   = app hsplit (eval rho' t1)
+      u0   = app [] hsplit (eval [] rho' t0)
+      u1   = app [] hsplit (eval [] rho' t1)
   local (addBranch (zip binders us) (tele,nu)) $ do
     rho'' <- asks env
     let tpc = PCon c (map Var (map fst binders)) (map (fst . fst) tele) t0 t1
-        pc  = eval rho'' tpc
+        pc  = eval [] rho'' tpc
         i   = fresh (f,rho'',u0,u1)
-    check (VId (Path i $ app f (pc @@ i)) u0 u1) e
+    check (VId (Path i $ app [i] f (appFormula [i] pc i)) u0 u1) e
 checkHBranch (hlb,_) _ hbr _ =
   throwError ("checkHBranch: constructor kinds don't match up in"
              <+> show hlb <+> "and" <+> show hbr)
@@ -258,7 +257,7 @@ checkInfer e = case e of
       VPi a f -> do
         check a u
         rho <- asks env
-        return $ app f (eval rho u)
+        return $ app [] f (eval [] rho u)
       _       -> throwError $ show c ++ " is not a product"
   Fst t -> do
     c <- checkInfer t
@@ -270,7 +269,7 @@ checkInfer e = case e of
     case c of
       VSigma a f -> do
         e <- asks env
-        return $ app f (fstSVal (eval e t))
+        return $ app [] f (fstSVal (eval [] e t))
       _          -> throwError $ show c ++ " is not a sigma-type"
   Where t d -> do
     checkDecls d
@@ -280,9 +279,9 @@ checkInfer e = case e of
 checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()
 checks ((x,a):xas,nu) (e:es) = do
-  check (eval nu a) e
+  check (eval [] nu a) e
   rho <- asks env
-  checks (xas,Pair nu (x,eval rho e)) es
+  checks (xas,Pair nu (x,eval [] rho e)) es
 checks _              _      = throwError "checks"
 
 -- Not used since we have U : U
