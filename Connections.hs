@@ -245,13 +245,18 @@ gensyms d = let x = gensym d in x : gensyms (x : d)
 
 class Nominal a where
   support :: a -> [Name]
--- act u (i,phi) should have u # (phi - i) ??
+
+  occurs :: Name -> a -> Bool
+  occurs x v = x `elem` support v
+
+  -- act u (i,phi) should have u # (phi - i) ??
   act     ::  [Name] -> a -> (Name,Formula) -> a
 
   swap :: a -> (Name,Name) -> a
   -- swap u (i,j) =
   --    where k = fresh (u,i,j)
 
+-- Is used in type checker
 fresh :: Nominal a => a -> Name
 fresh = gensym . support
 
@@ -264,24 +269,32 @@ unions = foldr union []
 unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
 unionsMap f = unions . map f
 
+notOccurs :: Nominal a => Name -> a -> Bool
+notOccurs x = not . occurs x
+
 instance Nominal () where
   support () = []
+  occurs _ () = False
   act _ () _  = ()
   swap () _   = ()
 
 instance (Nominal a, Nominal b) => Nominal (a, b) where
   support (a, b) = support a `union` support b
+  occurs x (a,b) = occurs x a || occurs x b
   act s (a,b) f  = (act s a f,act s b f)
   swap (a,b) n   = (swap a n,swap b n)
 
 instance (Nominal a, Nominal b, Nominal c) => Nominal (a, b, c) where
-  support (a,b,c) = unions [support a, support b, support c]
-  act s (a,b,c) f = (act s a f,act s b f,act s c f)
-  swap (a,b,c) n  = (swap a n,swap b n,swap c n)
+  support (a,b,c)  = unions [support a, support b, support c]
+  occurs x (a,b,c) = or [occurs x a,occurs x b,occurs x c]
+  act s (a,b,c) f  = (act s a f,act s b f,act s c f)
+  swap (a,b,c) n   = (swap a n,swap b n,swap c n)
 
 instance (Nominal a, Nominal b, Nominal c, Nominal d) =>
          Nominal (a, b, c, d) where
   support (a,b,c,d) = unions [support a, support b, support c, support d]
+  occurs x (a,b,c,d) = 
+    or [occurs x a,occurs x b,occurs x c,occurs x d]
   act s (a,b,c,d) f  = (act s a f,act s b f,act s c f,act s d f)
   swap (a,b,c,d) n   = (swap a n,swap b n,swap c n,swap d n)
 
@@ -289,6 +302,8 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e) =>
          Nominal (a, b, c, d, e) where
   support (a,b,c,d,e)  =
     unions [support a, support b, support c, support d, support e]
+  occurs x (a,b,c,d,e) =
+    or [occurs x a,occurs x b,occurs x c,occurs x d,occurs x e]
   act s (a,b,c,d,e) f = (act s a f,act s b f,act s c f,act s d f, act s e f)
   swap (a,b,c,d,e) n  =
     (swap a n,swap b n,swap c n,swap d n,swap e n)
@@ -297,6 +312,8 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e, Nominal h) =>
          Nominal (a, b, c, d, e, h) where
   support (a,b,c,d,e,h) =
     unions [support a, support b, support c, support d, support e, support h]
+  occurs x (a,b,c,d,e,h) =
+    or [occurs x a,occurs x b,occurs x c,occurs x d,occurs x e,occurs x h]
   act s (a,b,c,d,e,h) f =
     (act s a f,act s b f,act s c f,act s d f, act s e f, act s h f)
   swap (a,b,c,d,e,h) n  =
@@ -304,11 +321,13 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e, Nominal h) =>
 
 instance Nominal a => Nominal [a]  where
   support xs  = unions (map support xs)
+  occurs x xs = any (occurs x) xs
   act s xs f  = [ act s x f | x <- xs ]
   swap xs n   = [ swap x n | x <- xs ]
 
 instance Nominal a => Nominal (Maybe a)  where
   support    = maybe [] support
+  occurs x   = maybe False (occurs x)
   act s v f  = fmap (\u -> act s u f) v
   swap a n   = fmap (`swap` n) a
 
@@ -382,6 +401,7 @@ transposeSystemAndList tss (u:us) =
 instance Nominal a => Nominal (System a) where
   support s = unions (map Map.keys $ Map.keys s)
               `union` support (Map.elems s)
+  occurs x s = x `elem` (concatMap Map.keys $ Map.keys s) || occurs x (Map.elems s)
 
   act sup s (i, phi) = addAssocs (Map.assocs s)
     where

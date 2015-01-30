@@ -34,70 +34,47 @@ trace s e = if debug then DT.trace s e else e
 
 look :: [Name] -> Ident -> Env -> (Binder, Val)
 look is x (Pair rho (n@(y,l),u))
-  | x == y    = -- DT.trace ("look1 " ++ show y) $
-                (n, u)
+  | x == y    = (n, u)
   | otherwise = look is x rho
 look is x r@(PDef es r1) = case lookupIdent x es of
-  Just (y,t)  -> -- DT.trace ("look3 " ++ show y) $
-                 (y,eval is r t)
+  Just (y,t)  -> (y,eval is r t)
   Nothing     -> look is x r1
 look _ x Empty = error ("look:" <+> x <+> "not found")
 
 eval :: [Name] -> Env -> Ter -> Val
-eval is e U                 = -- DT.trace "U" $
-                           VU
-eval is e pn@(PN (Undef _)) = -- DT.trace "undef" $
-                           Ter pn e
-eval is e (PN pn)           = -- DT.trace "pn" $
-                           evalAppPN is e pn []
-eval is e t@(App r s)       = case unApps t of
-  (PN pn,us) -> -- DT.trace "appPN" $
-                evalAppPN is e pn us
-  _          -> -- DT.trace "app" $
-                app is (eval is e r) (eval is e s)
-eval is e (Var i)           = -- DT.trace ("look " ++ i) $
-                           snd $ look is i e
-eval is e (Pi a b)          = -- DT.trace "pi" $
-                           VPi (eval is e a) (eval is e b)
-eval is e (Lam x t)         = -- DT.trace "lam" $
-                           Ter (Lam x t) e -- stop at lambdas
-eval is e (Where t decls)   = -- DT.trace "where" $
-                           eval is (PDef (declDefs decls) e) t
+eval is e v = case v of
+  U                  -> VU
+  pn@(PN (Undef _))  -> Ter pn e
+  PN pn              -> evalAppPN is e pn []
+  App r s            -> case unApps (App r s) of
+    (PN pn,us) -> evalAppPN is e pn us
+    _          -> app is (eval is e r) (eval is e s)
+  Var i              -> snd $ look is i e
+  Pi a b             -> VPi (eval is e a) (eval is e b)
+  t@Lam{}            -> Ter t e -- stop at lambdas
+  Where t decls      -> eval is (PDef (declDefs decls) e) t
+  Sigma a b          -> VSigma (eval is e a) (eval is e b)
+  SPair a b          -> VSPair (eval is e a) (eval is e b)
+  Fst a              -> fstSVal $ eval is e a
+  Snd a              -> sndSVal $ eval is e a
+  Sum pr ntss        -> Ter (Sum pr ntss) e
+  Con name ts        -> VCon name $ map (eval is e) ts
+  Split pr alts      -> Ter (Split pr alts) e
+  t@HSum{}           -> Ter t e
+  PCon n ts ns t0 t1 -> 
+    let i   = gensym is
+        -- TODO: lambda abstract or not?
+        -- u0 = eval e (mkLams ns t0)
+        -- u1 = eval e (mkLams ns t1)
 
-eval is e (Sigma a b)       = -- DT.trace "sigma" $
-                           VSigma (eval is e a) (eval is e b)
-eval is e (SPair a b)       = -- DT.trace "spair" $
-                           VSPair (eval is e a) (eval is e b)
-eval is e (Fst a)           = -- DT.trace "fst" $
-                           fstSVal $ eval is e a
-eval is e (Snd a)           = -- DT.trace "snd" $
-                           sndSVal $ eval is e a
-
-eval is e (Sum pr ntss)     = -- DT.trace "sum" $
-                           Ter (Sum pr ntss) e
-eval is e (Con name ts)     = -- DT.trace "con" $
-                           VCon name $ map (eval is e) ts
-eval is e (Split pr alts)   = -- DT.trace "split" $
-                           Ter (Split pr alts) e
-
-eval _ e t@(HSum {})       = -- DT.trace "hsum" $
-                           Ter t e
-eval is e (PCon n ts ns t0 t1) = -- DT.trace "pcon"  $
-  let i = gensym is
-      -- TODO: lambda abstract or not?
---      u0 = eval e (mkLams ns t0)
---      u1 = eval e (mkLams ns t1)
-
-      -- -- The code below should be correct, but because of the other bug, we
-      -- -- leave the incorrect thing for now
-      us = map (eval is e) ts
-      upe = upds e (zip (map noLoc ns) us)
-      u0 = eval is upe t0
-      u1 = eval is upe t1
-  in Path i $ VPCon n us (Atom i) u0 u1
-eval is e t@(HSplit {})     = -- DT.trace "hsplit" $
-                           Ter t e
-
+        -- The code below should be correct, but because of the other bug, we
+        -- leave the incorrect thing for now
+        us  = map (eval is e) ts
+        upe = upds e (zip (map noLoc ns) us)
+        u0  = eval is upe t0
+        u1  = eval is upe t1
+    in Path i $ VPCon n us (Atom i) u0 u1
+  t@HSplit{}         -> Ter t e
 
 evals :: [Name] -> Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals is env = map (second (eval is env))
@@ -118,49 +95,69 @@ sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ "sndSVal: " ++show u ++ " should be neutral"
 
 instance Nominal Val where
-  support VU                            = []
-  support (Ter _ e)                     = support e
-  support (VPi v1 v2)                   = support [v1,v2]
-  support (Kan i a ts u)                = i `delete` support (a,ts,u)
-  support (KanNe i a ts u)              = i `delete` support (a,ts,u)
-  support (KanUElem ts u)               = support (ts,u)
-  support (UnKan ts u)                  = support (ts, u)
+  support v = case v of
+    VU                     -> []
+    Ter _ e                -> support e
+    VPi v1 v2              -> support [v1,v2]
+    Kan i a ts u           -> i `delete` support (a,ts,u)
+    KanNe i a ts u         -> i `delete` support (a,ts,u)
+    KanUElem ts u          -> support (ts,u)
+    UnKan ts u             -> support (ts,u)
+    VId a v0 v1            -> support [a,v0,v1]
+    Path i v               -> i `delete` support v
+    VSigma u v             -> support (u,v)
+    VSPair u v             -> support (u,v)
+    VFst u                 -> support u
+    VSnd u                 -> support u
+    VCon _ vs              -> support vs
+    VVar _                 -> []
+    VApp u v               -> support (u, v)
+    VAppFormula u phi      -> support (u, phi)
+    VSplit u v             -> support (u, v)
+    Glue ts u              -> support (ts, u)
+    UnGlue ts u            -> support (ts, u)
+    GlueElem ts u          -> support (ts, u)
+    HisoProj _ e           -> support e
+    GlueLine t phi psi     -> support (t,phi,psi)
+    GlueLineElem t phi psi -> support (t,phi,psi)
+    VExt phi f g p         -> support (phi,f,g,p)
+    VPCon _ vs phi u v     -> support (vs,phi,u,v)
+    VHSplit u v            -> support (u,v)
+    UnGlueNe u v           -> support (u,v)
+    VLam _ u               -> support u
 
-  support (VId a v0 v1)                 = support [a,v0,v1]
-  support (Path i v)                    = i `delete` support v
+  occurs x w = case w of
+    VU                     -> False
+    Ter _ e                -> occurs x e
+    VPi v1 v2              -> occurs x [v1,v2]
+    Kan i a ts u           -> if x == i then False else occurs x (a,ts,u)
+    KanNe i a ts u         -> if x == i then False else occurs x (a,ts,u)
+    KanUElem ts u          -> occurs x (ts,u)
+    UnKan ts u             -> occurs x (ts,u)
+    VId a v0 v1            -> occurs x [a,v0,v1]
+    Path i v               -> if x == i then False else occurs x v
+    VSigma u v             -> occurs x (u,v)
+    VSPair u v             -> occurs x (u,v)
+    VFst u                 -> occurs x u
+    VSnd u                 -> occurs x u
+    VCon _ vs              -> occurs x vs
+    VVar _                 -> False
+    VApp u v               -> occurs x (u, v)
+    VAppFormula u phi      -> occurs x (u, phi)
+    VSplit u v             -> occurs x (u, v)
+    Glue ts u              -> occurs x (ts, u)
+    UnGlue ts u            -> occurs x (ts, u)
+    GlueElem ts u          -> occurs x (ts, u)
+    HisoProj _ e           -> occurs x e
+    GlueLine t phi psi     -> occurs x (t,phi,psi)
+    GlueLineElem t phi psi -> occurs x (t,phi,psi)
+    VExt phi f g p         -> occurs x (phi,f,g,p)
+    VPCon _ vs phi u v     -> occurs x (vs,phi,u,v)
+    VHSplit u v            -> occurs x (u,v)
+    UnGlueNe u v           -> occurs x (u,v)
+    VLam _ u               -> occurs x u
 
-  support (VSigma u v)                  = support (u,v)
-  support (VSPair u v)                  = support (u,v)
-  support (VFst u)                      = support u
-  support (VSnd u)                      = support u
-
-  support (VCon _ vs)                   = support vs
-
-  support (VVar _)                      = []
-  support (VApp u v)                    = support (u, v)
-  support (VAppFormula u phi)           = support (u, phi)
-  support (VSplit u v)                  = support (u, v)
-
-  support (Glue ts u)                   = support (ts, u)
-  support (UnGlue ts u)                 = support (ts, u)
-  support (GlueElem ts u)               = support (ts, u)
-  support (HisoProj _ e)                = support e
-  support (GlueLine t phi psi)          = support (t,phi,psi)
-  support (GlueLineElem t phi psi)      = support (t,phi,psi)
-
-  support (VExt phi f g p)              = support (phi,f,g,p)
-
-  support (VPCon _ vs phi u v)          = support (vs,phi,u,v)
-  support (VHSplit u v)                 = support (u,v)
-
-  support (UnGlueNe u v)                = support (u,v)
-
-  support (VLam _ u)                    = support u
-
-  -- support v                             = error ("support " ++ show v)
-
-
-  act is u (i, phi) = -- trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
+  act is u (i, phi) =
     let acti :: Nominal a => a -> a
         acti u = act is u (i, phi)
         fv     = support phi
@@ -169,101 +166,90 @@ instance Nominal Val where
         ar :: Nominal a => Name -> a -> a
         ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
     in case u of
-         VU      -> VU
-         Ter t e -> Ter t (acti e)
-         VPi a f -> VPi (acti a) (acti f)
+         VU                     -> VU
+         Ter t e                -> Ter t (acti e)
+         VPi a f                -> VPi (acti a) (acti f)
          -- TODO: add k to be on the safe side?
-         Kan j a ts v -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+         Kan j a ts v           -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
          -- TODO: Check that act on neutral is neutral
-         KanNe j a ts v -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
-         KanUElem ts u -> kanUElem fvis (acti ts) (acti u)
-         UnKan ts u    -> UnKan (acti ts) (acti u)
-
-         VId a u v -> VId (acti a) (acti u) (acti v)
-         Path j v -> Path k (ar j v)
-
-         VSigma a f -> VSigma (acti a) (acti f)
-         VSPair u v -> VSPair (acti u) (acti v)
-         VFst u     -> VFst (acti u)
-         VSnd u     -> VSnd (acti u)
-
-         VCon c vs  -> VCon c (acti vs)
-
-         VVar x            -> VVar x
-         VAppFormula u psi -> appFormula fvis (acti u) (acti psi)
-         VApp u v          -> app fvis (acti u) (acti v)
-         VSplit u v        -> app fvis (acti u) (acti v)
-
-         Glue ts u         -> glue (acti ts) (acti u)
-         UnGlue ts u       -> UnGlue (acti ts) (acti u)
-         GlueElem ts u     -> glueElem (acti ts) (acti u)
-         HisoProj n e      -> HisoProj n (acti e)
-         GlueLine t phi psi -> glueLine fvis (acti t) (acti phi) (acti psi)
+         KanNe j a ts v         -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+         KanUElem ts u          -> kanUElem fvis (acti ts) (acti u)
+         UnKan ts u             -> UnKan (acti ts) (acti u)
+         VId a u v              -> VId (acti a) (acti u) (acti v)
+         Path j v               -> Path k (ar j v)
+         VSigma a f             -> VSigma (acti a) (acti f)
+         VSPair u v             -> VSPair (acti u) (acti v)
+         VFst u                 -> VFst (acti u)
+         VSnd u                 -> VSnd (acti u)
+         VCon c vs              -> VCon c (acti vs)
+         VVar x                 -> VVar x
+         VAppFormula u psi      -> appFormula fvis (acti u) (acti psi)
+         VApp u v               -> app fvis (acti u) (acti v)
+         VSplit u v             -> app fvis (acti u) (acti v)
+         Glue ts u              -> glue (acti ts) (acti u)
+         UnGlue ts u            -> UnGlue (acti ts) (acti u)
+         GlueElem ts u          -> glueElem (acti ts) (acti u)
+         HisoProj n e           -> HisoProj n (acti e)
+         GlueLine t phi psi     -> glueLine fvis (acti t) (acti phi) (acti psi)
          GlueLineElem t phi psi -> glueLineElem fvis (acti t) (acti phi) (acti psi)
-
-         VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
-
-         VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
-         VHSplit u v        -> app fvis (acti u) (acti v)
-
-         UnGlueNe u v       -> app fvis (acti u) (acti v)
+         VExt psi f g p         -> vext (acti psi) (acti f) (acti g) (acti p)
+         VPCon n vs phi u v     -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
+         VHSplit u v            -> app fvis (acti u) (acti v)
+         UnGlueNe u v           -> app fvis (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
-  swap u ij@ (i,j) =
+  swap u ij =
     let sw :: Nominal a => a -> a
         sw u = swap u ij
     in case u of
-         VU      -> VU
-         Ter t e -> Ter t (sw e)
-         VPi a f -> VPi (sw a) (sw f)
-         Kan k a ts v -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
-         KanNe k a ts v -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
-
-         KanUElem ts u -> KanUElem (sw ts) (sw u)
-         UnKan ts u    -> UnKan (sw ts) (sw u)
-
-         VId a u v -> VId (sw a) (sw u) (sw v)
-         Path k v -> Path (swapName k ij) (sw v)
-
-         VSigma a f -> VSigma (sw a) (sw f)
-         VSPair u v -> VSPair (sw u) (sw v)
-         VFst u     -> VFst (sw u)
-         VSnd u     -> VSnd (sw u)
-
-         VCon c vs  -> VCon c (sw vs)
-
-         VVar x            -> VVar x
-         VAppFormula u psi -> VAppFormula (sw u) (sw psi)
-         VApp u v          -> VApp (sw u) (sw v)
-         VSplit u v        -> VSplit (sw u) (sw v)
-
-         Glue ts u         -> Glue (sw ts) (sw u)
-         UnGlue ts u       -> UnGlue (sw ts) (sw u)
-         GlueElem ts u     -> GlueElem (sw ts) (sw u)
-         HisoProj n e      -> HisoProj n (sw e)
-         GlueLine t phi psi -> GlueLine (sw t) (sw phi) (sw psi)
+         VU                     -> VU
+         Ter t e                -> Ter t (sw e)
+         VPi a f                -> VPi (sw a) (sw f)
+         Kan k a ts v           -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
+         KanNe k a ts v         -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
+         KanUElem ts u          -> KanUElem (sw ts) (sw u)
+         UnKan ts u             -> UnKan (sw ts) (sw u)
+         VId a u v              -> VId (sw a) (sw u) (sw v)
+         Path k v               -> Path (swapName k ij) (sw v)
+         VSigma a f             -> VSigma (sw a) (sw f)
+         VSPair u v             -> VSPair (sw u) (sw v)
+         VFst u                 -> VFst (sw u)
+         VSnd u                 -> VSnd (sw u)
+         VCon c vs              -> VCon c (sw vs)
+         VVar x                 -> VVar x
+         VAppFormula u psi      -> VAppFormula (sw u) (sw psi)
+         VApp u v               -> VApp (sw u) (sw v)
+         VSplit u v             -> VSplit (sw u) (sw v)
+         Glue ts u              -> Glue (sw ts) (sw u)
+         UnGlue ts u            -> UnGlue (sw ts) (sw u)
+         GlueElem ts u          -> GlueElem (sw ts) (sw u)
+         HisoProj n e           -> HisoProj n (sw e)
+         GlueLine t phi psi     -> GlueLine (sw t) (sw phi) (sw psi)
          GlueLineElem t phi psi -> GlueLineElem (sw t) (sw phi) (sw psi)
-
-         VExt psi f g p -> VExt (sw psi) (sw f) (sw g) (sw p)
-
-         VPCon n vs phi u v -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
-         VHSplit u v        -> VHSplit (sw u) (sw v)
-
-         UnGlueNe u v       -> UnGlueNe (sw u) (sw v)
+         VExt psi f g p         -> VExt (sw psi) (sw f) (sw g) (sw p)
+         VPCon n vs phi u v     -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
+         VHSplit u v            -> VHSplit (sw u) (sw v)
+         UnGlueNe u v           -> UnGlueNe (sw u) (sw v)
 
 instance Nominal Hiso where
-  support (Hiso a b f g s t)  = support (a,b,f,g,s,t)
-
+  support (Hiso a b f g s t)     = support (a,b,f,g,s,t)
+  occurs x (Hiso a b f g s t)    = occurs x (a,b,f,g,s,t)
+  
   act is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
     where (a',b',f',g',s',t') = act is (a,b,f,g,s,t) iphi
 
-  swap (Hiso a b f g s t) ij = Hiso a' b' f' g' s' t'
+  swap (Hiso a b f g s t) ij     = Hiso a' b' f' g' s' t'
     where (a',b',f',g',s',t') = swap (a,b,f,g,s,t) ij
 
 instance Nominal Env where
   support Empty          = []
-  support (Pair e (_,v)) = support (e, v)
+  support (Pair e (_,v)) = support (e,v)
   support (PDef _ e)     = support e
+
+  occurs x e = case e of
+    Empty        -> False
+    Pair e (_,v) -> occurs x (e,v)
+    PDef _ e     -> occurs x e
 
   act is e iphi  = mapEnv (\u -> act is u iphi) e
 
@@ -273,51 +259,52 @@ instance Nominal Env where
 glue :: System Hiso -> Val -> Val
 glue hisos b | Map.null hisos         = b
 glue hisos b | eps `Map.member` hisos = hisoA (hisos ! eps)
-glue hisos b = Glue hisos b
+glue hisos b                          = Glue hisos b
 
 glueElem :: System Val -> Val -> Val
 glueElem us v | Map.null us         = v
 glueElem us v | eps `Map.member` us = us ! eps
-glueElem us v = GlueElem us v
+glueElem us v                       = GlueElem us v
 
 -- TO CHECK: this is confluent
-
 glueLine :: [Name] -> Val -> Formula -> Formula -> Val
-glueLine is t _ (Dir Zero) = t
-glueLine is t (Dir _) _ = t
-glueLine is t phi (Dir One)  = glue hisos t  -- TODO: support of face okay?
-  where hisos = mkSystem (map (\ alpha -> (alpha,idHiso (face is t alpha))) (invFormula phi Zero))
-glueLine is t phi psi = GlueLine t phi psi
+glueLine is t _ (Dir Zero)  = t
+glueLine is t (Dir _) _     = t
+glueLine is t phi (Dir One) = glue hisos t  -- TODO: support of face okay?
+  where hisos = mkSystem (map (\alpha -> (alpha,idHiso (face is t alpha)))
+                              (invFormula phi Zero))
+glueLine is t phi psi       = GlueLine t phi psi
 
 idHiso :: Val -> Hiso
 idHiso a = Hiso a a idV idV refl refl
   where idV  = Ter (Lam (noLoc "x") (Var "x")) Empty
         refl = Ter (Lam (noLoc "x") (App (App (PN Refl) (Var "y")) (Var "x")))
-                 (Pair Empty ((noLoc "y"),a))
+                   (Pair Empty ((noLoc "y"),a))
 
 glueLineElem :: [Name] -> Val -> Formula -> Formula -> Val
-glueLineElem _ u (Dir _) _    = u
-glueLineElem _ u _ (Dir Zero) = u
-glueLineElem is u phi (Dir One)  = glueElem ss u  -- TODO: support of face okay?
- where ss = mkSystem (map (\alpha -> (alpha,face is u alpha)) (invFormula phi Zero))
-glueLineElem _ u phi psi      = GlueLineElem u phi psi
+glueLineElem _ u (Dir _) _      = u
+glueLineElem _ u _ (Dir Zero)   = u
+glueLineElem is u phi (Dir One) = glueElem ss u  -- TODO: support of face okay?
+  where ss = mkSystem (map (\alpha -> (alpha,face is u alpha)) (invFormula phi Zero))
+glueLineElem _ u phi psi        = GlueLineElem u phi psi
 
 unGlueLine :: [Name] -> Val -> Formula -> Formula -> Val -> Val
-unGlueLine is b phi psi u =
- case (phi,psi,u) of
-   (Dir _,_,_) -> u
-   (_,Dir Zero,_) -> u
-   (_,Dir One,_) ->  -- TODO: support of face okay?
-      let hisos  = mkSystem (map (\ alpha -> (alpha,idHiso (face is b alpha))) (invFormula phi Zero))
-      in app is (UnGlue hisos b) u -- TODO: support okay?
-   (_,_,GlueLineElem w _ _ ) -> w
-   (_,_,KanUElem _ (GlueLineElem w _ _ )) -> w
-   (_,_,_) ->  error ("UnGlueLine, should be GlueLineElem " <+> show u)
+unGlueLine is b phi psi u = case (phi,psi,u) of
+ (Dir _,_,_)                            -> u
+ (_,Dir Zero,_)                         -> u
+ (_,Dir One,_)                          ->  -- TODO: support of face okay?
+   let hisos = mkSystem (map (\alpha -> (alpha,idHiso (face is b alpha)))
+                             (invFormula phi Zero))
+   in app is (UnGlue hisos b) u -- TODO: support okay?
+ (_,_,GlueLineElem w _ _ )              -> w
+ (_,_,KanUElem _ (GlueLineElem w _ _ )) -> w
+ (_,_,_)                                ->
+   error ("UnGlueLine, should be GlueLineElem " <+> show u)
 
 kanUElem :: [Name] -> System Val -> Val -> Val
 kanUElem _ us v | Map.null us         = v
 kanUElem _ us v | eps `Map.member` us = us ! eps
-kanUElem is us (KanUElem vs w) = KanUElem ws w
+kanUElem is us (KanUElem vs w)        = KanUElem ws w
   where
     ws' = Map.mapWithKey (\alpha vAlpha -> kanUElem is (face is us alpha) vAlpha) vs
     ws  = insertsSystem (Map.toList us) ws'
@@ -357,6 +344,9 @@ app is (Ter (HSplit _ _ hbr) e) (VCon name us) =
     Just (Branch _ xs t)  -> eval is (upds e (zip xs us)) t
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name <+> show hbr)
+
+-- cubical: app: HSplit with insufficient arguments; missing case for
+--   north [Branch "base" [] z.1,HBranch "loop" [] z.2]
 
 app is (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
@@ -432,16 +422,11 @@ appFormula is (Path i u) phi     = act is u (i, toFormula phi)
 appFormula is (KanUElem _ u) phi = appFormula is u phi
 appFormula _  v          phi     = VAppFormula v (toFormula phi)
 
-
-
 -- Grad Lemma, takes a iso an L-system ts a value v s.t. sigma us = border v
 -- outputs u s.t. border u = us and an L-path between v and sigma u
 -- an theta is a L path if L-border theta is constant
 gradLemma :: [Name] -> Hiso -> System Val -> Val -> (Val, Val)
-gradLemma is hiso@(Hiso a b f g s t) us v =
---  trace ("gradLemma \n b = " ++ show b ++ "\n v = " ++ show v)
-  trace "gradLemma" $
-    (u, Path i theta'')
+gradLemma is hiso@(Hiso a b f g s t) us v = trace "gradLemma" $ (u, Path i theta'')
   where i:j:_   = gensyms is
         is'     = i:j:is
         us'     = Map.mapWithKey (\alpha uAlpha ->
@@ -465,8 +450,7 @@ gradLemma is hiso@(Hiso a b f g s t) us v =
 
 -- any equality defines an equivalence Lemma 4.2
 eqLemma :: [Name] -> Val -> System Val -> Val -> (Val, Val)
-eqLemma is e ts a = trace "eqLemma" $
-                 (t, Path j theta'')
+eqLemma is e ts a = trace "eqLemma" $ (t, Path j theta'')
   where i:j:_   = gensyms is
         is'     = i:j:is
         ei      = appFormula is' e i
@@ -480,11 +464,10 @@ eqLemma is e ts a = trace "eqLemma" $
                   insertSystem (j ~> 0) theta $ vs
         theta'' = comp is' Pos i ei ws t
 
-
 eqHiso :: [Name] -> Val -> Hiso
 eqHiso is e = Hiso (appFormula is e Zero) (appFormula is e One)
-                (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
-                (HisoProj IsSection e) (HisoProj IsRetraction e)
+                   (HisoProj (HisoSign Pos) e) (HisoProj (HisoSign Neg) e)
+                   (HisoProj IsSection e) (HisoProj IsRetraction e)
 
 -- Apply a primitive notion
 evalAppPN :: [Name] -> Env -> PN -> [Ter] -> Val
@@ -510,11 +493,11 @@ evalPN is (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
 evalPN is (i:_) Refl          [_,a]         = Path i a
 evalPN is (i:_) Sym           [_,_,_,p]     = Path i $ appFormula (i:is) p (NegAtom i)
 evalPN is (i:_) TransU        [_,_,p,t]     = trace ("evalPN TransU") $
-                                           comp (i:is) Pos i (appFormula (i:is) p i) Map.empty t
+                                              comp (i:is) Pos i (appFormula (i:is) p i) Map.empty t
 evalPN is (i:_) TransInvU     [_,_,p,t]     = trace "evalPN TransInvU" $
-                                           comp (i:is) Neg i (appFormula (i:is) p i) Map.empty t
+                                              comp (i:is) Neg i (appFormula (i:is) p i) Map.empty t
 evalPN is (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
-                                  Path i $ VSPair q (Path j (connect (i:j:is) q (i,j)))
+                                     Path i $ VSPair q (Path j (connect (i:j:is) q (i,j)))
   where q = appFormula (i:is) p i
 evalPN is (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
 evalPN is (i:_)   IsoId    [a,b,f,g,s,t]   =
@@ -539,9 +522,8 @@ evalPN is (i:j:_) IdSElim [a,b,p,u,v,x] =
      where ss = mkSystem [(j ~> 1, appFormula (i:j:is) x i)]
 evalPN is _       u          _                = error ("evalPN " ++ show u)
 
-
 comps :: [Name] -> Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
-comps is i []         _ []         = []
+comps is i []         _ []            = []
 comps is i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill (i:is) Pos i (eval (i:is) e a) ts u
       -- vi1 = v `face` (i ~> 1)
@@ -551,7 +533,7 @@ comps is i ((x,a):as) e ((ts,u):tsus) =
 comps _ _ _ _ _ = error "comps: different lengths of types and values"
 
 fills :: [Name] -> Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
-fills _ i []         _ []         = []
+fills _  i []         _ []            = []
 fills is i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill is Pos i (eval (i:is) e a) ts u
       -- vi0 = v `face` (i ~> 1)
@@ -579,46 +561,39 @@ isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
 
 fill :: [Name] -> Sign -> Name -> Val -> System Val -> Val -> Val
-fill is Neg i a ts u =  trace "fill Neg" $  -- i should be in is (added just to be sure)
-  sym (i:is) (fill is Pos i (sym (i:is) a i) (sym (i:is) ts i) u) i
-fill is Pos i a ts u =  trace "fill Pos" $
-  comp (i:j:is) Pos j (connect (i:j:is) a (i, j)) (connect (i:j:is) ts (i, j)) u
+fill is Neg i a ts u = trace "fill Neg" $  -- i should be in is (added just to be sure)
+                       sym (i:is) (fill is Pos i (sym (i:is) a i) (sym (i:is) ts i) u) i
+fill is Pos i a ts u = trace "fill Pos" $
+                       comp (i:j:is) Pos j (connect (i:j:is) a (i,j)) (connect (i:j:is) ts (i,j)) u
   where j = gensym (i:is)
 
 comp :: [Name] -> Sign -> Name -> Val -> System Val -> Val -> Val
--- Not possible to optimize w/o calculating the support.
-comp is sign i a ts u | i `notElem` support (a,ts) =
-   -- DT.trace "comp cheaply regular" $
-   u
+comp is sign i a ts u | i `notOccurs` (a,ts) = trace "comp cheaply regular" $ u
 -- Another possible optimization:
-comp is sign i a ts u | i `notElem` support a && not (Map.null indep) =
-  -- DT.trace "comp filter" $
-  comp is sign i a ts' u
-  where (ts',indep) = Map.partition (\t -> i `elem` support t) ts
-comp is Neg i a ts u = trace "comp Neg" $ comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
+comp is sign i a ts u | i `notOccurs` a && not (Map.null indep) =
+  trace "comp filter" $ comp is sign i a ts' u
+  where (ts',indep) = Map.partition (occurs i) ts
+comp is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
 
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
-comp is Pos i a ts u | eps `Map.member` ts = -- DT.trace "easy case of comp" $
-  act (i:is) (ts ! eps) (i,Dir 1)
+comp is Pos i a ts u | eps `Map.member` ts = trace "easy case of comp" $
+                                             act (i:is) (ts ! eps) (i,Dir 1)
 comp is Pos i (KanUElem _ a) ts u = comp is Pos i a ts u
-comp is Pos i vid@(VId a u v) ts w = -- DT.trace "comp VId" $
-    Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j) ts' (appFormula (i:j:is) w j)
+comp is Pos i vid@(VId a u v) ts w = Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j)
+                                                   ts' (appFormula (i:j:is) w j)
   where j   = gensym (i:is)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
               Map.map (\u -> appFormula (i:j:is) u j) ts
-comp is Pos i b@(VSigma a f) ts u = -- DT.trace "comp VSigma" $
-  VSPair ui1 comp_u2
+comp is Pos i b@(VSigma a f) ts u = VSPair ui1 comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
         fill_u1    = fill (i:is) Pos i a t1s u1
-        --ui1        = fill_u1 `face` (i ~> 1)
+        -- ui1        = fill_u1 `face` (i ~> 1)
         ui1        = comp is Pos i a t1s u1
         comp_u2    = comp is Pos i (app (i:is) f fill_u1) t2s u2
-
 comp is Pos i a@VPi{} ts u   = Kan i a ts u
-
 comp is Pos i g@(Glue hisos b) ws wi0 =
   trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
     glueElem usi1 vi1''
@@ -676,7 +651,6 @@ comp is Pos i g@(Glue hisos b) ws wi0 =
                     if gamma `Map.member` usi1' then usi1' ! gamma
                     else fst (uls'' ! gamma))
                   hisosI1
-
 comp is Pos i t@(Kan j VU ejs b) ws wi0 =
     let is' = i:j:is
         es    = Map.map (Path j . (\u -> sym is' u j)) ejs
@@ -730,13 +704,10 @@ comp is Pos i t@(Kan j VU ejs b) ws wi0 =
                     if gamma `Map.member` usi1' then usi1' ! gamma
                     else fst (uls'' ! gamma))
                   hisosI1
-
     in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
-     kanUElem is' usi1 vi1''
-
-
-comp is Pos i (GlueLine b phi psi) us u = -- DT.trace "comp GlueLine" $
-                                       glueLineElem is' vm phii1 psii1
+       kanUElem is' usi1 vi1''
+comp is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
+                                          glueLineElem is' vm phii1 psii1
   where  is'     = i:is
          phii1   = face is' phi (i ~> 1)
          psii1   = face is' psi (i ~> 1)
@@ -752,28 +723,18 @@ comp is Pos i (GlueLine b phi psi) us u = -- DT.trace "comp GlueLine" $
          ws = Map.mapWithKey (\alpha -> unGlueLine is' (face is' b alpha)
                                         (face is' phi alpha) (face is' psi alpha)) us
          w  = unGlueLine is' bi0 phii0 psii0 u
-         vm = compLine is' (face is' b (i ~>1)) ls v
+         vm = compLine is' (face is' b (i ~> 1)) ls v
          fs = filter (i `Map.notMember`) (invFormula psi One)
-
 comp _ Pos i VU ts u = Kan i VU ts u
-
 comp is Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp is Pos i v tss w
-
 comp _ Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
-  trace "comp Neutral"
-  -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
-  KanNe i a ts u
-
-comp is Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = -- DT.trace "comp Sum" $
-  case getIdent n nass of
+  trace "comp Neutral" $ KanNe i a ts u
+comp is Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
   Just as -> VCon n $ comps is i as env tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
-
 -- Treat transport in hsums separately.
-comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us =
-  trace "comp HSum us empty" $
-  case u of
+comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps is i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
@@ -794,24 +755,18 @@ comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us =
   u | isNeutral u -> KanNe i v us u
   KanUElem _ u1 -> comp is Pos i v us u1
   u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
-
-comp is Pos i v@(Ter (HSum _ _) _) us u =
-  -- DT.trace "comp HSum us nonempty" $
-  if i `notElem` support us'  -- TODO: keep?
-  then transp i v u
-  else Kan i (vi1) us' (transp i v u)
-  where vi1         = face (i:is) v (i ~> 1)
-        --j           = gensym (support (v,us,u,Atom i))
-        j           = gensym (i:is)
-        comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i:\/: Atom j))
-        us'         = Map.mapWithKey comp' us
-        transp j w  = comp (i:j:is) Pos j w Map.empty
-
+comp is Pos i v@(Ter (HSum _ _) _) us u
+  | i `notOccurs` us' = transp i v u
+  | otherwise         = Kan i (vi1) us' (transp i v u)
+    where vi1         = face (i:is) v (i ~> 1)
+          -- j           = gensym (support (v,us,u,Atom i))
+          j           = gensym (i:is)
+          comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i:\/: Atom j))
+          us'         = Map.mapWithKey comp' us
+          transp j w  = comp (i:j:is) Pos j w Map.empty
 comp is Pos i a ts u =
-  error $
-  "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
-  "ts = " <+> show ts <+> "\n" <+>
-  "u = " <+> parens (show u)
+  error $ "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
+          "ts = " <+> show ts <+> "\n" <+> "u = " <+> parens (show u)
 
 -- Lemma 2.1
 -- assumes u and u' : A are solutions of us + (i0 -> u(i0))
@@ -848,15 +803,13 @@ pathUniv is i e us ui0 = Path k xi1
         xi1   = comp is' Pos j (face is' ej (i ~> 1))
                   (insertsSystem [(k ~> 1, wi1'), (k ~> 0, wi1)] Map.empty) ui1
 
-
 -- Lemma 2.2
 -- takes a type A, an L-system of lines ls and a value u
 -- s.t. ls alpha @@ 0 = u alpha
 -- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: [Name] -> Val -> System Val -> Val -> Val
-compLine is a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
-  comp (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u  -- TODO also check pathComp; are
-                                      -- the dirs correct?
+compLine is a ls u = comp (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u
+  -- TODO also check pathComp; are the dirs correct?
   where --i = fresh (a, ls, u)
         i = gensym is
 
@@ -866,6 +819,35 @@ fillLine is a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
   Path i (fill (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u)
   where --i = fresh (a, ls, u)
     i = gensym is
+
+-- auxiliary function needed for composition for GlueLine
+auxGlueLine :: [Name] -> Name -> (Formula,Val,System Val,Val) -> Val -> Val
+auxGlueLine is i (Dir _,b,ws,wi0) vi1 = Path j vi1
+  where j = gensym is
+auxGlueLine is i (phi,b,ws,wi0) vi1   = fillLine is' (face is' b (i ~> 1)) ls' vi1
+  where is'    = i:is
+        unglue = UnGlue hisos b
+        hisos  = mkSystem (map (\ alpha -> (alpha,idHiso (face is' b alpha)))
+                               (invFormula phi Zero)) -- TODO: correct support?
+        vs     = Map.mapWithKey (\alpha -> app is' (face is' unglue alpha)) ws
+        vi0    = app is' (face is' unglue (i ~> 0)) wi0 -- in b(i0)
+
+        v      = fill is' Pos i b vs vi0           -- in b
+
+        -- set of elements in hisos independent of i
+        hisos' = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
+
+        us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  fill is' Pos i aGamma (face is' ws gamma) (face is' wi0 gamma))
+                hisos'
+
+        ls'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
+                  pathComp is' i aGamma (face is' vs gamma) (face is' v gamma) (us' ! gamma))
+                 hisos'
+
+
+-------------------------------------------------------------------------------
+-- | Conversion
 
 class Convertible a where
   conv   :: [Name] -> Int -> a -> a -> Bool
@@ -992,7 +974,6 @@ instance Convertible Val where
   conv is k (UnGlueNe u v) (UnGlueNe u' v') = conv is k u u' && conv is k v v'
   conv is k _              _                = False
 
-
 isIndep :: (Nominal a, Convertible a) => [Name] -> Int -> Name -> a -> Bool
 isIndep is k i u = conv is k u (face is u (i ~> 0))
 
@@ -1091,29 +1072,3 @@ instance Convertible Formula where
 -- instance Normal Hiso where
 --   normal k (Hiso a b f g s t) = Hiso a' b' f' g' s' t'
 --     where [a',b',f',g',s',t'] = normal k [a,b,f,g,s,t]
-
--- auxiliary function needed for composition for GlueLine
-
-auxGlueLine :: [Name] -> Name -> (Formula,Val,System Val,Val) -> Val -> Val
-auxGlueLine is i (Dir _,b,ws,wi0) vi1 = Path j vi1
-  where j = gensym is
-auxGlueLine is i (phi,b,ws,wi0) vi1   = fillLine is' (face is' b (i ~> 1)) ls' vi1
-  where is' = i:is
-        unglue = UnGlue hisos b
-        hisos = mkSystem (map (\ alpha -> (alpha,idHiso (face is' b alpha))) (invFormula phi Zero)) -- TODO: correct support?
-        vs   = Map.mapWithKey (\alpha -> app is' (face is' unglue alpha)) ws
-        vi0  = app is' (face is' unglue (i ~> 0)) wi0 -- in b(i0)
-
-        v    = fill is' Pos i b vs vi0           -- in b
-
-        -- set of elements in hisos independent of i
-        hisos'  = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
-
-        us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
-                  fill is' Pos i aGamma (face is' ws gamma) (face is' wi0 gamma))
-                hisos'
-
-        ls'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
-                  pathComp is' i aGamma (face is' vs gamma) (face is' v gamma) (us' ! gamma))
-                 hisos'
-
