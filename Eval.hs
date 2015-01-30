@@ -481,46 +481,49 @@ evalAppPN is e pn ts
   | otherwise =
       let (args,rest) = splitAt (arity pn) ts
           vas = map (eval is e) args
-          is' = gensyms is
-          p   = evalPN is is' pn vas
+          p   = evalPN pn vas
           r   = map (eval is e) rest
-      in apps (take 3 is' ++ is) p r -- TODO: ugly magic number; calculate vars in evalPN
+      in apps ([i,j,k] ++ is) p r -- TODO: ugly magic number; calculate vars in evalPN
+   where
+     i:j:k:_  = gensyms is     
 
--- Evaluate primitive notions
-evalPN :: [Name] -> [Name] -> PN -> [Val] -> Val
-evalPN is (i:_) Id            [a,a0,a1]     = VId (Path i a) a0 a1
-evalPN is (i:_) IdP           [_,_,p,a0,a1] = VId p a0 a1
-evalPN is (i:_) Refl          [_,a]         = Path i a
-evalPN is (i:_) Sym           [_,_,_,p]     = Path i $ appFormula (i:is) p (NegAtom i)
-evalPN is (i:_) TransU        [_,_,p,t]     = trace ("evalPN TransU") $
-                                              comp (i:is) Pos i (appFormula (i:is) p i) Map.empty t
-evalPN is (i:_) TransInvU     [_,_,p,t]     = trace "evalPN TransInvU" $
-                                              comp (i:is) Neg i (appFormula (i:is) p i) Map.empty t
-evalPN is (i:j:_) CSingl [_,_,_,p] = trace "CSingl"
-                                     Path i $ VSPair q (Path j (connect (i:j:is) q (i,j)))
-  where q = appFormula (i:is) p i
-evalPN is (i:_) Ext [_,_,f,g,p] = Path i $ VExt (Atom i) f g p
-evalPN is (i:_)   IsoId    [a,b,f,g,s,t]   =
-  Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
-evalPN is (i:j:_) IsoIdRef [a] = Path j $ Path i $ GlueLine a (Atom i) (Atom j)
-evalPN is (i:_)   MapOnPath  [_,_,f,_,_,p]    = Path i $ app (i:is) f (appFormula (i:is) p i)
-evalPN is (i:_)   MapOnPathD [_,_,f,_,_,p]    = Path i $ app (i:is) f (appFormula (i:is) p i)
-evalPN is (i:_)   AppOnPath [_,_,_,_,_,_,p,q] = Path i $ app (i:is) (appFormula (i:is) p i) (appFormula (i:is) q i)
-evalPN is (i:_)   MapOnPathS [_,_,_,f,_,_,p,_,_,q] =
-  Path i $ app (i:is) (app (i:is) f (appFormula (i:is) p i)) (appFormula (i:is) q i)
-evalPN is (i:j:k:_) LemSimpl [v,a,b,c,p,q,q',s] =
-  Path j $ Path k $ comp is' Pos i v ss a
-   where ss = mkSystem [(j ~> 0,fill is' Pos k v (mkSystem [(i ~> 0,a),(i ~> 1,appFormula is' q j)]) (appFormula is' p i)),
-                        (j ~> 1,fill is' Pos k v (mkSystem [(i ~> 0,a),(i ~> 1,appFormula is' q' j)]) (appFormula is' p i)),
-                        (k ~> 0,appFormula is' p i),
-                        (k ~> 1,appFormula is' (appFormula is' s j) i)]
-         is' = i:j:k:is
-evalPN is (i:j:_) Transpose [t,a0,a1,u,b0,b1,v,r0,r1,x] =
-   Path j $ Path i $ (appFormula (i:j:is) (appFormula (i:is) x i) j)
-evalPN is (i:j:_) IdSElim [a,b,p,u,v,x] =
-   Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) p i) ss u
-     where ss = mkSystem [(j ~> 1, appFormula (i:j:is) x i)]
-evalPN is _       u          _                = error ("evalPN " ++ show u)
+     -- Evaluate primitive notions
+     evalPN :: PN -> [Val] -> Val
+     evalPN pn vs = case (pn,vs) of
+       (Id,[a,a0,a1])        -> VId (Path i a) a0 a1
+       (IdP,[_,_,p,a0,a1])   -> VId p a0 a1
+       (Refl,[_,a])          -> Path i a
+       (Sym,[_,_,_,p])       -> Path i $ appFormula (i:is) p (NegAtom i)
+       (TransU,[_,_,p,t])    -> comp (i:is) Pos i (appFormula (i:is) p i) Map.empty t
+       (TransInvU,[_,_,p,t]) -> comp (i:is) Neg i (appFormula (i:is) p i) Map.empty t
+       (CSingl,[_,_,_,p])    -> Path i $ VSPair q (Path j (connect (i:j:is) q (i,j)))
+         where q = appFormula (i:is) p i
+       (Ext,[_,_,f,g,p])     -> Path i $ VExt (Atom i) f g p
+       (IsoId,[a,b,f,g,s,t]) ->
+         Path i $ Glue (mkSystem [(i ~> 0, Hiso a b f g s t)]) b
+       (IsoIdRef,[a])                -> Path j $ Path i $ GlueLine a (Atom i) (Atom j)
+       (MapOnPath,[_,_,f,_,_,p])     -> Path i $ app (i:is) f (appFormula (i:is) p i)
+       (MapOnPathD,[_,_,f,_,_,p])    -> Path i $ app (i:is) f (appFormula (i:is) p i)
+       (AppOnPath,[_,_,_,_,_,_,p,q]) ->
+         Path i $ app (i:is) (appFormula (i:is) p i) (appFormula (i:is) q i)
+       (MapOnPathS,[_,_,_,f,_,_,p,_,_,q]) ->
+         Path i $ app (i:is) (app (i:is) f (appFormula (i:is) p i)) (appFormula (i:is) q i)
+       (LemSimpl,[v,a,_,_,p,q,q',s]) -> Path j $ Path k $ comp is' Pos i v ss a
+         where ss = mkSystem [(j ~> 0,fill is' Pos k v (mkSystem [(i ~> 0,a),
+                                                                  (i ~> 1,appFormula is' q j)])
+                                                       (appFormula is' p i)),
+                              (j ~> 1,fill is' Pos k v (mkSystem [(i ~> 0,a),
+                                                                  (i ~> 1,appFormula is' q' j)])
+                                                       (appFormula is' p i)),
+                              (k ~> 0,appFormula is' p i),
+                              (k ~> 1,appFormula is' (appFormula is' s j) i)]
+               is' = i:j:k:is
+       (Transpose,[_,_,_,_,_,_,_,_,_,x]) ->
+         Path j $ Path i $ (appFormula (i:j:is) (appFormula (i:is) x i) j)
+       (IdSElim,[_,_,p,u,_,x]) ->
+         Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) p i) ss u
+         where ss = mkSystem [(j ~> 1, appFormula (i:j:is) x i)]
+       (u,_) -> error ("evalPN " ++ show u)
 
 comps :: [Name] -> Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
 comps is i []         _ []            = []
@@ -652,7 +655,7 @@ comp is Pos i g@(Glue hisos b) ws wi0 =
                     else fst (uls'' ! gamma))
                   hisosI1
 comp is Pos i t@(Kan j VU ejs b) ws wi0 =
-    let is' = i:j:is
+    let is'   = i:j:is
         es    = Map.map (Path j . (\u -> sym is' u j)) ejs
         hisos = Map.map (eqHiso is') es
         unkan = UnKan hisos b
@@ -708,18 +711,18 @@ comp is Pos i t@(Kan j VU ejs b) ws wi0 =
        kanUElem is' usi1 vi1''
 comp is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
                                           glueLineElem is' vm phii1 psii1
-  where  is'     = i:is
-         phii1   = face is' phi (i ~> 1)
-         psii1   = face is' psi (i ~> 1)
-         phii0   = face is' phi (i ~> 0)
-         psii0   = face is' psi (i ~> 0)
-         bi1 = face is' b (i ~> 1)
-         bi0 = face is' b (i ~> 0)
-         lss = mkSystem (map (\alpha ->
+  where  is'   = i:is
+         phii1 = face is' phi (i ~> 1)
+         psii1 = face is' psi (i ~> 1)
+         phii0 = face is' phi (i ~> 0)
+         psii0 = face is' psi (i ~> 0)
+         bi1   = face is' b (i ~> 1)
+         bi0   = face is' b (i ~> 0)
+         lss   = mkSystem (map (\alpha ->
                                (alpha,(face is' phi alpha,face is' b alpha,
                                        face is' us alpha,face is' u alpha))) fs)
          ls = Map.mapWithKey (\alpha vAlpha -> auxGlueLine is' i vAlpha (face is' v alpha)) lss
-         v = comp is' Pos i b ws w
+         v  = comp is' Pos i b ws w
          ws = Map.mapWithKey (\alpha -> unGlueLine is' (face is' b alpha)
                                         (face is' phi alpha) (face is' psi alpha)) us
          w  = unGlueLine is' bi0 phii0 psii0 u
@@ -738,7 +741,8 @@ comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps is i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
-  VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of -- u should be independent of i, so i # phi
+  VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of
+    -- u should be independent of i, so i # phi
     Just (as, _,_) ->VPCon c ws1 phi (tr e0) (tr e1)
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
@@ -761,7 +765,7 @@ comp is Pos i v@(Ter (HSum _ _) _) us u
     where vi1         = face (i:is) v (i ~> 1)
           -- j           = gensym (support (v,us,u,Atom i))
           j           = gensym (i:is)
-          comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i:\/: Atom j))
+          comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
           us'         = Map.mapWithKey comp' us
           transp j w  = comp (i:j:is) Pos j w Map.empty
 comp is Pos i a ts u =
@@ -795,8 +799,7 @@ pathUniv is i e us ui0 = Path k xi1
         ej    = appFormula is' e j
         ui1   = comp is' Pos i (appFormula is' e Zero) us ui0
         ws    = Map.mapWithKey (\alpha uAlpha ->
-                  fill is' Pos j (face is' ej alpha) Map.empty uAlpha)
-                us
+                  fill is' Pos j (face is' ej alpha) Map.empty uAlpha) us
         wi0   = fill is' Pos j (face is' ej (i ~> 0)) Map.empty ui0
         wi1   = comp is' Pos i ej ws wi0
         wi1'  = fill is' Pos j (face is' ej (i ~> 1)) Map.empty ui1
@@ -810,15 +813,13 @@ pathUniv is i e us ui0 = Path k xi1
 compLine :: [Name] -> Val -> System Val -> Val -> Val
 compLine is a ls u = comp (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u
   -- TODO also check pathComp; are the dirs correct?
-  where --i = fresh (a, ls, u)
-        i = gensym is
+  where i = gensym is
 
 -- the same but now computing the line
 fillLine :: [Name] -> Val -> System Val -> Val -> Val
 fillLine is a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
   Path i (fill (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u)
-  where --i = fresh (a, ls, u)
-    i = gensym is
+  where i = gensym is
 
 -- auxiliary function needed for composition for GlueLine
 auxGlueLine :: [Name] -> Name -> (Formula,Val,System Val,Val) -> Val -> Val
@@ -831,20 +832,15 @@ auxGlueLine is i (phi,b,ws,wi0) vi1   = fillLine is' (face is' b (i ~> 1)) ls' v
                                (invFormula phi Zero)) -- TODO: correct support?
         vs     = Map.mapWithKey (\alpha -> app is' (face is' unglue alpha)) ws
         vi0    = app is' (face is' unglue (i ~> 0)) wi0 -- in b(i0)
-
         v      = fill is' Pos i b vs vi0           -- in b
-
         -- set of elements in hisos independent of i
         hisos' = Map.filterWithKey (\alpha _ -> i `Map.notMember` alpha) hisos
-
         us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill is' Pos i aGamma (face is' ws gamma) (face is' wi0 gamma))
-                hisos'
-
+                 hisos'
         ls'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   pathComp is' i aGamma (face is' vs gamma) (face is' v gamma) (us' ! gamma))
                  hisos'
-
 
 -------------------------------------------------------------------------------
 -- | Conversion
