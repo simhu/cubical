@@ -7,11 +7,11 @@ substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
   Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-substPathPiSquare A B f g a =
-  J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-      Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
-      IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
-    (\qa qa' x -> x)
+substPathPiSquare A B f g a a' p qa qa' sq = sq
+  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
+  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
+  --   (\qa qa' x -> x)
 
 
 -- transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
@@ -58,8 +58,8 @@ substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
   Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa'
-substPathPiInvSquare A B f g a =
-  J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-      IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
-      Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa')
-    (\qa qa' x -> x)
+substPathPiInvSquare A B f g a a' p qa qa' sq = sq
+  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa')
+  --   (\qa qa' x -> x)
