@@ -238,7 +238,7 @@ r2l2rPushPush : (A B C : U) (a : A) (b : B) (c : C) ->
     (reflSquarePush A B C (inl a) c)
     (reflSquarePush A B C (inr b) c)
 r2l2rPushPush A B C a b c =
-     rotateUnsafe (join (join A B) C)
+     rotate (join (join A B) C)
                   (inl (inl a)) (inl (inl a)) (refl (join (join A B) C) (inl (inl a)))
                   (inl (inr b)) (inl (inr b)) (refl (join (join A B) C) (inl (inr b)))
                   (r2lPushInl A B C a b) (r2lPushInl A B C a b) (refl (Id (join (join A B) C) (inl (inl a)) (inl (inr b))) (r2lPushInl A B C a b))
