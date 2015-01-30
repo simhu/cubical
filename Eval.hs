@@ -527,6 +527,12 @@ evalPN (i:j:_) IdSElim [a,b,p,u,v,x] =
 evalPN (i:_) EqTransport [a,b,p,u] = Path i $ fill Pos i (p @@ i) Map.empty u
 evalPN (i:j:_) Rem1IdP [a,b,p,u,q] =
    Path i $ Path j $ fill Pos i (p @@ i) Map.empty (q @@ j)
+evalPN (i:j:_) Square [a,_,_,left,_,_,right,top,bottom] =
+  VId (Path i $ VId (Path j $ a) (left @@ i) (right @@ i)) top bottom
+evalPN (i:j:k:_) Cube [a,_,_,_,_,_,_,_,_,left,_,_,_,_,_,_,_,_,right,_,_,top,_,_,bottom,front,back] =
+  VId (Path i $ VId (Path j $ VId (Path k $ a) (left @@ i @@ j) (right @@ i @@ j)) (top @@ i) (bottom @@ i)) front back
+evalPN (i:j:k:_) Rotate [a,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,x] =
+  Path j $ Path k $ Path i $ (x @@ i @@ j @@ k)
 evalPN _       u          _                = error ("evalPN " ++ show u)
 
 {-

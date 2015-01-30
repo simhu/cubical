@@ -24,7 +24,7 @@ IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
 IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
 
 primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
-                       (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (f a1)
+                       (p : Id A a0 a1) -> IdS A F a0 a1 p (f a0) (f a1)
 
 primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
                        (a0 a1 : A) (p : Id A a0 a1) (b0 : F a0) (b1 : F a1)
@@ -60,7 +60,7 @@ comp A a b c p q = subst A (Id A a) b c q p
 primitive lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
                        Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
 
--- Transposition
+-- Squares and transposition
 
 and : (A B : U) -> U
 and A B = (x : A) * B
@@ -76,14 +76,61 @@ pairEq A B a0 a1 b0 b1 p q =
         rem : Id (B -> and A B) f0 f1
         rem = mapOnPath A (B -> and A B) (\ x y -> (x, y)) a0 a1 p
 
-Square : (A:U) (a0 b0 a1 b1:A) 
-         (u : Id A a0 a1) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) -> U
-Square A a0 b0 a1 b1 u v = 
- IdS (and A A) (\ z -> Id A (z.1) (z.2)) (a0,b0) (a1,b1) (pairEq A A a0 a1 b0 b1 u v)
+primitive Square : (A : U) (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+         (r0 : Id A a0 b0) (r1 : Id A a1 b1) -> U
 
 primitive transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
                       (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
-                      Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
+                      Square A a0 a1 u b0 b1 v r0 r1 -> Square A a0 b0 r0 a1 b1 r1 u v
+{-
+This is useless, the functions substPathPiSquare and substPathPiInvSquare are just the identity
+-- IdS in Id
+
+primitive substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  Square B (f a) (f a') (mapOnPath A B f a a' p) (g a) (g a') (mapOnPath A B g a a' p) qa qa' ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
+
+primitive substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  Square B (f a) (f a') (mapOnPath A B f a a' p) (g a) (g a') (mapOnPath A B g a a' p) qa qa'
+-}
+
+-- Cubes
+
+primitive Cube : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> U
+
+rotatedCube : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> U
+rotatedCube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back =
+  Cube A
+       a0 b0 r0  c0 d0 s0  p0 q0 front
+       a1 b1 r1  c1 d1 s1  p1 q1 back
+       u v (transpose A a0 a1 u b0 b1 v r0 r1 left)
+       w x (transpose A c0 c1 w d0 d1 x s0 s1 right)
+       (transpose A a0 a1 u c0 c1 w p0 p1 top)
+       (transpose A b0 b1 v d0 d1 x q0 q1 bottom)
+
+primitive rotate : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> Cube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back
+       -> rotatedCube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back
 
 -- -- IdSElim
 

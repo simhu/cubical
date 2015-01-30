@@ -70,8 +70,8 @@ multTwoMeridMerid =
         E x y = Id idIncNS (meridIncSouth x y) (meridIncSouth y x)
 
         sE : set (E base base)
-        sE = undefined --truncIsTrunc three S2 (inc north) (inc south)
-               -- (meridIncSouth base base) (meridIncSouth base base)
+        sE = truncIsTrunc three S2 (inc north) (inc south)
+               (meridIncSouth base base) (meridIncSouth base base)
 
 multTwoMerid : (x : S1) (y : S2) -> Id trS2 (inc y) (multTwoSouth y)
 multTwoMerid x = hsplit (\y -> Id trS2 (inc y) (multTwoSouth y)) with
@@ -124,7 +124,7 @@ tHopf3 : S3 -> U
 tHopf3 = hsplit (\_ -> U) with
   north   -> trS2
   south   -> trS2
-  merid x -> isEquivEq trS2 trS2 (multTwoTilde x) undefined --(multTwoTildeEquiv x)
+  merid x -> isEquivEq trS2 trS2 (multTwoTilde x) (multTwoTildeEquiv x)
 
 -- e_3 from 10.2
 pi3S3 : (itOmega three ptS3).1 -> (itOmega two (trS2,inc north)).1

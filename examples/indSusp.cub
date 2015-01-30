@@ -25,7 +25,7 @@ test2 A X f = funExt (susp A) (\_ -> X) (lToFun A X (funToL A X f)) f rem
   rem = hsplit (\ u -> Id X (lToFun A X (funToL A X f) u) (f u)) with
     north -> refl X (f north)
     south -> refl X (f south)
-    merid a -> undefined
+    merid a -> rem1 a
        where
          g : susp A -> X
          g = lToFun A X (funToL A X f)

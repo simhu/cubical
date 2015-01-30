@@ -133,8 +133,8 @@ encodeLoopIt = split
                     middleSuc = encode base (loopIt (negZ n))
 
                     leftEqMiddle : Id Z left (predZ middleSuc)
-                    leftEqMiddle = undefined --substComp S1 cover base base base
---                      (loopIt (negZ n)) (invS1 loop) zeroZ
+                    leftEqMiddle = substComp S1 cover base base base
+                      (loopIt (negZ n)) (invS1 loop) zeroZ
   -- negZ n -> neg n -- Analogously.
   --   where
   --     neg : (n : N) -> Id Z (encode base (loopIt (negZ n))) (negZ n)

@@ -17,7 +17,7 @@ lemG0 A a = J A a (\ b p -> (l : Id A a a) -> IdS A (\ x -> Id A x x) a b p l (t
               (lemTranspL A a)
 
 lemG1 : (A:U)(a:A)(l:Id A a a) -> IdS A (\ x -> Id A x x) a a l l l
-lemG1 A a l = --substPathPi A A (\x -> x) (\x -> x) a a l l l (refl (Id A a a) (comp A a a a l l))
+lemG1 A a l = -- substPathPi A A (\x -> x) (\x -> x) a a l l l (refl (Id A a a) (comp A a a a l l))
  substInv (Id A a a) (IdS A (\ x -> Id A x x) a a l l) l (transpL A a a l l) 
     (lemTranspL1 A a l) (lemG0 A a a l l)
 
