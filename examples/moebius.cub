@@ -3,7 +3,17 @@ module moebius where
 import prelude
 import circle
 import square
-import mult2
+import mult
+
+
+invMult : S1 -> S1 -> S1
+invMult x y = rem1.1
+ where
+  rem : isContr (fiber S1 S1 (mult x) y)
+  rem = multIsEquiv x y
+
+  rem1 : fiber S1 S1 (mult x) y
+  rem1 = rem.2
 
 -- The other version of the circle.
 S1' : U
@@ -29,6 +39,21 @@ doubleCov = hsplit (\_ -> U) with
 M : U
 M = Sigma S1 doubleCov
 
+base1M : M
+base1M = (base, true)
+
+base2M : M
+base2M = (base, false)
+
+loop1M : Id M base1M base2M
+loop1M = pairPathSubst S1 doubleCov base base loop true
+
+loop2M : Id M base2M base1M
+loop2M = pairPathSubst S1 doubleCov base base loop false
+
+loopM : Id M base1M base1M
+loopM = comp M base1M base2M base1M loop1M loop2M
+
 -- The map from M to S1'
 
 BoolToS1' : Bool -> S1'
@@ -49,22 +74,14 @@ aux = hsplit (\x -> (doubleCov x -> S1')) with
 mapFromDoubleCov : M -> S1'
 mapFromDoubleCov xy = aux xy.1 xy.2
 
--- Some reduction rules for that map
-
-p1 : Id M (base, true) (base, false)
-p1 = pairPathSubst S1 doubleCov base base loop true
-
-p2 : Id M (base, false) (base, true)
-p2 = pairPathSubst S1 doubleCov base base loop false
-
 -- The map from S1' to M
 
 mapToDoubleCov : S1' -> M
 mapToDoubleCov = hsplit (\_ -> M) with
-  base1 -> (base, true)
-  base2 -> (base, false)
-  loop1 -> p1
-  loop2 -> p2
+  base1 -> base1M
+  base2 -> base2M
+  loop1 -> loop1M
+  loop2 -> loop2M
 
 -- First composition
 
@@ -77,22 +94,22 @@ S1toS1Inv = hsplit (\ x -> Id S1' (mapFromDoubleCov (mapToDoubleCov x)) x) with
   loop2 -> substPathPiSquareTranspose S1' S1' (\x -> mapFromDoubleCov (mapToDoubleCov x)) (\x -> x) base2 base1 loop2 (refl S1' base2) (refl S1' base1)
                                       (refl (Id S1' base2 base1) loop2)
 
-hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
+hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a b p a b p' (refl A a) (refl A b) -> Id (Id A a b) p p'
 hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
 
 lemma : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a') (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
-  -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+  -> Square B (f a) (g a) q (f a') (g a') q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
   -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q'
 lemma A B f g a = J A a (\a' p -> (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
-                              -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+                              -> Square B (f a) (g a) q (f a') (g a') q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
                               -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q')
                    (hdegenSquareInv B (f a) (g a))
 
 
 rem : (b : Bool) -> Id M (mapToDoubleCov (BoolToS1' b)) (base, b)
 rem = split
-  true -> refl M (base, true)
-  false -> refl M (base, false)
+  true -> refl M base1M
+  false -> refl M base2M
 
 MtoMInvaux : (x : S1) (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y)) (x, y)
 MtoMInvaux = hsplit (\ x -> (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y)) (x, y)) with
@@ -106,19 +123,19 @@ MtoMInvaux = hsplit (\ x -> (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y))
     rem2 = split
       true  -> rem3 where
 
-        rem3 : Id (Id M (base, false) (base, false))
-                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, true) (base, false)
-                                   p1 (refl M (base, true)))
-                            (refl M (base, false))
-        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, true) (base, false) p1 (refl M (base, true)) (refl M (base, false)) (refl (Id M (base, true) (base, false)) p1)
+        rem3 : Id (Id M base2M base2M)
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) base1M base2M
+                                   loop1M (refl M base1M))
+                            (refl M base2M)
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) base1M base2M loop1M (refl M base1M) (refl M base2M) (refl (Id M base1M base2M) loop1M)
 
       false -> rem3 where
 
-        rem3 : Id (Id M (base, true) (base, true))
-                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, false) (base, true)
-                                   p2 (refl M (base, false)))
-                            (refl M (base, true))
-        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, false) (base, true) p2 (refl M (base, false)) (refl M (base, true)) (refl (Id M (base, false) (base, true)) p2)
+        rem3 : Id (Id M base1M base1M)
+                            (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) base2M base1M
+                                   loop2M (refl M base2M))
+                            (refl M base1M)
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) base2M base1M loop2M (refl M base2M) (refl M base1M) (refl (Id M base2M base1M) loop2M)
 
 MtoMInv : (xy : M) -> Id M (mapToDoubleCov (mapFromDoubleCov xy)) xy
 MtoMInv xy = MtoMInvaux xy.1 xy.2
@@ -170,8 +187,8 @@ theorem3 = comp U S1 S1' M theorem2 theorem
 winding : loopS1 -> Z
 winding = encode base
 
-winding' : Id M (base, true) (base, true) -> Z
-winding' l = winding (mapOnPath M S1 (transpInv S1 M theorem3) (base, true) (base, true) l)
+winding' : Id M base1M base1M -> Z
+winding' l = winding (mapOnPath M S1 (transpInv S1 M theorem3) base1M base1M l)
 
 multS : M -> M -> M
 multS = subst U (\ X -> X -> X -> X) S1 M theorem3 mult
@@ -192,93 +209,89 @@ invMultS : M -> M -> M
 invMultS = subst U (\ X -> X -> X -> X) S1 M theorem3 invMult
 
 invSqS : M -> M
-invSqS x = invMultS x (invMultS x (base, true))
+invSqS x = invMultS x (invMultS x base1M)
 
 invSqS' : M -> M
 invSqS' = subst U (\X -> X -> X) S1 M theorem3 (\x -> invMult x (invMult x base))
 
 SqS : M -> M
-SqS x = multS x (multS x (base, true))
+SqS x = multS x (multS x base1M)
 
 test1S : Z
-test1S = winding' (mapOnPath M M invSqS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test1S = winding' (mapOnPath M M invSqS base1M base1M loopM)
 
 test1S' : Z
-test1S' = winding' (mapOnPath M M invSqS' (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test1S' = winding' (mapOnPath M M invSqS' base1M base1M loopM)
 
 test2S : Z
-test2S = winding' (mapOnPath M M SqS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test2S = winding' (mapOnPath M M SqS base1M base1M loopM)
 
 test3S : Z
-test3S = winding' (comp M (base, true) (base, false) (base, true) p1 p2)
+test3S = winding' loopM
 
 test4S : Z
-test4S = winding' (mapOnPath M M (\x -> multS x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test4S = winding' (mapOnPath M M (\x -> multS x base1M) base1M base1M loopM)
 
 test4SUnit : Z
-test4SUnit = winding' (mapOnPath M M multUnitS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test4SUnit = winding' (mapOnPath M M multUnitS base1M base1M loopM)
 
 test4SUncurry : Z
-test4SUncurry = winding' (mapOnPath M M (\x -> multUncurryS (x, (base, true))) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test4SUncurry = winding' (mapOnPath M M (\x -> multUncurryS (x, base1M)) base1M base1M loopM)
 
-test4Sabs : (p : Id M (base, true) (base, true)) -> Z
-test4Sabs p = winding' (mapOnPath M M (\x -> multS x (base, true)) (base, true) (base, true) p)
+test4Sabs : (p : Id M base1M base1M) -> Z
+test4Sabs p = winding' (mapOnPath M M (\x -> multS x base1M) base1M base1M p)
 
-test4Sabs' : (p : Id M (base, true) (base, true)) -> Z
-test4Sabs' p = winding' (mapOnPath M M (\x -> mult' x (base, true)) (base, true) (base, true) p)
+test4Sabs' : (p : Id M base1M base1M) -> Z
+test4Sabs' p = winding' (mapOnPath M M (\x -> mult' x base1M) base1M base1M p)
 
-test4SabsEq : (p : Id M (base, true) (base, true)) -> Id Z (test4Sabs p) (test4Sabs' p)
+test4SabsEq : (p : Id M base1M base1M) -> Id Z (test4Sabs p) (test4Sabs' p)
 test4SabsEq p = refl Z (test4Sabs' p)
 
 test4Smult' : Z
-test4Smult' = winding' (mapOnPath M M (\x -> mult' x (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test4Smult' = winding' (mapOnPath M M (\x -> mult' x base1M) base1M base1M loopM)
 
 -- test4SEq : Id Z test4S (posZ zero)
 -- test4SEq = refl Z test4Smult'
 
 test4S' : Z
-test4S' = winding' (mapOnPath M M (multS (base, true)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test4S' = winding' (mapOnPath M M (multS base1M) base1M base1M loopM)
 
 test5S : Z
-test5S = winding' (mapOnPath M M (\x -> multS (base, true) (multS (base, true) x)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test5S = winding' (mapOnPath M M (\x -> multS base1M (multS base1M x)) base1M base1M loopM)
 
 test6S : Z
-test6S = winding' (mapOnPath M M (\x -> multS x x) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test6S = winding' (mapOnPath M M (\x -> multS x x) base1M base1M loopM)
 
 test6Smult' : Z
-test6Smult' = winding' (mapOnPath M M (\x -> mult' x x) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+test6Smult' = winding' (mapOnPath M M (\x -> mult' x x) base1M base1M loopM)
 
-invS : M -> M
-invS = subst U (\ X -> X -> X) S1 M theorem3 invS1
+-- invS : M -> M
+-- invS = subst U (\ X -> X -> X) S1 M theorem3 invS1
 
-test7Smult' : Z
-test7Smult' = winding' (mapOnPath M M (\x -> mult' (mult' x (invS x)) (mult' (invS x) (invS x))) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+-- test7Smult' : Z
+-- test7Smult' = winding' (mapOnPath M M (\x -> mult' (mult' x (invS x)) (mult' (invS x) (invS x))) base1M base1M loopM)
 
-testInvS : Z
-testInvS = winding' (mapOnPath M M invS (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+-- testInvS : Z
+-- testInvS = winding' (mapOnPath M M invS base1M base1M loopM)
 
-testInv2S : Z
-testInv2S = winding' (mapOnPath M M (\x -> invS (invS x)) (base, true) (base, true) (comp M (base, true) (base, false) (base, true) p1 p2))
+-- testInv2S : Z
+-- testInv2S = winding' (mapOnPath M M (\x -> invS (invS x)) base1M base1M loopM)
 
+-- -- rem1 : (A B : U) (p : Id U A B) (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))
+-- -- rem1 A = J U A (\ B p -> (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))) (\ a -> refl U (Id A a a))
 
-bM : M
-bM = (base, true)
+-- -- rem1IdP : (A B : U) (p : Id U A B) (a:A) (q : Id A a a) ->
+-- --      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q)
+-- -- rem1IdP A =
+-- --   J U A (\ B p -> (a:A) (q : Id A a a) ->
+-- --      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q))
+-- --      (\ a q -> refl (Id A a a) q)
 
-loopM : Id M bM bM
-loopM = comp M (base, true) (base, false) (base, true) p1 p2
+-- invTm : Id U M S1'
+-- invTm = inv U S1' M theorem
 
--- rem1 : (A B : U) (p : Id U A B) (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))
--- rem1 A = J U A (\ B p -> (a:A) -> Id U (Id A a a) (Id B (transport A B p a) (transport A B p a))) (\ a -> refl U (Id A a a))
+-- theoremInv : Id U M S1' 
+-- theoremInv = isoId M S1' mapFromDoubleCov mapToDoubleCov S1toS1Inv MtoMInv
 
--- rem1IdP : (A B : U) (p : Id U A B) (a:A) (q : Id A a a) ->
---      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q)
--- rem1IdP A =
---   J U A (\ B p -> (a:A) (q : Id A a a) ->
---      IdP (Id A a a) (Id B (transport A B p a) (transport A B p a)) (rem1 A B p a) q (mapOnPath A B (transport A B p) a a q))
---      (\ a q -> refl (Id A a a) q)
-
-invTm : Id U M S1'
-invTm = inv U S1' M theorem
-
--- test3M : IdP (Id M bM bM) (Id S1' base1 base1) (rem1 M S1' invTm bM) loopM (mapOnPath M S1' (transport M S1' invTm) bM bM loopM)
--- test3M = rem1IdP M S1' invTm bM loopM
+-- -- test3M : IdP (Id M base1M base1M) (Id S1' base1 base1) (rem1 M S1' invTm base1M) loopM (mapOnPath M S1' (transport M S1' invTm) base1M base1M loopM)
+-- -- test3M = rem1IdP M S1' invTm base1M loopM
