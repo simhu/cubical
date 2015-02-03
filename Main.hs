@@ -98,16 +98,23 @@ initLoop flags f = do
       -- runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
 
       -- l <- getLine
+
+      -- truncS2:
+      test "test" names tenv
+      test "test1" names tenv
+      test "test2" names tenv
+
+      -- pi4s3:
       -- Works:
-      test "test0To1" names tenv
-      test "test0To2" names tenv
-      test "test0To3" names tenv
-      test "test0To4" names tenv
-      test "testShortcut2To9" names tenv
-      -- test "testShortcut3To6" names tenv
-      test "testShortcut2To8" names tenv
-      test "testShortcut2To7" names tenv
-      test "fast" names tenv
+      -- test "test0To1" names tenv
+      -- test "test0To2" names tenv
+      -- test "test0To3" names tenv
+      -- test "test0To4" names tenv
+      -- test "testShortcut2To9" names tenv
+      -- -- test "testShortcut3To6" names tenv
+      -- test "testShortcut2To8" names tenv
+      -- test "testShortcut2To7" names tenv
+      -- test "fast" names tenv
 
       -- Don't work:
       -- test "test0To5" names tenv
@@ -137,7 +144,8 @@ test str names tenv@(TC.TEnv _ rho _ _) = do
               --   Right _  -> do
                   start <- liftIO getCurrentTime
                   let e = E.eval [] rho body
-                  putStrLn ("EVAL: " ++ show (length (show e)))
+                  -- putStrLn ("EVAL: " ++ show (length (show e)))
+                  putStrLn ("EVAL: " ++ show e)
                   stop <- liftIO getCurrentTime
                   let time = diffUTCTime stop start
                       secs = read (takeWhile (/='.') (init (show time)))
