@@ -44,23 +44,23 @@ look _ x Empty = error ("look:" <+> x <+> "not found")
 eval :: [Name] -> Env -> Ter -> Val
 eval is e v = case v of
   U                  -> VU
-  pn@(PN (Undef _))  -> Ter pn e
+  pn@(PN (Undef _))  -> Ter pn (e,id)
   PN pn              -> evalAppPN is e pn []
   App r s            -> case unApps (App r s) of
     (PN pn,us) -> evalAppPN is e pn us
     _          -> app is (eval is e r) (eval is e s)
   Var i              -> snd $ look is i e
   Pi a b             -> VPi (eval is e a) (eval is e b)
-  t@Lam{}            -> Ter t e -- stop at lambdas
+  t@Lam{}            -> Ter t (e,id) -- stop at lambdas
   Where t decls      -> eval is (PDef (declDefs decls) e) t
   Sigma a b          -> VSigma (eval is e a) (eval is e b)
   SPair a b          -> VSPair (eval is e a) (eval is e b)
   Fst a              -> fstSVal $ eval is e a
   Snd a              -> sndSVal $ eval is e a
-  Sum pr ntss        -> Ter (Sum pr ntss) e
+  Sum pr ntss        -> Ter (Sum pr ntss) (e,id)
   Con name ts        -> VCon name $ map (eval is e) ts
-  Split pr alts      -> Ter (Split pr alts) e
-  t@HSum{}           -> Ter t e
+  Split pr alts      -> Ter (Split pr alts) (e,id)
+  t@HSum{}           -> Ter t (e,id)
   PCon n ts ns t0 t1 -> 
     let i   = gensym is
         -- TODO: lambda abstract or not?
@@ -74,7 +74,7 @@ eval is e v = case v of
         u0  = eval is upe t0
         u1  = eval is upe t1
     in Path i $ VPCon n us (Atom i) u0 u1
-  t@HSplit{}         -> Ter t e
+  t@HSplit{}         -> Ter t (e,id)
 
 evals :: [Name] -> Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals is env = map (second (eval is env))
@@ -97,7 +97,7 @@ sndSVal u | isNeutral u = VSnd u
 instance Nominal Val where
   support v = case v of
     VU                     -> []
-    Ter _ e                -> support e
+    Ter _ (e,f)                -> support (mapEnv f e)
     VPi v1 v2              -> support [v1,v2]
     Kan i a ts u           -> i `delete` support (a,ts,u)
     KanNe i a ts u         -> i `delete` support (a,ts,u)
@@ -128,7 +128,7 @@ instance Nominal Val where
 
   occurs x w = case w of
     VU                     -> False
-    Ter _ e                -> occurs x e
+    Ter _ (e,f)                -> occurs x (mapEnv f e)
     VPi v1 v2              -> occurs x [v1,v2]
     Kan i a ts u           -> if x == i then False else occurs x (a,ts,u)
     KanNe i a ts u         -> if x == i then False else occurs x (a,ts,u)
@@ -167,7 +167,8 @@ instance Nominal Val where
         ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
     in case u of
          VU                     -> VU
-         Ter t e                -> Ter t (acti e)
+         Ter t (e,f) -> Ter t (e,acti . f)
+         -- Ter t e                -> Ter t (acti e)
          VPi a f                -> VPi (acti a) (acti f)
          -- TODO: add k to be on the safe side?
          Kan j a ts v           -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
@@ -203,7 +204,8 @@ instance Nominal Val where
         sw u = swap u ij
     in case u of
          VU                     -> VU
-         Ter t e                -> Ter t (sw e)
+         Ter t (e,f) -> Ter t (e,sw . f) 
+         -- Ter t e                -> Ter t (sw e)
          VPi a f                -> VPi (sw a) (sw f)
          Kan k a ts v           -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
          KanNe k a ts v         -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
@@ -277,9 +279,9 @@ glueLine is t phi psi       = GlueLine t phi psi
 
 idHiso :: Val -> Hiso
 idHiso a = Hiso a a idV idV refl refl
-  where idV  = Ter (Lam (noLoc "x") (Var "x")) Empty
+  where idV  = Ter (Lam (noLoc "x") (Var "x")) (Empty,id)
         refl = Ter (Lam (noLoc "x") (App (App (PN Refl) (Var "y")) (Var "x")))
-                   (Pair Empty ((noLoc "y"),a))
+                   (Pair Empty ((noLoc "y"),a),id)
 
 glueLineElem :: [Name] -> Val -> Formula -> Formula -> Val
 glueLineElem _ u (Dir _) _      = u
@@ -317,7 +319,7 @@ vext phi f g p        = VExt phi f g p
 
 -- Application
 app :: [Name] -> Val -> Val -> Val
-app is (Ter (Lam x t) e) u                = eval is (Pair e (x,u)) t
+app is (Ter (Lam x t) (e,f)) u                = eval is (Pair (mapEnv f e) (x,u)) t
 app is kan@(Kan i b@(VPi a f) ts li0) ui1 =
   -- DT.trace "app Kan VPi" $
     let -- j   = fresh (kan,ui1)
@@ -330,37 +332,37 @@ app is kan@(Kan i b@(VPi a f) ts li0) ui1 =
            (Map.intersectionWith (app (j:is)) tsj (border (j:is) u tsj))
            (app is li0 ui0)
 app is u@(Ter (Split _ _) _) (KanUElem _ v) = app is u v
-app is (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
-  Just (xs,t)  -> eval is (upds e (zip xs us)) t
+app is (Ter (Split _ nvs) (e,f)) (VCon name us) = case lookup name nvs of
+  Just (xs,t)  -> eval is (upds (mapEnv f e) (zip xs us)) t
   Nothing -> error $ "app: Split with insufficient arguments; " ++
                         "missing case for " ++ name
 
 
 -- TODO: is this correct even for HITs???
-app is u@(Ter (HSplit _ _ hbr) e) (KanUElem _ v) = app is u v
+app is u@(Ter (HSplit _ _ hbr) _) (KanUElem _ v) = app is u v
 
-app is (Ter (HSplit _ _ hbr) e) (VCon name us) =
+app is (Ter (HSplit _ _ hbr) (e,f)) (VCon name us) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (Branch _ xs t)  -> eval is (upds e (zip xs us)) t
+    Just (Branch _ xs t)  -> eval is (upds (mapEnv f e) (zip xs us)) t
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name <+> show hbr)
 
 -- cubical: app: HSplit with insufficient arguments; missing case for
 --   north [Branch "base" [] z.1,HBranch "loop" [] z.2]
 
-app is (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
+app is (Ter (HSplit _ _ hbr) (e,f)) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (HBranch _ xs t) -> appFormula is (eval is (upds e (zip xs us)) t) phi
+    Just (HBranch _ xs t) -> appFormula is (eval is (upds (mapEnv f e) (zip xs us)) t) phi
     _ -> error ("app: HSplit with insufficient arguments;"
                 <+> "missing case for " <+> name <+> show hbr)
 
-app is u@(Ter (HSplit _ f hbr) e) kan@(Kan i v ws w) = -- v should be corr. hsum
+app is u@(Ter (HSplit _ f hbr) (e,ff)) kan@(Kan i v ws w) = -- v should be corr. hsum
   let --j     = fresh (mapEnv ff e,kan)
       j     = gensym is
       wsij  = ws `swap` (i,j)
       ws'   = Map.mapWithKey (\alpha -> app (j:is) (face (j:is) u alpha)) wsij
       w'    = app is u w  -- app (u `face` (i ~> 0)) w
-      ffill = app (j:is) (eval (j:is) e f) (fill (j:is) Pos j (v `swap` (i,j)) wsij w)
+      ffill = app (j:is) (eval (j:is) (mapEnv ff e) f) (fill (j:is) Pos j (v `swap` (i,j)) wsij w)
   in comp (j:is) Pos j ffill ws' w'
 
 app is g@(UnGlue hisos b) w
@@ -477,7 +479,7 @@ evalAppPN is e pn ts
       let r       = arity pn - length ts
           binders = map (\n -> '_' : show n) [1..r]
           vars    = map Var binders
-      in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) e
+      in Ter (mkLams binders $ mkApps (PN pn) (ts ++ vars)) (e,id)
   | otherwise =
       let (args,rest) = splitAt (arity pn) ts
           vas = map (eval is e) args
@@ -732,14 +734,14 @@ comp _ Pos i VU ts u = Kan i VU ts u
 comp is Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp is Pos i v tss w
 comp _ Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   trace "comp Neutral" $ KanNe i a ts u
-comp is Pos i v@(Ter (Sum _ nass) env) tss (VCon n us) = case getIdent n nass of
-  Just as -> VCon n $ comps is i as env tsus
+comp is Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = case getIdent n nass of
+  Just as -> VCon n $ comps is i as (mapEnv f env) tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 -- Treat transport in hsums separately.
-comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
+comp is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
-    Just as -> VCon c (comps is i as env (zip (repeat Map.empty) ws))
+    Just as -> VCon c (comps is i as (mapEnv f env) (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
   VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of
     -- u should be independent of i, so i # phi
@@ -747,7 +749,7 @@ comp is Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
         tr  = comp is Pos i v Map.empty
-        ws1 = comps is i as env (zip (repeat Map.empty) ws0)
+        ws1 = comps is i as (mapEnv f env) (zip (repeat Map.empty) ws0)
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
   Kan j b ws w -> comp (k:i:is) Pos k vi1 ws' (transp (i ~> 1) w)
     where vi1 = face (i:is) v (i ~> 1)  -- b is vi0 and independent of j
@@ -851,28 +853,28 @@ class Convertible a where
 instance Convertible Val where
   conv is _ u v | u == v = True
   conv is k VU VU                                  = True
-  conv is k w@(Ter (Lam x u) e) w'@(Ter (Lam x' u') e') =
+  conv is k w@(Ter (Lam x u) (e,f)) w'@(Ter (Lam x' u') (e',f')) =
     let v = mkVar k
     in trace ("conv is Lam Lam \n w = " ++ show w ++ " \n w' = " ++ show w')
-     conv is (k+1) (eval is (Pair e (x,v)) u) (eval is (Pair e' (x',v)) u')
-  conv is k w@(Ter (Lam x u) e) u' =
+     conv is (k+1) (eval is (Pair (mapEnv f e) (x,v)) u) (eval is (Pair (mapEnv f' e') (x',v)) u')
+  conv is k w@(Ter (Lam x u) (e,f)) u' =
     let v = mkVar k
     in trace ("conv Lam u' \n w = " ++ show w ++ " \n u' = " ++ show u')
-        conv is (k+1) (eval is (Pair e (x,v)) u) (app is u' v)
-  conv is k u' w'@(Ter (Lam x u) e) =
+        conv is (k+1) (eval is (Pair (mapEnv f e) (x,v)) u) (app is u' v)
+  conv is k u' w'@(Ter (Lam x u) (e,f)) =
     let v = mkVar k
     in trace ("conv u' Lam \n u' = " ++ show u' ++ " \n w' = " ++ show w')
-       conv is (k+1) (app is u' v) (eval is (Pair e (x,v)) u)
-  conv is k (Ter (Split p _) e) (Ter (Split p' _) e') =
-    p == p' && conv is k e e'
-  conv is k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
-    p == p' && conv is k e e'
-  conv is k (Ter (PN (Undef p)) e) (Ter (PN (Undef p')) e') =
-    p == p' && conv is k e e'
-  conv is k (Ter (HSum p _) e)   (Ter (HSum p' _) e') =
-    p == p' && conv is k e e'
-  conv is k (Ter (HSplit p _ _) e) (Ter (HSplit p' _ _) e') =
-    p == p' && conv is k e e'
+       conv is (k+1) (app is u' v) (eval is (Pair (mapEnv f e) (x,v)) u)
+  conv is k (Ter (Split p _) (e,f)) (Ter (Split p' _) (e',f')) =
+    p == p' && conv is k (mapEnv f e) (mapEnv f' e')
+  conv is k (Ter (Sum p _) (e,f))   (Ter (Sum p' _) (e',f')) =
+    p == p' && conv is k (mapEnv f e) (mapEnv f' e')
+  conv is k (Ter (PN (Undef p)) (e,f)) (Ter (PN (Undef p')) (e',f')) =
+    p == p' && conv is k (mapEnv f e) (mapEnv f' e')
+  conv is k (Ter (HSum p _) (e,f))   (Ter (HSum p' _) (e',f')) =
+    p == p' && conv is k (mapEnv f e) (mapEnv f' e')
+  conv is k (Ter (HSplit p _ _) (e,f)) (Ter (HSplit p' _ _) (e',f')) =
+    p == p' && conv is k (mapEnv f e) (mapEnv f' e')
   conv is k (VPCon c us phi _ _) (VPCon c' us' phi' _ _) =
     -- TODO: can we ignore the faces?
     c == c' && conv is k (us,phi) (us',phi')
