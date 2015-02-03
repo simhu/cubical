@@ -3,6 +3,7 @@ module pi4s3 where
 import hopf
 import truncHopf
 import loopTrunc
+import exchange
 
 -- Let’s define the twelve maps first
 
@@ -117,7 +118,7 @@ dummyHopf : S2 -> U
 dummyHopf = hsplit (\_ -> U) with
   north -> S1
   south -> S1
-  merid x -> eqS1 x --refl U S1
+  merid x -> refl U S1
 
 
 totalDummyHopfToJoin : (Sigma S2 dummyHopf) -> join S1 S1
@@ -167,3 +168,64 @@ fastS1 = pairPath S1 testFib base base tt tt (compS1 loop (compS1 loop loop)) un
 
 slowS1 : (Omega (Unit, tt)).1
 slowS1 = mapOmegaRefl (Sigma S1 testFib, (base , tt)) Unit totalMap fastS1
+
+---
+
+-- The nontrivial element of pi_3(S^2) generated using the exchange law
+
+OmS2 : U
+OmS2 = Id S2 north north
+
+reflS2 : OmS2
+reflS2 = refl S2 north
+
+OmOmS2 : U
+OmOmS2 = Id OmS2 reflS2 reflS2
+
+reflReflS2 : OmOmS2
+reflReflS2 = refl OmS2 reflS2
+
+genS2 : OmOmS2
+genS2 = test0To1
+
+invGenS2 : OmOmS2
+invGenS2 = inv OmS2 reflS2 reflS2 genS2
+
+a : OmOmS2
+a = reflReflS2
+
+b : OmOmS2
+b = comp OmS2 reflS2 reflS2 reflS2 genS2 invGenS2
+
+c : OmOmS2
+c = comp OmS2 reflS2 reflS2 reflS2 genS2 (hcomp S2 north north north reflS2 reflS2 reflReflS2 reflS2 reflS2 invGenS2)
+
+d : OmOmS2
+d = hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2 (comp OmS2 reflS2 reflS2 reflS2 reflReflS2 invGenS2)
+
+e : OmOmS2
+e = hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2 invGenS2
+
+f : OmOmS2
+f = reflReflS2
+
+p : Id OmOmS2 a b
+p = compInvRight OmS2 reflS2 reflS2 genS2
+
+q : Id OmOmS2 b c
+q = mapOnPath OmOmS2 OmOmS2 (comp OmS2 reflS2 reflS2 reflS2 genS2) invGenS2 (hcomp S2 north north north reflS2 reflS2 reflReflS2 reflS2 reflS2 invGenS2)
+              (hcompIdl' S2 north north reflS2 reflS2 invGenS2)
+
+r : Id OmOmS2 c d
+r = exchange S2 north north north reflS2 reflS2 reflS2 reflS2 reflS2 reflS2
+             genS2 reflReflS2 reflReflS2 invGenS2
+
+s : Id OmOmS2 d e
+s = mapOnPath OmOmS2 OmOmS2 (hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2) (comp OmS2 reflS2 reflS2 reflS2 reflReflS2 invGenS2) invGenS2
+              (compIdl OmS2 reflS2 reflS2 invGenS2)
+
+t : Id OmOmS2 e f
+t = lemmaEx S2 north reflS2 genS2
+
+genPi3S2 : (itOmega three ptS2).1
+genPi3S2 = comp OmOmS2 a b f p (comp OmOmS2 b c f q (comp OmOmS2 c d f r (comp OmOmS2 d e f s t)))
