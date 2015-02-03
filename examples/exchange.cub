@@ -1,0 +1,91 @@
+module exchange where
+
+import prelude
+import lemId
+
+whiskR : (A : U) (a b : A) (p p' : Id A a b) (pp : Id (Id A a b) p p') (c : A) (q : Id A b c) -> Id (Id A a c) (comp A a b c p q) (comp A a b c p' q)
+whiskR A a b p p' pp = J A b (\c q -> Id (Id A a c) (comp A a b c p q) (comp A a b c p' q))
+                             pp
+
+hcomp : (A : U) (a b c : A) (p p' : Id A a b) (pp : Id (Id A a b) p p') (q q' : Id A b c) (qq : Id (Id A b c) q q')
+      -> Id (Id A a c) (comp A a b c p q) (comp A a b c p' q')
+hcomp A a b c p p' pp q = J (Id A b c) q (\q' qq -> Id (Id A a c) (comp A a b c p q) (comp A a b c p' q'))
+                            (whiskR A a b p p' pp c q)
+
+hcompIdlId' : (A : U) (a b : A) (q : Id A a b)
+           -> Id (Id (Id A a b) q q)
+               (refl (Id A a b) q)
+               (compUp (Id A a b) (comp A a a b (refl A a) q) q (comp A a a b (refl A a) q) q (compIdl A a b q) (compIdl A a b q)
+                         (whiskR A a a (refl A a) (refl A a) (refl (Id A a a) (refl A a)) b q))
+hcompIdlId' A a =
+  J A a (\b q -> Id (Id (Id A a b) q q)
+               (refl (Id A a b) q)
+               (compUp (Id A a b) (comp A a a b (refl A a) q) q (comp A a a b (refl A a) q) q (compIdl A a b q) (compIdl A a b q)
+                         (whiskR A a a (refl A a) (refl A a) (refl (Id A a a) (refl A a)) b q)))
+    (refl (Id (Id A a a) (refl A a) (refl A a)) (refl (Id A a a) (refl A a)))
+
+hcompIdl' : (A : U) (a b : A) (q q' : Id A a b) (qq : Id (Id A a b) q q')
+         -> Id (Id (Id A a b) q q')
+               qq
+               (compUp (Id A a b) (comp A a a b (refl A a) q) q (comp A a a b (refl A a) q') q' (compIdl A a b q) (compIdl A a b q')
+                         (hcomp A a a b (refl A a) (refl A a) (refl (Id A a a) (refl A a)) q q' qq))
+hcompIdl' A a b q =
+  J (Id A a b) q (\q' qq -> Id (Id (Id A a b) q q')
+                   qq
+                   (compUp (Id A a b) (comp A a a b (refl A a) q) q (comp A a a b (refl A a) q') q' (compIdl A a b q) (compIdl A a b q')
+                             (hcomp A a a b (refl A a) (refl A a) (refl (Id A a a) (refl A a)) q q' qq)))
+    (hcompIdlId' A a b q)
+
+lemmaEx : (A : U) (a : A) (q : Id A a a) (alpha : Id (Id A a a) (refl A a) q)
+      -> Id (Id (Id A a a) (comp A a a a (refl A a) q) q)
+            (hcomp A a a a (refl A a) q alpha q (refl A a) (inv (Id A a a) (refl A a) q alpha))
+            (compIdl A a a q)
+lemmaEx A a =
+  J (Id A a a) (refl A a) (\q alpha -> Id (Id (Id A a a) (comp A a a a (refl A a) q) q)
+                                          (hcomp A a a a (refl A a) q alpha q (refl A a) (inv (Id A a a) (refl A a) q alpha))
+                                          (compIdl A a a q))
+    (refl (Id (Id A a a) (refl A a) (refl A a)) (refl (Id A a a) (refl A a)))
+
+exchange4 : (A : U) (a b : A) (p0 p1 p2 : Id A a b)
+            (p01 : Id (Id A a b) p0 p1) (p12 : Id (Id A a b) p1 p2) (c : A) (q0 : Id A b c)
+            -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q0))
+                  (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q0) (comp A a b c p2 q0) (whiskR A a b p0 p1 p01 c q0) (whiskR A a b p1 p2 p12 c q0))
+                  (whiskR A a b p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) c q0)
+exchange4 A a b p0 p1 p2 p01 p12 =
+  J A b (\c q0 -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q0))
+                  (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q0) (comp A a b c p2 q0) (whiskR A a b p0 p1 p01 c q0) (whiskR A a b p1 p2 p12 c q0))
+                  (whiskR A a b p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) c q0))
+    (refl (Id (Id A a b) p0 p2) (comp (Id A a b) p0 p1 p2 p01 p12))
+
+exchange3 : (A : U) (a b c : A) (p0 p1 p2 : Id A a b) (q0 : Id A b c)
+            (p01 : Id (Id A a b) p0 p1) (p12 : Id (Id A a b) p1 p2)
+            (q1 : Id A b c) (q01 : Id (Id A b c) q0 q1)
+            -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q1))
+                  (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q1) (comp A a b c p2 q1) (hcomp A a b c p0 p1 p01 q0 q1 q01) (whiskR A a b p1 p2 p12 c q1))
+                  (hcomp A a b c p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) q0 q1 q01)
+exchange3 A a b c p0 p1 p2 q0 p01 p12 =
+  J (Id A b c) q0 (\q1 q01 -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q1))
+                   (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q1) (comp A a b c p2 q1) (hcomp A a b c p0 p1 p01 q0 q1 q01) (whiskR A a b p1 p2 p12 c q1))
+                   (hcomp A a b c p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) q0 q1 q01))
+    (exchange4 A a b p0 p1 p2 p01 p12 c q0)
+
+exchange2 : (A : U) (a b c : A) (p0 p1 p2 : Id A a b) (q0 q1 : Id A b c)
+            (p01 : Id (Id A a b) p0 p1) (p12 : Id (Id A a b) p1 p2)
+            (q01 : Id (Id A b c) q0 q1) (q2 : Id A b c) (q12 : Id (Id A b c) q1 q2)
+            -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q2))
+                  (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q1) (comp A a b c p2 q2) (hcomp A a b c p0 p1 p01 q0 q1 q01) (hcomp A a b c p1 p2 p12 q1 q2 q12))
+                  (hcomp A a b c p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) q0 q2 (comp (Id A b c) q0 q1 q2 q01 q12))
+exchange2 A a b c p0 p1 p2 q0 q1 p01 p12 q01 =
+  J (Id A b c) q1 (\q2 q12 -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q2))
+                   (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q1) (comp A a b c p2 q2) (hcomp A a b c p0 p1 p01 q0 q1 q01) (hcomp A a b c p1 p2 p12 q1 q2 q12))
+                   (hcomp A a b c p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) q0 q2 (comp (Id A b c) q0 q1 q2 q01 q12)))
+    (exchange3 A a b c p0 p1 p2 q0 p01 p12 q1 q01)
+
+
+exchange : (A : U) (a b c : A) (p0 p1 p2 : Id A a b) (q0 q1 q2 : Id A b c)
+           (p01 : Id (Id A a b) p0 p1) (p12 : Id (Id A a b) p1 p2)
+           (q01 : Id (Id A b c) q0 q1) (q12 : Id (Id A b c) q1 q2)
+           -> Id (Id (Id A a c) (comp A a b c p0 q0) (comp A a b c p2 q2))
+                 (comp (Id A a c) (comp A a b c p0 q0) (comp A a b c p1 q1) (comp A a b c p2 q2) (hcomp A a b c p0 p1 p01 q0 q1 q01) (hcomp A a b c p1 p2 p12 q1 q2 q12))
+                 (hcomp A a b c p0 p2 (comp (Id A a b) p0 p1 p2 p01 p12) q0 q2 (comp (Id A b c) q0 q1 q2 q01 q12))
+exchange A a b c p0 p1 p2 q0 q1 q2 p01 p12 q01 q12 = exchange2 A a b c p0 p1 p2 q0 q1 p01 p12 q01 q2 q12
