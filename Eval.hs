@@ -319,7 +319,8 @@ vext phi f g p        = VExt phi f g p
 
 -- Application
 app :: [Name] -> Val -> Val -> Val
-app is (Ter (Lam x t) (e,f)) u                = eval is (Pair (mapEnv f e) (x,u)) t
+app is (Ter (Lam x t) (e,f)) u                =
+  eval is (pair (mapEnv f e) (x,u)) t
 app is kan@(Kan i b@(VPi a f) ts li0) ui1 =
   -- DT.trace "app Kan VPi" $
     let -- j   = fresh (kan,ui1)
@@ -533,7 +534,7 @@ comps is i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill (i:is) Pos i (eval (i:is) e a) ts u
       -- vi1 = v `face` (i ~> 1)
       vi1 = comp is Pos i (eval (i:is) e a) ts u
-      vs  = comps is i as (Pair e (x,v)) tsus
+      vs  = comps is i as (pair e (x,v)) tsus
   in vi1 : vs
 comps _ _ _ _ _ = error "comps: different lengths of types and values"
 
@@ -542,7 +543,7 @@ fills _  i []         _ []            = []
 fills is i ((x,a):as) e ((ts,u):tsus) =
   let v  = fill is Pos i (eval (i:is) e a) ts u
       -- vi0 = v `face` (i ~> 1)
-      vs  = fills is i as (Pair e (x,v)) tsus
+      vs  = fills is i as (pair e (x,v)) tsus
   in v : vs
 fills _ _ _ _ _ = error "fills: different lengths of types and values"
 
@@ -573,33 +574,44 @@ fill is Pos i a ts u = trace "fill Pos" $
   where j = gensym (i:is)
 
 comp :: [Name] -> Sign -> Name -> Val -> System Val -> Val -> Val
-comp is sign i a ts u | i `notOccurs` (a,ts) = trace "comp cheaply regular" $ u
--- Another possible optimization:
-comp is sign i a ts u | i `notOccurs` a && not (Map.null indep) =
-  trace "comp filter" $ comp is sign i a ts' u
-  where (ts',indep) = Map.partition (occurs i) ts
-comp is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
+-- comp is sign i a ts u | i `notOccurs` (a,ts) = trace "comp cheaply regular" $ u
+-- -- Another possible optimization:
+-- comp is sign i a ts u | i `notOccurs` a && not (Map.null indep) =
+--   trace "comp filter" $ comp is sign i a ts' u
+--   where (ts',indep) = Map.partition (occurs i) ts
+comp is sign i a ts u | i `notOccurs` a =
+  if i `notOccurs` ts
+     then u
+     else let (ts',indep) = Map.partition (occurs i) ts
+          in if not (Map.null indep)
+                then comp' is sign i a ts' u
+                else comp' is sign i a ts u
+  
+                      | otherwise = comp' is sign i a ts u
+
+
+comp' is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
 
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
-comp is Pos i a ts u | eps `Map.member` ts = trace "easy case of comp" $
+comp' is Pos i a ts u | eps `Map.member` ts = trace "easy case of comp" $
                                              act (i:is) (ts ! eps) (i,Dir 1)
-comp is Pos i (KanUElem _ a) ts u = comp is Pos i a ts u
-comp is Pos i vid@(VId a u v) ts w = Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j)
+comp' is Pos i (KanUElem _ a) ts u = comp is Pos i a ts u
+comp' is Pos i vid@(VId a u v) ts w = Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j)
                                                    ts' (appFormula (i:j:is) w j)
   where j   = gensym (i:is)
         ts' = insertSystem (j ~> 0) u $
               insertSystem (j ~> 1) v $
               Map.map (\u -> appFormula (i:j:is) u j) ts
-comp is Pos i b@(VSigma a f) ts u = VSPair ui1 comp_u2
+comp' is Pos i b@(VSigma a f) ts u = VSPair ui1 comp_u2
   where (t1s, t2s) = (Map.map fstSVal ts, Map.map sndSVal ts)
         (u1,  u2)  = (fstSVal u, sndSVal u)
         fill_u1    = fill (i:is) Pos i a t1s u1
         -- ui1        = fill_u1 `face` (i ~> 1)
         ui1        = comp is Pos i a t1s u1
         comp_u2    = comp is Pos i (app (i:is) f fill_u1) t2s u2
-comp is Pos i a@VPi{} ts u   = Kan i a ts u
-comp is Pos i g@(Glue hisos b) ws wi0 =
+comp' is Pos i a@VPi{} ts u   = Kan i a ts u
+comp' is Pos i g@(Glue hisos b) ws wi0 =
   trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
     glueElem usi1 vi1''
   where is'  = i:is
@@ -656,7 +668,7 @@ comp is Pos i g@(Glue hisos b) ws wi0 =
                     if gamma `Map.member` usi1' then usi1' ! gamma
                     else fst (uls'' ! gamma))
                   hisosI1
-comp is Pos i t@(Kan j VU ejs b) ws wi0 =
+comp' is Pos i t@(Kan j VU ejs b) ws wi0 =
     let is'   = i:j:is
         es    = Map.map (Path j . (\u -> sym is' u j)) ejs
         hisos = Map.map (eqHiso is') es
@@ -711,7 +723,7 @@ comp is Pos i t@(Kan j VU ejs b) ws wi0 =
                   hisosI1
     in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
        kanUElem is' usi1 vi1''
-comp is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
+comp' is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
                                           glueLineElem is' vm phii1 psii1
   where  is'   = i:is
          phii1 = face is' phi (i ~> 1)
@@ -730,16 +742,16 @@ comp is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
          w  = unGlueLine is' bi0 phii0 psii0 u
          vm = compLine is' (face is' b (i ~> 1)) ls v
          fs = filter (i `Map.notMember`) (invFormula psi One)
-comp _ Pos i VU ts u = Kan i VU ts u
-comp is Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp is Pos i v tss w
-comp _ Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
+comp' _ Pos i VU ts u = Kan i VU ts u
+comp' is Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp is Pos i v tss w
+comp' _ Pos i a ts u | isNeutral a || isNeutralSystem ts || isNeutral u =
   trace "comp Neutral" $ KanNe i a ts u
-comp is Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = case getIdent n nass of
+comp' is Pos i v@(Ter (Sum _ nass) (env,f)) tss (VCon n us) = case getIdent n nass of
   Just as -> VCon n $ comps is i as (mapEnv f env) tsus
     where tsus = transposeSystemAndList (Map.map unCon tss) us
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
 -- Treat transport in hsums separately.
-comp is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
+comp' is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps is i as (mapEnv f env) (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
@@ -761,7 +773,7 @@ comp is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
   u | isNeutral u -> KanNe i v us u
   KanUElem _ u1 -> comp is Pos i v us u1
   u -> error $ "comp HSum:" <+> show u <+> "should be neutral"
-comp is Pos i v@(Ter (HSum _ _) _) us u
+comp' is Pos i v@(Ter (HSum _ _) _) us u
   | i `notOccurs` us' = transp i v u
   | otherwise         = Kan i (vi1) us' (transp i v u)
     where vi1         = face (i:is) v (i ~> 1)
@@ -770,7 +782,7 @@ comp is Pos i v@(Ter (HSum _ _) _) us u
           comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
           us'         = Map.mapWithKey comp' us
           transp j w  = comp (i:j:is) Pos j w Map.empty
-comp is Pos i a ts u =
+comp' is Pos i a ts u =
   error $ "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
           "ts = " <+> show ts <+> "\n" <+> "u = " <+> parens (show u)
 
@@ -856,15 +868,15 @@ instance Convertible Val where
   conv is k w@(Ter (Lam x u) (e,f)) w'@(Ter (Lam x' u') (e',f')) =
     let v = mkVar k
     in trace ("conv is Lam Lam \n w = " ++ show w ++ " \n w' = " ++ show w')
-     conv is (k+1) (eval is (Pair (mapEnv f e) (x,v)) u) (eval is (Pair (mapEnv f' e') (x',v)) u')
+     conv is (k+1) (eval is (pair (mapEnv f e) (x,v)) u) (eval is (pair (mapEnv f' e') (x',v)) u')
   conv is k w@(Ter (Lam x u) (e,f)) u' =
     let v = mkVar k
     in trace ("conv Lam u' \n w = " ++ show w ++ " \n u' = " ++ show u')
-        conv is (k+1) (eval is (Pair (mapEnv f e) (x,v)) u) (app is u' v)
+        conv is (k+1) (eval is (pair (mapEnv f e) (x,v)) u) (app is u' v)
   conv is k u' w'@(Ter (Lam x u) (e,f)) =
     let v = mkVar k
     in trace ("conv u' Lam \n u' = " ++ show u' ++ " \n w' = " ++ show w')
-       conv is (k+1) (app is u' v) (eval is (Pair (mapEnv f e) (x,v)) u)
+       conv is (k+1) (app is u' v) (eval is (pair (mapEnv f e) (x,v)) u)
   conv is k (Ter (Split p _) (e,f)) (Ter (Split p' _) (e',f')) =
     p == p' && conv is k (mapEnv f e) (mapEnv f' e')
   conv is k (Ter (Sum p _) (e,f))   (Ter (Sum p' _) (e',f')) =

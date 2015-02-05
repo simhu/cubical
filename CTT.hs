@@ -439,8 +439,24 @@ instance Show Env where
       showEnv1 (Pair env (x,u)) = showEnv1 env ++ fst x ++ "=" ++ show u ++ ", "
       showEnv1 e                = show e
 
+-- pair :: Env -> (Binder,Val) -> Env
+-- pair Empty p = Pair Empty p
+-- pair e@(PDef xas env) p = Pair e p
+-- pair (Pair env (x,u)) (y,v) | x == y = Pair env (y,v)
+--                             | otherwise = 
+
+deleteEnv :: Binder -> Env -> Env
+deleteEnv x Empty = Empty
+deleteEnv x (Pair e (y,v)) | x == y = e
+                           | otherwise = Pair (deleteEnv x e) (y,v)
+deleteEnv x (PDef xs e) = PDef xs (deleteEnv x e)
+
+pair :: Env -> (Binder,Val) -> Env
+pair e (x,u) = Pair (deleteEnv x e) (x,u)
+
+
 upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl' Pair
+upds = foldl' pair
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
 lookupIdent x defs = listToMaybe [ ((y,l),t) | ((y,l),t) <- defs, x == y ]
