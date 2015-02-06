@@ -35,10 +35,30 @@ test1 : Id pi1S2 triv triv
 test1 = propi1S2 triv triv
 
 
+setrIdSusp : U -> U
+setrIdSusp X = setr (Id (susp X) north north)
 
+corrpi1S2 : prop (setr (Id (susp sone) north north))
+corrpi1S2 = substInv U P sone S1 s1EqCircle propi1S2
+  where P : U -> U
+        P X = prop (setrIdSusp X)
 
-test2 : prop (Id (grt S2) (inc north) (inc north))
-test2 = subst U prop Unit (Id (grt S2) (inc north) (inc north)) corrgrtS2 propUnit
+triv1 : setrIdSusp sone
+triv1 = inc (refl (susp sone) north)
 
-test3 : prop pi1S2
-test3 = substInv U prop pi1S2 (Id (grt S2) (inc north) (inc north)) corr7312 test2
+test2 : Id (setrIdSusp sone) triv1 triv1
+test2 = corrpi1S2 triv1 triv1
+
+loop1 : setrIdSusp sone
+loop1 = inc (comp (susp sone) north south north
+                  (merid north)
+                  (inv (susp sone) north south (merid south)))
+
+test3 : Id (setrIdSusp sone) triv1 loop1
+test3 = corrpi1S2 triv1 loop1
+
+test4 : prop (Id (grt S2) (inc north) (inc north))
+test4 = subst U prop Unit (Id (grt S2) (inc north) (inc north)) corrgrtS2 propUnit
+
+test5 : prop pi1S2
+test5 = substInv U prop pi1S2 (Id (grt S2) (inc north) (inc north)) corr7312 test4
