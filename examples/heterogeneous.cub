@@ -47,7 +47,7 @@ pairPath A B a0 a1 b0 b1 p q =
 pairPathSubst : (A : U) (B : A -> U) (a0 a1 : A) (p : Id A a0 a1)
            (b : B a0) ->
            Id (Sigma A B) (a0, b) (a1, subst A B a0 a1 p b)
-pairPathSubst A B a0 = J A a0 (\a1 p -> (b : B a0) -> Id (Sigma A B) (a0, b) (a1, subst A B a0 a1 p b)) (\b -> refl (Sigma A B) (a0, b))
+pairPathSubst A B a0 a1 p b = pairPath A B a0 a1 b (subst A B a0 a1 p b) p (eqTransport (B a0) (B a1) (mapOnPath A U B a0 a1 p) b)
 
 eqFstSnd : (A : U) (B : A -> U) (a0 a1 : A) (b0 : B a0) (b1 : B a1) ->
            Id U
@@ -170,10 +170,6 @@ funExt1 C B F a =
     (\f g h -> funExt (F a) (\_ -> B) f g h)
 
 -- funExt1Beta :
-
--- funExtFullFun : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b) (x : B a)
---               -> C a x -> C b (subst A B a b p x)
--- funExtFullFun A B C a = J A a (\b p -> (x : B a) -> C a x -> C b (subst A B a b p x)) (\x c -> c)
 
 funExtFullFun : (A : U) (B : A -> U) (C : (a : A) -> B a -> U) (a b : A) (p : Id A a b) (x : B a)
               -> C a x -> C b (subst A B a b p x)

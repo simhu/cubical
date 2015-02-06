@@ -57,12 +57,6 @@ p1 = pairPathSubst S1 doubleCov base base loop true
 p2 : Id M (base, false) (base, true)
 p2 = pairPathSubst S1 doubleCov base base loop false
 
-mapFromDoubleCovBeta1 : Id (Id S1' base1 base2) (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1) loop1
-mapFromDoubleCovBeta1 = compIdl S1' base1 base2 loop1
-
-mapFromDoubleCovBeta2 : Id (Id S1' base2 base1) (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2) loop2
-mapFromDoubleCovBeta2 = compIdl S1' base2 base1 loop2
-
 -- The map from S1' to M
 
 mapToDoubleCov : S1' -> M
@@ -79,9 +73,9 @@ S1toS1Inv = hsplit (\ x -> Id S1' (mapFromDoubleCov (mapToDoubleCov x)) x) with
   base1 -> refl S1' base1
   base2 -> refl S1' base2
   loop1 -> substPathPiSquareTranspose S1' S1' (\x -> mapFromDoubleCov (mapToDoubleCov x)) (\x -> x) base1 base2 loop1 (refl S1' base1) (refl S1' base2)
-                                      mapFromDoubleCovBeta1
+                                      (refl (Id S1' base1 base2) loop1)
   loop2 -> substPathPiSquareTranspose S1' S1' (\x -> mapFromDoubleCov (mapToDoubleCov x)) (\x -> x) base2 base1 loop2 (refl S1' base2) (refl S1' base1)
-                                      mapFromDoubleCovBeta2
+                                      (refl (Id S1' base2 base1) loop2)
 
 hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
 hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
@@ -112,35 +106,19 @@ MtoMInvaux = hsplit (\ x -> (y : doubleCov x) -> Id M (mapToDoubleCov (aux x y))
     rem2 = split
       true  -> rem3 where
 
-        rem4 : Id (Id M (base, true) (base, false))
-                  (mapOnPath S1' M mapToDoubleCov base1 base2 (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1))
-                  p1
-        rem4 = mapOnPath (Id S1' base1 base2) (Id M (base, true) (base, false))
-                         (mapOnPath S1' M mapToDoubleCov base1 base2)
-                         (mapOnPath M S1' mapFromDoubleCov (base, true) (base, false) p1) loop1
-                         mapFromDoubleCovBeta1
-
         rem3 : Id (Id M (base, false) (base, false))
                             (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, true) (base, false)
                                    p1 (refl M (base, true)))
                             (refl M (base, false))
-        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, true) (base, false) p1 (refl M (base, true)) (refl M (base, false)) rem4
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, true) (base, false) p1 (refl M (base, true)) (refl M (base, false)) (refl (Id M (base, true) (base, false)) p1)
 
       false -> rem3 where
-
-        rem4 : Id (Id M (base, false) (base, true))
-                  (mapOnPath S1' M mapToDoubleCov base2 base1 (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2))
-                  p2
-        rem4 = mapOnPath (Id S1' base2 base1) (Id M (base, false) (base, true))
-                         (mapOnPath S1' M mapToDoubleCov base2 base1)
-                         (mapOnPath M S1' mapFromDoubleCov (base, false) (base, true) p2) loop2
-                         mapFromDoubleCovBeta2
 
         rem3 : Id (Id M (base, true) (base, true))
                             (subst M (\xy -> Id M (mapToDoubleCov (aux xy.1 xy.2)) xy) (base, false) (base, true)
                                    p2 (refl M (base, false)))
                             (refl M (base, true))
-        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, false) (base, true) p2 (refl M (base, false)) (refl M (base, true)) rem4
+        rem3 = lemma M M (\xy -> mapToDoubleCov (aux xy.1 xy.2)) (\xy -> xy) (base, false) (base, true) p2 (refl M (base, false)) (refl M (base, true)) (refl (Id M (base, false) (base, true)) p2)
 
 MtoMInv : (xy : M) -> Id M (mapToDoubleCov (mapFromDoubleCov xy)) xy
 MtoMInv xy = MtoMInvaux xy.1 xy.2

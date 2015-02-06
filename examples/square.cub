@@ -1,65 +1,20 @@
 module square where
 
 import prelude
-import heterogeneous
 
 substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
   Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
 substPathPiSquare A B f g a a' p qa qa' sq = sq
-  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
-  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
-  --   (\qa qa' x -> x)
 
-
--- transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
---             Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
--- transpose A a0 = J A a0
---  (\ a1 u ->  (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
---               Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v)
---  rem
---  where
---    rf0 : Id A a0 a0
---    rf0 = refl A a0
---    rem2 : (b0 : A) (r0 : Id A a0 b0) (r1 : Id A a0 b0) -> 
---               Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0)
---    rem2 = J A a0 (\ b0 r0 -> (r1 : Id A a0 b0) -> 
---                   Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0))
---           rem3
---       where
---         rem3 : (r1 : Id A a0 a0) -> Id (Id A a0 a0) rf0 r1 -> Square A a0 a0 a0 a0 rf0 r1 rf0 rf0
---         rem3 = J (Id A a0 a0) rf0 (\ r1 p -> Square A a0 a0 a0 a0 rf0 r1 rf0 rf0)
---                  (refl (Id A a0 a0) rf0)
-
---    rem : (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a0 b1) ->
---               Square A a0 b0 a0 b1 rf0 v r0 r1 -> Square A a0 a0 b0 b1 r0 r1 rf0 v
---    rem b0 = J A b0
---      ( \ b1 v ->  (r0 : Id A a0 b0) (r1 : Id A a0 b1) ->
---                    Square A a0 b0 a0 b1 rf0 v r0 r1 -> Square A a0 a0 b0 b1 r0 r1 rf0 v)
---      rem1
---       where
---        rem1 : (r0 : Id A a0 b0) (r1 : Id A a0 b0) ->
---               Id (Id A a0 b0) r0 r1 -> Square A a0 a0 b0 b0 r0 r1 rf0 (refl A b0)
---        rem1 = rem2 b0 
+reflSquare : (A : U) (a b : A) (p : Id A a b) -> Square A a b p a b p (refl A a) (refl A b)
+reflSquare A a b p = mapOnPathD A (\x -> Id A x x) (refl A) a b p
 
 substPathPiSquareTranspose : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Square B (f a) (f a') (g a) (g a') qa qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) ->
+  Square B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) ->
   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-substPathPiSquareTranspose A B f g a a' p qa qa' alpha = substPathPiSquare A B f g a a' p qa qa' (transpose B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) alpha)
-  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
-  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
-  --   (\qa qa' x -> x)
+substPathPiSquareTranspose A B f g a a' p qa qa' alpha =
+  transpose B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) alpha
 
-substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
-  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
-  Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa'
-substPathPiInvSquare A B f g a a' p qa qa' sq = sq
-  -- J A a (\a' p -> (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  --     IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
-  --     Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa')
-  --   (\qa qa' x -> x)

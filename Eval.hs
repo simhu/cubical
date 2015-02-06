@@ -526,6 +526,17 @@ evalAppPN is e pn ts
        (IdSElim,[_,_,p,u,_,x]) ->
          Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) p i) ss u
          where ss = mkSystem [(j ~> 1, appFormula (i:j:is) x i)]
+       (EqTransport,[a,b,p,u]) -> Path i $ fill (i:is) Pos i (appFormula (i:is) p i) Map.empty u
+       (Rem1IdP,[a,b,p,u,q]) ->
+         Path i $ Path j $ fill (i:j:is) Pos i (appFormula (i:j:is) p i) Map.empty (appFormula (i:j:is) q j)
+       (Square,[a,_,_,left,_,_,right,top,bottom]) ->
+         VId (Path i $ VId (Path j $ a) (appFormula (i:j:is) left i) (appFormula (i:j:is) right i)) top bottom
+       (Cube,[a,_,_,_,_,_,_,_,_,left,_,_,_,_,_,_,_,_,right,_,_,top,_,_,bottom,front,back]) ->
+         VId (Path i $ VId (Path j $ VId (Path k a) (appFormula (i:j:k:is) (appFormula (i:j:k:is) left i) j) 
+                                                    (appFormula (i:j:k:is) (appFormula (i:j:k:is) right i) j)) 
+                                                    (appFormula (i:j:k:is) top i) (appFormula (i:j:k:is) bottom i)) front back
+       (Rotate,[a,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,x]) ->
+         Path j $ Path k $ Path i (appFormula (i:j:k:is) (appFormula (i:j:k:is) (appFormula (i:j:k:is) x i) j) k)
        (u,_) -> error ("evalPN " ++ show u)
 
 comps :: [Name] -> Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]

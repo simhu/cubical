@@ -212,6 +212,10 @@ data PN = Id | Refl | Sym
 
         | Rem1IdP
 
+        | Square
+        | Cube
+        | Rotate
+
         -- idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
         --            -> IdP A B p x y -> Id B (transport A B p x) y
         | IdSElim
@@ -266,7 +270,10 @@ primHandle =
    ("lemSimpl"      , 8,  LemSimpl    ),
    ("transpose"     , 10, Transpose    ),
    ("eqTransport"   , 4,  EqTransport    ),
-   ("rem1IdP"      , 5,  Rem1IdP    ),
+   ("Square"        , 9, Square),
+   ("Cube"          , 27, Cube),
+   ("rotate"        , 28, Rotate),
+   ("rem1IdP"       , 5,  Rem1IdP    ),
    ("idSElim'"      , 6,  IdSElim    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
