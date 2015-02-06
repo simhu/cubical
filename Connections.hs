@@ -17,10 +17,10 @@ newtype Name = Name Integer
 instance Show Name where
   show (Name i) = 'i' : show i
 
-swapName :: Name -> (Name,Name) -> Name
-swapName k (i,j) | k == i    = j
-                 | k == j    = i
-                 | otherwise = k
+-- swapName :: Name -> (Name,Name) -> Name
+-- swapName k (i,j) | k == i    = j
+--                  | k == j    = i
+--                  | otherwise = k
 
 
 -- | Directions
@@ -61,8 +61,8 @@ type Face = Map Name Dir
 instance Arbitrary Face where
   arbitrary = Map.fromList <$> arbitrary
 
-swapFace :: Face -> (Name,Name) -> Face
-swapFace alpha ij = Map.mapKeys (`swapName` ij) alpha
+-- swapFace :: Face -> (Name,Name) -> Face
+-- swapFace alpha ij = Map.mapKeys (`swapName` ij) alpha
 
 -- i,j,k,l :: Name
 -- i = Name 0
@@ -197,7 +197,8 @@ orFormula phi psi        = phi :\/: psi
 
 evalFormula :: [Name] -> Formula -> Face -> Formula
 evalFormula s phi alpha =
-  Map.foldWithKey (\i d psi -> act s psi (i,Dir d)) phi alpha
+--  Map.foldWithKey (\i d psi -> act s psi (i,Dir d)) phi alpha
+  Map.foldWithKey (\i d psi -> face s psi (i ~> d)) phi alpha
 
   -- (Dir b) alpha  = Dir b
 -- evalFormula (Atom i) alpha = case Map.lookup i alpha of
@@ -214,7 +215,7 @@ evalFormula s phi alpha =
 invFormula :: Formula -> Dir -> [Face]
 invFormula (Dir b') b          = [ eps | b == b' ]
 invFormula (Atom i) b          = [ Map.singleton i b ]
-invFormula (NegAtom i) b         = [ Map.singleton i (- b) ]
+invFormula (NegAtom i) b       = [ Map.singleton i (- b) ]
 invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
 invFormula (phi :/\: psi) One  =
   meets (invFormula phi 1) (invFormula psi 1)
@@ -235,6 +236,23 @@ testInvFormula :: [Face]
 testInvFormula = invFormula (Atom (Name 0) :/\: Atom (Name 1)) 1
 
 -- | Nominal
+class Nominal a where
+  support :: a -> [Name]
+
+  -- occurs with default implementation
+  occurs :: Name -> a -> Bool
+  occurs x v = x `elem` support v
+
+  -- act u (i,phi) should have u # (phi - i) ??
+  -- act     ::  [Name] -> a -> (Name,Formula) -> a
+
+  -- swap :: a -> (Name,Name) -> a
+  -- swap u (i,j) =
+  --    where k = fresh (u,i,j)
+
+  subst :: [Name] -> a -> [(Name,Formula)] -> a
+  face :: [Name] -> a -> Face -> a
+
 gensym :: [Name] -> Name
 gensym [] = Name 0
 gensym xs = Name (max+1)
@@ -242,19 +260,6 @@ gensym xs = Name (max+1)
 
 gensyms :: [Name] -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
-
-class Nominal a where
-  support :: a -> [Name]
-
-  occurs :: Name -> a -> Bool
-  occurs x v = x `elem` support v
-
-  -- act u (i,phi) should have u # (phi - i) ??
-  act     ::  [Name] -> a -> (Name,Formula) -> a
-
-  swap :: a -> (Name,Name) -> a
-  -- swap u (i,j) =
-  --    where k = fresh (u,i,j)
 
 -- Is used in type checker
 fresh :: Nominal a => a -> Name
@@ -272,31 +277,55 @@ unionsMap f = unions . map f
 notOccurs :: Nominal a => Name -> a -> Bool
 notOccurs x = not . occurs x
 
+sym :: Nominal a => [Name] -> a -> Name -> a
+sym s a i = subst s a [(i,NegAtom i)] -- act s a (i, NegAtom i)
+
+-- rename :: Nominal a => [Name] -> a -> (Name, Name) -> a
+-- rename s a (i,j) = subst s a [(i,Atom j)] -- act s a (i, Atom j)
+
+connect :: Nominal a => [Name] -> a -> (Name, Name) -> a
+connect s a (i, j) = subst s a [(i, Atom i :/\: Atom j)]
+                     -- act is a (i, Atom i :/\: Atom j)
+
+-- swap :: Nominal a => [Name] -> a -> (Name, Name) -> a
+-- swap s a (i,j) = subst s a [(i,Atom j)] -- act s a (i, Atom j)
+
+swap :: Nominal a => a -> (Name, Name) -> a
+swap a (i,j) = subst [] a [(i,Atom j)] -- act s a (i, Atom j)
+
 instance Nominal () where
-  support () = []
+  support ()  = []
   occurs _ () = False
-  act _ () _  = ()
-  swap () _   = ()
+  -- act _ () _  = ()
+  -- swap () _   = ()
+  subst _ () _ = ()
+  face _ () _  = ()
 
 instance (Nominal a, Nominal b) => Nominal (a, b) where
   support (a, b) = support a `union` support b
   occurs x (a,b) = occurs x a || occurs x b
-  act s (a,b) f  = (act s a f,act s b f)
-  swap (a,b) n   = (swap a n,swap b n)
+  -- act s (a,b) f  = (act s a f,act s b f)
+  -- swap (a,b) n   = (swap a n,swap b n)
+  subst s (a,b) f = (subst s a f,subst s b f)
+  face s (a,b) f = (face s a f,face s b f)
 
 instance (Nominal a, Nominal b, Nominal c) => Nominal (a, b, c) where
   support (a,b,c)  = unions [support a, support b, support c]
   occurs x (a,b,c) = or [occurs x a,occurs x b,occurs x c]
-  act s (a,b,c) f  = (act s a f,act s b f,act s c f)
-  swap (a,b,c) n   = (swap a n,swap b n,swap c n)
+  -- act s (a,b,c) f  = (act s a f,act s b f,act s c f)
+  -- swap (a,b,c) n   = (swap a n,swap b n,swap c n)
+  subst s (a,b,c) f = (subst s a f,subst s b f,subst s c f)
+  face s (a,b,c) f = (face s a f,face s b f,face s c f)
 
 instance (Nominal a, Nominal b, Nominal c, Nominal d) =>
          Nominal (a, b, c, d) where
   support (a,b,c,d) = unions [support a, support b, support c, support d]
   occurs x (a,b,c,d) = 
     or [occurs x a,occurs x b,occurs x c,occurs x d]
-  act s (a,b,c,d) f  = (act s a f,act s b f,act s c f,act s d f)
-  swap (a,b,c,d) n   = (swap a n,swap b n,swap c n,swap d n)
+  -- act s (a,b,c,d) f  = (act s a f,act s b f,act s c f,act s d f)
+  -- swap (a,b,c,d) n   = (swap a n,swap b n,swap c n,swap d n)
+  subst s (a,b,c,d) f = (subst s a f,subst s b f,subst s c f,subst s d f)
+  face s (a,b,c,d) f = (face s a f,face s b f,face s c f,face s d f)
 
 instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e) =>
          Nominal (a, b, c, d, e) where
@@ -304,9 +333,12 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e) =>
     unions [support a, support b, support c, support d, support e]
   occurs x (a,b,c,d,e) =
     or [occurs x a,occurs x b,occurs x c,occurs x d,occurs x e]
-  act s (a,b,c,d,e) f = (act s a f,act s b f,act s c f,act s d f, act s e f)
-  swap (a,b,c,d,e) n  =
-    (swap a n,swap b n,swap c n,swap d n,swap e n)
+  -- act s (a,b,c,d,e) f = (act s a f,act s b f,act s c f,act s d f, act s e f)
+  -- swap (a,b,c,d,e) n  =
+  --   (swap a n,swap b n,swap c n,swap d n,swap e n)
+  subst s (a,b,c,d,e) f =
+    (subst s a f,subst s b f,subst s c f,subst s d f,subst s e f)
+  face s (a,b,c,d,e) f = (face s a f,face s b f,face s c f,face s d f,face s e f)
 
 instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e, Nominal h) =>
          Nominal (a, b, c, d, e, h) where
@@ -314,22 +346,28 @@ instance (Nominal a, Nominal b, Nominal c, Nominal d, Nominal e, Nominal h) =>
     unions [support a, support b, support c, support d, support e, support h]
   occurs x (a,b,c,d,e,h) =
     or [occurs x a,occurs x b,occurs x c,occurs x d,occurs x e,occurs x h]
-  act s (a,b,c,d,e,h) f =
-    (act s a f,act s b f,act s c f,act s d f, act s e f, act s h f)
-  swap (a,b,c,d,e,h) n  =
-    (swap a n,swap b n,swap c n,swap d n,swap e n,swap h n)
+  -- act s (a,b,c,d,e,h) f =
+  --   (act s a f,act s b f,act s c f,act s d f, act s e f, act s h f)
+  -- swap (a,b,c,d,e,h) n  =
+  --   (swap a n,swap b n,swap c n,swap d n,swap e n,swap h n)
+  subst s (a,b,c,d,e,h) f = (subst s a f,subst s b f,subst s c f,subst s d f,subst s e f,subst s h f)
+  face s (a,b,c,d,e,h) f = (face s a f,face s b f,face s c f,face s d f,face s e f,face s h f)
 
 instance Nominal a => Nominal [a]  where
   support xs  = unions (map support xs)
   occurs x xs = any (occurs x) xs
-  act s xs f  = [ act s x f | x <- xs ]
-  swap xs n   = [ swap x n | x <- xs ]
+  -- act s xs f  = [ act s x f | x <- xs ]
+  -- swap xs n   = [ swap x n | x <- xs ]
+  subst s xs f = [ subst s x f | x <- xs ]
+  face s xs f = [ face s x f | x <- xs ]
 
 instance Nominal a => Nominal (Maybe a)  where
   support    = maybe [] support
   occurs x   = maybe False (occurs x)
-  act s v f  = fmap (\u -> act s u f) v
-  swap a n   = fmap (`swap` n) a
+  -- act s v f  = fmap (\u -> act s u f) v
+  -- swap a n   = fmap (`swap` n) a
+  subst s v f = fmap (\u -> subst s u f) v
+  face s v f = fmap (\u -> face s u f) v
 
 instance Nominal Formula where
   support (Dir _)        = []
@@ -338,27 +376,38 @@ instance Nominal Formula where
   support (phi :/\: psi) = support phi `union` support psi
   support (phi :\/: psi) = support phi `union` support psi
 
-  act _ (Dir b) (i,phi)  = Dir b
-  act _ (Atom j) (i,phi) | i == j    = phi
-                       | otherwise = Atom j
-  act _ (NegAtom j) (i,phi) | i == j    = negFormula phi
-                          | otherwise = NegAtom j
-  act s (psi1 :/\: psi2) (i,phi) = act s psi1 (i,phi) `andFormula` act s psi2 (i,phi)
-  act s (psi1 :\/: psi2) (i,phi) = act s psi1 (i,phi) `orFormula` act s psi2 (i,phi)
+  -- act _ (Dir b) (i,phi)  = Dir b
+  -- act _ (Atom j) (i,phi) | i == j    = phi
+  --                      | otherwise = Atom j
+  -- act _ (NegAtom j) (i,phi) | i == j    = negFormula phi
+  --                         | otherwise = NegAtom j
+  -- act s (psi1 :/\: psi2) (i,phi) = act s psi1 (i,phi) `andFormula` act s psi2 (i,phi)
+  -- act s (psi1 :\/: psi2) (i,phi) = act s psi1 (i,phi) `orFormula` act s psi2 (i,phi)
 
-  swap (Dir b) (i,j)  = Dir b
-  swap (Atom k) (i,j)| k == i    = Atom j
-                     | k == j    = Atom i
-                     | otherwise = Atom k
-  swap (NegAtom k) (i,j)| k == i    = NegAtom j
-                        | k == j    = NegAtom i
-                        | otherwise = NegAtom k
-  swap (psi1 :/\: psi2) (i,j) = swap psi1 (i,j) :/\: swap psi2 (i,j)
-  swap (psi1 :\/: psi2) (i,j) = swap psi1 (i,j) :\/: swap psi2 (i,j)
+  -- swap (Dir b) (i,j)  = Dir b
+  -- swap (Atom k) (i,j)| k == i    = Atom j
+  --                    | k == j    = Atom i
+  --                    | otherwise = Atom k
+  -- swap (NegAtom k) (i,j)| k == i    = NegAtom j
+  --                       | k == j    = NegAtom i
+  --                       | otherwise = NegAtom k
+  -- swap (psi1 :/\: psi2) (i,j) = swap psi1 (i,j) :/\: swap psi2 (i,j)
+  -- swap (psi1 :\/: psi2) (i,j) = swap psi1 (i,j) :\/: swap psi2 (i,j)
 
+  subst s (Dir b) _        = Dir b
+  subst s (Atom i) xs      = undefined
+  subst s (NegAtom i) xs   = undefined
+  subst s (psi1 :/\: psi2) f = subst s psi1 f :/\: subst s psi2 f
+  subst s (psi1 :\/: psi2) f = subst s psi1 f :\/: subst s psi2 f
 
-face :: Nominal a => [Name] -> a -> Face -> a
-face s = Map.foldWithKey (\i d a -> act s a (i,Dir d))
+  face _ (Dir b) _          = Dir b
+  face s (Atom i) f         = undefined
+  face s (NegAtom i) f      = undefined
+  face s (psi1 :/\: psi2) f = face s psi1 f `andFormula` face s psi2 f
+  face s (psi1 :\/: psi2) f = face s psi1 f `orFormula` face s psi2 f
+
+-- face :: Nominal a => [Name] -> a -> Face -> a
+-- face s = Map.foldWithKey (\i d a -> act s a (i,Dir d))
 
 -- the faces should be incomparable
 type System a = Map Face a
@@ -401,28 +450,32 @@ transposeSystemAndList tss (u:us) =
 instance Nominal a => Nominal (System a) where
   support s = unions (map Map.keys $ Map.keys s)
               `union` support (Map.elems s)
-  occurs x s = x `elem` (concatMap Map.keys $ Map.keys s) || occurs x (Map.elems s)
+  occurs x s = x `elem` (concatMap Map.keys $ Map.keys s) ||
+               occurs x (Map.elems s)
 
-  act sup s (i, phi) = addAssocs (Map.assocs s)
-    where
-    addAssocs [] = Map.empty
-    addAssocs ((alpha,u):alphaus) =
-      let s' = addAssocs alphaus
-      in case Map.lookup i alpha of
-        -- t'_beta  = t_alpha (delta - i)
-        -- where beta = delta gamma
-        --   and delta in phi^-1 d
-        --   and gamma = alpha - i
-        Just d -> foldr (\delta s'' ->
-          case meetMaybe delta (Map.delete i alpha) of
-            Just beta -> -- TODO: sup is an upper bound; better sup - alpha?
-              insertSystem beta (face sup u (Map.delete i delta)) s''
-            Nothing    -> s'')
-                   s' (invFormula phi d)
-        -- t'_alpha = t_alpha (i = phi alpha)
-        Nothing -> insertSystem alpha (act sup u (i,face sup phi alpha)) s'
+  -- act sup s (i, phi) = addAssocs (Map.assocs s)
+  --   where
+  --   addAssocs [] = Map.empty
+  --   addAssocs ((alpha,u):alphaus) =
+  --     let s' = addAssocs alphaus
+  --     in case Map.lookup i alpha of
+  --       -- t'_beta  = t_alpha (delta - i)
+  --       -- where beta = delta gamma
+  --       --   and delta in phi^-1 d
+  --       --   and gamma = alpha - i
+  --       Just d -> foldr (\delta s'' ->
+  --         case meetMaybe delta (Map.delete i alpha) of
+  --           Just beta -> -- TODO: sup is an upper bound; better sup - alpha?
+  --             insertSystem beta (face sup u (Map.delete i delta)) s''
+  --           Nothing    -> s'')
+  --                  s' (invFormula phi d)
+  --       -- t'_alpha = t_alpha (i = phi alpha)
+  --       Nothing -> insertSystem alpha (act sup u (i,face sup phi alpha)) s'
 
-  swap s ij = Map.mapKeys (`swapFace` ij) (Map.map (`swap` ij) s)
+  -- swap s ij = Map.mapKeys (`swapFace` ij) (Map.map (`swap` ij) s)
+
+  subst is s f = undefined
+  face is s f = undefined
 
 -- carve a using the same shape as the system b
 border :: Nominal a => [Name] -> a -> System b -> System a
@@ -441,15 +494,6 @@ instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
       arbitraryShape supp = do
         phi <- sized $ arbFormula supp
         return $ Map.fromList [(face,()) | face <- invFormula phi 0]
-
-sym :: Nominal a => [Name] -> a -> Name -> a
-sym s a i = act s a (i, NegAtom i)
-
-rename :: Nominal a => [Name] -> a -> (Name, Name) -> a
-rename s a (i, j) = act s a (i, Atom j)
-
-connect :: Nominal a => [Name] -> a -> (Name, Name) -> a
-connect is a (i, j) = act is a (i, Atom i :/\: Atom j)
 
 leqSystem :: Face -> System a -> Bool
 alpha `leqSystem` us =

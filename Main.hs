@@ -100,9 +100,9 @@ initLoop flags f = do
       -- l <- getLine
 
       -- truncS2:
-      -- test "test" names tenv
-      -- test "test1" names tenv
-      -- test "test2" names tenv
+      test "test" names tenv
+      test "test1" names tenv
+      test "test2" names tenv
 
       -- pi1S2:
       -- test "test" names tenv   -- Time: 8m34.017s

@@ -157,92 +157,174 @@ instance Nominal Val where
     UnGlueNe u v           -> occurs x (u,v)
     VLam _ u               -> occurs x u
 
-  act is u (i, phi) =
-    let acti :: Nominal a => a -> a
-        acti u = act is u (i, phi)
-        fv     = support phi
-        fvis   = fv ++ is
-        k      = gensym $ i:fvis
-        ar :: Nominal a => Name -> a -> a
-        ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
-    in case u of
-         VU                     -> VU
-         Ter t (e,f) -> Ter t (e,acti . f)
-         -- Ter t e                -> Ter t (acti e)
-         VPi a f                -> VPi (acti a) (acti f)
-         -- TODO: add k to be on the safe side?
-         Kan j a ts v           -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
-         -- TODO: Check that act on neutral is neutral
-         KanNe j a ts v         -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
-         KanUElem ts u          -> kanUElem fvis (acti ts) (acti u)
-         UnKan ts u             -> UnKan (acti ts) (acti u)
-         VId a u v              -> VId (acti a) (acti u) (acti v)
-         Path j v               -> Path k (ar j v)
-         VSigma a f             -> VSigma (acti a) (acti f)
-         VSPair u v             -> VSPair (acti u) (acti v)
-         VFst u                 -> VFst (acti u)
-         VSnd u                 -> VSnd (acti u)
-         VCon c vs              -> VCon c (acti vs)
-         VVar x                 -> VVar x
-         VAppFormula u psi      -> appFormula fvis (acti u) (acti psi)
-         VApp u v               -> app fvis (acti u) (acti v)
-         VSplit u v             -> app fvis (acti u) (acti v)
-         Glue ts u              -> glue (acti ts) (acti u)
-         UnGlue ts u            -> UnGlue (acti ts) (acti u)
-         GlueElem ts u          -> glueElem (acti ts) (acti u)
-         HisoProj n e           -> HisoProj n (acti e)
-         GlueLine t phi psi     -> glueLine fvis (acti t) (acti phi) (acti psi)
-         GlueLineElem t phi psi -> glueLineElem fvis (acti t) (acti phi) (acti psi)
-         VExt psi f g p         -> vext (acti psi) (acti f) (acti g) (acti p)
-         VPCon n vs phi u v     -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
-         VHSplit u v            -> app fvis (acti u) (acti v)
-         UnGlueNe u v           -> app fvis (acti u) (acti v)
+  -- act is u (i, phi) =
+  --   let acti :: Nominal a => a -> a
+  --       acti u = act is u (i, phi)
+  --       fv     = support phi
+  --       fvis   = fv ++ is
+  --       k      = gensym $ i:fvis
+  --       ar :: Nominal a => Name -> a -> a
+  --       ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
+  --   in case u of
+  --        VU                     -> VU
+  --        Ter t (e,f) -> Ter t (e,acti . f)
+  --        -- Ter t e                -> Ter t (acti e)
+  --        VPi a f                -> VPi (acti a) (acti f)
+  --        -- TODO: add k to be on the safe side?
+  --        Kan j a ts v           -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+  --        -- TODO: Check that act on neutral is neutral
+  --        KanNe j a ts v         -> comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+  --        KanUElem ts u          -> kanUElem fvis (acti ts) (acti u)
+  --        UnKan ts u             -> UnKan (acti ts) (acti u)
+  --        VId a u v              -> VId (acti a) (acti u) (acti v)
+  --        Path j v               -> Path k (ar j v)
+  --        VSigma a f             -> VSigma (acti a) (acti f)
+  --        VSPair u v             -> VSPair (acti u) (acti v)
+  --        VFst u                 -> VFst (acti u)
+  --        VSnd u                 -> VSnd (acti u)
+  --        VCon c vs              -> VCon c (acti vs)
+  --        VVar x                 -> VVar x
+  --        VAppFormula u psi      -> appFormula fvis (acti u) (acti psi)
+  --        VApp u v               -> app fvis (acti u) (acti v)
+  --        VSplit u v             -> app fvis (acti u) (acti v)
+  --        Glue ts u              -> glue (acti ts) (acti u)
+  --        UnGlue ts u            -> UnGlue (acti ts) (acti u)
+  --        GlueElem ts u          -> glueElem (acti ts) (acti u)
+  --        HisoProj n e           -> HisoProj n (acti e)
+  --        GlueLine t phi psi     -> glueLine fvis (acti t) (acti phi) (acti psi)
+  --        GlueLineElem t phi psi -> glueLineElem fvis (acti t) (acti phi) (acti psi)
+  --        VExt psi f g p         -> vext (acti psi) (acti f) (acti g) (acti p)
+  --        VPCon n vs phi u v     -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
+  --        VHSplit u v            -> app fvis (acti u) (acti v)
+  --        UnGlueNe u v           -> app fvis (acti u) (acti v)
 
-  -- This increases efficiency as it won't trigger computation.
-  swap u ij =
-    let sw :: Nominal a => a -> a
-        sw u = swap u ij
+  -- -- This increases efficiency as it won't trigger computation.
+  -- swap u ij =
+  --   let sw :: Nominal a => a -> a
+  --       sw u = swap u ij
+  --   in case u of
+  --        VU                     -> VU
+  --        Ter t (e,f) -> Ter t (e,sw . f) 
+  --        -- Ter t e                -> Ter t (sw e)
+  --        VPi a f                -> VPi (sw a) (sw f)
+  --        Kan k a ts v           -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
+  --        KanNe k a ts v         -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
+  --        KanUElem ts u          -> KanUElem (sw ts) (sw u)
+  --        UnKan ts u             -> UnKan (sw ts) (sw u)
+  --        VId a u v              -> VId (sw a) (sw u) (sw v)
+  --        Path k v               -> Path (swapName k ij) (sw v)
+  --        VSigma a f             -> VSigma (sw a) (sw f)
+  --        VSPair u v             -> VSPair (sw u) (sw v)
+  --        VFst u                 -> VFst (sw u)
+  --        VSnd u                 -> VSnd (sw u)
+  --        VCon c vs              -> VCon c (sw vs)
+  --        VVar x                 -> VVar x
+  --        VAppFormula u psi      -> VAppFormula (sw u) (sw psi)
+  --        VApp u v               -> VApp (sw u) (sw v)
+  --        VSplit u v             -> VSplit (sw u) (sw v)
+  --        Glue ts u              -> Glue (sw ts) (sw u)
+  --        UnGlue ts u            -> UnGlue (sw ts) (sw u)
+  --        GlueElem ts u          -> GlueElem (sw ts) (sw u)
+  --        HisoProj n e           -> HisoProj n (sw e)
+  --        GlueLine t phi psi     -> GlueLine (sw t) (sw phi) (sw psi)
+  --        GlueLineElem t phi psi -> GlueLineElem (sw t) (sw phi) (sw psi)
+  --        VExt psi f g p         -> VExt (sw psi) (sw f) (sw g) (sw p)
+  --        VPCon n vs phi u v     -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
+  --        VHSplit u v            -> VHSplit (sw u) (sw v)
+  --        UnGlueNe u v           -> UnGlueNe (sw u) (sw v)
+
+  subst is u f = 
+    let sub :: Nominal a => a -> a
+        sub u = subst is u f
     in case u of
          VU                     -> VU
-         Ter t (e,f) -> Ter t (e,sw . f) 
-         -- Ter t e                -> Ter t (sw e)
-         VPi a f                -> VPi (sw a) (sw f)
-         Kan k a ts v           -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
-         KanNe k a ts v         -> KanNe (swapName k ij) (sw a) (sw ts) (sw v)
-         KanUElem ts u          -> KanUElem (sw ts) (sw u)
-         UnKan ts u             -> UnKan (sw ts) (sw u)
-         VId a u v              -> VId (sw a) (sw u) (sw v)
-         Path k v               -> Path (swapName k ij) (sw v)
-         VSigma a f             -> VSigma (sw a) (sw f)
-         VSPair u v             -> VSPair (sw u) (sw v)
-         VFst u                 -> VFst (sw u)
-         VSnd u                 -> VSnd (sw u)
-         VCon c vs              -> VCon c (sw vs)
+         Ter t (e,f) -> Ter t (e,sub . f) 
+         -- Ter t e                -> Ter t (sub e)
+         VPi a f                -> VPi (sub a) (sub f)
+         Kan k a ts v           -> undefined -- Kan (swapName k ij) (sub a) (sub ts) (sub v)
+         KanNe k a ts v         -> undefined -- KanNe (swapName k ij) (sub a) (sub ts) (sub v)
+         KanUElem ts u          -> KanUElem (sub ts) (sub u)
+         UnKan ts u             -> UnKan (sub ts) (sub u)
+         VId a u v              -> VId (sub a) (sub u) (sub v)
+         Path k v               -> undefined -- Path (swapName k ij) (sub v)
+         VSigma a f             -> VSigma (sub a) (sub f)
+         VSPair u v             -> VSPair (sub u) (sub v)
+         VFst u                 -> VFst (sub u)
+         VSnd u                 -> VSnd (sub u)
+         VCon c vs              -> VCon c (sub vs)
          VVar x                 -> VVar x
-         VAppFormula u psi      -> VAppFormula (sw u) (sw psi)
-         VApp u v               -> VApp (sw u) (sw v)
-         VSplit u v             -> VSplit (sw u) (sw v)
-         Glue ts u              -> Glue (sw ts) (sw u)
-         UnGlue ts u            -> UnGlue (sw ts) (sw u)
-         GlueElem ts u          -> GlueElem (sw ts) (sw u)
-         HisoProj n e           -> HisoProj n (sw e)
-         GlueLine t phi psi     -> GlueLine (sw t) (sw phi) (sw psi)
-         GlueLineElem t phi psi -> GlueLineElem (sw t) (sw phi) (sw psi)
-         VExt psi f g p         -> VExt (sw psi) (sw f) (sw g) (sw p)
-         VPCon n vs phi u v     -> pathCon n (sw vs) (sw phi) (sw u) (sw v)
-         VHSplit u v            -> VHSplit (sw u) (sw v)
-         UnGlueNe u v           -> UnGlueNe (sw u) (sw v)
+         VAppFormula u psi      -> VAppFormula (sub u) (sub psi)
+         VApp u v               -> VApp (sub u) (sub v)
+         VSplit u v             -> VSplit (sub u) (sub v)
+         Glue ts u              -> Glue (sub ts) (sub u)
+         UnGlue ts u            -> UnGlue (sub ts) (sub u)
+         GlueElem ts u          -> GlueElem (sub ts) (sub u)
+         HisoProj n e           -> HisoProj n (sub e)
+         GlueLine t phi psi     -> GlueLine (sub t) (sub phi) (sub psi)
+         GlueLineElem t phi psi -> GlueLineElem (sub t) (sub phi) (sub psi)
+         VExt psi f g p         -> VExt (sub psi) (sub f) (sub g) (sub p)
+         VPCon n vs phi u v     -> pathCon n (sub vs) (sub phi) (sub u) (sub v)
+         VHSplit u v            -> VHSplit (sub u) (sub v)
+         UnGlueNe u v           -> UnGlueNe (sub u) (sub v)
+
+  face is u f = 
+    let fa :: Nominal a => a -> a
+        fa u = face is u f
+        -- fv     = support f
+        fvis   = is -- fv ++ is
+        -- k      = gensym $ i:fvis
+        -- ar :: Nominal a => Name -> a -> a
+        -- ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
+    in case u of
+         VU                     -> VU
+         Ter t (e,f) -> Ter t (e,fa . f)
+         -- Ter t e                -> Ter t (fa e)
+         VPi a f                -> VPi (fa a) (fa f)
+         -- TODO: add k to be on the safe side?
+         Kan j a ts v           -> undefined
+          -- comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+         -- TODO: Check that act on neutral is neutral
+         KanNe j a ts v         -> undefined
+           -- comp (k:fvis) Pos k (ar j a) (ar j ts) (ar j v)
+         KanUElem ts u          -> kanUElem fvis (fa ts) (fa u)
+         UnKan ts u             -> UnKan (fa ts) (fa u)
+         VId a u v              -> VId (fa a) (fa u) (fa v)
+         Path j v               -> undefined -- Path k (ar j v)
+         VSigma a f             -> VSigma (fa a) (fa f)
+         VSPair u v             -> VSPair (fa u) (fa v)
+         VFst u                 -> VFst (fa u)
+         VSnd u                 -> VSnd (fa u)
+         VCon c vs              -> VCon c (fa vs)
+         VVar x                 -> VVar x
+         VAppFormula u psi      -> appFormula fvis (fa u) (fa psi)
+         VApp u v               -> app fvis (fa u) (fa v)
+         VSplit u v             -> app fvis (fa u) (fa v)
+         Glue ts u              -> glue (fa ts) (fa u)
+         UnGlue ts u            -> UnGlue (fa ts) (fa u)
+         GlueElem ts u          -> glueElem (fa ts) (fa u)
+         HisoProj n e           -> HisoProj n (fa e)
+         GlueLine t phi psi     -> glueLine fvis (fa t) (fa phi) (fa psi)
+         GlueLineElem t phi psi -> glueLineElem fvis (fa t) (fa phi) (fa psi)
+         VExt psi f g p         -> vext (fa psi) (fa f) (fa g) (fa p)
+         VPCon n vs phi u v     -> pathCon n (fa vs) (fa phi) (fa u) (fa v)
+         VHSplit u v            -> app fvis (fa u) (fa v)
+         UnGlueNe u v           -> app fvis (fa u) (fa v)
 
 instance Nominal Hiso where
   support (Hiso a b f g s t)     = support (a,b,f,g,s,t)
   occurs x (Hiso a b f g s t)    = occurs x (a,b,f,g,s,t)
   
-  act is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
-    where (a',b',f',g',s',t') = act is (a,b,f,g,s,t) iphi
+  -- act is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
+  --   where (a',b',f',g',s',t') = act is (a,b,f,g,s,t) iphi
 
-  swap (Hiso a b f g s t) ij     = Hiso a' b' f' g' s' t'
-    where (a',b',f',g',s',t') = swap (a,b,f,g,s,t) ij
+  -- swap (Hiso a b f g s t) ij     = Hiso a' b' f' g' s' t'
+  --   where (a',b',f',g',s',t') = swap (a,b,f,g,s,t) ij
 
+  subst is (Hiso a b f g s t) ff = Hiso a' b' f' g' s' t'
+    where (a',b',f',g',s',t') = subst is (a,b,f,g,s,t) ff
+  face is (Hiso a b f g s t) ff = Hiso a' b' f' g' s' t'
+    where (a',b',f',g',s',t') = face is (a,b,f,g,s,t) ff
+          
 instance Nominal Env where
   support Empty          = []
   support (Pair e (_,v)) = support (e,v)
@@ -253,10 +335,11 @@ instance Nominal Env where
     Pair e (_,v) -> occurs x (e,v)
     PDef _ e     -> occurs x e
 
-  act is e iphi  = mapEnv (\u -> act is u iphi) e
-
-  swap e ij = mapEnv (`swap` ij) e
-
+  -- act is e iphi  = mapEnv (\u -> act is u iphi) e
+  -- swap e ij = mapEnv (`swap` ij) e
+  subst is e f = mapEnv (\u -> subst is u f) e
+  face is e f = mapEnv (\u -> face is u f) e
+  
 -- Glueing
 glue :: System Hiso -> Val -> Val
 glue hisos b | Map.null hisos         = b
@@ -421,7 +504,7 @@ apps is = foldl (app is)
 -- v @@ phi          = VAppFormula v (toFormula phi)
 
 appFormula :: ToFormula a => [Name] -> Val -> a -> Val
-appFormula is (Path i u) phi     = act is u (i, toFormula phi)
+appFormula is (Path i u) phi     = undefined -- act is u (i, toFormula phi)
 appFormula is (KanUElem _ u) phi = appFormula is u phi
 appFormula _  v          phi     = VAppFormula v (toFormula phi)
 
@@ -606,7 +689,8 @@ comp' is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
 comp' is Pos i a ts u | eps `Map.member` ts = trace "easy case of comp" $
-                                             act (i:is) (ts ! eps) (i,Dir 1)
+                                              -- act (i:is) (ts ! eps) (i,Dir 1)
+                                              face (i:is) (ts ! eps) (i ~> 1)
 comp' is Pos i (KanUElem _ a) ts u = comp is Pos i a ts u
 comp' is Pos i vid@(VId a u v) ts w = Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j)
                                                    ts' (appFormula (i:j:is) w j)
@@ -790,7 +874,8 @@ comp' is Pos i v@(Ter (HSum _ _) _) us u
     where vi1         = face (i:is) v (i ~> 1)
           -- j           = gensym (support (v,us,u,Atom i))
           j           = gensym (i:is)
-          comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
+          -- comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
+          comp' alpha = transp j (subst (i:is) (face (i:is) v alpha) [(i, Atom i :\/: Atom j)])
           us'         = Map.mapWithKey comp' us
           transp j w  = comp (i:j:is) Pos j w Map.empty
 comp' is Pos i a ts u =
@@ -907,7 +992,7 @@ instance Convertible Val where
 
   conv is k (VId a u v) (VId a' u' v') = conv is k (a,u,v) (a',u',v')
   conv is k v@(Path i u) v'@(Path i' u')    =
-    trace "conv Path Path" conv (j:is) k (u `swap` (i,j)) (u' `swap` (i',j))
+    conv (j:is) k (u `swap` (i,j)) (u' `swap` (i',j))
     where j = gensym (i:i':is)
   conv is k v@(Path i u) p'              = trace "conv is Path p" $
                                       conv (j:is) k (u `swap` (i,j)) (appFormula (j:is) p' j)
