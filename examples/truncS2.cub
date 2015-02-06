@@ -65,13 +65,22 @@ propGrtS2 : prop (grt S2)
 propGrtS2 x y = idEuclid (grt S2) x y (inc north) (corr2 x) (corr2 y)
 
 -- EVAL: <i1> Kan i0 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,1)],Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,1)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc north)
+-- Time: 1m9.056s
+-- With occurs: 1m4.463s
+-- With mapEnv hack: 0m32.793s
 test : Id (grt S2) (inc north) (inc south)
 test = propGrtS2 (inc north) (inc south)
 
 -- EVAL: <i0> Kan i1 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i0,0)],Kan i2 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i1,0)],Kan i4 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i2,0)],Kan i5 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i4,0)],Kan i6 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i5,0)],Kan i7 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i6,0)],Kan i8 (trunc (susp (S1)) (suc (suc zero))) (fromList [(fromList [(i7,0)],inc (merid base (Atom i8)))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north))]) (inc south))]) (inc north)
+-- Time: 0m35.058s
+-- With occurs: 0m32.817s
+-- With mapEnv hack: 0m16.545s
 test1 : Id (grt S2) (inc south) (inc north)
 test1 = corr2 (inc south)
 
 -- EVAL: <i0> inc north
+-- Time: 0m34.468s
+-- With occurs: 0m33.049s
+-- With mapEnv hack: 0m16.301s
 test2 : Id (grt S2) (inc north) (inc north)
 test2 = corr2 (inc north)

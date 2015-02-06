@@ -31,9 +31,20 @@ loop = inc (comp S2 north south north (merid base)
 propi1S2 : prop pi1S2
 propi1S2 = substInv U prop pi1S2 Unit pi1S2Unit propUnit
 
+-- > test
+-- EVAL: <i1> Kan i3 (trunc (Id (<i5> susp (S1)) north north) (suc zero)) (fromList [(fromList [(i1,1)],Kan i7 (trunc (Id (<i8> susp (S1)) north north) (suc zero)) (fromList [(fromList [(i3,0)],inc (<i8> Kan i9 (susp (S1)) (fromList [(fromList [(i8,1)],Kan i10 (susp (S1)) (fromList [(fromList [(i7,1)],merid base (NegAtom i10)),(fromList [(i9,1)],merid base (NegAtom i10))]) (merid base (Atom i7 :\/: Atom i9)))]) (Kan i10 (susp (S1)) (fromList [(fromList [(i8,1)],Kan i11 (susp (S1)) (fromList [(fromList [(i7,1),(i10,1)],merid base (NegAtom i11))]) (merid base (Atom i7 :/\: Atom i10)))]) north))),(fromList [(i3,1)],inc (<i8> Kan i9 (susp (S1)) (fromList ......
+-- Time: 16m35.037s
+-- With mapEnv: Time: 9m55.106s
+-- Best so far: Time: 8m34.017s
 test : Id pi1S2 triv loop
 test = propi1S2 triv loop
 
+
+-- > test1
+-- EVAL: <i1> inc (<i5> north)
+-- Time: 12m11.857s
+-- With mapEnv: Time: 5m40.033s
+-- Best so far: Time: 4m45.517s
 test1 : Id pi1S2 triv triv
 test1 = propi1S2 triv triv
 
@@ -48,6 +59,12 @@ corrpi1S2 = substInv U P sone S1 s1EqCircle propi1S2
 triv1 : setrIdSusp sone
 triv1 = inc (refl (susp sone) north)
 
+-- > test2
+-- EVAL: <i1> inc (<i2> north)
+-- Time: 12m0.889s
+-- With mapEnv: Time: 6m4.345s
+-- Best so far: Time: 4m49.252s
+
 test2 : Id (setrIdSusp sone) triv1 triv1
 test2 = corrpi1S2 triv1 triv1
 
@@ -56,12 +73,22 @@ loop1 = inc (comp (susp sone) north south north
                   (merid north)
                   (inv (susp sone) north south (merid south)))
 
+-- Total time for test, test1 and test2:
+-- real    21m39.897s
+
+-- > test3
+-- cubical: app: HSplit with insufficient arguments; missing case for
+--   north [Branch "base" [] z.1,HBranch "loop" [] z.2]
 test3 : Id (setrIdSusp sone) triv1 loop1
 test3 = corrpi1S2 triv1 loop1
 
+-- Eval: Kan i0 (Pi (Kan i1 U (fromList [(fromList [(i0,1)],Id (<i3> Glue fromList [(fromList [(i1,0)],Hiso {hisoA = Unit, hisoB = trunc (susp (S1)) (suc (suc zero)), hisoF = split unit_L9_C14 (A=trunc (susp (S1)) (suc (suc zero)), a=inc north, h=\x -> mapOnPath (Pi (grt S2) (\_ -> grt S2)) (grt S2) (\f -> f x) (\z -> z) (\z -> inc north) corr1) ... h=\z -> unitIsSet tt tt z (refl Unit tt))})] Id (<i2> Unit) tt tt)))) (fromList []) (split prelude_L364_C19)
+-- Best so far: Time: 0m31.528s
 test4 : prop (Id (grt S2) (inc north) (inc north))
 test4 = subst U prop Unit (Id (grt S2) (inc north) (inc north)) corrgrtS2 propUnit
 
+-- EVAL: Kan i0 (Pi (Glue fromList [(fromList [(i0,1)],Hiso {hisoA = trunc (Id (<i0> susp (S1)) north north) (suc zero), hisoB = Id (<i0> trunc (susp (S1)) (suc (suc zero))) (inc north) (inc north), hisoF = hsplit trunc_L322_C5 (A=Id (<i0> susp (S1)) north north, n=suc zero, P=\_ -> Id tA (inc x) (inc y) ((A=susp (S1), n=suc zero, x=north, y=north)x=north, y=north), tP=\_ -> tAtrunc (inc x) (inc y) ((A=susp (S1), n=suc zero, x=north, y=north)x=north, y=north), g=\_6 -> mapOnPath _1 _2 _3 _4 _5 _6 (_1=susp (S1), _2=trunc (susp (S1)) (suc (suc zero)), _3=\_1 -> inc _1 ... Id (<i2> Unit) tt tt)))) (fromList []) (split prelude_L364_C19))
+-- Best so far: Time: 0m31.703s
 test5 : prop pi1S2
 test5 = substInv U prop pi1S2 (Id (grt S2) (inc north) (inc north)) corr7312 test4
 

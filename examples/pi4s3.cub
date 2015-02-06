@@ -229,3 +229,7 @@ t = lemmaEx S2 north reflS2 genS2
 
 genPi3S2 : (itOmega three ptS2).1
 genPi3S2 = comp OmOmS2 a b f p (comp OmOmS2 b c f q (comp OmOmS2 c d f r (comp OmOmS2 d e f s t)))
+
+
+testf5 : (itOmega three (ptJoin ptS1 S1)).1
+testf5 = f5 genPi3S2
