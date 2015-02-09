@@ -57,6 +57,9 @@ loop1 = inc (comp (susp sone) north south north
 test3 : Id (setrIdSusp sone) triv1 loop1
 test3 = corrpi1S2 triv1 loop1
 
+test3' : Id (setrIdSusp sone) loop1 triv1
+test3' = corrpi1S2 loop1 triv1
+
 test4 : prop (Id (grt S2) (inc north) (inc north))
 test4 = subst U prop Unit (Id (grt S2) (inc north) (inc north)) corrgrtS2 propUnit
 
