@@ -82,6 +82,9 @@ loop1 = inc (comp (susp sone) north south north
 test3 : Id (setrIdSusp sone) triv1 loop1
 test3 = corrpi1S2 triv1 loop1
 
+test3' : Id (setrIdSusp sone) loop1 triv1
+test3' = corrpi1S2 loop1 triv1
+
 -- Eval: Kan i0 (Pi (Kan i1 U (fromList [(fromList [(i0,1)],Id (<i3> Glue fromList [(fromList [(i1,0)],Hiso {hisoA = Unit, hisoB = trunc (susp (S1)) (suc (suc zero)), hisoF = split unit_L9_C14 (A=trunc (susp (S1)) (suc (suc zero)), a=inc north, h=\x -> mapOnPath (Pi (grt S2) (\_ -> grt S2)) (grt S2) (\f -> f x) (\z -> z) (\z -> inc north) corr1) ... h=\z -> unitIsSet tt tt z (refl Unit tt))})] Id (<i2> Unit) tt tt)))) (fromList []) (split prelude_L364_C19)
 -- Best so far: Time: 0m31.528s
 test4 : prop (Id (grt S2) (inc north) (inc north))
