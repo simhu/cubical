@@ -9,10 +9,10 @@ import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Maybe
-import Test.QuickCheck
+-- import Test.QuickCheck
 
 newtype Name = Name Integer
-  deriving (Arbitrary,Eq,Ord)
+  deriving (Eq,Ord)
 
 instance Show Name where
   show (Name i) = 'i' : show i
@@ -48,18 +48,18 @@ instance Num Dir where
   fromInteger 1 = One
   fromInteger _ = error "fromInteger Dir"
 
-instance Arbitrary Dir where
-  arbitrary = do
-    b <- arbitrary
-    return $ if b then Zero else One
+-- instance Arbitrary Dir where
+--   arbitrary = do
+--     b <- arbitrary
+--     return $ if b then Zero else One
 
 -- | Face
 
 -- Faces of the form: [(i,0),(j,1),(k,0)]
 type Face = Map Name Dir
 
-instance Arbitrary Face where
-  arbitrary = Map.fromList <$> arbitrary
+-- instance Arbitrary Face where
+--   arbitrary = Map.fromList <$> arbitrary
 
 swapFace :: Face -> (Name,Name) -> Face
 swapFace alpha ij = Map.mapKeys (`swapName` ij) alpha
@@ -90,12 +90,12 @@ meet = Map.unionWith f
 meetMaybe :: Face -> Face -> Maybe Face
 meetMaybe x y = if compatible x y then Just $ meet x y else Nothing
 
-meetCom :: Face -> Face -> Property
-meetCom xs ys = compatible xs ys ==> xs `meet` ys == ys `meet` xs
+-- meetCom :: Face -> Face -> Property
+-- meetCom xs ys = compatible xs ys ==> xs `meet` ys == ys `meet` xs
 
-meetAssoc :: Face -> Face -> Face -> Property
-meetAssoc xs ys zs = compatibles [xs,ys,zs] ==>
-                     xs `meet` (ys `meet` zs) == (xs `meet` ys) `meet` zs
+-- meetAssoc :: Face -> Face -> Face -> Property
+-- meetAssoc xs ys zs = compatibles [xs,ys,zs] ==>
+--                      xs `meet` (ys `meet` zs) == (xs `meet` ys) `meet` zs
 
 meetId :: Face -> Bool
 meetId xs = xs `meet` xs == xs
@@ -139,20 +139,20 @@ data Formula = Dir Dir
              | Formula :\/: Formula
   deriving (Eq,Show)
 
-arbFormula :: [Name] -> Int -> Gen Formula
-arbFormula names s =
-      frequency [ (1, Dir <$> arbitrary)
-                , (1, Atom <$> elements names)
-                , (1, NegAtom <$> elements names)
-                , (s, do op <- elements [andFormula,orFormula]
-                         op <$> arbFormula names s' <*> arbFormula names s')
-                ]
-      where s' = s `div` 3
+-- arbFormula :: [Name] -> Int -> Gen Formula
+-- arbFormula names s =
+--       frequency [ (1, Dir <$> arbitrary)
+--                 , (1, Atom <$> elements names)
+--                 , (1, NegAtom <$> elements names)
+--                 , (s, do op <- elements [andFormula,orFormula]
+--                          op <$> arbFormula names s' <*> arbFormula names s')
+--                 ]
+--       where s' = s `div` 3
 
-instance Arbitrary Formula where
-  arbitrary = do
-      n <- arbitrary :: Gen Integer
-      sized $ arbFormula (map Name [0..(abs n)])
+-- instance Arbitrary Formula where
+--   arbitrary = do
+--       n <- arbitrary :: Gen Integer
+--       sized $ arbFormula (map Name [0..(abs n)])
 
 class ToFormula a where
   toFormula :: a -> Formula
@@ -431,16 +431,16 @@ border s v = Map.mapWithKey (const . face s v)
 shape :: System a -> System ()
 shape ts = border [] () ts
 
-instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
-  arbitrary = do
-    a  <- arbitrary
-    let is = support a
-    border is a <$> arbitraryShape is
-    where
-      arbitraryShape :: [Name] -> Gen (System ())
-      arbitraryShape supp = do
-        phi <- sized $ arbFormula supp
-        return $ Map.fromList [(face,()) | face <- invFormula phi 0]
+-- instance (Nominal a, Arbitrary a) => Arbitrary (System a) where
+--   arbitrary = do
+--     a  <- arbitrary
+--     let is = support a
+--     border is a <$> arbitraryShape is
+--     where
+--       arbitraryShape :: [Name] -> Gen (System ())
+--       arbitraryShape supp = do
+--         phi <- sized $ arbFormula supp
+--         return $ Map.fromList [(face,()) | face <- invFormula phi 0]
 
 sym :: Nominal a => [Name] -> a -> Name -> a
 sym s a i = act s a (i, NegAtom i)
