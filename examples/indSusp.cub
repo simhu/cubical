@@ -6,29 +6,29 @@ import susp
 suspOf : U -> U -> U
 suspOf A X = (u:X) * (v:X) * (A -> Id X u v)
 
-funToL : (A X:U) -> (susp A -> X) -> suspOf A X
-funToL A X f = (f north,(f south,\ a ->  mapOnPath (susp A) X f north south (merid a)))
+funToLSusp : (A X:U) -> (susp A -> X) -> suspOf A X
+funToLSusp A X f = (f north,(f south,\ a ->  mapOnPath (susp A) X f north south (merid a)))
 
-lToFun : (A X:U) -> (suspOf A X) -> susp A -> X
-lToFun A X z = hsplit (\ _ -> X) with
+lToFunSusp : (A X:U) -> (suspOf A X) -> susp A -> X
+lToFunSusp A X z = hsplit (\ _ -> X) with
  north -> z.1
  south -> z.2.1
  merid a -> z.2.2 a
 
-test1 : (A X:U) (z:suspOf A X) -> Id (suspOf A X) (funToL A X (lToFun A X z)) z
-test1 A X = refl (suspOf A X)
+test1Susp : (A X:U) (z:suspOf A X) -> Id (suspOf A X) (funToLSusp A X (lToFunSusp A X z)) z
+test1Susp A X = refl (suspOf A X)
 
-test2 : (A X:U) (f:susp A ->X) -> Id (susp A ->X) (lToFun A X (funToL A X f)) f
-test2 A X f = funExt (susp A) (\_ -> X) (lToFun A X (funToL A X f)) f rem
+test2Susp : (A X:U) (f:susp A ->X) -> Id (susp A ->X) (lToFunSusp A X (funToLSusp A X f)) f
+test2Susp A X f = funExt (susp A) (\_ -> X) (lToFunSusp A X (funToLSusp A X f)) f rem
  where
-  rem : (u:susp A) -> Id X (lToFun A X (funToL A X f) u) (f u)
-  rem = hsplit (\ u -> Id X (lToFun A X (funToL A X f) u) (f u)) with
+  rem : (u:susp A) -> Id X (lToFunSusp A X (funToLSusp A X f) u) (f u)
+  rem = hsplit (\ u -> Id X (lToFunSusp A X (funToLSusp A X f) u) (f u)) with
     north -> refl X (f north)
     south -> refl X (f south)
     merid a -> rem1 a
        where
          g : susp A -> X
-         g = lToFun A X (funToL A X f)
+         g = lToFunSusp A X (funToLSusp A X f)
 
          xN : X
          xN = f north
@@ -52,4 +52,4 @@ test2 A X f = funExt (susp A) (\_ -> X) (lToFun A X (funToL A X f)) f rem
          rem1 a = substPathPi (susp A) X g f north south (merid a) qaN qaS (rem2 a)
 
 funSusp : (A X:U) -> Id U (susp A -> X) (suspOf A X)
-funSusp A X = isoId (susp A -> X) (suspOf A X) (funToL A X) (lToFun A X) (test1 A X) (test2 A X)
+funSusp A X = isoId (susp A -> X) (suspOf A X) (funToLSusp A X) (lToFunSusp A X) (test1Susp A X) (test2Susp A X)

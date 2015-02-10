@@ -3,30 +3,30 @@ module indS1 where
 import circle
 import susp
 
-funToL : (X:U) -> (S1 -> X) -> (a:X) * Id X a a
-funToL X f = (f base, mapOnPath S1 X f base base loop)
+funToLS1 : (X:U) -> (S1 -> X) -> (a:X) * Id X a a
+funToLS1 X f = (f base, mapOnPath S1 X f base base loop)
 
-lToFun : (X:U) -> ((a:X) * Id X a a) -> S1 -> X
-lToFun X z = hsplit (\ _ -> X) with
+lToFunS1 : (X:U) -> ((a:X) * Id X a a) -> S1 -> X
+lToFunS1 X z = hsplit (\ _ -> X) with
  base -> z.1
  loop -> z.2
 
 loopOf : U -> U
 loopOf X = (a:X) * Id X a a
 
-test1 : (X:U) (z:loopOf X) -> Id (loopOf X) (funToL X (lToFun X z)) z
-test1 X = refl (loopOf X)
+test1S1 : (X:U) (z:loopOf X) -> Id (loopOf X) (funToLS1 X (lToFunS1 X z)) z
+test1S1 X = refl (loopOf X)
 
-test2 : (X:U) (f:S1->X) -> Id (S1->X) (lToFun X (funToL X f)) f
-test2 X f = funExt S1 (\_ -> X) (lToFun X (funToL X f)) f rem
+test2S1 : (X:U) (f:S1->X) -> Id (S1->X) (lToFunS1 X (funToLS1 X f)) f
+test2S1 X f = funExt S1 (\_ -> X) (lToFunS1 X (funToLS1 X f)) f rem
  where
-  rem : (u:S1) -> Id X (lToFun X (funToL X f) u) (f u)
-  rem = hsplit (\ u -> Id X (lToFun X (funToL X f) u) (f u)) with
+  rem : (u:S1) -> Id X (lToFunS1 X (funToLS1 X f) u) (f u)
+  rem = hsplit (\ u -> Id X (lToFunS1 X (funToLS1 X f) u) (f u)) with
     base -> refl X (f base)
     loop -> rem1
        where
          g : S1 -> X
-         g u = lToFun X (funToL X f) u
+         g u = lToFunS1 X (funToLS1 X f) u
 
          xb : X
          xb = f base
@@ -44,7 +44,7 @@ test2 X f = funExt S1 (\_ -> X) (lToFun X (funToL X f)) f rem
          rem1 = substPathPi S1 X g f base base loop qa qa rem2
 
 funS1 : (X:U) -> Id U (S1 -> X) (loopOf X)
-funS1 X = isoId (S1 -> X) (loopOf X) (funToL X) (lToFun X) (test1 X) (test2 X)
+funS1 X = isoId (S1 -> X) (loopOf X) (funToLS1 X) (lToFunS1 X) (test1S1 X) (test2S1 X)
 
 -- is X is a set then Id U (loopOf X) X
 
