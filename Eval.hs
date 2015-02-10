@@ -335,18 +335,18 @@ app is kan@(Kan i b@(VPi a f) ts li0) ui1 =
 app is u@(Ter (Split _ _) _) (KanUElem _ v) = app is u v
 app is (Ter (Split _ nvs) (e,f)) (VCon name us) = case lookup name nvs of
   Just (xs,t)  -> eval is (upds (mapEnv f e) (zip xs us)) t
-  Nothing -> error $ "app: Split with insufficient arguments; " ++
-                        "missing case for " ++ name
+  Nothing -> error $ "app: Split with insufficient arguments;" <+>
+                        "missing case for" <+> name
 
 
 -- TODO: is this correct even for HITs???
 app is u@(Ter (HSplit _ _ hbr) _) (KanUElem _ v) = app is u v
 
-app is (Ter (HSplit _ _ hbr) (e,f)) (VCon name us) =
+app is (Ter (HSplit l fam hbr) (e,f)) (VCon name us) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
     Just (Branch _ xs t)  -> eval is (upds (mapEnv f e) (zip xs us)) t
-    _ -> error ("app: HSplit with insufficient arguments;"
-                <+> "missing case for " <+> name <+> show hbr)
+    _ -> error ("app: HSplit VCon with insufficient arguments;"
+                <+> "missing case for" <+> name <+> "in" <+> show hbr <+> "at" <+> show l <+> "with family" <+> show fam)
 
 -- cubical: app: HSplit with insufficient arguments; missing case for
 --   north [Branch "base" [] z.1,HBranch "loop" [] z.2]
@@ -354,8 +354,8 @@ app is (Ter (HSplit _ _ hbr) (e,f)) (VCon name us) =
 app is (Ter (HSplit _ _ hbr) (e,f)) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
     Just (HBranch _ xs t) -> appFormula is (eval is (upds (mapEnv f e) (zip xs us)) t) phi
-    _ -> error ("app: HSplit with insufficient arguments;"
-                <+> "missing case for " <+> name <+> show hbr)
+    _ -> error ("app: HSplit VPCon with insufficient arguments;"
+                <+> "missing case for" <+> name <+> "in" <+> show hbr)
 
 app is u@(Ter (HSplit _ f hbr) (e,ff)) kan@(Kan i v ws w) = -- v should be corr. hsum
   let --j     = fresh (mapEnv ff e,kan)
@@ -364,28 +364,30 @@ app is u@(Ter (HSplit _ f hbr) (e,ff)) kan@(Kan i v ws w) = -- v should be corr.
       ws'   = Map.mapWithKey (\alpha -> app (j:is) (face (j:is) u alpha)) wsij
       w'    = app is u w  -- app (u `face` (i ~> 0)) w
       ffill = app (j:is) (eval (j:is) (mapEnv ff e) f) (fill (j:is) Pos j (v `swap` (i,j)) wsij w)
-  in comp (j:is) Pos j ffill ws' w'
+  in trace "app HSplit Kan" $
+     comp (j:is) Pos j ffill ws' w'
 
 app is g@(UnGlue hisos b) w
-    | Map.null hisos         = w
-    | eps `Map.member` hisos = app is (hisoF (hisos ! eps)) w
+    | Map.null hisos         = trace "app UnGlue1" $ w
+    | eps `Map.member` hisos = trace "app UnGlue2" $ app is (hisoF (hisos ! eps)) w
     | otherwise              = case w of
-       GlueElem us v   -> v
-       KanUElem _ v    -> app is g v
+       GlueElem us v   -> trace "app UnGlue GlueElem" $ v
+       KanUElem _ v    -> trace "app UnGlue KanUElem" app is g v
        _ | isNeutral w -> UnGlueNe g w
        _               -> error $ "app (Unglue):" <+> show w
                                   <+> "should be neutral!"
 
 app is g@(UnKan hisos b) w
-    | Map.null hisos         = w
-    | eps `Map.member` hisos = app is (hisoF (hisos ! eps)) w
-    | otherwise              = kanUElem is (Map.mapWithKey (\alpha hisoAlpha ->
-                                 app is (hisoF hisoAlpha) (face is w alpha))
-                               hisos) w
+    | Map.null hisos         = trace "app UnKan1" $ w
+    | eps `Map.member` hisos = trace "app UnKan2" $ app is (hisoF (hisos ! eps)) w
+    | otherwise              = trace "app UnKan3" $
+                               kanUElem is
+                                 (Map.mapWithKey (\alpha hisoAlpha ->
+                                 app is (hisoF hisoAlpha) (face is w alpha)) hisos) w
 
 -- TODO: recheck at least 1 more time (please decrease the counter if
 -- you checked)
-app is (HisoProj hisoProj e) u = -- DT.trace "app HisoProj" $
+app is (HisoProj hisoProj e) u = trace "app HisoProj" $
   case hisoProj of
     HisoSign sign -> comp (i:is) sign i (appFormula (i:is) e i) Map.empty u
     -- f (g y) -> y
@@ -429,26 +431,26 @@ appFormula _  v          phi     = VAppFormula v (toFormula phi)
 -- outputs u s.t. border u = us and an L-path between v and sigma u
 -- an theta is a L path if L-border theta is constant
 gradLemma :: [Name] -> Hiso -> System Val -> Val -> (Val, Val)
-gradLemma is hiso@(Hiso a b f g s t) us v = trace "gradLemma" $ (u, Path i theta'')
+gradLemma is hiso@(Hiso a b f g s t) us v = trace ("gradLemma" <+> if Map.null us then "empty" else "nonempty") $ (u, Path i theta'')
   where i:j:_   = gensyms is
         is'     = i:j:is
-        us'     = Map.mapWithKey (\alpha uAlpha ->
+        us'     = trace "gradLemma1" $ Map.mapWithKey (\alpha uAlpha ->
                                    appFormula is' (app is' (face is' t alpha) uAlpha) i) us
-        theta   = fill is' Pos i a us' (app is' g v)
+        theta   = trace "gradLemma2" $ fill is' Pos i a us' (app is' g v)
         --u       = theta `face` (i ~> 1)
-        u       = comp is' Pos i a us' (app is' g v)
-        ws      = insertSystem (i ~> 0) (app is' g v) $
+        u       = trace "gradLemma3" $ comp is' Pos i a us' (app is' g v)
+        ws      = trace "gradLemma4" $ insertSystem (i ~> 0) (app is' g v) $
                   insertSystem (i ~> 1) (appFormula is' (app is' t u) j) $
                   Map.mapWithKey
                     (\alpha uAlpha ->
                       appFormula is' (app is' (face is' t alpha) uAlpha) (Atom i :/\: Atom j)) us
-        theta'  = comp is' Neg j a ws theta
-        xs      = insertSystem (i ~> 0) (appFormula is' (app is' s v) j) $
+        theta'  = trace "gradLemma5" $ comp is' Neg j a ws theta
+        xs      = trace "gradLemma6" $ insertSystem (i ~> 0) (appFormula is' (app is' s v) j) $
                   insertSystem (i ~> 1) (appFormula is' (app is' s (app is' f u)) j) $
                   Map.mapWithKey
                     (\alpha uAlpha ->
                       appFormula is' (app is' (face is' s alpha) (app is' (face is' f alpha) uAlpha)) j) us
-        theta'' = comp is' Pos j b xs (app is' f theta')
+        theta'' = trace "gradLemma7" $ comp is' Pos j b xs (app is' f theta')
 
 
 -- any equality defines an equivalence Lemma 4.2
@@ -622,9 +624,9 @@ comp' is Pos i b@(VSigma a f) ts u = VSPair ui1 comp_u2
         ui1        = comp is Pos i a t1s u1
         comp_u2    = comp is Pos i (app (i:is) f fill_u1) t2s u2
 comp' is Pos i a@VPi{} ts u   = Kan i a ts u
-comp' is Pos i g@(Glue hisos b) ws wi0 =
-  trace ("comp Glue") $ -- \n ShapeOk: " ++ show (shape usi1 == shape hisosI1))
-    glueElem usi1 vi1''
+
+comp' is Pos i g@(Glue hisos b) ws wi0 = trace ("comp Glue") $
+                                         glueElem usi1 vi1''
   where is'  = i:is
         unglue = UnGlue hisos b
         vs   = Map.mapWithKey
@@ -658,7 +660,7 @@ comp' is Pos i g@(Glue hisos b) ws wi0 =
                     (face is' v gamma) (app is' fGamma (us' ! gamma)))
                  hisos'
 
-        vi1'  = compLine is' (face is' b (i ~> 1)) ls' vi1
+        vi1'  = trace "compLine1" $ compLine is' (face is' b (i ~> 1)) ls' vi1
 
         uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
                      let shgamma :: System ()
@@ -673,13 +675,13 @@ comp' is Pos i g@(Glue hisos b) ws wi0 =
                      in gradLemma is' hisoGamma usgamma (face is' vi1' gamma))
                    hisos''
 
-        vi1''   = compLine is' (face is' b (i ~> 1)) (Map.map snd uls'') vi1'
+        vi1''   = trace "compLine2" $ compLine is' (face is' b (i ~> 1)) (Map.map snd uls'') vi1'
 
         usi1    = Map.mapWithKey (\gamma _ ->
                     if gamma `Map.member` usi1' then usi1' ! gamma
                     else fst (uls'' ! gamma))
                   hisosI1
-comp' is Pos i t@(Kan j VU ejs b) ws wi0 =
+comp' is Pos i t@(Kan j VU ejs b) ws wi0 = trace "comp Kan VU" $
     let is'   = i:j:is
         es    = Map.map (Path j . (\u -> sym is' u j)) ejs
         hisos = Map.map (eqHiso is') es
@@ -710,7 +712,7 @@ comp' is Pos i t@(Kan j VU ejs b) ws wi0 =
                    pathUniv is' i (proj is' es gamma) (face is' ws gamma) (face is' wi0 gamma))
                  hisos'
 
-        vi1'  = compLine is' (face is' b (i ~> 1)) ls' vi1
+        vi1'  = trace "compLine3" $ compLine is' (face is' b (i ~> 1)) ls' vi1
 
         uls''   = Map.mapWithKey (\gamma hisoGamma@(Hiso aGamma bGamma fGamma _ _ _) ->
                      let shgamma :: System ()
@@ -726,16 +728,15 @@ comp' is Pos i t@(Kan j VU ejs b) ws wi0 =
                      in eqLemma is' (proj is' es (gamma `meet` (i ~> 1)))
                           usgamma (face is' vi1' gamma)) hisos''
 
-        vi1''   = compLine is' (face is' b (i ~> 1)) (Map.map snd uls'') vi1'
+        vi1''   = trace "compLine4" $ compLine is' (face is' b (i ~> 1)) (Map.map snd uls'') vi1'
 
         usi1    = Map.mapWithKey (\gamma _ ->
                     if gamma `Map.member` usi1' then usi1' ! gamma
                     else fst (uls'' ! gamma))
                   hisosI1
-    in trace ("comp Kan VU\n Shape Ok: " ++ show (shape usi1 == shape hisosI1)) $
-       kanUElem is' usi1 vi1''
-comp' is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
-                                          glueLineElem is' vm phii1 psii1
+    in kanUElem is' usi1 vi1''
+comp' is Pos i (GlueLine b phi psi) us u = trace "comp GlueLine" $
+                                           glueLineElem is' vm phii1 psii1
   where  is'   = i:is
          phii1 = face is' phi (i ~> 1)
          psii1 = face is' psi (i ~> 1)
@@ -751,7 +752,7 @@ comp' is Pos i (GlueLine b phi psi) us u = DT.trace "comp GlueLine" $
          ws = Map.mapWithKey (\alpha -> unGlueLine is' (face is' b alpha)
                                         (face is' phi alpha) (face is' psi alpha)) us
          w  = unGlueLine is' bi0 phii0 psii0 u
-         vm = compLine is' (face is' b (i ~> 1)) ls v
+         vm = trace "compLine5" $ compLine is' (face is' b (i ~> 1)) ls v
          fs = filter (i `Map.notMember`) (invFormula psi One)
 comp' _ Pos i VU ts u = Kan i VU ts u
 comp' is Pos i v@(Ter (Sum _ _) _) tss (KanUElem _ w) = comp is Pos i v tss w
@@ -802,8 +803,8 @@ comp' is Pos i a ts u =
 -- (in the Pos case, otherwise we symmetrize)
 -- The output is an L-path in A(i1) between u(i1) and u'(i1)
 pathComp :: [Name] -> Name -> Val -> System Val -> (Val -> Val -> Val)
-pathComp is i a us u u' = trace "pathComp"
-                       Path j $ comp (i:j:is) Pos i a us' (face (i:j:is) u (i ~> 0))
+pathComp is i a us u u' = trace "pathComp" $
+  Path j $ comp (i:j:is) Pos i a us' (face (i:j:is) u (i ~> 0))
   where --j   = fresh (Atom i, a, us, u, u')
         j   = gensym (i:is)
         us' = insertsSystem [(j ~> 0, u), (j ~> 1, u')] us
@@ -817,7 +818,7 @@ pathComp is i a us u u' = trace "pathComp"
 --   vi1 = comp Pos i (e 1) (sigma us) (sigma(i0) ui0)
 -- Moreover, if e is constant, so is the output.
 pathUniv :: [Name] -> Name -> Val -> System Val -> Val -> Val
-pathUniv is i e us ui0 = Path k xi1
+pathUniv is i e us ui0 = trace "pathUniv" $ Path k xi1
   where j:k:_ = gensyms (i:is)
         is'   = i:j:k:is
         -- f     = HisoProj (HisoSign Pos) e
@@ -836,21 +837,23 @@ pathUniv is i e us ui0 = Path k xi1
 -- s.t. ls alpha @@ 0 = u alpha
 -- and returns u' s.t. ls alpha @@ 1 = u' alpha
 compLine :: [Name] -> Val -> System Val -> Val -> Val
-compLine is a ls u = comp (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u
+compLine is a ls u = trace "compLine" $
+                     comp (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u
   -- TODO also check pathComp; are the dirs correct?
   where i = gensym is
 
 -- the same but now computing the line
 fillLine :: [Name] -> Val -> System Val -> Val -> Val
-fillLine is a ls u = trace ("compLine \n a=" ++ show a ++ "\n u = " ++ show u)
+fillLine is a ls u = trace "fillLine" $
   Path i (fill (i:is) Pos i a (Map.map (\v -> appFormula (i:is) v i) ls) u)
   where i = gensym is
 
 -- auxiliary function needed for composition for GlueLine
 auxGlueLine :: [Name] -> Name -> (Formula,Val,System Val,Val) -> Val -> Val
-auxGlueLine is i (Dir _,b,ws,wi0) vi1 = Path j vi1
+auxGlueLine is i (Dir _,b,ws,wi0) vi1 = trace "auxGlueLine1" $ Path j vi1
   where j = gensym is
-auxGlueLine is i (phi,b,ws,wi0) vi1   = fillLine is' (face is' b (i ~> 1)) ls' vi1
+auxGlueLine is i (phi,b,ws,wi0) vi1   = trace "auxGlueLine2" $
+                                        fillLine is' (face is' b (i ~> 1)) ls' vi1
   where is'    = i:is
         unglue = UnGlue hisos b
         hisos  = mkSystem (map (\ alpha -> (alpha,idHiso (face is' b alpha)))
