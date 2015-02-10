@@ -2,12 +2,6 @@ module square where
 
 import prelude
 
-substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
-  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
-  Square B (f a) (g a) (f a') (g a') (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) qa qa' ->
-  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
-substPathPiSquare A B f g a a' p qa qa' sq = sq
-
 reflSquare : (A : U) (a b : A) (p : Id A a b) -> Square A a b p a b p (refl A a) (refl A b)
 reflSquare A a b p = mapOnPathD A (\x -> Id A x x) (refl A) a b p
 
