@@ -91,11 +91,11 @@ initLoop flags f = do
       runInputT (settings []) (loop flags f [] TC.verboseEnv)
     Right (adefs,names) -> do
       (merr,tenv) <- TC.runDeclss TC.verboseEnv [adef | C.ODecls adef <- adefs]
-      -- case merr of
-      --   Just err -> putStrLn $ "Type checking failed: " ++ err
-      --   Nothing  -> putStrLn "File loaded."
+      case merr of
+        Just err -> putStrLn $ "Type checking failed: " ++ err
+        Nothing  -> putStrLn "File loaded."
       -- Compute names for auto completion
-      -- runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
+      runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
 
       -- l <- getLine
 
@@ -108,7 +108,7 @@ initLoop flags f = do
       -- test "test" names tenv   -- Time: 8m34.017s
       -- test "test1" names tenv  -- Time: 4m45.517s
       -- test "test2" names tenv  -- Time: 4m49.252s
-      -- -- test "test3" names tenv  -- Crashes!
+      -- test "test3" names tenv  -- Crashes!
       -- test "test4" names tenv     -- Time: 0m31.528s
       -- test "test5" names tenv     -- Time: 0m31.703s
 
@@ -146,11 +146,11 @@ test str names tenv@(TC.TEnv _ rho _ _) = do
             Left  err  -> do putStrLn ("Resolver failed: " ++ err)
                              -- loop flags f names tenv
             Right body -> do
-              -- x <- liftIO $ TC.runInfer tenv body
-              -- case x of
-              --   Left err -> do putStrLn ("Could not type-check: " ++ err)
-              --                  -- loop flags f names tenv
-              --   Right _  -> do
+              x <- liftIO $ TC.runInfer tenv body
+              case x of
+                Left err -> do putStrLn ("Could not type-check: " ++ err)
+                               -- loop flags f names tenv
+                Right _  -> do
                   start <- liftIO getCurrentTime
                   let e = E.eval [] rho body
                   -- putStrLn ("EVAL: " ++ show (length (show e)))
