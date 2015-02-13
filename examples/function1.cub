@@ -1,0 +1,117 @@
+module function1 where
+
+import sigma
+
+-- some general facts about functions
+
+-- g is a section of f
+section : (A B : U) (f : A -> B) (g : B -> A) -> U
+section A B f g = (b : B) -> Id B (f (g b)) b
+
+injective : (A B : U) (f : A -> B) -> U
+injective A B f = (a0 a1 : A) -> Id B (f a0) (f a1) -> Id A a0 a1
+
+retract : (A B : U) (f : A -> B) (g : B -> A) -> U
+retract A B f g = section B A g f
+
+retractInj : (A B : U) (f : A -> B) (g : B -> A) ->
+             retract A B f g -> injective A B f
+retractInj A B f g h a0 a1 h' =
+  compUp A (g (f a0)) a0 (g (f a1)) a1 rem1 rem2 rem3
+  where
+  rem1 : Id A (g (f a0)) a0
+  rem1 = h a0
+
+  rem2 : Id A (g (f a1)) a1
+  rem2 = h a1
+
+  rem3 : Id A (g (f a0)) (g (f a1))
+  rem3 = mapOnPath B A g (f a0) (f a1) h'
+
+hasSection : (A B : U) -> (A -> B) -> U
+hasSection A B f = Sigma (B -> A) (section A B f)
+
+-- isContr
+
+lemPropAnd : (A B :U) -> prop A -> (A -> prop B) -> prop (and A B)
+lemPropAnd A B = propSig A (\ _ -> B)
+
+isContr : U -> U
+isContr A = and (prop A) A
+
+isContrProp : (A:U) -> prop (isContr A)
+isContrProp A = lemPropAnd (prop A) A (propIsProp A) (\ h -> h)
+
+fiber : (A B:U) -> (A->B) -> B -> U
+fiber A B f y = (x:A) * Id B (f x) y
+
+isEquiv : (A B:U) -> (A->B) -> U
+isEquiv A B f = (y:B) -> isContr (fiber A B f y)
+
+idIsEquiv : (A:U) -> isEquiv A A (\ x -> x)
+idIsEquiv A y = (rem1 y,rem2 y)
+ where
+  T : A -> U
+  T = fiber A A (\ x -> x)
+
+  rem2 : (y:A) -> T y
+  rem2 y = (y,refl A y)
+
+  rem : (y x:A) (p:Id A y x) (x':A) (p':Id A y x') -> Id (T y) (x,inv A y x p) (x',inv A y x' p')
+  rem y = J A y (\ x p -> (x':A) (p':Id A y x') -> Id (T y) (x,inv A y x p) (x',inv A y x' p')) lem
+   where lem : (x':A) (p':Id A y x') -> Id (T y) (y,refl A y) (x',inv A y x' p')
+         lem = J A y (\ x' p' -> Id (T y) (y,refl A y) (x',inv A y x' p')) (refl (T y) (y,refl A y))
+
+  rem1 : (y:A) -> prop (fiber A A (\ x -> x) y)
+  rem1 y f f' = rem y f.1 (inv A f.1 y f.2) f'.1 (inv A f'.1 y f'.2)
+
+propIsEquiv : (A B : U) -> (f : A -> B) -> prop (isEquiv A B f)
+propIsEquiv A B f = propPi B (\ y -> isContr (fiber A B f y))
+                             (\ y -> isContrProp (fiber A B f y))
+
+isEquivEq : (A B : U) -> (f : A -> B) -> isEquiv A B f -> Id U A B
+isEquivEq A B f is = isoId A B f g s t
+ where
+   rem1 : (y:B) -> prop (fiber A B f y)
+   rem1 y = (is y).1
+
+   rem2 : (y:B) -> fiber A B f y
+   rem2 y = (is y).2
+
+   g : B -> A
+   g y = (rem2 y).1
+
+   s : (y:B) -> Id B (f (g y)) y
+   s y = (rem2 y).2
+
+   rem3 : (x:A) -> Id B (f (g (f x))) (f x)
+   rem3 x = s (f x)
+
+   rem4 : (x:A) -> Id (fiber A B f (f x)) (g (f x),rem3 x) (x,refl B (f x))
+   rem4 x = rem1 (f x) (g (f x),rem3 x) (x,refl B (f x))
+
+   t : (x:A) -> Id A (g (f x)) x
+   t x = mapOnPath (fiber A B f (f x)) A (\ z -> z.1)  (g (f x),rem3 x) (x,refl B (f x)) (rem4 x)
+    
+-- a test
+
+isEquivSection : (A B : U) (f : A -> B) (g : B -> A) -> section A B f g ->
+                 ((b : B) -> prop (fiber A B f b)) -> isEquiv A B f
+isEquivSection A B f g sfg h b = (h b,(g b,sfg b))
+
+injProp : (A B : U) (f : A -> B) -> injective A B f -> prop B -> prop A
+injProp A B f injf pB a0 a1 = injf a0 a1 (pB (f a0) (f a1))
+
+injId : (X : U) -> injective X X (id X)
+injId X a0 a1 h = h
+
+involutive : (A : U) -> (A -> A) -> U
+involutive A f = section A A f f
+
+-- one should deduce
+
+Equiv : U -> U -> U
+Equiv A B = Sigma (A->B) (isEquiv A B)
+
+lemIdEquiv : (A B:U) (f g : Equiv A B) -> Id (A->B) f.1 g.1 -> Id (Equiv A B) f g
+lemIdEquiv A B = eqPropFam (A->B) (isEquiv A B) (propIsEquiv A B)

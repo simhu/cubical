@@ -1,0 +1,244 @@
+module susp where
+
+import integer
+import circle
+-- import higher
+import pointed
+
+----------------------------------------------------------------------
+
+-- Suspension.
+
+susp : U -> U
+hdata susp A = north
+             | south
+             | merid (a : A) @ north ~ south
+
+-- n-spheres
+sphere : N -> U
+sphere = split
+  zero  -> Bool
+  suc n -> susp (sphere n)
+
+-- (n+1) -spheres using S1 from circle
+plusOneSphere : N -> U
+plusOneSphere = split
+  zero  -> S1
+  suc n -> susp (plusOneSphere n)
+
+
+-- The suspension is pointed by north.
+ptSusp : (A : U) -> ptType
+ptSusp A = (susp A, north)
+
+ptSphere : N -> ptType
+ptSphere = split
+  zero  -> (Bool,true)
+  suc n -> ptSusp (sphere n)
+
+
+ptPlusOneSphere : N -> ptType
+ptPlusOneSphere = split
+  zero  -> (S1,base)
+  suc n -> ptSusp (plusOneSphere n)
+
+
+
+-- Pointed map into the loop space of the suspension.
+sigma : (A : ptType) -> ptMap A (Omega (ptSusp A.1))
+sigma A = (sig,sig0)
+  where sig : A.1 -> Id (susp A.1) north north
+        sig x = comp (susp A.1) north south north
+                  (merid x)
+                  (inv (susp A.1) north south (merid (pt A)))
+
+        sig0 : Id (Omega (ptSusp A.1)).1
+                  (sig (pt A))
+                  (refl (susp A.1) north)
+        sig0 = compInvRight' (susp A.1) north south (merid (pt A))
+
+-- The circle (S1) is equal to the 1-sphere (aka the suspension of Bool).
+-- (Similar to HoTT Book, Lemma 6.5.1)
+one : N
+one = suc zero
+
+sone : U
+sone = sphere one
+
+s1ToCircle : sone -> S1
+s1ToCircle = hsplit (\_ -> S1) with
+  north   -> base
+  south   -> base
+  merid b -> path b
+    where path : (b : Bool) ->Id S1 base base
+          path = split
+            true  -> refl S1 base
+            false -> loop
+
+ptS1 : ptType
+ptS1 = (S1,base)
+
+m0 : Id sone north south
+m0 = merid false
+
+m1 : Id sone north south
+m1 = merid true
+
+invm1 : Id sone south north
+invm1 = inv sone north south m1
+
+loopImage : Id sone north north
+loopImage = comp sone north south north m0 invm1
+
+circleToS1 : S1 -> sone
+circleToS1 = hsplit (\_ -> sone) with
+  base -> north
+  loop -> loopImage
+
+lemLoopImage : Id loopS1 (mapOnPath (sphere one) S1
+                          s1ToCircle north north loopImage)
+                         loop
+lemLoopImage = mapOnPathComp (sphere one) S1 s1ToCircle north south north
+  (merid false) (inv (sphere one) north south (merid true))
+
+ocid : (x : S1) -> Id S1 (s1ToCircle (circleToS1 x)) x
+ocid = let oc : S1 -> S1
+           oc x = s1ToCircle (circleToS1 x)
+  in hsplit (\x -> Id S1 (oc x) x) with
+    base -> refl S1 base
+    loop -> substPathPi S1 S1 oc (\x -> x)
+               base base loop (refl S1 base) (refl S1 base) rem
+      where G : loopS1 -> U
+            G = Id loopS1 (compS1 triv loop)
+
+            rem1 : G loop
+            rem1 = compIdl S1 base base loop
+
+            rem : G (mapOnPath (sphere one) S1 s1ToCircle
+                              north north loopImage)
+            rem = substInv loopS1 G (mapOnPath (sphere one) S1
+                    s1ToCircle north north loopImage) loop lemLoopImage
+                    rem1
+
+co : sone -> sone
+co x = circleToS1 (s1ToCircle x)
+
+invLemma1 : (A : U) (a b c : A) (q : Id A c b) (p : Id A a b) ->
+            Id (Id A a b)
+               (comp A a a b  (refl A a) p)
+               (comp A a c b  (comp A a b c p (inv A c b q)) q)
+invLemma1 A a b c = J A c
+  (\b q -> (p : Id A a b) ->
+    Id (Id A a b)
+       (comp A a a b  (refl A a) p)
+       (comp A a c b  (comp A a b c p (inv A c b q)) q))
+  (compIdl A a c) b
+
+coid : (x : sone) -> Id sone (co x) x
+coid = let F : sone -> U
+           F x = Id sone (co x) x
+  in hsplit F with
+    north -> refl sone north
+    south -> m1
+    merid b -> ind b
+      where
+        ind : (b : Bool) -> IdS sone F north south (merid b)
+                                (refl sone north) m1
+        ind = split
+          true  -> rem1
+            where goal : U
+                  goal = IdS sone F north south m1 (refl sone north) m1
+                  rem : Id (Id sone north south)
+                           (comp sone north north south (refl sone north) m1)
+                           (comp sone north north south (refl sone north) m1)
+                  rem = refl (Id sone north south)
+                             (comp sone north north south (refl sone north) m1)
+                  rem1 : goal
+                  rem1 = substPathPi sone sone co (\ x -> x)
+                           north south m1 (refl sone north) m1 rem
+
+          false -> rem1
+            where goal : U
+                  goal = IdS sone F north south m0 (refl sone north) m1
+
+                  rem : Id (Id sone north south)
+                           (comp sone north north south (refl sone north) m0)
+                           (comp sone north north south
+                             (comp sone north south north m0 invm1) m1)
+                  rem = invLemma1 sone north south north m1 m0
+                  rem1 : goal
+                  rem1 = substPathPi sone sone co (\ x -> x)
+                           north south m0 (refl sone north) m1 rem
+
+
+s1EqCircle : Id U sone S1
+s1EqCircle = isoId sone S1 s1ToCircle circleToS1 ocid coid
+
+eqSphereHierarchy : (n : N) -> Id U (sphere (suc n)) (plusOneSphere n)
+eqSphereHierarchy = split
+  zero  -> s1EqCircle
+  suc n -> mapOnPath U U susp (sphere (suc n)) (plusOneSphere n)
+             (eqSphereHierarchy n)
+
+-- TODO: reorganize rest of the file!
+
+ptU : U
+ptU = (X : U) * X
+
+lemPt : (A B:U) (p:Id U A B) (a:A) -> Id ptU (A,a) (B,transport A B p a)
+lemPt A = J U A (\ B p -> (a:A) -> Id ptU (A,a) (B,transport A B p a))
+  (\ a -> refl ptU (A,a))
+
+Omega : ptU -> ptU
+Omega X = (Id X.1 X.2 X.2,refl X.1 X.2)
+
+s1PtCircle : Id ptU (sone,north) (S1,base)
+s1PtCircle = lemPt sone S1 s1EqCircle north
+
+helix : S1 -> U
+helix = hsplit (\_ -> U) with
+  base -> Z
+  loop -> sucIdZ
+
+winding : loopS1 -> Z
+winding = encode base
+
+test1 : Z
+test1 = winding loop
+
+
+windingS : Id sone north north -> Z
+windingS  = rem1
+ where
+  G : ptU -> U
+  G X = (Omega X).1 -> Z
+  rem : G (S1,base)
+  rem = winding
+  rem1 : G (sone,north)
+  rem1 = substInv ptU G (sone,north) (S1,base) s1PtCircle rem
+
+s1ToCId : Id sone north north -> Id S1 base base
+s1ToCId = mapOnPath sone S1
+            (transport sone S1 s1EqCircle) north north
+
+s1ToCIdInv : Id S1 base base -> Id sone north north
+s1ToCIdInv = mapOnPath S1 sone
+            (transpInv sone S1 s1EqCircle) base base
+
+winding' : Id sone north north -> Z
+winding' l = winding (s1ToCId l)
+
+loop' :  Id sone north north
+loop' = s1ToCIdInv loop
+
+test1' : Z
+test1' = winding' loop'
+
+loop2 : Id sone north north
+loop2 = comp sone north north north loop' loop'
+
+test2' : Z
+test2' = winding' loop2
+
+test2S : Z
+test2S = windingS loop2

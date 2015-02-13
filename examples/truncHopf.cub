@@ -1,0 +1,134 @@
+module truncHopf where
+
+import trunc
+import mult
+
+
+apInc : (A : U) (a b : A) (p : Id A a b) -> Id (trunc three A) (inc a) (inc b)
+apInc A = mapOnPath A (trunc three A) inc
+
+trS2 : U
+trS2 = trunc three S2
+
+trS2Trunc : truncated three trS2
+trS2Trunc = truncIsTrunc three S2
+
+incSouthPath : (x : S1) -> Id trS2 (inc south) (inc south)
+incSouthPath x =
+  apInc S2 south south (compInv S2 north south south (merid base) (merid x))
+
+multTwoSouth : S2 -> trS2
+multTwoSouth = hsplit (\_ -> trS2) with
+  north   -> inc south
+  south   -> inc south
+  merid x -> incSouthPath x
+
+
+meridIncSouth : (x y : S1) -> Id trS2 (inc north) (inc south)
+meridIncSouth x y = comp trS2 (inc north) (inc south) (inc south)
+  (apInc S2 north south (merid x)) (incSouthPath y)
+
+idIncNS : U
+idIncNS = Id trS2 (inc north) (inc south)
+
+-- |p|^1 . | !p0 . q |^1
+auxComp : (a b : S2) (p p0 q : Id S2 a b) -> Id trS2 (inc a) (inc b)
+auxComp a b p p0 q = comp trS2 (inc a) (inc b) (inc b)
+  (apInc S2 a b p) (apInc S2 b b (compInv S2 a b b p0 q))
+
+auxCompId : (a b : S2) (p p0 q : Id S2 a b) -> U
+auxCompId a b p p0 q = Id (Id trS2 (inc a) (inc b)) (auxComp a b p p0 q) (auxComp a b q p0 p)
+
+alphaAuxCompId : (a b : S2) (p0 q : Id S2 a b) -> auxCompId a b p0 p0 q
+alphaAuxCompId a = J S2 a (\b p0 -> (q : Id S2 a b) -> auxCompId a b p0 p0 q)
+  (\q -> compIdl trS2 (inc a) (inc a) (apInc S2 a a q))
+
+betaAuxCompId : (a b : S2) (p0 p : Id S2 a b) -> auxCompId a b p p0 p0
+betaAuxCompId a = J S2 a (\b p0 -> (p : Id S2 a b) -> auxCompId a b p p0 p0)
+           (\p -> compInvIdl trS2 (inc a) (inc a) (apInc S2 a a p))
+
+alphaEqBetaDiag : (a b : S2) (p0 : Id S2 a b) ->
+                  Id (auxCompId a b p0 p0 p0) (alphaAuxCompId a b p0 p0) (betaAuxCompId a b p0 p0)
+alphaEqBetaDiag a =
+ J S2 a (\b p0 -> Id (auxCompId a b p0 p0 p0) (alphaAuxCompId a b p0 p0) (betaAuxCompId a b p0 p0))
+   (refl (auxCompId a a (refl S2 a) (refl S2 a) (refl S2 a))
+     (alphaAuxCompId a a (refl S2 a) (refl S2 a)))
+
+
+
+-- lemSetTorus : (E : S1 -> S1 -> U) (sE : set (E base base))
+--               (f : (y:S1) -> E base y) (g : (x:S1) -> E x base)
+--               (efg : Id (E base base) (f base) (g base)) (x y:S1) -> E x y
+
+multTwoMeridMerid : (x y : S1) -> Id idIncNS (meridIncSouth x y) (meridIncSouth y x)
+multTwoMeridMerid =
+  lemSetTorus E sE
+    (\x -> alphaAuxCompId north south (merid base) (merid x))
+    (\x -> betaAuxCompId north south (merid base) (merid x))
+    (alphaEqBetaDiag north south (merid base))
+  where E : S1 -> S1 -> U
+        E x y = Id idIncNS (meridIncSouth x y) (meridIncSouth y x)
+
+        sE : set (E base base)
+        sE = truncIsTrunc three S2 (inc north) (inc south)
+               (meridIncSouth base base) (meridIncSouth base base)
+
+multTwoMerid : (x : S1) (y : S2) -> Id trS2 (inc y) (multTwoSouth y)
+multTwoMerid x = hsplit (\y -> Id trS2 (inc y) (multTwoSouth y)) with
+  north   -> apInc S2 north south (merid x)
+  south   -> incSouthPath x
+  merid y -> substPathPi S2 trS2 inc multTwoSouth north south (merid y)
+                (apInc S2 north south (merid x))
+                (incSouthPath x) (multTwoMeridMerid x y)
+
+-- ts: IdS S2 (\y -> Id trS2 (inc y) (multTwoSouth y)) north south (merid y) (apInc S2 north south (merid x)) (incSouthPath x)
+
+multTwo : S2 -> S2 -> trS2
+multTwo = hsplit (\_ -> S2 -> trS2) with
+  north   -> inc
+  south   -> multTwoSouth
+  merid x -> funExt S2 (\_ -> trS2) inc multTwoSouth (multTwoMerid x)
+
+lemPropS2 : (P:S2 -> U) (pP:(x:S2) -> prop (P x)) -> P north -> (x:S2) -> P x
+lemPropS2 P pP pN = hsplit P with
+  north -> pN
+  south -> subst S2 P north south (merid base) pN
+  merid x -> rem1
+   where
+    pS : S1 -> P south
+    pS x = subst S2 P north south (merid x) pN
+
+    rem : (p: P south) -> IdS S2 P north south (merid x) pN p
+    rem p = idSIntro S2 P north south (merid x) pN p (pP south (pS x) p)
+
+    rem1 : IdS S2 P north south (merid x) pN (pS base)
+    rem1 = rem (pS base)
+
+multTwoTilde : S2 -> trS2 -> trS2
+multTwoTilde x = truncRec three S2 trS2 trS2Trunc (multTwo x)
+
+multTwoTildeEquiv : (x : S2) -> isEquiv trS2 trS2 (multTwoTilde x)
+multTwoTildeEquiv =
+  lemPropS2 (\x -> isEquiv trS2 trS2 (multTwoTilde x)) (\x -> propIsEquiv trS2 trS2 (multTwoTilde x))
+    multEquivNorth
+  where multNorthEqId : Id (trS2 -> trS2) (\x -> x) (multTwoTilde north)
+        multNorthEqId = funExt trS2 (\_ -> trS2) (\x -> x) (multTwoTilde north)
+                          (lem3Trunc S2 trS2 three trS2Trunc (\x -> x) (multTwoTilde north)
+                            (\a -> refl trS2 (inc a)))
+        multEquivNorth : isEquiv trS2 trS2 (multTwoTilde north)
+        multEquivNorth = subst (trS2 -> trS2) (isEquiv trS2 trS2) (\x -> x)
+                           (multTwoTilde north) multNorthEqId (idIsEquiv trS2)
+
+
+tHopf3 : S3 -> U
+tHopf3 = hsplit (\_ -> U) with
+  north   -> trS2
+  south   -> trS2
+  merid x -> isEquivEq trS2 trS2 (multTwoTilde x) (multTwoTildeEquiv x)
+
+-- e_3 from 10.2
+pi3S3 : (itOmega three ptS3).1 -> (itOmega two (trS2,inc north)).1
+pi3S3 = itMapOmegaRefl two (Omega ptS3) trS2 pi3S3'
+  where
+    pi3S3' : (Omega ptS3).1 -> trS2
+    pi3S3' p = subst S3 tHopf3 north north p (inc north)

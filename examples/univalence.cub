@@ -31,14 +31,14 @@ univAx A B =
 -- in particular Id U A B and Equiv A B are equal
 
 corUnivAx : (A B : U) -> Id U (Id U A B) (Equiv A B)
-corUnivAx A B = isEquivEq (Id U A B) (Equiv A B) (IdToEquiv A B) (univAx A B)
--- isoId (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
+corUnivAx A B =
+ isoId (Id U A B) (Equiv A B) (IdToEquiv A B)  (EquivToId A B) (retIdEquiv A B) (secIdEquiv A B)
 
 -- a simple application
 
-idPropIsProp : (A B : U) -> prop A -> prop B -> prop (Id U A B)
-idPropIsProp A B pA pB = substInv U prop (Id U A B) (Equiv A B) (corUnivAx A B) rem
- where
-  rem : prop (Equiv A B)
-  rem = sigIsProp (A->B) (isEquiv A B) (propIsEquiv A B) (isPropProd A (\ _ -> B) (\ _ -> pB))
+-- idPropIsProp : (A B : U) -> prop A -> prop B -> prop (Id U A B)
+-- idPropIsProp A B pA pB = substInv U prop (Id U A B) (Equiv A B) (corUnivAx A B) rem
+--  where
+--   rem : prop (Equiv A B)
+--   rem = sigIsProp (A->B) (isEquiv A B) (propIsEquiv A B) (isPropProd A (\ _ -> B) (\ _ -> pB))
 

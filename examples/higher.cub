@@ -1,0 +1,98 @@
+module higher where
+
+import integer
+import heterogeneous
+
+-- Pushout as a HIT.
+pushout : (A B C : U) (f : C -> A) (g : C -> B) -> U
+hdata pushout A B C f g = inl (a : A)
+                        | inr (b : B)
+                        | push (c : C) @ inl (f c) ~ inr (g c)
+
+-- Mapping cylinder as a pushout.
+cyl : (A B : U) (f : A -> B) -> U
+cyl A B f = pushout A B A (\x -> x) f
+
+zer : Unit -> N
+zer x = zero
+
+-- integers as a pushout
+Int : U
+Int = pushout N N Unit zer zer
+
+plus : N -> Z
+plus n = inr n
+
+minus : N -> Z
+minus = split
+  zero  -> inr zero
+  suc n -> inl n
+
+forward : Int -> Z
+forward = hsplit (\_ -> Z) with
+ inr n -> plus n
+ inl n -> minus n
+ push u -> refl Z (plus zero)
+
+backward : Z -> Int
+backward = split
+  inr n -> inr n
+  inl n -> inl (suc n)
+
+fbisid : (z : Z) -> Id Z (forward (backward z)) z
+fbisid = split
+  inr n -> refl Z (inr n)
+  inl n -> refl Z (inl n)
+
+testPush : Id Int (inl zero) (inr zero)
+testPush = push tt
+
+bfisid : (i : Int) -> Id Int (backward (forward i)) i
+bfisid = hsplit (\i -> Id Int (backward (forward i)) i) with
+  inl n -> lem n
+    where lem : (n : N) -> Id Int (backward (forward (inl n))) (inl n)
+          lem = split
+            zero  -> inv Int (inl zero) (inr zero) (push tt)
+            suc n -> refl Int (inl (suc n))
+  inr n -> refl Int (inr n)
+  push u -> rem u
+
+  -- ts: inv Int (inl zero) (inr zero) (push tt) = refl Int (inr zero)
+            -- / push u : inl zero = inr zero
+
+    where f : Int -> Int
+          f x = backward (forward x)
+
+          F : Int -> U
+          F i = Id Int (f i) i
+
+          a : Int
+          a = inl zero
+
+          a' : Int
+          a' = inr zero
+
+          qa' : Id Int (f a') a'
+          qa' = refl Int (inr zero)
+
+          rem : (u : Unit) -> IdS Int F a a' (push u)
+                                  (inv Int (inl zero) (inr zero) (push tt))
+                                  qa'
+          rem = split
+            tt -> substPathPi Int Int f (\x -> x) a a' p qa qa' lem
+                   where
+
+            p : Id Int a a'
+            p = push tt
+
+            qa : Id Int (f a) a
+            qa = inv Int a a' p
+
+            lem : Id (Id Int (f a) a')
+               (comp Int (f a) a a' qa p)
+               (comp Int (f a) (f a') a' (mapOnPath Int Int f a a' p) qa')
+            lem = compInvLeft' Int a a' p
+
+
+intEqZ : Id U Int Z
+intEqZ = isoId Int Z forward backward fbisid bfisid

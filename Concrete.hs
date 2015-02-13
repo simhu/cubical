@@ -48,6 +48,10 @@ unApps u         ws = (u, ws)
 vTele :: [VTDecl] -> Tele
 vTele decls = [ (i, typ) | VTDecl id ids typ <- decls, i <- id:ids ]
 
+vArgs :: [VTDecl] -> Resolver [C.Binder]
+vArgs decls = sequence [ resolveBinder i | VTDecl id ids _ <- decls, i <- id:ids ]
+
+
 -- turns an expression of the form App (... (App id1 id2) ... idn)
 -- into a list of idents
 pseudoIdents :: Exp -> Maybe [AIdent]
@@ -65,7 +69,7 @@ pseudoTele (PseudoTDecl exp typ : pd) = do
 
 type Arity = Int
 
-data SymKind = Variable | Constructor Arity
+data SymKind = Variable | Constructor Arity | PConstructor [C.Ident] C.Ter C.Ter
   deriving (Eq,Show)
 
 -- local environment for constructors
@@ -116,6 +120,16 @@ getLoc l = C.Loc <$> getModule <*> pure l
 resolveBinder :: AIdent -> Resolver C.Binder
 resolveBinder (AIdent (l,x)) = (x,) <$> getLoc l
 
+-- resolveFaceTers :: AIdent -> Resolver (C.Ter,C.Ter)
+-- resolveFaceTers (AIdent (l,x)) = do
+--   modName <- getModule
+--   vars    <- getVariables
+--   case C.getIdent x vars of
+--     Just (PConstructor _ t1 t2) -> return (t1,t2)
+--     _ -> throwError $ "Cannot find path variable" <+> x <+> "at position" <+>
+--            show l <+> "in module" <+> modName
+
+
 -- Eta expand constructors
 expandConstr :: Arity -> String -> [Exp] -> Resolver Ter
 expandConstr a x es = do
@@ -124,6 +138,15 @@ expandConstr a x es = do
       args    = map C.Var binders
   ts <- mapM resolveExp es
   return $ C.mkLams binders $ C.mkApps (C.Con x []) (ts ++ args)
+
+-- TODO: refactor expandConstr and expandPConstr
+expandPConstr :: [C.Ident] -> String -> C.Ter -> C.Ter -> [Exp] -> Resolver Ter
+expandPConstr a x t1 t2 es =  do
+  let r       = length a - length es
+      binders = map (('_' :) . show) [1..r]
+      args    = map C.Var binders
+  ts <- mapM resolveExp es
+  return $ C.mkLams binders $ C.mkApps (C.PCon x [] a t1 t2) (ts ++ args)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
@@ -134,6 +157,7 @@ resolveVar (AIdent (l,x))
     case C.getIdent x vars of
       Just Variable        -> return $ C.Var x
       Just (Constructor a) -> expandConstr a x []
+      Just (PConstructor a t1 t2) -> expandPConstr a x t1 t2 []
       _ -> throwError $
         "Cannot resolve variable" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
@@ -160,6 +184,7 @@ resolveExp (App t s)    = case unApps t [s] of
     vars    <- getVariables
     case C.getIdent n vars of
       Just (Constructor a) -> expandConstr a n xs
+      Just (PConstructor a t1 t2) -> expandPConstr a n t1 t2 xs
       _ -> C.mkApps <$> resolveExp x <*> mapM resolveExp xs
   (x,xs) -> C.mkApps <$> resolveExp x <*> mapM resolveExp xs
 
@@ -175,9 +200,14 @@ resolveExp (Fst t)      = C.Fst <$> resolveExp t
 resolveExp (Snd t)      = C.Snd <$> resolveExp t
 resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
 resolveExp (Split brs)  = do
-    brs' <- mapM resolveBranch brs
-    loc  <- getLoc (case brs of Branch (AIdent (l,_)) _ _:_ -> l ; _ -> (0,0))
-    return $ C.Split loc brs'
+  brs' <- mapM resolveBranch brs
+  loc  <- getLoc (case brs of Branch (AIdent (l,_)) _ _:_ -> l ; _ -> (0,0))
+  return $ C.Split loc brs'
+resolveExp (HSplit f hbrs) = do
+  hbrs' <- mapM resolveHBranch hbrs
+  f'    <- resolveExp f
+  loc   <- getLoc (case hbrs of Branch (AIdent (l,_)) _ _:_ -> l ; _ -> (0,0))
+  return $ C.HSplit loc f' hbrs'
 resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
@@ -187,9 +217,26 @@ resolveWhere = resolveExp . unWhere
 
 resolveBranch :: Branch -> Resolver (C.Label,([C.Binder],C.Ter))
 resolveBranch (Branch lbl args e) = do
-    binders <- mapM resolveBinder args
-    re      <- local (insertVars binders) $ resolveWhere e
-    return (unAIdent lbl, (binders, re))
+  binders <- mapM resolveBinder args
+  re      <- local (insertVars binders) $ resolveWhere e
+  return (unAIdent lbl, (binders, re))
+
+resolveHBranch :: Branch -> Resolver C.HBranch
+resolveHBranch (Branch lbl@(AIdent (l,n)) args e) = do
+  vars <- getVariables
+  case C.getIdent n vars of
+    Just (Constructor _) -> do -- resolve as object branch
+      binders <- mapM resolveBinder args
+      re      <- local (insertVars binders) $ resolveWhere e
+      return $ C.Branch (unAIdent lbl) binders re
+    Just (PConstructor _ _ _) -> do -- resolve as path branch
+      binders <- mapM resolveBinder args
+      re      <- local (insertVars binders) $ resolveWhere e
+      return $ C.HBranch (unAIdent lbl) binders re
+    _ -> do modName <- getModule
+            throwError $ n <+> "at position" <+> show l <+> "in module"
+              <+> modName <+> "is neither a constructor"
+              <+> "nor a path constructor!"
 
 resolveTele :: [(AIdent,Exp)] -> Resolver C.Tele
 resolveTele []        = return []
@@ -201,10 +248,50 @@ resolveLabel :: Label -> Resolver (C.Binder, C.Tele)
 resolveLabel (Label n vdecl) =
   (,) <$> resolveBinder n <*> resolveTele (vTele vdecl)
 
-declsLabels :: [Decl] -> Resolver [(C.Binder,Arity)]
-declsLabels decls = do
-  let sums = concat [sum | DeclData _ _ sum <- decls]
-  sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
+-- declsLabels :: [Decl] -> Resolver [(C.Binder,Arity)]
+-- declsLabels decls = do
+--   let sums = concat [sum | DeclData _ _ sum <- decls]
+--   sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
+
+-- TODO: refactor resolveMutuals?
+declsLabelsAndHLabels :: [Decl] -> Resolver [(C.Binder,SymKind)]
+declsLabelsAndHLabels [] = return []
+declsLabelsAndHLabels (DeclData _ _ sum:decls) =
+  (++) <$> sequence [ (,Constructor $ length args) <$> resolveBinder lbl
+                    | Label lbl args <- sum ]
+       <*> declsLabelsAndHLabels decls
+declsLabelsAndHLabels (DeclHData _ args hsum:decls) = do
+  args'     <- mapM resolveBinder args
+  constrs   <- hLabelsToConstrs hsum
+  bindsyms  <- declsLabelsAndHLabels decls
+  pconstrs  <- sequence $
+    [ do vars <- vArgs vdecl
+         bind <- resolveBinder lbl
+         t1   <- local (insertVars (args' ++ vars) . insertBinders constrs) (resolveExp e1)
+         t2   <- local (insertVars (args' ++ vars) . insertBinders constrs) (resolveExp e2)
+         return (bind, PConstructor (map fst vars) t1 t2)
+    | HLabelPath lbl vdecl e1 e2 <- hsum]
+  return $ constrs ++ pconstrs ++ bindsyms
+declsLabelsAndHLabels (_:decls) = declsLabelsAndHLabels decls
+
+hLabelsToConstrs :: [HLabel] -> Resolver [(C.Binder,SymKind)]
+hLabelsToConstrs hlabels =
+  sequence [ (,Constructor $ length args) <$> resolveBinder lbl
+           | HLabelData lbl args <- hlabels ]
+
+resolveHLabels :: [HLabel] -> Resolver [C.HLabel]
+resolveHLabels hlabels = do
+  constrs <- hLabelsToConstrs hlabels
+  let resHLabel (HLabelData n vdecl) =
+        C.Label <$> resolveBinder n <*> resolveTele (vTele vdecl)
+      resHLabel (HLabelPath n vdecl e1 e2) = do
+        -- endpoints in a path constructor should know the data constructors
+        args <- vArgs vdecl
+        let re1 = local (insertVars args . insertBinders constrs) (resolveExp e1)
+            re2 = local (insertVars args . insertBinders constrs) (resolveExp e2)
+        C.HLabel <$> resolveBinder n <*> resolveTele (vTele vdecl) <*> re1 <*> re2
+  mapM resHLabel hlabels
+
 
 -- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
@@ -212,23 +299,25 @@ resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
   (n,) <$> lams args (resolveWhere body)
 resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
   (n,) <$> lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
+resolveDDecl (DeclHData x@(AIdent (l,n)) args hsum) =
+  (n,) <$> lams args (C.HSum <$> resolveBinder x <*> resolveHLabels hsum)
 resolveDDecl d = throwError $ "Definition expected" <+> show d
 
 -- Resolve mutual declarations (possibly one)
 resolveMutuals :: [Decl] -> Resolver (C.Decls,[(C.Binder,SymKind)])
 resolveMutuals decls = do
     binders <- mapM resolveBinder idents
-    cs      <- declsLabels decls
+    cs      <- declsLabelsAndHLabels decls
     let cns = map (fst . fst) cs ++ names
     when (nub cns /= cns) $
       throwError $ "Duplicated constructor or ident:" <+> show cns
     rddecls <-
-      mapM (local (insertVars binders . insertCons cs) . resolveDDecl) ddecls
+      mapM (local (insertVars binders . insertBinders cs) . resolveDDecl) ddecls
     when (names /= map fst rddecls) $
       throwError $ "Mismatching names in" <+> show decls
     rtdecls <- resolveTele tdecls
     return ([ (x,t,d) | (x,t) <- rtdecls | (_,d) <- rddecls ],
-            map (second Constructor) cs ++ map (,Variable) binders)
+            cs ++ map (,Variable) binders)
   where
     idents = [ x | DeclType x _ <- decls ]
     names  = [ unAIdent x | x <- idents ]

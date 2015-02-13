@@ -1,0 +1,38 @@
+module truncS1  where
+
+import indS1
+import trunc
+import susp
+
+lem : (X:U) -> set X -> Id U (setr S1 -> X) X
+lem X sX = comp U (setr S1 -> X) (S1 -> X) X rem (lemS1Set X sX)
+ where rem : Id U (setr S1 -> X) (S1 -> X)
+       rem = univTrunc S1 X (suc zero) sX
+
+corr : Id U (setr S1 -> setr S1) (setr S1)
+corr = lem (setr S1) (truncIsTrunc (suc zero) S1)
+
+test : (setr S1 -> setr S1) -> setr S1
+test = transport (setr S1 -> setr S1) (setr S1) corr
+
+lemTransport : (A B : U) (p : Id U A B) (a0 a1 : A) -> Id B (transport A B p a0) (transport A B p a1) -> Id A a0 a1
+lemTransport A = J U A ( \ B p ->  (a0 a1 : A) -> Id B (transport A B p a0) (transport A B p a1) -> Id A a0 a1) rem
+ where rem : (a0 a1:A) -> Id A a0 a1 -> Id A a0 a1
+       rem a0 a1 h = h
+
+corr1 : Id (setr S1 -> setr S1) (\ x -> x) (\ x -> inc base)
+corr1 = lemTransport (setr S1 -> setr S1) (setr S1) corr  (\ x -> x) (\ x -> inc base) (refl (setr S1) (inc base))
+
+corr2 : (x:setr S1) -> Id (setr S1) x (inc base)
+corr2 x = mapOnPath (setr S1 -> setr S1) (setr S1) (\ f -> f x) (\ z -> z) (\ z -> inc base) corr1
+
+propSetrS1 : prop (setr S1)
+propSetrS1 x y = idEuclid (setr S1) x y (inc base) (corr2 x) (corr2 y)
+
+propSetrsone : prop (setr sone)
+propSetrsone = substInv U (\ X -> prop (setr X)) sone S1 s1EqCircle propSetrS1
+
+test : Id (setr sone) (inc north) (inc south)
+test = propSetrsone (inc north) (inc south)
+
+

@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE BangPatterns, TupleSections #-}
 module CTT where
 
 import Control.Applicative
@@ -72,21 +72,43 @@ data Ter = App Ter Ter
          | Split Loc [Brc]
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Binder LblSum
+         -- c Ms xs N0 N1 connects N0 (Ms/xs) to N1 (Ms/xs)
+         | PCon Label [Ter] [Ident] Ter Ter
+         | HSum Binder [HLabel]
+         | HSplit Loc Ter [HBranch]
          | PN PN
   deriving Eq
 
+data HLabel = Label Binder Tele | HLabel Binder Tele Ter Ter
+  deriving (Eq,Show)
+
+data HBranch = Branch Label [Binder] Ter -- Branch of the form: c x1 .. xn -> e
+             | HBranch Label [Binder] Ter -- Branch for a path constructor
+  deriving (Eq,Show)
+
+mapHLabelToBinderTele :: [HLabel] -> [(Binder,(Tele,Ter,Ter))]
+mapHLabelToBinderTele [] = []
+mapHLabelToBinderTele (Label _ _ : s) = mapHLabelToBinderTele s
+mapHLabelToBinderTele (HLabel n tele u v : s) = (n, (tele, u, v)) : (mapHLabelToBinderTele s)
+
+hLabelToBinderTele :: HLabel -> (Binder,Tele)
+hLabelToBinderTele (Label n tele)      = (n,tele)
+hLabelToBinderTele (HLabel n tele _ _) = (n,tele)
+
+hLabelToBinder :: HLabel -> Binder
+hLabelToBinder (Label n _)      = n
+hLabelToBinder (HLabel n _ _ _) = n
+
+isLabel :: HLabel -> Bool
+isLabel h@Label{} = True
+isLabel _         = False
+
+hBranchToLabel :: HBranch -> Label
+hBranchToLabel (Branch l _ _) = l
+hBranchToLabel (HBranch l _ _) = l
+
 -- Primitive notions
 data PN = Id | Refl | Sym
-        -- Inh A is an h-prop stating that A is inhabited.
-        -- Here we take h-prop A as (Pi x y : A) Id A x y.
-        | Inh
-        -- Inc a : Inh A for a:A (A not needed ??)
-        | Inc
-        -- Squash a b : Id (Inh A) a b
-        | Squash
-        -- InhRec B p phi a : B,
-        -- p : hprop(B), phi : A -> B, a : Inh A (cf. HoTT-book p.113)
-        | InhRec
 
         -- (A B : U) -> Id U A B -> A -> B
         -- For TransU we only need the eqproof and the element in A is needed
@@ -172,31 +194,31 @@ data PN = Id | Refl | Sym
         -- (b0:F a0) (b1:F a1) (q : IdS A F a0 a1 p b0 b1) -> Id C (f a0 b0) (f a1 b1)
         | MapOnPathS -- TODO: AppOnPathS?
 
-        -- S1 : U
-        | Circle
+        -- lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
+        --   Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
+        | LemSimpl
 
-        -- base : S1
-        | Base
+        -- transpose :  (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+        --              (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+        --               Square A a0 b0 a1 b1 u v r0 r1 -> Square A a0 a1 b0 b1 r0 r1 u v
+        | Transpose
 
-        -- loop : Id S1 base base
-        | Loop
+        -- eqTransport : (A B : U) (p : Id U A B) (u : A) -> IdP A B p u (transport A B p u)
+        | EqTransport
 
-        -- S1rec : (F : S1 -> U) (b : F base) (l : IdS F base base loop) (x : S1) -> F x
-        | CircleRec
+        -- rem1IdP : (A B : U) (p : Id U A B) (u:A) (q : Id A u u)
+        --           -> SquareOverLine A B p u u q (transport A B p u) (transport A B p u) (mapOnPath A B (transport A B p) u u q)
+        --                  (eqTransport A B p u) (eqTransport A B p u)
 
-        -- I : U
-        | I
+        | Rem1IdP
 
-        -- I0, I1 : Int
-        | I0 | I1
+        | Square
+        | Cube
+        | Rotate
 
-        -- line : Id Int I0 I1
-        | Line
-
-
-        -- intrec : (F : I -> U) (s : F I0) (e : F I1)
-        --  (l : IdS Int F I0 I1 line s e) (x : I) -> F x
-        | IntRec
+        -- idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
+        --            -> IdP A B p x y -> Id B (transport A B p x) y
+        | IdSElim
 
         -- undefined constant
         | Undef Loc
@@ -214,8 +236,9 @@ unApps = aux []
 -- unApps t         = (t,[])
 
 mkApps :: Ter -> [Ter] -> Ter
-mkApps (Con l us) vs = Con l (us ++ vs)
-mkApps t ts          = foldl App t ts
+mkApps (Con l us) vs           = Con l (us ++ vs)
+mkApps (PCon l us ns t1 t2) vs = PCon l (us ++ vs) ns t1 t2
+mkApps t ts                    = foldl App t ts
 
 mkLams :: [String] -> Ter -> Ter
 mkLams bs t = foldr Lam t [noLoc b | b <- bs]
@@ -233,10 +256,6 @@ primHandle =
    ("inv"          , 4,  Sym         ),
    ("funExt"        , 5,  Ext          ),
    --("funHExt"       , 5,  HExt          ),
-   ("inh"           , 1,  Inh          ),
-   ("inc"           , 2,  Inc          ),
-   ("squash"        , 3,  Squash       ),
-   ("inhrec"        , 5,  InhRec       ),
    ("isoId"         , 6,  IsoId        ),
    ("isoIdRef"      , 1,  IsoIdRef     ),
    ("transport"     , 4,  TransU       ),
@@ -248,18 +267,17 @@ primHandle =
    -- ("transpEquivEq" , 6,  TransUEquivEq),
    ("appOnPath"     , 8,  AppOnPath    ),
    ("mapOnPath"     , 6,  MapOnPath    ),
+   ("lemSimpl"      , 8,  LemSimpl    ),
+   ("transpose"     , 10, Transpose    ),
+   ("eqTransport"   , 4,  EqTransport    ),
+   ("Square"        , 9, Square),
+   ("Cube"          , 27, Cube),
+   ("rotate"        , 28, Rotate),
+   ("rem1IdP"       , 5,  Rem1IdP    ),
+   ("idSElim'"      , 6,  IdSElim    ),
    ("IdP"           , 5,  IdP          ),
    ("mapOnPathD"    , 6,  MapOnPathD   ),
-   ("mapOnPathS"    , 10, MapOnPathS   ),
-   ("S1"            , 0,  Circle       ),
-   ("base"          , 0,  Base         ),
-   ("loop"          , 0,  Loop         ),
-   ("S1rec"         , 4,  CircleRec    ),
-   ("I"             , 0,  I            ),
-   ("I0"            , 0,  I0           ),
-   ("I1"            , 0,  I1           ),
-   ("line"          , 0,  Line         ),
-   ("intrec"        , 5,  IntRec       )]
+   ("mapOnPathS"    , 10, MapOnPathS   )]
 
 reservedNames :: [String]
 reservedNames = [ s | (s,_,_) <- primHandle ]
@@ -305,20 +323,11 @@ data Val = VU
          | UnGlue (System Hiso) Val
          | GlueElem (System Val) Val
          | HisoProj HisoProj Val
-         | GlueLine (System ()) Val Formula
-         | GlueLineElem (System ()) Val Formula
+         | GlueLine Val Formula Formula
+         | GlueLineElem Val Formula Formula
 
          | VExt Formula Val Val Val
          -- | VHExt Name Val Val Val Val
-
-         -- inhabited
-         | VInh Val
-
-         -- inclusion into inhabited
-         | VInc Val
-
-         -- squash type - connects the two values
-         | VSquash Formula Val Val
 
          -- of type U connecting a and b along x
          -- VEquivEq x a b f s t
@@ -340,26 +349,18 @@ data Val = VU
          -- the name is bound
          -- | VFill Name (Box Val)
 
-         -- circle
-         | VCircle
-         | VBase
-         | VLoop Formula
-
-         -- interval
-         -- | VI
-         -- | VI0
-         -- | VI1
-         -- | VLine Name           -- connects start and end point along name
+         -- Path constructors
+         | VPCon Ident [Val] Formula Val Val
 
          -- neutral values
-         | VVar String [Formula]
+         | VVar String  -- [Formula]
          | VApp Val Val            -- the first Val must be neutral
          | VAppFormula Val Formula
          | VFst Val
          | VSnd Val
          | VSplit Val Val          -- the second Val must be neutral
-         | VCircleRec Val Val Val Val  -- the last Val must be neutral
-         | VInhRec Val Val Val Val     -- the last Val must be neutral
+         | VHSplit Val Val          -- the second Val must be neutral
+         | UnGlueNe Val Val         -- the second Val must be neutral
          | KanNe Name Val (System Val) Val -- Neutral
          -- | VIntRec Val Val Val Val Val -- the last Val must be neutral
 
@@ -370,8 +371,8 @@ data Val = VU
 -- vepair :: Name -> Val -> Val -> Val
 -- vepair x a b = VSPair a (Path x b)
 
-mkVar :: Int -> [Name] -> Val
-mkVar k supp = VVar ('X' : show k) (map Atom supp)
+mkVar :: Int -> Val
+mkVar k = VVar ('X' : show k)
 
 -- fstVal, sndVal, unSquare :: Val -> Val
 -- fstVal (VPair _ a _)     = a
@@ -402,23 +403,23 @@ data Hiso = Hiso { hisoA :: Val
 -- | Environments
 
 data Env = Empty
-         | Pair Env (Binder,Val)
-         | PDef [(Binder,Ter)] Env
+         | Pair !Env (Binder,Val)
+         | PDef [(Binder,Ter)] !Env
   deriving Eq
 
 instance Show Env where
   show Empty            = ""
   show (PDef xas env)   = show env
-  show (Pair env (x,u)) = parens $ showEnv1 env ++ show u
+  show (Pair env (x,u)) = parens $ showEnv1 env ++ fst x ++ "=" ++ show u
     where
-      showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
+      showEnv1 (Pair env (x,u)) = showEnv1 env ++ fst x ++ "=" ++ show u ++ ", "
       showEnv1 e                = show e
 
 upds :: Env -> [(Binder,Val)] -> Env
-upds = foldl Pair
+upds = foldl' Pair
 
 lookupIdent :: Ident -> [(Binder,a)] -> Maybe (Binder, a)
-lookupIdent x defs = lookup x [(y,((y,l),t)) | ((y,l),t) <- defs]
+lookupIdent x defs = listToMaybe [ ((y,l),t) | ((y,l),t) <- defs, x == y ]
 
 getIdent :: Ident -> [(Binder,a)] -> Maybe a
 getIdent x defs = snd <$> lookupIdent x defs
@@ -428,8 +429,8 @@ getBinder x defs = fst <$> lookupIdent x defs
 
 mapEnv :: (Val -> Val) -> Env -> Env
 mapEnv _ Empty          = Empty
-mapEnv f (Pair e (x,v)) = Pair (mapEnv f e) (x,f v)
-mapEnv f (PDef ts e)    = PDef ts (mapEnv f e)
+mapEnv f (Pair !e (x,v)) = Pair (mapEnv f e) $! (x,f v)
+mapEnv f (PDef ts !e)    = PDef ts $! (mapEnv f e)
 
 -- mapEnvM :: Applicative m => (Val -> m Val) -> Env -> m Env
 -- mapEnvM _ Empty          = pure Empty
@@ -472,8 +473,12 @@ showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
 showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
-showTer (Sum l _)     = "sum " ++ show l
+showTer (Sum l _)     = fst l
 showTer (PN pn)       = showPN pn
+showTer (PCon c es _ e0 e1) = -- verbose for now
+  c <+> showTers es <+> "@" <+> showTer e0 <+> "~" <+> showTer e1
+showTer (HSum l _)    = fst l
+showTer (HSplit l _ _)  = "hsplit" <+> show l
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
@@ -490,7 +495,7 @@ showTer1 u           = parens $ showTer u
 -- Warning: do not use showPN as a Show instance as it will loop
 showPN :: PN -> String
 showPN (Undef l) = show l
-showPN pn              = case [s | (s,_,pn') <- primHandle, pn == pn'] of
+showPN pn        = case [s | (s,_,pn') <- primHandle, pn == pn'] of
   [s] -> s
   _   -> error $ "showPN: unknown primitive " ++ show pn
 
@@ -502,11 +507,19 @@ showODecls (ODecls defs) = showDecls defs
 showODecls (Opaque x)    = "opaque"      <+> show x
 showODecls (Transp x)    = "transparent" <+> show x
 
+showSumEnv :: Env -> String
+showSumEnv Empty = ""
+showSumEnv (PDef xas env) = showSumEnv env
+showSumEnv (Pair env (_,u)) = showVal1 u <+> showSumEnv env
+
+
 instance Show Val where
   show = showVal
 
 showVal :: Val -> String
 showVal VU                       = "U"
+showVal (Ter t@Sum{} env)        = show t <+> showSumEnv env
+showVal (Ter t@HSum{} env)       = show t <+> showSumEnv env
 showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
@@ -525,31 +538,28 @@ showVal (VSigma u v)             = "Sigma" <+> showVals [u,v]
 showVal (VFst u)                 = showVal u ++ ".1"
 showVal (VSnd u)                 = showVal u ++ ".2"
 
-showVal (VVar x phis)            = x <+> showDim phis
+showVal (VVar x)                 = x
 showVal (VApp u v)               = showVal u <+> showVal1 v
 showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 
-showVal (VCon c us)              = c <+> showVals us
-showVal (VSplit u v)             = showVal u <+> showVal1 v
+showVal (VCon c us)             = c <+> showVals us
+showVal (VSplit u v)            = showVal u <+> showVal1 v
 
 showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
 showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
 showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
-showVal (GlueLine ts u phi)     = "GlueLine" <+> show ts <+> show u <+> show phi
-showVal (GlueLineElem ts u phi) = "GlueLineElem" <+> show ts <+> show u <+> show phi
+showVal (GlueLine v phi psi)     = "GlueLine" <+> show v <+> show phi <+> show psi
+showVal (GlueLineElem u phi psi) = "GlueLineElem" <+> show u <+> show phi <+> show psi
 
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
-showVal VCircle                  = "S1"
-showVal VBase                    = "base"
-showVal (VLoop x)                = "loop" <+> parens (show x)
-showVal (VCircleRec f b l s)     = "S1rec" <+> showVals [f,b,l,s]
 
-showVal (VInh u)                 = "inh" <+> showVal1 u
-showVal (VInc u)                 = "inc" <+> showVal1 u
-showVal (VInhRec b p h a)        = "inhrec" <+> showVals [b,p,h,a]
-showVal (VSquash phi u v)        = "squash" <+> parens (show phi) <+> showVals [u,v]
+showVal (VPCon c es phi u v)     = -- not verbose for now
+  c <+> showVals es <+> parens (show phi) -- <+> "@" <+> showVal u <+> "~" <+> showVal v
+showVal (VHSplit u v)            = showVal u <+> showVal1 v
+
+showVal (UnGlueNe u v)           = showVal1 u <+> showVal1 v
 
 showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 
@@ -565,11 +575,6 @@ showVal (VLam str u)             = "\\" ++ str ++ " -> " ++ showVal u
 -- showVal (VEquivEq n a b f _ _)   = "equivEq" <+> show n <+> showVals [a,b,f]
 -- showVal (VEquivSquare x y a s t) =
 --   "equivSquare" <+> show x <+> show y <+> showVals [a,s,t]
--- showVal VI                       = "I"
--- showVal VI0                      = "I0"
--- showVal VI1                      = "I1"
--- showVal (VLine n)                = "line" <+> show n
--- showVal (VIntRec f s e l u)      = "intrec" <+> showVals [f,s,e,l,u]
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

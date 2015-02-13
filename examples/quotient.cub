@@ -24,7 +24,7 @@ canSurj A R h h' c = class (R c) un cp ex pr
         cp : (a b : A) -> R c a -> R a b -> R c b
         cp a b p q = h.2 c b a p (eqToSym A R h a b q)
         ex : exists A (R c)
-        ex = inc (Sigma A (R c)) (c,h.1 c)
+        ex = inc (c,h.1 c)
         pr : propFam A (R c)
         pr a = h' c a
 
@@ -58,15 +58,15 @@ univQuot A B R f uip fresp eqR pR = g -- pair g rem
           imfP : B -> U
           imfP = image A B f P
           rem1 : propFam B imfP
-          rem1 b = squash (Sigma A (\a -> and (P a) (Id B (f a) b)))
+          rem1 b = squash
+
           S : B -> A -> U
           S b a = and (P a) (Id B (f a) b)
 
           rem3 : Sigma A P -> exists B imfP
-          rem3 z = inc (Sigma B imfP)
-                       (f z.1,inc (Sigma A (S (f z.1))) (z.1,(z.2,refl B (f z.1))))
+          rem3 z = inc (f z.1,inc (z.1,(z.2,refl B (f z.1))))
           rem4 : exists B imfP
-          rem4 = inhrec (Sigma A P) (exists B imfP) (squash (Sigma B imfP)) rem3 ex
+          rem4 = inhrec (Sigma A P) (exists B imfP) squash rem3 ex
 
           rem6 : (b b' : B) (a a' : A) (_ : and (P a) (Id B (f a) b))
              (_ : and (P a') (Id B (f a') b')) -> Id B b b'

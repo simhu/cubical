@@ -1,0 +1,56 @@
+module hopf where
+
+import mult2
+import join
+import trunc
+
+Hopf : S2 -> U
+Hopf = hsplit (\ _ -> U) with
+ north -> S1
+ south -> S1
+ merid x -> eqS1 x -- isEquivEq S1 S1 (mult x) (multIsEquiv x)
+
+t : (x : S2) -> Hopf x -> join S1 S1
+t = hsplit (\x -> (Hopf x -> join S1 S1)) with
+      north   -> inl
+      south   -> inr
+      merid x -> funExt1 S2 (join S1 S1) Hopf north south (merid x)
+                   inl inr (\y -> push y (mult x y))
+
+totalHopfToJoin : ((x : S2) * Hopf x) -> join S1 S1
+totalHopfToJoin xy = t xy.1 xy.2
+
+
+HopfOne : (itOmega one ptS2).1 -> U
+HopfOne = itFibOmega one ptS2 Hopf base
+
+HopfTwo : (itOmega two ptS2).1 -> U
+HopfTwo = itFibOmega two ptS2 Hopf base
+
+HopfThree : (itOmega three ptS2).1 -> U
+HopfThree = itFibOmega three ptS2 Hopf base
+
+fibContrHopfThree : (p : (itOmega three ptS2).1) -> HopfThree p
+fibContrHopfThree p =
+  truncFibOmega (itOmega two ptS2) HopfTwo (refl (Id S1 base base) (refl S1 base)) zero
+    (truncFibOmega (Omega ptS2) HopfOne (refl S1 base) one
+          (truncFibOmega ptS2 Hopf base two isGroupoidS1 (refl S2 north))
+        (refl (Omega ptS2).1 (pt (Omega ptS2)))) p
+
+
+-- The map h from 9.3
+hopfLoop : (itOmega three ptS2).1 -> (itOmega three (ptJoin ptS1 S1)).1
+hopfLoop p =
+  itMapOmegaRefl three (Sigma S2 Hopf, (north,base)) (join S1 S1) totalHopfToJoin
+    (itTotalFibOmega three ptS2 Hopf base (p, fibContrHopfThree p))
+
+
+-- e'_2 from 12
+pi2S2' : (itOmega two ptS2).1 -> loopS1
+pi2S2' p = subst (Omega ptS2).1 HopfOne point point p (refl S1 base)
+  where point : (Omega ptS2).1
+        point = pt (Omega ptS2)
+
+-- set-truncation of Omega^2 S2 into Omega S1
+pi2S2 : trunc one (itOmega two ptS2).1 -> loopS1
+pi2S2 = truncRec one (itOmega two ptS2).1 loopS1 loopS1IsSet pi2S2'

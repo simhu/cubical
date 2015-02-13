@@ -1,0 +1,99 @@
+module singlecoveringcst where
+
+import prelude
+import circle
+import square
+import mult2
+
+singleCov : S1 -> U
+singleCov = hsplit (\_ -> U) with
+  base -> Unit
+  loop -> refl U Unit
+
+MS : U
+MS = Sigma S1 singleCov
+
+baseS : MS
+baseS = (base, tt)
+
+loopS : Id MS baseS baseS
+loopS = pairPathSubst S1 singleCov base base loop tt
+
+toS : S1 -> MS
+toS = hsplit (\_ -> MS) with
+  base -> baseS
+  loop -> loopS
+
+fromS : MS -> S1
+fromS xy = xy.1
+
+fromSBeta : Id (Id S1 base base) (mapOnPath MS S1 fromS baseS baseS loopS) loop
+fromSBeta = refl (Id S1 base base) loop
+
+fromToS : (x : S1) -> Id S1 (fromS (toS x)) x
+fromToS = hsplit (\x -> Id S1 (fromS (toS x)) x) with
+  base -> refl S1 base
+  loop -> substPathPiSquareTranspose S1 S1 (\x -> fromS (toS x)) (\x -> x) base base loop (refl S1 base) (refl S1 base) (refl (Id S1 base base) loop)
+
+toFromScurBase : (y : Unit) -> Id MS (toS base) (base, y)
+toFromScurBase = split tt -> refl MS baseS
+
+hdegenSquareInv : (A : U) (a b : A) (p p' : Id A a b) -> Square A a a b b p p' (refl A a) (refl A b) -> Id (Id A a b) p p'
+hdegenSquareInv A a b p p' s = transpose A a b p a b p' (refl A a) (refl A b) s
+
+lemma : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a') (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+  -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+  -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q'
+lemma A B f g a = J A a (\a' p -> (q : Id B (f a) (g a)) (q' : Id B (f a') (g a'))
+                              -> Square B (f a) (f a') (g a) (g a') q q' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p)
+                              -> Id (Id B (f a') (g a')) (subst A (\x -> Id B (f x) (g x)) a a' p q) q')
+                   (hdegenSquareInv B (f a) (g a))
+
+toFromScurLoop : (y : Unit) -> Id (Id MS baseS (base, y))
+                            (subst MS (\xy -> Id MS (toS xy.1) xy) (base, y) (base, y)
+                                   (pairPathSubst S1 singleCov base base loop y) (toFromScurBase y))
+                            (toFromScurBase y)
+toFromScurLoop = split tt -> rem where
+
+  rem : Id (Id MS baseS baseS)
+           (subst MS (\xy -> Id MS (toS xy.1) xy) baseS baseS loopS (refl MS baseS))
+           (refl MS baseS)
+  rem = lemma MS MS (\xy -> toS xy.1) (\xy -> xy) baseS baseS loopS (refl MS baseS) (refl MS baseS) (refl (Id MS baseS baseS) loopS)
+
+toFromScur : (x : S1) (y : singleCov x) -> Id MS (toS x) (x, y)
+toFromScur = hsplit (\x -> (y : singleCov x) -> Id MS (toS x) (x, y)) with
+  base -> toFromScurBase
+  loop -> funExtFull S1 singleCov (\ x y -> Id MS (toS x) (x, y)) base base loop toFromScurBase toFromScurBase toFromScurLoop
+
+toFromS : (x : MS) -> Id MS (toS (fromS x)) x
+toFromS xy = toFromScur xy.1 xy.2
+
+theoremS : Id U S1 MS
+theoremS = isoId S1 MS toS fromS toFromS fromToS
+
+
+
+
+windingMS : Id MS baseS baseS -> Z
+windingMS l = winding (mapOnPath MS S1 (transpInv S1 MS theoremS) baseS baseS l)
+
+multMS : MS -> MS -> MS
+multMS = subst U (\X -> X -> X -> X) S1 MS theoremS mult
+
+test4MS : Z
+test4MS = windingMS (mapOnPath MS MS (\x -> multMS x baseS) baseS baseS loopS)
+
+
+invTmS' : Id U MS S1
+invTmS' = isoId MS S1 fromS toS fromToS toFromS
+
+invTmS : Id U MS S1
+invTmS = inv U S1 MS theoremS
+
+primitive rem1IdP : (A B : U) (p : Id U A B) (u:A) (q : Id A u u)
+        -> SquareOverLine A B p u u q (transport A B p u) (transport A B p u) (mapOnPath A B (transport A B p) u u q)
+                          (eqTransport A B p u) (eqTransport A B p u)
+
+testS : SquareOverLine MS S1 invTmS baseS baseS loopS base base loop
+                          (eqTransport MS S1 invTmS baseS) (eqTransport MS S1 invTmS baseS)
+testS = rem1IdP MS S1 invTmS baseS loopS

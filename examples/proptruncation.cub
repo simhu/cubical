@@ -1,0 +1,34 @@
+module proptruncation where
+
+import prelude
+
+inh : U -> U
+hdata inh A = inc (a : A) | squash (a : inh A) (b : inh A) @ a ~ b
+
+inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+inhrec A B p f = hsplit (\_ -> B) with
+   inc a -> f a
+   squash u v -> p (inhrec A B p f u) (inhrec A B p f v)
+
+-- Definitional equalities for inhrec.
+defEqInhInc : (A : U) (B : U) (p : prop B) (f : A -> B) (a : A) ->
+           Id B (inhrec A B p f (inc a)) (f a)
+defEqInhInc A B p f a = refl B (f a)
+
+defEqInhSquash : (A : U) (B : U) (p : prop B) (f : A -> B) (u v : inh A) ->
+                 Id (Id B (inhrec A B p f u) (inhrec A B p f v))
+                    (p (inhrec A B p f u) (inhrec A B p f v))
+	            (mapOnPath (inh A) B (inhrec A B p f) u v (squash u v))
+defEqInhSquash A B p f u v = refl (Id B (inhrec A B p f u) (inhrec A B p f v))
+  (p (inhrec A B p f u) (inhrec A B p f v))
+
+
+-- Inverse to inc if A is a proposition
+fromInh : (A : U) (p : prop A) -> inh A -> A
+fromInh A p = inhrec A A p (\x -> x)
+
+incK : (A : U) (p : prop A) (a : inh A) -> Id (inh A) (inc (fromInh A p a)) a
+incK A p a = squash (inc (fromInh A p a)) a
+
+fromInhK : (A : U) (p : prop A) (a : A) -> Id A (fromInh A p (inc a)) a
+fromInhK A p a = refl A a

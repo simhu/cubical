@@ -1,0 +1,231 @@
+module pi4s3 where
+
+import hopf
+import truncHopf
+import loopTrunc
+import exchange
+
+-- Let’s define the twelve maps first
+
+f0 : Z -> loopS1
+f0 = loopIt
+
+f1 : loopS1 -> (itOmega two ptS2).1
+f1 = (mapOmega ptS1 (Omega ptS2) (sigma ptS1)).1
+
+f2 : (itOmega two ptS2).1 -> (itOmega three ptS3).1
+f2 = (itMapOmega two ptS2 (Omega ptS3) (sigma ptS2)).1
+
+f3 : (itOmega three ptS3).1 -> (itOmega three (ptJoin ptS1 S1)).1
+f3 = itMapOmegaRefl three ptS3 (join S1 S1) s3ToS1JoinS1
+
+f4 : (itOmega three (ptJoin ptS1 S1)).1 -> (itOmega three ptS2).1
+f4 = itMapOmegaRefl three (ptJoin ptS1 S1) S2 ptAlpha.1
+
+f5 : (itOmega three ptS2).1 -> (itOmega three (ptJoin ptS1 S1)).1
+f5 = hopfLoop
+
+f6 : (itOmega three (ptJoin ptS1 S1)).1 -> (itOmega three ptS3).1
+f6 = itMapOmegaRefl three (ptJoin ptS1 S1) S3 s3ToS1JoinS1Inv
+
+f7 : (itOmega three ptS3).1 -> (itOmega two (ptTrunc three ptS2)).1
+f7 = pi3S3
+
+f8 : (itOmega two (ptTrunc three ptS2)).1 -> (Omega (ptTrunc two (Omega ptS2))).1
+f8 = mapOmegaRefl (Omega (trS2,inc north)) (trunc two (Omega ptS2).1) (kappaTwo ptS2)
+
+f9 : (Omega (ptTrunc two (Omega ptS2))).1 -> trunc one (itOmega two ptS2).1
+f9 = kappaOne (Omega ptS2)
+
+fA : trunc one (itOmega two ptS2).1 -> loopS1
+fA = pi2S2
+
+fB : loopS1 -> Z
+fB = encode base
+
+composition : Z -> Z
+composition n = fB (fA (f9 (f8 (f7 (f6 (f5 (f4 (f3 (f2 (f1 (f0 n)))))))))))
+
+oneZ : Z
+oneZ = sucZ zeroZ
+
+brunerie : Z
+brunerie = composition oneZ
+
+
+-- WORKS
+test0To1 : (itOmega two ptS2).1
+test0To1 = f1 (f0 oneZ)
+
+-- WORKS
+test0To2 : (itOmega three ptS3).1
+test0To2 = f2 test0To1
+
+-- WORKS
+test0To3 : (itOmega three (ptJoin ptS1 S1)).1
+test0To3 = f3 test0To2
+
+-- WORKS
+test0To4 : (itOmega three ptS2).1
+test0To4 = f4 test0To3
+
+-- NOT SURE (takes a long time)
+test0To5 : (itOmega three (ptJoin ptS1 S1)).1
+test0To5 = f5 test0To4
+
+-- NOT SURE (takes a long time)
+test0To6 : (itOmega three ptS3).1
+test0To6 = f6 test0To5
+
+-- NOT SURE (takes a long time)
+test0To7 : (itOmega two (ptTrunc three ptS2)).1
+test0To7 = f7 test0To6
+
+
+
+-- WORKS
+testShortcut2To9 : Z
+testShortcut2To9 = fB (fA (shortcut2To9 (f1 (f0 oneZ))))
+  where
+    shortcut2To9 : (itOmega two ptS2).1 -> trunc one (itOmega two ptS2).1
+    shortcut2To9 = inc
+
+-- WORKS
+testShortcut2To8 : Z
+testShortcut2To8 = fB (fA (f9 (shortcut2To8 (f1 (f0 oneZ)))))
+  where
+    shortcut2To8 : (itOmega two ptS2).1 -> (Omega (ptTrunc two (Omega ptS2))).1
+    shortcut2To8 = mapOmegaRefl (Omega ptS2) (trunc two (Omega ptS2).1) inc
+
+-- WORKS (but takes a long time)
+testShortcut2To7 : Z
+testShortcut2To7 = fB (fA (f9 (f8 (shortcut2To7 (f1 (f0 oneZ))))))
+  where
+    shortcut2To7 : (itOmega two ptS2).1 -> (itOmega two (ptTrunc three ptS2)).1
+    shortcut2To7 = itMapOmegaRefl two ptS2 (trunc three S2) inc
+
+-- WORKS
+testShortcut3To6 : Z
+testShortcut3To6 = fB (fA (f9 (f8 (f7 (f2 (f1 (f0 oneZ)))))))
+
+
+testShortcut4To5 : Z
+testShortcut4To5 = fB (fA (f9 (f8 (f7 (f6 (f3 (f2 (f1 (f0 oneZ)))))))))
+
+---
+
+dummyHopf : S2 -> U
+dummyHopf = hsplit (\_ -> U) with
+  north -> S1
+  south -> S1
+  merid x -> refl U S1
+
+
+totalDummyHopfToJoin : (Sigma S2 dummyHopf) -> join S1 S1
+totalDummyHopfToJoin xy = t xy.1 xy.2 where
+
+  t : (x : S2) -> dummyHopf x -> join S1 S1
+  t = hsplit (\x -> (dummyHopf x -> join S1 S1)) with
+      north   -> inl
+      south   -> inr
+      merid _ -> undefined
+
+fast : (itOmega three (Sigma S2 dummyHopf, (north, base))).1
+fast = itTotalFibOmega three ptS2 dummyHopf base (test0To4, undefined)
+
+slow : (itOmega three (ptJoin ptS1 S1)).1
+slow = itMapOmegaRefl three (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast
+
+-- fast2 : (itOmega two (Sigma S2 dummyHopf, (north, base))).1
+-- fast2 = itTotalFibOmega two ptS2 dummyHopf base (, undefined)
+
+-- slow2 : (itOmega two (ptJoin ptS1 S1)).1
+-- slow2 = itMapOmegaRefl two (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast2
+
+fast1 : (itOmega one (Sigma S2 dummyHopf, (north, base))).1
+fast1 = itTotalFibOmega one ptS2 dummyHopf base (comp S2 north south north (merid base) (inv S2 north south (merid base)), undefined)
+
+slow1 : (itOmega one (ptJoin ptS1 S1)).1
+slow1 = itMapOmegaRefl one (Sigma S2 dummyHopf, (north,base)) (join S1 S1) totalDummyHopfToJoin fast1
+
+---
+
+testFib : S1 -> U
+testFib = hsplit (\_ -> U) with
+  base -> Unit
+  loop -> refl U Unit --undefined
+
+totalMap : Sigma S1 testFib -> Unit
+totalMap xy = t xy.1 xy.2 where
+
+  t : (x : S1) -> testFib x -> Unit
+  t = hsplit (\x -> (testFib x -> Unit)) with
+        base -> (\t -> tt)
+        loop -> undefined
+
+fastS1 : (Omega (Sigma S1 testFib, (base , tt))).1
+fastS1 = pairPath S1 testFib base base tt tt (compS1 loop (compS1 loop loop)) undefined
+
+slowS1 : (Omega (Unit, tt)).1
+slowS1 = mapOmegaRefl (Sigma S1 testFib, (base , tt)) Unit totalMap fastS1
+
+---
+
+-- The nontrivial element of pi_3(S^2) generated using the exchange law
+
+OmS2 : U
+OmS2 = Id S2 north north
+
+reflS2 : OmS2
+reflS2 = refl S2 north
+
+OmOmS2 : U
+OmOmS2 = Id OmS2 reflS2 reflS2
+
+reflReflS2 : OmOmS2
+reflReflS2 = refl OmS2 reflS2
+
+genS2 : OmOmS2
+genS2 = test0To1
+
+invGenS2 : OmOmS2
+invGenS2 = inv OmS2 reflS2 reflS2 genS2
+
+a : OmOmS2
+a = reflReflS2
+
+b : OmOmS2
+b = comp OmS2 reflS2 reflS2 reflS2 genS2 invGenS2
+
+c : OmOmS2
+c = comp OmS2 reflS2 reflS2 reflS2 genS2 (hcomp S2 north north north reflS2 reflS2 reflReflS2 reflS2 reflS2 invGenS2)
+
+d : OmOmS2
+d = hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2 (comp OmS2 reflS2 reflS2 reflS2 reflReflS2 invGenS2)
+
+e : OmOmS2
+e = hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2 invGenS2
+
+f : OmOmS2
+f = reflReflS2
+
+p : Id OmOmS2 a b
+p = compInvRight OmS2 reflS2 reflS2 genS2
+
+q : Id OmOmS2 b c
+q = mapOnPath OmOmS2 OmOmS2 (comp OmS2 reflS2 reflS2 reflS2 genS2) invGenS2 (hcomp S2 north north north reflS2 reflS2 reflReflS2 reflS2 reflS2 invGenS2)
+              (hcompIdl' S2 north north reflS2 reflS2 invGenS2)
+
+r : Id OmOmS2 c d
+r = exchange S2 north north north reflS2 reflS2 reflS2 reflS2 reflS2 reflS2
+             genS2 reflReflS2 reflReflS2 invGenS2
+
+s : Id OmOmS2 d e
+s = mapOnPath OmOmS2 OmOmS2 (hcomp S2 north north north reflS2 reflS2 genS2 reflS2 reflS2) (comp OmS2 reflS2 reflS2 reflS2 reflReflS2 invGenS2) invGenS2
+              (compIdl OmS2 reflS2 reflS2 invGenS2)
+
+t : Id OmOmS2 e f
+t = lemmaEx S2 north reflS2 genS2
+
+genPi3S2 : (itOmega three ptS2).1
+genPi3S2 = comp OmOmS2 a b f p (comp OmOmS2 b c f q (comp OmOmS2 c d f r (comp OmOmS2 d e f s t)))

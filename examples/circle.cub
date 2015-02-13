@@ -1,0 +1,187 @@
+module circle where
+
+import integer
+import hedberg
+import discZ
+import heterogeneous
+
+-- (Loosely following: "Calculating the fundamental group of the
+-- circle in Homotopy Type Theory", Dan Licata, Mike Shulman, LICS
+-- 2013)
+
+-- The circle.
+S1 : U
+hdata S1 = base | loop @ base ~ base
+
+loopS1 : U
+loopS1 = Id S1 base base
+
+compS1 : loopS1 -> loopS1 -> loopS1
+compS1 = comp S1 base base base
+
+compLoopS1Assoc : (p q r : loopS1) ->
+  Id loopS1 (compS1 (compS1 p q) r) (compS1 p (compS1 q r))
+compLoopS1Assoc = compAssoc S1 base base base base
+
+invS1 : loopS1 -> loopS1
+invS1 = inv S1 base base
+
+triv : loopS1
+triv = refl S1 base
+
+S1rec : (F : S1 -> U) (b : F base) (l : IdS S1 F base base loop b b)
+        (x : S1) -> F x
+S1rec F b l = hsplit F with
+  base -> b
+  loop -> l
+
+
+-- The universal cover of the circle.
+cover : S1 -> U
+cover = hsplit (\_ -> U) with
+  base -> Z
+  loop -> sucIdZ
+
+-- Encoding
+encode : (x : S1) -> Id S1 base x -> cover x
+encode x p = subst S1 cover base x p zeroZ
+
+-- Decoding
+loopIt : Z -> loopS1
+loopIt = split
+  zeroZ -> triv
+  posZ n -> pos n
+    where pos : N -> loopS1
+          pos = split
+            zero  -> loop
+            suc n -> compS1 (loopIt (posZ n)) loop
+  negZ n -> neg n
+    where neg : N -> loopS1
+          neg = split
+            zero  -> invS1 loop
+    	    suc n -> compS1 (loopIt (negZ n)) (invS1 loop)
+
+loopItPred : Id (Z -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop)
+loopItPred =
+  funExt Z (\_ -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop)
+  (split -- let's prove pointwise equality
+    zeroZ -> compInvLeft S1 base base loop
+    posZ n -> pos n
+      where pos : (n : N) -> Id loopS1 (loopIt (posZ n))
+                                       (compS1 (loopIt (predZ (posZ n))) loop)
+            pos = split
+              zero  ->
+                compInvIdl S1 base base loop
+              suc n ->
+                refl loopS1 (compS1 (loopIt (posZ n)) loop)
+    negZ n -> neg n
+      where neg : (n : N) -> Id loopS1 (loopIt (negZ n))
+                                       (compS1 (loopIt (predZ (negZ n))) loop)
+            neg n = compCompInv S1 base base base (loopIt (negZ n)) (invS1 loop)
+  )
+
+loopItPred' : Id (Z -> loopS1) (\x -> compS1 (loopIt (predZ x)) loop) loopIt
+loopItPred' = inv (Z -> loopS1) loopIt (\x -> compS1 (loopIt (predZ x)) loop) loopItPred
+
+decode : (x : S1) -> cover x -> Id S1 base x
+decode = hsplit (\x -> cover x -> Id S1 base x) with
+  base -> loopIt
+  loop -> idSIntro S1 (\x -> cover x -> Id S1 base x) base base loop
+            loopIt loopIt loopItPred'
+
+-- Encoding after decoding.
+encodeLoopIt : (k : Z) -> Id Z (encode base (loopIt k)) k
+encodeLoopIt = split
+  zeroZ -> refl Z zeroZ
+  posZ n -> pos n
+    where pos : (n : N) -> Id Z (encode base (loopIt (posZ n))) (posZ n)
+          pos = split
+            zero  -> refl Z (posZ zero)
+            suc n -> -- ts: encode base (compS1 (loopIt (posZ n)) loop) = posZ (suc n)
+                     -- lhs: subst S1 cover base base (compS1 (loopIt (posZ n)) loop) zeroZ
+                     -- with substComp: subst S1 cover base base loop 
+                     --                   (subst S1 cover base base (loopIt (posZ n)) zeroZ) 
+                     -- witg defeq:     sucZ (subst S1 cover base base (loopIt (posZ n)) zeroZ)
+                     -- by IH:          sucZ (posZ n)
+              comp Z left (sucZ middlePred) (sucZ (posZ n))
+                leftEqMiddle (mapOnPath Z Z sucZ middlePred (posZ n) (pos n))
+              where left : Z
+                    left = encode base (compS1 (loopIt (posZ n)) loop)
+
+                    middlePred : Z
+                    middlePred = encode base (loopIt (posZ n))
+
+                    leftEqMiddle : Id Z left (sucZ middlePred)
+                    leftEqMiddle = substComp S1 cover base base base
+                      (loopIt (posZ n)) loop zeroZ
+  negZ n -> neg n
+    where neg : (n : N) -> Id Z (encode base (loopIt (negZ n))) (negZ n)
+          neg = split
+            zero  -> refl Z (negZ zero)
+            suc n -> -- ts: encode base (compS1 (loopIt (negZ n)) loop) = negZ (suc n)
+                     -- lhs: subst S1 cover base base (compS1 (loopIt (negZ n)) loop) zeroZ
+                     -- with substComp: subst S1 cover base base loop 
+                     --                   (subst S1 cover base base (loopIt (negZ n)) zeroZ) 
+                     -- witg defeq:     sucZ (subst S1 cover base base (loopIt (negZ n)) zeroZ)
+                     -- by IH:          sucZ (negZ n)
+              comp Z left (predZ middleSuc) (predZ (negZ n))
+                leftEqMiddle (mapOnPath Z Z predZ middleSuc (negZ n) (neg n))
+              where left : Z
+                    left = encode base (compS1 (loopIt (negZ n)) (invS1 loop))
+
+                    middleSuc : Z
+                    middleSuc = encode base (loopIt (negZ n))
+
+                    leftEqMiddle : Id Z left (predZ middleSuc)
+                    leftEqMiddle = substComp S1 cover base base base
+                      (loopIt (negZ n)) (invS1 loop) zeroZ
+  -- negZ n -> neg n -- Analogously.
+  --   where
+  --     neg : (n : N) -> Id Z (encode base (loopIt (negZ n))) (negZ n)
+  --     neg = split
+  --       zero  -> refl Z (inl zero)
+  --       suc n -> 
+  --         comp Z left (predZ middleSuc) (predZ (inl n))
+  --           leftEqMiddle (mapOnPath Z Z predZ middleSuc (inl n) (neg n))
+  --             where left : Z
+  --                   left = encode base (compS1 (loopIt (inl n)) (invS1 loop))
+
+  --                   middleSuc : Z
+  --                   middleSuc = encode base (loopIt (inl n))
+
+  --                   leftEqMiddle : Id Z left (predZ middleSuc)
+  --                   leftEqMiddle = substComp S1 cover base base base
+  --                     (loopIt (inl n)) (invS1 loop) zeroZ
+
+ZIsSet : set Z
+ZIsSet = hedberg Z ZDisc
+
+encodeDecode : (x : S1) (c : cover x) -> Id (cover x) (encode x (decode x c)) c
+encodeDecode =
+  hsplit (\x ->  (c : cover x) -> Id (cover x) (encode x (decode x c)) c) with
+    base -> encodeLoopIt
+    loop -> idSIntro S1 F base base loop encodeLoopIt encodeLoopIt eq
+      where
+        F : S1 -> U
+        F x = (c : cover x) -> Id (cover x) (encode x (decode x c)) c
+        eq : Id ((k:Z) -> Id Z (encode base (loopIt k)) k)
+                (subst S1 F base base loop encodeLoopIt) encodeLoopIt
+        eq = funExt Z (\k -> Id Z (encode base (loopIt k)) k)
+          (subst S1 F base base loop encodeLoopIt) encodeLoopIt
+          (\k -> ZIsSet (encode base (loopIt k)) k
+           (subst S1 F base base loop encodeLoopIt k) (encodeLoopIt k))
+
+
+-- Decoding after encoding.
+decodeEncode : (x : S1) (p : Id S1 base x) ->
+               Id (Id S1 base x) (decode x (encode x p)) p
+decodeEncode = J S1 base (\x p -> Id (Id S1 base x) (decode x (encode x p)) p )
+  (refl loopS1 triv)
+
+-- The loop space of S1 is equal to Z (and thus the fundamental group as well).
+loopS1EqZ : Id U loopS1 Z
+loopS1EqZ = isoId loopS1 Z (encode base) (decode base)
+  (encodeDecode base) (decodeEncode base)
+
+loopS1IsSet : set loopS1
+loopS1IsSet = substInv U set loopS1 Z loopS1EqZ ZIsSet

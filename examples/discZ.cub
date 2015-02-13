@@ -1,0 +1,97 @@
+module discZ where
+
+--import lemId
+import function
+import integer
+
+zeroZNotposZ : (n : N) -> neg (Id Z zeroZ (posZ n))
+zeroZNotposZ n h = subst Z T zeroZ (posZ n) h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> Unit
+    posZ _ -> N0
+    negZ _ -> N0
+
+posZNotzeroZ : (n : N) -> neg (Id Z (posZ n) zeroZ)
+posZNotzeroZ n h = subst Z T (posZ n) zeroZ h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ _ -> Unit
+    negZ _ -> Unit
+
+zeroZNotnegZ : (n : N) -> neg (Id Z zeroZ (negZ n))
+zeroZNotnegZ n h = subst Z T zeroZ (negZ n) h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> Unit
+    posZ _ -> N0
+    negZ _ -> N0
+
+negZNotzeroZ : (n : N) -> neg (Id Z (negZ n) zeroZ)
+negZNotzeroZ n h = subst Z T (negZ n) zeroZ h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ _ -> Unit
+    negZ _ -> Unit
+
+posZNotnegZ : (n n' : N) -> neg (Id Z (posZ n) (negZ n'))
+posZNotnegZ n n' h = subst Z T (posZ n) (negZ n') h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ _ -> Unit
+    negZ _ -> N0
+
+negZNotposZ : (n n' : N) -> neg (Id Z (negZ n) (posZ n'))
+negZNotposZ n n' h = subst Z T (negZ n) (posZ n') h tt where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ _ -> N0
+    negZ _ -> Unit
+
+injposZ : injective N Z posZ
+injposZ n n' h = subst Z T (posZ n) (posZ n') h (refl N n)
+ where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ m -> Id N n m
+    negZ m -> N0
+
+injnegZ : injective N Z negZ
+injnegZ n n' h = subst Z T (negZ n) (negZ n') h (refl N n)
+ where
+  T : Z -> U
+  T = split
+    zeroZ -> N0
+    posZ m -> N0
+    negZ m -> Id N n m
+
+ZDisc : discrete Z
+ZDisc = split
+  zeroZ ->
+    split
+      zeroZ -> inl (refl Z zeroZ)
+      posZ n -> inr (zeroZNotposZ n)
+      negZ n -> inr (zeroZNotnegZ n)
+  posZ n ->
+    split
+      zeroZ -> inr (posZNotzeroZ n)
+      posZ n' -> rem (natDec n n') where
+        rem : dec (Id N n n') -> dec (Id Z (posZ n) (posZ n'))
+        rem = split
+          inl p -> inl (mapOnPath N Z posZ n n' p)
+          inr h -> inr (\p -> h (injposZ n n' p))
+      negZ n' -> inr (posZNotnegZ n n')
+  negZ n ->
+    split
+      zeroZ -> inr (negZNotzeroZ n)
+      posZ n' -> inr (negZNotposZ n n')
+      negZ n' -> rem (natDec n n') where
+        rem : dec (Id N n n') -> dec (Id Z (negZ n) (negZ n'))
+        rem = split
+          inl p -> inl (mapOnPath N Z negZ n n' p)
+          inr h -> inr (\p -> h (injnegZ n n' p))

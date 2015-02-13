@@ -1,6 +1,7 @@
 module involutive where
 
 import gradLemma
+--import BoolEqBool
 
 -- any involutive function defines an equality
 
@@ -13,20 +14,14 @@ idemEq A f if = isEquivEq A A f (idemIsEquiv A f if)
 remIdFunEq : (A:U) -> (f:A -> A) -> (x:A) -> Id A x (f x) -> Id A x (f (f x))
 remIdFunEq A f x p = subst A (\ y -> Id A x (f y)) x (f x) p p
 
-invInvEq : (A:U) -> (a b :A) -> (p : Id A a b) -> Id (Id A a b) p (inv A b a (inv A a b p))
-invInvEq A a = J A a (\ b p -> Id (Id A a b) p (inv A b a (inv A a b p))) rem
- where rem : Id (Id A a a) (refl A a) (inv A a a (inv A a a (refl A a)))
-       rem = remIdFunEq (Id A a a) (inv A a a) (refl A a) (invRefl A a)
+-- invInvEq : (A:U) -> (a b :A) -> (p : Id A a b) -> Id (Id A a b) p (inv A b a (inv A a b p))
+-- invInvEq A a = J A a (\ b p -> Id (Id A a b) p (inv A b a (inv A a b p))) rem
+--  where rem : Id (Id A a a) (refl A a) (inv A a a (inv A a a (refl A a)))
+--        rem = remIdFunEq (Id A a a) (inv A a a) (refl A a) (invRefl A a)
 
 idemInv : (A:U) -> (a:A) -> involutive (Id A a a) (inv A a a)
-idemInv A a = rem
- where
-      T : U
-      T = Id A a a
-      g : T -> T
-      g = inv A a a
-      rem : (p: T) -> Id T (g (g p)) p
-      rem p = inv T p (g (g p)) (invInvEq A a a p)
+idemInv A a = refl (Id A a a)
+
 
 -- type of all loops
 
@@ -58,13 +53,13 @@ eqAutoM = eqInvALoop U
 
 -- a particular element of autoM
 
-boolAuto : autoM
-boolAuto = (Bool,eqBoolBool1)
+-- boolAuto : autoM
+-- boolAuto = (Bool,eqBoolBool1)
 
--- by transport we deduce another type and another equality
+-- -- by transport we deduce another type and another equality
 
-boolAuto' : autoM
-boolAuto' = subst U (\X -> X) autoM autoM eqAutoM boolAuto
+-- boolAuto' : autoM
+-- boolAuto' = subst U (\X -> X) autoM autoM eqAutoM boolAuto
 
-eqBool' : Id U boolAuto'.1 boolAuto'.1
-eqBool' = boolAuto'.2
+-- eqBool' : Id U boolAuto'.1 boolAuto'.1
+-- eqBool' = boolAuto'.2

@@ -1,0 +1,186 @@
+module mult where
+
+import turn
+import susp
+import univalence
+import heterogeneous
+import collection
+import join
+
+-- idR : (x : S1) -> Id S1 (mult x base) x
+-- idR x = refl S1 x
+
+-- substPathPi : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+--   (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+--   Id (Id B (f a) (g a'))
+--      (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
+--      (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
+--   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
+-- substPathPi A B f g a = J A a
+--   (\a' p ->  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+--   Id (Id B (f a) (g a'))
+--      (comp B (f a) (g a) (g a') qa (mapOnPath A B g a a' p))
+--      (comp B (f a) (f a') (g a') (mapOnPath A B f a a' p) qa') ->
+--   IdS A (\x -> Id B (f x) (g x)) a a' p qa qa')
+--   rem
+--   where rem : (qa qa': Id B (f a) (g a)) ->
+--               Id (Id B (f a) (g a))
+--                 qa (comp B (f a) (f a) (g a) (refl B (f a)) qa') ->
+--               Id (Id B (f a) (g a)) qa qa'
+--         rem qa qa' = subst (Id B (f a) (g a)) (Id (Id B (f a) (g a)) qa)
+--                        (comp B (f a) (f a) (g a) (refl B (f a)) qa') qa'
+--                        (compIdl B (f a) (g a) qa')
+
+idL : (x : S1) -> Id S1 (mult base x) x
+idL = hsplit (\ x -> Id S1 (mult base x) x) with
+       base -> refl S1 base
+       loop -> rem1
+         where
+           triv : Id S1 base base
+           triv = refl S1 base
+           rem2 : Id (Id S1 base base)
+                     (comp S1 base base base triv loop)
+                     (comp S1 base base base loop triv)
+           rem2 = compIdl S1 base base loop
+           rem1 : IdS S1 (\ x -> Id S1 (mult base x) x) base base loop triv triv
+           rem1 = substPathPi S1 S1 (\ x -> mult base x) (\ x -> x) base base loop triv triv rem2
+
+-- substPath2Pi : (A B C : U) (f g : A -> B -> C) (a0 a1 : A) (p : Id A a0 a1)
+--   (qa0 : (y : B) ->  Id C (f a0 y) (g a0 y)) (qa1 : (y:B) -> Id C (f a1 y) (g a1 y)) ->
+--   ((y:B) -> Id (Id C (f a0 y) (g a1 y))
+--                (comp C (f a0 y) (g a0 y) (g a1 y) (qa0 y) (mapOnPath A C (\ x -> g x y) a0 a1 p))
+--                (comp C (f a0 y) (f a1 y) (g a1 y) (mapOnPath A C (\ x -> f x y) a0 a1 p) (qa1 y))) ->
+--   IdS A (\x -> (y:B) -> Id C (f x y) (g x y)) a0 a1 p qa0 qa1 
+-- substPath2Pi A B C f g a0 = J A a0
+--   (\ a1 p ->  (qa0 : (y : B) ->  Id C (f a0 y) (g a0 y)) (qa1 : (y:B) -> Id C (f a1 y) (g a1 y)) ->
+--                ((y:B) -> Id (Id C (f a0 y) (g a1 y))
+--                 (comp C (f a0 y) (g a0 y) (g a1 y) (qa0 y) (mapOnPath A C (\ x -> g x y) a0 a1 p))
+--                 (comp C (f a0 y) (f a1 y) (g a1 y) (mapOnPath A C (\ x -> f x y) a0 a1 p) (qa1 y))) ->
+--                IdS A (\x -> (y:B) -> Id C (f x y) (g x y)) a0 a1 p qa0 qa1)
+--   rem
+--  where
+--    T : U 
+--    T = (y:B) -> Id C (f a0 y) (g a0 y)
+
+--    rem1 : (qa0 qa1 : T) -> 
+--           ((y:B) -> Id (Id C (f a0 y) (g a0 y))
+--                     (comp C (f a0 y) (g a0 y) (g a0 y) (qa0 y) (refl C (g a0 y)))
+--                     (comp C (f a0 y) (f a0 y) (g a0 y) (refl C (f a0 y)) (qa1 y))) ->
+--           (y : B) -> Id (Id C (f a0 y) (g a0 y)) (qa0 y) (qa1 y) 
+--    rem1 qa0 qa1 h y = subst (Id C (f a0 y) (g a0 y)) (Id (Id C (f a0 y) (g a0 y)) (qa0 y))
+--                             (comp C (f a0 y) (f a0 y) (g a0 y) (refl C (f a0 y)) (qa1 y)) (qa1 y)
+--                             (compIdl C (f a0 y) (g a0 y) (qa1 y)) (h y)
+
+--    rem : (qa0 qa1 : T) -> 
+--          ((y:B) -> Id (Id C (f a0 y) (g a0 y))
+--                     (comp C (f a0 y) (g a0 y) (g a0 y) (qa0 y) (refl C (g a0 y)))
+--                     (comp C (f a0 y) (f a0 y) (g a0 y) (refl C (f a0 y)) (qa1 y))) ->
+--           Id ((y:B) -> Id C (f a0 y) (g a0 y)) qa0 qa1 
+--    rem qa0 qa1 h = funExt B (\ y -> Id C (f a0 y) (g a0 y)) qa0 qa1 (rem1 qa0 qa1 h)
+
+-- a general Lemma about prop-valued family of type over S1
+
+lemPropFib : (P:S1 -> U) (pP:(x:S1) -> prop (P x)) -> P base -> (x:S1) -> P x
+lemPropFib P pP bP = hsplit P with
+ base -> bP
+ loop -> rem
+  where
+   rem : IdS S1 P base base loop bP bP
+   rem = idSIntro S1 P base base loop bP bP
+           (pP base (subst S1 P base base loop bP) bP)
+
+isEquivMultBase : isEquiv S1 S1 (mult base)
+isEquivMultBase = substInv (S1 -> S1) (isEquiv S1 S1) (mult base) (id S1) lem1 (idIsEquiv S1)
+    where lem1 : Id (S1 -> S1) (mult base) (id S1)
+          lem1 = funExt S1 (\ _ -> S1) (mult base) (id S1) idL
+
+multIsEquiv : (x:S1) -> isEquiv S1 S1 (mult x)
+multIsEquiv = lemPropFib (\ x -> isEquiv S1 S1 (mult x)) pP isEquivMultBase
+  where 
+    pP : (x :S1) -> prop (isEquiv S1 S1 (mult x))
+    pP x = propIsEquiv S1 S1 (mult x)
+
+-- S2 : U
+-- S2 = susp S1
+          
+-- a general Lemma about set-valued family of type over S1 x S1
+
+lemSetTorus : (E : S1 -> S1 -> U) (sE : set (E base base))
+              (f : (y:S1) -> E base y) (g : (x:S1) -> E x base)
+              (efg : Id (E base base) (f base) (g base)) (x y:S1) -> E x y
+lemSetTorus E sE f g efg = hsplit (\ x -> (y:S1) -> E x y) with
+ base -> f
+ loop -> lem2
+   where
+    F : S1 -> U
+    F x = (y:S1) -> E x y
+
+    lem1 : (y:S1) -> IdS S1 (\ x -> E x y) base base loop (f y) (f y)
+    lem1 =  lemPropFib P pP bP
+     where
+      P : S1 -> U
+      P y = IdS S1 (\ x -> E x y) base base loop (f y) (f y)
+
+      sbE : (y : S1) -> set (E base y)
+      sbE = lemPropFib (\ y -> set (E base y)) pP sE
+        where pP : (y : S1) -> prop (set (E base y))
+              pP y = setIsProp (E base y)
+
+      pP : (y:S1) -> prop (P y)
+      pP y = rem3
+        where
+          rem1 : Id U (P y) (Id (E base y) (subst S1 (\ x -> E x y) base base loop (f y)) (f y))
+          rem1 = eqSubstSig S1 (\ x -> E x y) base base loop (f y) (f y)
+
+          rem2 : prop (Id (E base y) (subst S1 (\ x -> E x y) base base loop (f y)) (f y))
+          rem2 = sbE y (subst S1 (\ x -> E x y) base base loop (f y)) (f y)
+
+          rem3 : prop (P y)
+          rem3 = substInv U prop (P y) (Id (E base y) (subst S1 (\ x -> E x y) base base loop (f y)) (f y)) rem1 rem2
+          
+      lem2 : IdS S1 (\ x -> E x base) base base loop (g base) (g base)
+      lem2 = mapOnPathD S1 (\ x -> E x base) g base base loop
+
+      bP : P base
+      bP = substInv (E base base) (\ u -> IdS S1 (\ x -> E x base) base base loop u u) (f base) (g base) efg lem2
+
+    lem2 : IdS S1 F base base loop f f
+    lem2 = funExtDep S1 S1 E base base loop f f lem1
+
+-- S1 is a groupoid
+
+isGroupoidS1 : groupoid S1
+isGroupoidS1 = lem
+ where
+  lem1 : set (Id S1 base base)
+  lem1 = substInv U set loopS1 Z  loopS1EqZ ZIsSet
+
+  lem2 : (y : S1) -> set (Id S1 base y)
+  lem2 = lemPropFib (\ y -> set (Id S1 base y)) (\ y -> setIsProp (Id S1 base y)) lem1
+
+  lem : (x y : S1) -> set (Id S1 x y)
+  lem = lemPropFib (\ x -> (y : S1) -> set (Id S1 x y)) pP lem2
+     where 
+       pP : (x:S1) -> prop ((y:S1) -> set (Id S1 x y))
+       pP x = propPi S1 (\ y -> set (Id S1 x y)) (\ y -> setIsProp (Id S1 x y))
+
+-- commutativity of mult, at last
+
+-- multCom : (x y : S1) -> Id S1 (mult x y) (mult y x)
+-- multCom = lemSetTorus E sE f g efg
+--  where
+--    E : S1 -> S1 -> U
+--    E x y = Id S1 (mult x y) (mult y x)
+
+--    sE : set (E base base)
+--    sE = isGroupoidS1 base base
+
+--    f : (y : S1) -> E base y
+--    f y = idL y
+
+--    g : (x : S1) -> E x base
+--    g x = inv S1 (mult base x) (mult x base) (idL x)
+
+--    efg : Id (E base base) (f base) (g base)
+--    efg = refl (E base base) (f base)
+

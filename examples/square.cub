@@ -1,0 +1,13 @@
+module square where
+
+import prelude
+
+reflSquare : (A : U) (a b : A) (p : Id A a b) -> Square A a b p a b p (refl A a) (refl A b)
+reflSquare A a b p = mapOnPathD A (\x -> Id A x x) (refl A) a b p
+
+substPathPiSquareTranspose : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  Square B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
+substPathPiSquareTranspose A B f g a a' p qa qa' alpha =
+  transpose B (f a) (g a) qa (f a') (g a') qa' (mapOnPath A B f a a' p) (mapOnPath A B g a a' p) alpha

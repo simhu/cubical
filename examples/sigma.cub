@@ -1,0 +1,145 @@
+module sigma where
+
+import piset
+
+Sigma : (A:U) -> (A->U) -> U
+Sigma A B = (x:A) * B x
+
+fun1 : (A:U)(B:A->U)(t u:Sigma A B) -> 
+       Id (Sigma A B) t u -> (p:Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2
+fun1 A B t = J (Sigma A B) t
+ (\ u q ->  (p:Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+ rem
+ where
+   rem : (p : Id A t.1 t.1) * Id (B t.1) (subst A B t.1 t.1 p t.2) t.2
+   rem = (refl A t.1,refl (B t.1) t.2)
+
+fun3 : (A:U)(B:A->U)(a0 a1:A)(p:Id A a0 a1) (b0:B a0) (b1 : B a1) -> 
+       Id (B a1) (subst A B a0 a1 p b0) b1 -> Id (Sigma A B) (a0,b0) (a1,b1)
+fun3 A B a0 = J A a0
+ (\ a1 p -> (b0 : B a0) (b1 : B a1) -> Id (B a1) (subst A B a0 a1 p b0) b1 -> Id (Sigma A B) (a0,b0) (a1,b1))
+ rem
+ where
+ rem : (b0 b1: B a0) ->  Id (B a0) b0 b1 -> Id (Sigma A B) (a0,b0) (a0,b1)
+ rem = mapOnPath (B a0) (Sigma A B) (\ y -> (a0,y)) 
+
+fun2 : (A:U)(B:A->U) (t u : Sigma A B) -> 
+       ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2) -> Id (Sigma A B) t u
+fun2 A B t u z = fun3 A B t.1 u.1 z.1 t.2 u.2 z.2
+
+test1 : (A:U)(B:A->U)(t u:Sigma A B) (w : Id (Sigma A B) t u) -> 
+      Id (Id (Sigma A B) t u) (fun2 A B t u (fun1 A B t u w)) w
+test1 A B t = J (Sigma A B) t
+ (\ u w -> Id (Id (Sigma A B) t u) (fun2 A B t u (fun1 A B t u w)) w)
+ rem
+ where 
+   rem : Id (Id (Sigma A B) t t) (fun2 A B t t (fun1 A B t t (refl (Sigma A B) t))) (refl (Sigma A B) t)
+   rem = refl (Id (Sigma A B) t t) (refl (Sigma A B) t)
+
+test3 : (A:U)(B:A->U) (a0 a1:A) (p:Id A a0 a1) (b0 :B a0) (b1:B a1) (q: Id (B a1) (subst A B a0 a1 p b0) b1) -> 
+         Id ((p : Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) 
+             (fun1 A B (a0,b0) (a1,b1) (fun2 A B (a0,b0) (a1,b1) (p,q))) (p,q)
+test3 A B a0 = J A a0
+ (\ a1 p ->  (b0 :B a0) (b1:B a1) (q: Id (B a1) (subst A B a0 a1 p b0) b1)  ->
+         Id ((p : Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) 
+             (fun1 A B (a0,b0) (a1,b1) (fun2 A B (a0,b0) (a1,b1) (p,q))) (p,q))
+ rem
+ where
+  rem : (b0 b1 : B a0) (q:Id (B a0) b0 b1) -> 
+         Id ((p : Id A a0 a0) * Id (B a0) (subst A B a0 a0 p b0) b1) 
+             (fun1 A B (a0,b0) (a0,b1) (fun2 A B (a0,b0) (a0,b1) (refl A a0,q))) (refl A a0,q)
+  rem b0 = J (B a0) b0
+    (\ b1 q ->  Id ((p : Id A a0 a0) * Id (B a0) (subst A B a0 a0 p b0) b1) 
+                 (fun1 A B (a0,b0) (a0,b1) (fun2 A B (a0,b0) (a0,b1) (refl A a0,q))) (refl A a0,q))
+    rem1
+     where
+       rem1 : Id ((p : Id A a0 a0) * Id (B a0) (subst A B a0 a0 p b0) b0)
+                 (fun1 A B (a0,b0) (a0,b0) (fun2 A B (a0,b0) (a0,b0) (refl A a0,refl (B a0) b0))) 
+                 (refl A a0,refl (B a0) b0)
+       rem1 = refl ((p : Id A a0 a0) * Id (B a0) (subst A B a0 a0 p b0) b0) (refl A a0,refl (B a0) b0)
+
+test2 : (A:U)(B:A->U) (t u : Sigma A B) (w:(p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2) -> 
+         Id ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2) 
+             (fun1 A B t u (fun2 A B t u w)) w
+test2 A B t u w = test3 A B t.1 u.1 w.1 t.2 u.2 w.2
+
+idSigma : (A:U)(B:A->U) (t u : Sigma A B) -> 
+  Id U (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+idSigma A B t u = 
+ isoId (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+       (fun1 A B t u) (fun2 A B t u) (test2 A B t u) (test1 A B t u)
+
+propSig:  (A:U) (B:A-> U) (pA:prop A) (pB : (x:A) -> prop (B x)) -> prop (Sigma A B)
+propSig A B pA pB t u =
+ transpInv (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+   (idSigma A B t u) (rem1,rem2)
+ where
+  rem1 : Id A t.1 u.1
+  rem1 = pA t.1 u.1
+  rem2 : Id (B u.1) (subst A B t.1 u.1 rem1 t.2) u.2
+  rem2 = pB u.1  (subst A B t.1 u.1 (pA t.1 u.1) t.2) u.2
+
+-- setSig : (A:U) (B:A-> U) (sA:set A) (sB : (x:A) -> set (B x))
+setSig:  (A:U) (B:A-> U) (sA:set A) (sB : (x:A) -> set (B x)) -> set (Sigma A B)
+setSig A B sA sB t u =
+ substInv U prop (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+   (idSigma A B t u) rem
+ where
+  rem : prop ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+  rem = propSig (Id A t.1 u.1) (\ p -> Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+               (sA t.1 u.1) (\ p -> sB u.1  (subst A B t.1 u.1 p t.2) u.2)
+
+groupoidSig:  (A:U) (B:A-> U) (gA:groupoid A) (gB : (x:A) -> groupoid (B x)) -> groupoid (Sigma A B)
+groupoidSig A B gA gB t u =
+ substInv U set (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+   (idSigma A B t u) rem
+ where
+  rem : set ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+  rem = setSig (Id A t.1 u.1) (\ p -> Id (B u.1) (subst A B t.1 u.1 p t.2) u.2)
+               (gA t.1 u.1) (\ p -> gB u.1  (subst A B t.1 u.1 p t.2) u.2)
+
+
+lem1 : (A:U)(B:A->U)(pB: (x:A) -> prop (B x))(a0 a1:A)(b0:B a0)(b1:B a1)
+       (t u : (p:Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) ->
+       Id (Id A a0 a1) t.1 u.1 -> Id ((p:Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) t u
+lem1 A B pB a0 a1 b0 b1 t u h =
+ fun3 (Id A a0 a1) (\ p ->  Id (B a1) (subst A B a0 a1 p b0) b1) t.1 u.1 h t.2 u.2 rem
+ where
+  pIB : prop (Id (B a1) (subst A B a0 a1 u.1 b0) b1)
+  pIB = propUIP (B a1) (pB a1) (subst A B a0 a1 u.1 b0) b1
+  rem : Id (Id (B a1) (subst A B a0 a1 u.1 b0) b1) 
+           (subst (Id A a0 a1) (\ p ->  Id (B a1) (subst A B a0 a1 p b0) b1) t.1 u.1 h t.2) u.2
+  rem = pIB (subst (Id A a0 a1) (\ p ->  Id (B a1) (subst A B a0 a1 p b0) b1) t.1 u.1 h t.2) u.2
+ 
+lem2 : (A:U)(B:A->U)(pB: (x:A) -> prop (B x))(a0 a1:A)(b0:B a0)(b1:B a1) ->
+   Id U ((p:Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) (Id A a0 a1)
+lem2 A B pB a0 a1 b0 b1 =
+ isoId  ((p:Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1) (Id A a0 a1) f g s t
+ where
+  T : U
+  T = (p:Id A a0 a1) * Id (B a1) (subst A B a0 a1 p b0) b1
+  
+  f : T -> Id A a0 a1
+  f z = z.1
+  g : Id A a0 a1 -> T
+  g p = (p,pB a1 (subst A B a0 a1 p b0) b1)
+  s : (p:Id A a0 a1) -> Id (Id A a0 a1) (f (g p)) p
+  s = refl (Id A a0 a1)
+  t : (z:T) -> Id T (g (f z)) z
+  t z = lem1 A B pB a0 a1 b0 b1 (g (f z)) z (refl (Id A a0 a1) z.1)
+     
+lemSigProp : (A:U)(B:A->U)(pB: (x:A) -> prop (B x))(t u : Sigma A B) -> 
+   Id U (Id (Sigma A B) t u) (Id A t.1 u.1)
+lemSigProp A B pB t u =
+ comp U (Id (Sigma A B) t u) ((p : Id A t.1 u.1) * Id (B u.1) (subst A B t.1 u.1 p t.2) u.2) (Id A t.1 u.1)
+    (idSigma A B t u) (lem2 A B pB t.1 u.1 t.2 u.2)
+
+idSigProp : (A:U)(B:A->U)(pB: (x:A) -> prop (B x))(t u : Sigma A B) -> Id A t.1 u.1 -> Id (Sigma A B) t u
+idSigProp A B pB t u h = fun2 A B t u (h,pB u.1  (subst A B t.1 u.1 h t.2) u.2)
+
+setGroupoid : (A:U) -> set A -> groupoid A
+setGroupoid A sA a0 a1 = propUIP (Id A a0 a1) (sA a0 a1)
+
+propGroupoid : (A:U) -> prop A -> groupoid A
+propGroupoid A pA = setGroupoid A (propUIP A pA)
+

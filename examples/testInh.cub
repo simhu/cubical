@@ -1,20 +1,21 @@
 module testInh where
 
+import proptruncation
 import set
 
 -- test the inh and squash functions
 
 zz : inh N
-zz = inc N zero
+zz = inc zero
 
 eq1 : Id (inh N) zz zz
 eq1 = refl (inh N) zz
 
 eq2 : Id (inh N) zz zz
-eq2 = squash N zz zz
+eq2 = squash zz zz
 
 inhUIP : (A : U) -> set (inh A)
-inhUIP A = propUIP (inh A) (squash A)
+inhUIP A = propUIP (inh A) squash
 
 test : Id (Id (inh N) zz zz) eq1 eq2
 test = inhUIP N zz zz eq1 eq2

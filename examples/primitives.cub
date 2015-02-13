@@ -6,38 +6,11 @@ primitive refl : (A : U) (a : A) -> Id A a a
 
 primitive inv : (A : U) (a b : A) -> Id A a b -> Id A b a
 
-Sigma : (A : U) (B : A -> U) -> U
-Sigma A B = (x : A) * B x
-
-fiber : (A B : U) (f : A -> B) (y : B) -> U
-fiber A B f y = Sigma A (\x -> Id B (f x) y)
-
-prop : U -> U
-prop A = (a b : A) -> Id A a b
-
-id : (A : U) -> A -> A
-id A a = a
-
-pathTo : (A:U) -> A -> U
-pathTo A = fiber A A (id A)
-
-sId : (A : U) (a : A) -> pathTo A a
-sId A a = (a, refl A a)
-
 singl : (A : U) -> A -> U
-singl A a = Sigma A (Id A a)
+singl A a = (x: A) * (Id A a x)
 
 primitive contrSingl : (A : U) (a b : A) (p : Id A a b) ->
                        Id (singl A a) (a, refl A a) (b, p)
-
-primitive transport : (A B : U) -> Id U A B -> A -> B
-
-primitive transpInv : (A B : U) -> Id U A B -> B -> A
-
--- primitive transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
-
-transportRef : (A : U) (a : A) -> Id A a (transport A A (refl U A) a)
-transportRef A a = refl A a
 
 primitive mapOnPath : (A B : U) (f : A -> B) (a b : A)
                       (p : Id A a b) -> Id B (f a) (f b)
@@ -47,12 +20,11 @@ primitive appOnPath : (A B : U) (f g : A -> B) (a b : A)
 
 primitive IdP : (A B : U) -> Id U A B -> A -> B -> U
 
-
 IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
 IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
 
 primitive mapOnPathD : (A : U) (F : A -> U) (f : (x : A) -> F x) (a0 a1 : A)
-                       (p : Id A a0 a1) -> IdS A F a0 a1 p  (f a0) (f a1)
+                       (p : Id A a0 a1) -> IdS A F a0 a1 p (f a0) (f a1)
 
 primitive mapOnPathS : (A : U) (F : A -> U) (C : U) (f : (x : A) -> F x -> C)
                        (a0 a1 : A) (p : Id A a0 a1) (b0 : F a0) (b1 : F a1)
@@ -62,55 +34,125 @@ primitive funExt : (A : U) (B : A -> U) (f g : (x : A) -> B x) ->
                    ((x : A) -> Id (B x) (f x) (g x)) ->
                    Id ((y : A) -> B y) f g
 
+primitive transport : (A B : U) -> Id U A B -> A -> B
+
+primitive transpInv : (A B : U) -> Id U A B -> B -> A
+
 primitive isoId : (A B : U) (f : A -> B) (g : B -> A)
 	           (s : (y:B) -> Id B (f (g y)) y)
                    (t : (x:A) -> Id A (g (f x)) x) ->
                    Id U A B
 
-transpIsoId : (A B : U) (f : A -> B) (g : B -> A)
-	           (s : (y:B) -> Id B (f (g y)) y)
-                   (t : (x:A) -> Id A (g (f x)) x) ->
-                   (a : A) -> Id B (transport A B (isoId A B f g s t) a) (f a)
-transpIsoId A B f g s t a = refl B (f a)
+id : (A : U) -> A -> A
+id A a = a
 
 primitive isoIdRef : (A : U) ->
                    Id (Id U A A) (refl U A) (isoId A A (id A) (id A) (refl A) (refl A))
 
-propId : (A B : U) -> prop A -> prop B ->
-         (f : A -> B) (g : B -> A) -> Id U A B
-propId A B pA pB f g = isoId A B f g sfg rfg
- where
-  sfg : (b:B) -> Id B (f (g b)) b
-  sfg b = pB (f (g b)) b
+-- added as an experiment
 
-  rfg : (a:A) -> Id A (g (f a)) a
-  rfg a = pA (g (f a)) a
+subst : (A : U) (P : A -> U) (a x : A) (p : Id A a x) -> P a -> P x
+subst A P a x p = transport (P a) (P x) (mapOnPath A U P a x p)
 
+comp : (A : U) -> (a b c : A) -> Id A a b -> Id A b c -> Id A a c
+comp A a b c p q = subst A (Id A a) b c q p
 
+primitive lemSimpl : (A:U) -> (a b c : A) -> (p : Id A a b) -> (q q' : Id A b c) ->
+                       Id (Id A a c) (comp A a b c p q) (comp A a b c p q') -> Id (Id A b c) q q'
 
--- The circle.
-primitive S1 : U
+-- Squares and transposition
 
-primitive base : S1
+and : (A B : U) -> U
+and A B = (x : A) * B
 
-primitive loop : Id S1 base base
+pairEq : (A B:U) (a0 a1:A) (b0 b1:B) -> Id A a0 a1 -> Id B b0 b1 ->
+         Id (and A B) (a0, b0) (a1, b1)
+pairEq A B a0 a1 b0 b1 p q =
+ appOnPath B (and A B) f0 f1 b0 b1 rem q
+  where f0 : B -> and A B
+        f0 y = (a0, y)
+        f1 : B -> and A B
+        f1 y = (a1, y)
+        rem : Id (B -> and A B) f0 f1
+        rem = mapOnPath A (B -> and A B) (\ x y -> (x, y)) a0 a1 p
 
-primitive S1rec : (F : S1 -> U) (b : F base)
-                (l : IdS S1 F base base loop b b) (x : S1) -> F x
+primitive Square : (A : U) (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+         (r0 : Id A a0 b0) (r1 : Id A a1 b1) -> U
 
--- Propositional reflection.
-primitive inh : U -> U
+primitive transpose : (A:U) (a0 a1:A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1)
+                      (r0 : Id A a0 b0) (r1 : Id A a1 b1) ->
+                      Square A a0 a1 u b0 b1 v r0 r1 -> Square A a0 b0 r0 a1 b1 r1 u v
+{-
+This is useless, the functions substPathPiSquare and substPathPiInvSquare are just the identity
+-- IdS in Id
 
-primitive inc : (A : U) -> A -> inh A
+primitive substPathPiSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  Square B (f a) (f a') (mapOnPath A B f a a' p) (g a) (g a') (mapOnPath A B g a a' p) qa qa' ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa'
 
-primitive squash : (A : U) -> prop (inh A)
+primitive substPathPiInvSquare : (A B : U) (f g : A -> B) (a a' : A) (p : Id A a a')
+  (qa : Id B (f a) (g a)) (qa' : Id B (f a') (g a')) ->
+  IdS A (\x -> Id B (f x) (g x)) a a' p qa qa' ->
+  Square B (f a) (f a') (mapOnPath A B f a a' p) (g a) (g a') (mapOnPath A B g a a' p) qa qa'
+-}
 
-primitive inhrec : (A : U) (B : U) (p : prop B) (f : A -> B) (a : inh A) -> B
+-- Cubes
 
--- primitive inhrec : (A : U) (F : inh A -> U) (f : (a : A) -> F (inc A a))
---   (q : (x0 x1  : inh A) (u0 : F x0) (u1 : F x1) -> IdS (inh A) F x0 x1 (sqash A x0 x1) u0 u1)
---   (x : inh A) -> F x
+primitive Cube : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> U
 
+rotatedCube : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> U
+rotatedCube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back =
+  Cube A
+       a0 b0 r0  c0 d0 s0  p0 q0 front
+       a1 b1 r1  c1 d1 s1  p1 q1 back
+       u v (transpose A a0 a1 u b0 b1 v r0 r1 left)
+       w x (transpose A c0 c1 w d0 d1 x s0 s1 right)
+       (transpose A a0 a1 u c0 c1 w p0 p1 top)
+       (transpose A b0 b1 v d0 d1 x q0 q1 bottom)
 
--- IdS : (A : U) (F : A -> U) (a0 a1 : A) (p : Id A a0 a1) -> F a0 -> F a1 -> U
--- IdS A F a0 a1 p = IdP (F a0) (F a1) (mapOnPath A U F a0 a1 p)
+primitive rotate : (A : U)
+       (a0 a1 : A) (u : Id A a0 a1) (b0 b1 : A) (v : Id A b0 b1) (r0 : Id A a0 b0) (r1 : Id A a1 b1) (left  : Square A a0 a1 u b0 b1 v r0 r1)
+       (c0 c1 : A) (w : Id A c0 c1) (d0 d1 : A) (x : Id A d0 d1) (s0 : Id A c0 d0) (s1 : Id A c1 d1) (right : Square A c0 c1 w d0 d1 x s0 s1)
+       (p0 : Id A a0 c0) (p1 : Id A a1 c1) (top : Square A a0 a1 u c0 c1 w p0 p1)
+       (q0 : Id A b0 d0) (q1 : Id A b1 d1) (bottom : Square A b0 b1 v d0 d1 x q0 q1)
+       (front : Square A a0 b0 r0 c0 d0 s0 p0 q0) (back : Square A a1 b1 r1 c1 d1 s1 p1 q1)
+       -> Cube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back
+       -> rotatedCube A a0 a1 u b0 b1 v r0 r1 left c0 c1 w d0 d1 x s0 s1 right p0 p1 top q0 q1 bottom front back
+
+-- -- IdSElim
+
+-- primitive idSElim' : (A B : U) (p : Id U A B) (x : A) (y : B)
+--                      -> IdP A B p x y -> Id B (transport A B p x) y
+
+-- idSElim : (A : U) (F : A -> U) (x y : A) (p : Id A x y) (u : F x) (v : F y) ->
+--             IdS A F x y p u v -> Id (F y) (subst A F x y p u) v
+-- idSElim A F x y p u v = idSElim' (F x) (F y) (mapOnPath A U F x y p) u v
+
+SquareOverLine : (A B : U) (p : Id U A B)
+                 (a0 a1 : A) (alpha : Id A a0 a1)
+                 (b0 b1 : B) (beta : Id B b0 b1)
+                 (omega0 : IdP A B p a0 b0)
+                 (omega1 : IdP A B p a1 b1) -> U
+SquareOverLine A B p a0 a1 alpha b0 b1 beta omega0 omega1 =
+  IdS (and A B) (\ z -> IdP A B p z.1 z.2) (a0,b0) (a1,b1)
+      (pairEq A B a0 a1 b0 b1 alpha beta) omega0 omega1
+
+primitive eqTransport : (A B : U) (p : Id U A B) (u : A)
+                      -> IdP A B p u (transport A B p u)
+
+primitive rem1IdP : (A B : U) (p : Id U A B) (u:A) (q : Id A u u)
+        -> SquareOverLine A B p u u q (transport A B p u) (transport A B p u) (mapOnPath A B (transport A B p) u u q)
+                          (eqTransport A B p u) (eqTransport A B p u)

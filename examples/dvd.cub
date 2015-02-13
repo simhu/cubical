@@ -1,0 +1,154 @@
+module dvd where
+
+import higher
+
+-- Commutative monoids
+Monoid : U -> U
+data Monoid A =
+  monoid (z : A)
+         (op : A -> A -> A)
+         (_ : (a b c : A) -> Id A (op a (op b c)) (op (op a b) c))
+         (_ : (a : A) -> Id A (op a z) a)
+         (_ : (a b : A) -> Id A (op a b) (op b a))
+	 (_ : set A)
+
+
+onem : (A : U) -> Monoid A -> A
+onem A = split monoid a _ _ _ _ _ -> a
+
+mulm : (A : U) -> Monoid A -> (A -> A -> A)
+mulm A = split monoid _ op _ _ _ _ -> op
+
+mulmA : (A : U) (m : Monoid A) (a b c : A) ->
+        Id A (mulm A m a (mulm A m b c)) (mulm A m (mulm A m a b) c)
+mulmA A = split monoid _ _ a _ _ _ -> a
+
+mulm1 : (A : U) (m : Monoid A) (a : A) -> Id A (mulm A m a (onem A m)) a
+mulm1 A = split monoid _ _ _ a _ _ -> a
+
+mulmC : (A : U) (m : Monoid A) (a b : A) -> Id A (mulm A m a b) (mulm A m b a)
+mulmC A = split monoid _ _ _ _ a _ -> a
+
+monoid_set : (A : U) -> Monoid A -> set A
+monoid_set A = split monoid _ _ _ _ _ a -> a
+
+mul1m : (A : U) (m : Monoid A) (a : A) -> Id A (mulm A m (onem A m) a) a
+mul1m A m a = comp A (mulm A m (onem A m) a) (mulm A m a (onem A m)) a
+                   (mulmC A m (onem A m) a) (mulm1 A m a)
+
+-- An element is regular if multiplication with it is injective
+reg : (A : U) (m : Monoid A) -> A -> U
+reg A m a = injective A A (mulm A m a)
+
+reg1 : (A : U) (m : Monoid A) -> reg A m (onem A m)
+reg1 A m a b heq = let rem : Id A a (mulm A m (onem A m) b)
+		       rem = compInv A (mulm A m (onem A m) a) a (mulm A m (onem A m) b)
+		                       (mul1m A m a) heq
+                   in comp A a (mulm A m (onem A m) b) b rem (mul1m A m b)
+
+-- regM : (A : U) (m : Monoid A) (a b : A) -> reg A m a -> reg A m b -> reg A m (multm A m a b)
+-- regM A m a b ra rb = undefined
+
+-- a | b := exists x. a * x = b
+dvd : (A : U) -> Monoid A -> (a b : A) -> U
+dvd A m a b = exists A (\x -> Id A (mulm A m a x) b)
+
+-- forall a, a | a
+dvdr : (A : U) (m : Monoid A) (a : A) -> dvd A m a a -- exists A (\x -> Id A (mulm A m a x) a)
+dvdr A m a = inc (onem A m, mulm1 A m a)
+
+-- dvd_trans : (A : U) (m : Monoid A) (a b c : A) -> dvd A m a b -> dvd A m b c -> dvd A m a c
+-- dvd_trans A m a b c hab hbc = undefined
+
+-- Lemma dvd_trans a b c : a %| b -> b %| c -> a %| c.
+-- Proof.
+-- move=> hab hbc.
+-- apply: (inhrec (@squash _) _ hbc) => [[y ->]].
+-- apply: (inhrec (@squash _) _ hab) => [[x ->]].
+-- by apply: inc; exists (x * y); rewrite mulmA.
+-- Qed.
+
+dvd_reg_prop : (A : U) (m : Monoid A) (a b : A) -> dvd A m a b -> reg A m a ->
+               prop (Sigma A (\x -> Id A (mulm A m a x) b))
+dvd_reg_prop A m a b hab ra h1 h2 =
+  let x : A
+      x = h1.1
+      ax : A
+      ax = mulm A m a x
+      haxb : Id A ax b -- a * x = b
+      haxb = h1.2
+      y : A
+      y = h2.1
+      ay : A
+      ay = mulm A m a y
+      hayb : Id A ay b -- a * y = b
+      hayb = h2.2
+      haxay : Id A ax ay -- a * x = a * y
+      haxay = comp A ax b ay haxb (invId A ay b hayb)
+      hxy : Id A x y -- x = y
+      hxy = ra x y haxay
+
+      rem : Id (Id A (mulm A m a y) b) (subst A (\x -> Id A (mulm A m a x) b) x y hxy haxb) hayb
+      rem = monoid_set A m (mulm A m a y) b
+                       (subst A (\x -> Id A (mulm A m a x) b) x y hxy haxb) hayb
+
+  in eqSigma A (\x -> Id A (mulm A m a x) b) x y hxy haxb hayb rem
+
+from_dvd : (A : U) (m : Monoid A) (a b : A) -> dvd A m a b -> reg A m a ->
+           Sigma A (\x -> Id A (mulm A m a x) b)
+from_dvd A m a b hab ra =
+  fromExists A (\x -> Id A (mulm A m a x) b) (dvd_reg_prop A m a b hab ra) hab
+
+getx : (A : U) (m : Monoid A) (a b : A) -> dvd A m a b -> reg A m a -> A
+getx A m a b hab ra = (from_dvd A m a b hab ra).1
+
+-- TODO: Finish the proof that N is an instance
+oneN : N
+oneN = suc zero
+
+mulN : N -> N -> N
+mulN = split
+  zero -> \_ -> zero
+  suc n -> \m -> addN m (mulN n m)
+
+mulNA : (a b c : N) -> Id N (mulN a (mulN b c)) (mulN (mulN a b) c)
+mulNA = undefined
+
+mulN1 : (a : N) -> Id N (mulN a oneN) a
+mulN1 = split
+  zero  -> refl N zero
+  suc n -> mapOnPath N N (\x -> suc x) (mulN n oneN) n (mulN1 n)
+
+mulN0 : (a : N) -> Id N (mulN a zero) zero
+mulN0 = split
+  zero  -> refl N zero
+  suc n -> mulN0 n
+
+mulNC : (a b : N) -> Id N (mulN a b) (mulN b a)
+mulNC = split
+  zero  -> \b -> invId N (mulN b zero) zero (mulN0 b)
+  suc n -> undefined
+
+setN : set N
+setN = hedberg N natDec
+
+-- monoidN : Monoid N
+-- monoidN = monoid oneN mulN mulNA mulN1 mulNC setN
+
+two : N
+two = suc (suc zero)
+
+three : N
+three = suc (suc (suc zero))
+
+six : N
+six = suc (suc (suc (suc (suc (suc zero)))))
+
+-- dvd_two_six : dvd N monoidN two six
+-- dvd_two_six = inc (three,refl N six)
+
+-- reg_two : reg N monoidN two
+-- reg_two = undefined
+
+-- get_three : N
+-- get_three = getx N monoidN two six dvd_two_six reg_two

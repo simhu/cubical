@@ -1,0 +1,38 @@
+module retract where
+
+import function1
+
+lemRetract : (A B : U) (f : A -> B) (g : B -> A) -> retract A B f g -> (x y:A) -> 
+             Id A (g (f x)) (g (f y)) -> Id A x y
+lemRetract A B f g rfg x y = compUp A (g (f x)) x (g (f y)) y (rfg x) (rfg y)
+
+retractProp : (A B : U) (f : A -> B) (g : B -> A) -> retract A B f g -> prop B -> prop A
+retractProp A B f g rfg pB x y = lemRetract A B f g rfg x y rem1
+ where
+  rem1 : Id A (g (f x)) (g (f y))
+  rem1 = mapOnPath B A g (f x) (f y) (pB (f x) (f y))
+
+retractInv : (A B : U)  (f : A -> B) (g : B -> A) -> retract A B f g -> 
+            (x y:A) -> Id B (f x) (f y) -> Id A x y
+retractInv A B f g rfg x y q = lemRetract A B f g rfg x y rem
+ where
+  rem : Id A (g (f x)) (g (f y))
+  rem = mapOnPath B A g (f x) (f y) q
+
+lemCompUp : (A:U) (a a':A) (p: Id A a a') -> Id (Id A a' a') (compUp A a a' a a' p p (refl A a)) (refl A a')
+lemCompUp A a = J A a (\ a' p ->  Id (Id A a' a') (compUp A a a' a a' p p (refl A a)) (refl A a'))
+                      (refl (Id A a a) (refl A a))
+
+retractId : (A B : U)  (f : A -> B) (g : B -> A) (rfg : retract A B f g) (x y:A) ->
+      retract (Id A x y) (Id B (f x) (f y)) (mapOnPath A B f x y) (retractInv A B f g rfg x y)
+retractId A B f g rfg x = 
+ J A x (\ y p -> Id (Id A x y) (retractInv A B f g rfg x y (mapOnPath A B f x y p)) p) 
+       rem
+ where
+   rem : Id (Id A x x) (lemRetract A B f g rfg x x (refl A (g (f x)))) (refl A x)
+   rem = lemCompUp A (g (f x)) x (rfg x)
+
+retractSet : (A B : U)  (f : A -> B) (g : B -> A) (rfg : retract A B f g) -> set B -> set A
+retractSet A B f g rfg sB x y =
+ retractProp (Id A x y) (Id B (f x) (f y)) (mapOnPath A B f x y) (retractInv A B f g rfg x y)
+             (retractId A B f g rfg x y) (sB (f x) (f y))

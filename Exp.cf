@@ -3,7 +3,7 @@ entrypoints Module, Exp ;
 comment "--" ;
 comment "{-" "-}" ;
 
-layout "where", "let", "split", "mutual" ;
+layout "where", "let", "split", "with", "mutual" ;
 layout stop "in" ;
 -- Do not use layout toplevel as it makes pExp fail!
 
@@ -16,6 +16,7 @@ DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
 DeclType.   Decl ::= AIdent ":" Exp ;
 DeclPrim.   Decl ::= "primitive" AIdent ":" Exp ;
 DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
+DeclHData.  Decl ::= "hdata" AIdent [AIdent] "=" [HLabel] ;
 DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
 DeclOpaque. Decl ::= "opaque" AIdent ;
 DeclTransp. Decl ::= "transparent" AIdent ;
@@ -27,6 +28,7 @@ NoWhere.  ExpWhere ::= Exp ;
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
 Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
+HSplit.   Exp  ::= "hsplit" Exp3 "with" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
@@ -38,6 +40,8 @@ Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
 coercions Exp 3 ;
 
+terminator Exp "";
+
 -- Branches
 Branch.   Branch ::= AIdent [AIdent] "->" ExpWhere ;
 separator Branch ";" ;
@@ -45,6 +49,11 @@ separator Branch ";" ;
 -- Labelled sum alternatives
 Label.    Label   ::= AIdent [VTDecl] ;
 separator Label "|" ;
+
+-- Labelled hsum alternatives (to be adapted)
+HLabelData. HLabel ::= AIdent [VTDecl] ;
+HLabelPath. HLabel ::= AIdent [VTDecl] "@" Exp "~" Exp ;
+separator HLabel "|" ;
 
 -- Telescopes
 VTDecl.    VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;

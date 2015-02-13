@@ -1,0 +1,50 @@
+module demo1 where
+
+import primitives
+
+-- Bool
+Bool : U
+data Bool = true | false
+
+-- Naturals
+N : U
+data N = zero | suc (n : N)
+
+-- the swap function defines an equality
+
+and : U -> U -> U
+and A B = (_ : A) * B
+
+swap : (A B :U) -> and A B -> and B A
+swap A B z = (z.2,z.1)
+
+eqSwap : (A B :U) -> Id U (and A B) (and B A)
+eqSwap A B = isoId (and A B) (and B A) (swap A B) (swap B A) (refl (and B A)) (refl (and A B))
+
+-- simple example with swap and product
+
+Pi : (A:U) -> (A -> U) -> U
+Pi A B = (x:A) -> B x
+
+eqPi : (A:U) -> (B0 B1 : A -> U) -> ((x:A)  -> Id U (B0 x) (B1 x)) -> Id U (Pi A B0) (Pi A B1)
+eqPi A B0 B1 eB = mapOnPath (A->U) U (Pi A) B0 B1 rem
+ where rem : Id (A -> U) B0 B1
+       rem = funExt A (\ _ -> U) B0 B1 eB
+
+eqPiTest : Id U ((X : U) -> X -> and X Bool) ((X : U) -> X -> and Bool X)
+eqPiTest = eqPi U (\X -> X -> and X Bool) (\X -> X -> and Bool X) rem1
+ where rem : (X:U) -> Id U (and X Bool) (and Bool X)
+       rem X = eqSwap X Bool
+
+       rem1 : (X:U) -> Id U (X -> and X Bool) (X -> and Bool X)
+       rem1 X = eqPi X (\ _ -> and X Bool) (\ _ -> and Bool X) (\ _ -> rem X)
+
+       
+transPiTest : ((X:U) -> X -> and X Bool) -> (X:U) -> X -> and Bool X
+transPiTest = transport (Pi U (\ X -> X -> and X Bool)) (Pi U (\ X -> X -> and Bool X)) eqPiTest
+
+testPi1 : N -> and Bool N
+testPi1 = transPiTest (\ X -> \ x -> (x,true)) N
+
+testPi2 : and Bool N
+testPi2 = testPi1 zero

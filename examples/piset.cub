@@ -1,0 +1,54 @@
+module piset where
+
+import set
+
+Pi : (A:U) -> (A -> U) -> U
+Pi A B = (x:A) -> B x
+
+appPi : (A : U) (B : A -> U) (f g : Pi A B) -> Id (Pi A B) f g ->
+        (x : A) -> Id (B x) (f x) (g x)
+appPi A B f g p x = mapOnPath (Pi A B) (B x) (\ h -> h x) f g p
+
+test2 :  (A:U) (B:A->U) (f g : Pi A B) (q : (x:A) -> Id (B x) (f x) (g x)) ->
+        Id ((x:A) -> Id (B x) (f x) (g x)) (appPi A B f g (funExt A B f g q)) q
+test2 A B f g q = refl ((x:A) -> Id (B x) (f x) (g x)) q
+
+test1 : (A:U) (B:A->U) (f g : Pi A B) (p : Id (Pi A B) f g) ->
+       Id (Id (Pi A B) f g) (funExt A B f g (appPi A B f g p)) p
+test1 A B f g p = refl (Id (Pi A B) f g) p
+
+idPi : (A : U) (B : A -> U) (f g : Pi A B) ->
+       Id U (Id (Pi A B) f g) ((x : A) -> Id (B x) (f x) (g x))
+idPi A B f g = 
+ isoId  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x))
+  (appPi A B f g) (funExt A B f g) (test2 A B f g) (test1 A B f g)
+
+setPi : (A:U) (B:A -> U) -> ((x:A) -> set (B x)) -> set (Pi A B)
+setPi A B h f g = rem
+ where
+  rem1 : prop ((x:A) -> Id (B x) (f x) (g x))
+  rem1 = propPi A (\ x -> Id (B x) (f x) (g x)) (\ x -> h x (f x) (g x))
+
+  rem : prop (Id (Pi A B) f g)
+  rem = substInv U prop (Id (Pi A B) f g)
+                 ((x:A) -> Id (B x) (f x) (g x)) (idPi A B f g) rem1
+
+groupoid : U -> U
+groupoid A = (x y : A) -> set (Id A x y)
+
+groupoidIsProp : (A : U) -> prop (groupoid A)
+groupoidIsProp A =  propPi A (\ x0 -> (x1:A) -> set (Id A x0 x1)) rem
+ where rem : (x0:A) -> prop (Pi A (\ x1 -> set (Id A x0 x1)))
+       rem x0 = propPi A (\ x1 -> set (Id A x0 x1)) rem1
+         where rem1 : (x1:A) -> prop (set (Id A x0 x1))
+               rem1 x1 = setIsProp (Id A x0 x1)
+
+
+groupoidPi : (A:U) (B:A -> U) -> ((x:A) -> groupoid (B x)) -> groupoid (Pi A B)
+groupoidPi A B h f g = rem
+ where
+  rem1 : set ((x:A) -> Id (B x) (f x) (g x))
+  rem1 = setPi A (\ x -> Id (B x) (f x) (g x)) (\ x -> h x (f x) (g x))
+
+  rem : set (Id (Pi A B) f g)
+  rem = substInv U set  (Id (Pi A B) f g) ((x:A) -> Id (B x) (f x) (g x)) (idPi A B f g) rem1

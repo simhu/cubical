@@ -1,0 +1,396 @@
+module join where
+
+-- import higher
+import pointed
+import susp
+import square
+
+join : U -> U -> U
+hdata join A B = inl (a:A) | inr (b:B) | push (a:A) (b:B) @ (inl a) ~ (inr b)
+
+-- Map from [join (join A B) C] to [join A (join B C)]
+
+l2rInl : (A B C : U) -> join A B -> join A (join B C)
+l2rInl A B C = hsplit (\_ -> join A (join B C)) with
+  inl a    -> inl a
+  inr b    -> inr (inl b)
+  push a b -> push a (inl b) 
+
+l2rPushInr : (A B C : U) (b : B) (c : C) -> Id (join A (join B C)) (inr (inl b)) (inr (inr c))
+l2rPushInr A B C b c = mapOnPath (join B C) (join A (join B C)) inr (inl b) (inr c) (push b c)
+
+l2rSquare : (A B C : U) (a : A) (b : B) (c : C) ->
+       IdS (join B C) (\x -> Id (join A (join B C)) (inl a) (inr x))
+           (inl b) (inr c) (push b c)
+           (push a (inl b)) (push a (inr c))
+l2rSquare A B C a b c =
+  mapOnPathD (join B C) (\x -> Id (join A (join B C)) (inl a) (inr x))
+             (\x -> push a x)
+             (inl b) (inr c) (push b c)
+
+opl2r : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+     (r : Id A b c) ->
+     Square A a a (refl A a) b c r q p ->
+     Square A a b q c c (refl A c) p r
+opl2r A a b c p q r x = transpose A a c p b c r q (refl A c) (op' a c p b q r x)  where
+
+  op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+       (r : Id A b c) ->
+       Square A a a (refl A a) b c r q p ->
+       Square A a c p b c r q (refl A c)
+  op' a = J A a (\c p ->  (b : A) (q : Id A a b)
+                   (r : Id A b c) ->
+                   Square A a a (refl A a) b c r q p ->
+                   Square A a c p b c r q (refl A c))
+            (\b q r x -> x)
+
+l2rPushPush : (A B C : U) (a : A) (b : B) (c : C) ->
+           Square (join A (join B C))
+                  (inl a) (inr (inl b)) (push a (inl b))
+                  (inr (inr c)) (inr (inr c)) (refl (join A (join B C)) (inr (inr c)))
+                  (push a (inr c))
+                  (l2rPushInr A B C b c)
+l2rPushPush A B C a b c =
+  opl2r (join A (join B C)) (inl a) (inr (inl b)) (inr (inr c))
+        (push a (inr c)) (push a (inl b)) (l2rPushInr A B C b c)
+        (l2rSquare A B C a b c)
+
+l2rPush : (A B C : U) (c : C) (u : join A B) ->
+            Id (join A (join B C)) (l2rInl A B C u) (inr (inr c))
+l2rPush A B C c = hsplit (\u -> Id (join A (join B C))
+                          (l2rInl A B C u) (inr (inr c))) with
+  inl a -> push a (inr c)
+  inr b -> l2rPushInr A B C b c
+  push a b -> l2rPushPush A B C a b c
+
+l2r : (A B C : U) -> join (join A B) C -> join A (join B C)
+l2r A B C = hsplit (\_ -> join A (join B C)) with
+  inl jab -> l2rInl A B C jab
+  inr c   -> inr (inr c)
+  push p q  -> l2rPush A B C q p
+
+-- Map from [join A (join B C)] to [join (join A B) C]
+
+r2lInr : (A B C : U) -> join B C -> join (join A B) C
+r2lInr A B C = hsplit (\_ -> join (join A B) C) with
+  inl b   -> inl (inr b)
+  inr c   -> inr c
+  push b c -> push (inr b) c
+
+r2lPushInl : (A B C : U) (a : A) (b : B) -> Id (join (join A B) C) (inl (inl a)) (inl (inr b))
+r2lPushInl A B C a b = mapOnPath (join A B) (join (join A B) C) inl (inl a) (inr b) (push a b)
+
+r2lSquare : (A B C : U) (a : A) (b : B) (c : C) ->
+        IdS (join A B) (\x -> Id (join (join A B) C) (inl x) (inr c))
+            (inl a) (inr b) (push a b)
+            (push (inl a) c) (push (inr b) c)
+r2lSquare A B C a b c = mapOnPathD (join A B) (\x -> Id (join (join A B) C) (inl x) (inr c))
+                                (\x -> push x c)
+                                (inl a) (inr b) (push a b)
+
+opr2l : (A : U) (a b c : A) (p : Id A a c) (q : Id A a b)
+     (r : Id A b c) ->
+     Square A a b q c c (refl A c) p r ->
+     Square A a a (refl A a) b c r q p
+opr2l A a b c p q r x = transpose A a b q a c p (refl A a) r (op' a c p b q r x)  where
+
+  op' : (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+       (r : Id A b c) ->
+       Square A a b q c c (refl A c) p r ->
+       Square A a b q a c p (refl A a) r
+  op' a = J A a (\c p -> (b : A) (q : Id A a b)
+                   (r : Id A b c) ->
+                   Square A a b q c c (refl A c) p r ->
+                   Square A a b q a c p (refl A a) r)
+            (\b q r x -> x)
+
+r2lPushPush : (A B C : U) (a : A) (b : B) (c : C) ->
+           Square (join (join A B) C)
+                  (inl (inl a)) (inl (inl a)) (refl (join (join A B) C) (inl (inl a)))
+                  (inl (inr b)) (inr c) (push (inr b) c)
+                  (r2lPushInl A B C a b)
+                  (push (inl a) c)
+r2lPushPush A B C a b c =
+  opr2l (join (join A B) C) (inl (inl a)) (inl (inr b)) (inr c)
+        (push (inl a) c) (r2lPushInl A B C a b) (push (inr b) c)
+        (r2lSquare A B C a b c)
+
+r2lPush : (A B C : U) (a : A) (bc : join B C) ->
+          Id (join (join A B) C) (inl (inl a)) (r2lInr A B C bc)
+r2lPush A B C a = hsplit (\bc -> Id (join (join A B) C) (inl (inl a)) (r2lInr A B C bc)) with
+  inl b -> r2lPushInl A B C a b
+  inr c -> push (inl a) c
+  push b c -> r2lPushPush A B C a b c
+
+r2l : (A B C : U) -> join A (join B C) -> join (join A B) C
+r2l A B C = hsplit (\_ -> join (join A B) C) with
+  inl a  -> inl (inl a)
+  inr bc -> r2lInr A B C bc
+  push a bc -> r2lPush A B C a bc
+
+-- One of the two compositions
+
+r2l2rInl : (A B C : U) (x : join A B) -> Id (join (join A B) C) (r2l A B C (l2rInl A B C x)) (inl x)
+r2l2rInl A B C = hsplit (\x -> Id (join (join A B) C) (r2l A B C (l2rInl A B C x)) (inl x)) with
+  inl a -> refl (join (join A B) C) (inl (inl a))
+  inr b -> refl (join (join A B) C) (inl (inr b))
+  push a b -> reflSquare (join (join A B) C) (inl (inl a)) (inl (inr b))
+                         (mapOnPath (join A B) (join (join A B) C) inl (inl a) (inr b) (push a b))
+
+opr2l2r : (A : U) (a c : A) (p : Id A a c) (b : A) (q : Id A a b)
+     (r : Id A b c) ->
+     (alpha : Square A a b q c c (refl A c) p r)
+     -> Id (Square A a b q c c (refl A c) p r) (opl2r A a b c p q r (opr2l A a b c p q r alpha)) alpha
+opr2l2r A a = J A a (\c p -> (b : A) (q : Id A a b) (r : Id A b c)
+                          -> (alpha : Square A a b q c c (refl A c) p r)
+                          -> Id (Square A a b q c c (refl A c) p r) (opl2r A a b c p q r (opr2l A a b c p q r alpha)) alpha)
+                (\b q r alpha -> refl (Square A a b q a a (refl A a) (refl A a) r) alpha)
+
+reflSquarePush : (A B C : U) (ab : join A B) (c : C) ->
+                 Square (join (join A B) C)
+                        (inl ab) (inr c) (push ab c)
+                        (inl ab) (inr c) (push ab c)
+                        (refl (join (join A B) C) (inl ab)) (refl (join (join A B) C) (inr c))
+reflSquarePush A B C ab c = reflSquare (join (join A B) C) (inl ab) (inr c) (push ab c)
+
+r2l2rLemma : (A B C : U) (a : A) (b : B) (c : C) ->
+           Id (Square (join (join A B) C)
+                 (inl (inl a)) (inl (inr b)) (r2lPushInl A B C a b)
+                 (inr c) (inr c) (refl (join (join A B) C) (inr c))
+                 (push (inl a) c)
+                 (push (inr b) c))
+
+           (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+                       (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+                       (inl a) (inr b) (push a b))
+           (r2lSquare A B C a b c)
+r2l2rLemma A B C a b c =
+  opr2l2r (join (join A B) C) (inl (inl a)) (inr c) (push (inl a) c) (inl (inr b)) (r2lPushInl A B C a b) (push (inr b) c)
+          (r2lSquare A B C a b c)
+
+-- -- r2l2rLemma2 : (A B C : U) (a : A) (b : B) (c : C) ->
+
+-- test1 : (A B C : U) (a : A) (b : B) (c : C) -> U
+-- test1 A B C a b c =           (Id (Square (join (join A B) C)
+--                  (inl (inl a)) (inl (inr b)) (r2lPushInl A B C a b)
+--                  (inr c) (inr c) (refl (join (join A B) C) (inr c))
+--                  (push (inl a) c)
+--                  (push (inr b) c))
+
+--            (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+--                        (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+--                        (inl a) (inr b) (push a b))
+--            (r2lSquare A B C a b c))
+
+-- test : (A B C : U) (a : A) (b : B) (c : C) ->
+--        Id U (Id (Square (join (join A B) C)
+--                  (inl (inl a)) (inl (inr b)) (r2lPushInl A B C a b)
+--                  (inr c) (inr c) (refl (join (join A B) C) (inr c))
+--                  (push (inl a) c)
+--                  (push (inr b) c))
+
+--                 (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+--                        (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+--                        (inl a) (inr b) (push a b))
+--                 (r2lSquare A B C a b c))
+
+--             (Cube (join (join A B) C)
+--                   (inl (inl a)) (inl (inl a)) (refl (join (join A B) C) (inl (inl a)))  (inl (inr b)) (inl (inr b)) (refl (join (join A B) C) (inl (inr b)))  (r2lPushInl A B C a b) (r2lPushInl A B C a b) (refl (Id (join (join A B) C) (inl (inl a)) (inl (inr b))) (r2lPushInl A B C a b))
+--                   (inr c) (inr c) (refl (join (join A B) C) (inr c))  (inr c) (inr c) (refl (join (join A B) C) (inr c))  (refl (join (join A B) C) (inr c)) (refl (join (join A B) C) (inr c)) (refl (Id (join (join A B) C) (inr c) (inr c)) (refl (join (join A B) C) (inr c)))
+--                   (push (inl a) c) (push (inl a) c) (refl (Id (join (join A B) C) (inl (inl a)) (inr c)) (push (inl a) c))
+--                   (push (inr b) c) (push (inr b) c) (refl (Id (join (join A B) C) (inl (inr b)) (inr c)) (push (inr b) c))
+
+--                   (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+--                        (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+--                        (inl a) (inr b) (push a b))
+--                   (r2lSquare A B C a b c))
+
+-- test A B C a b c = refl U (Id (Square (join (join A B) C)
+--                  (inl (inl a)) (inl (inr b)) (r2lPushInl A B C a b)
+--                  (inr c) (inr c) (refl (join (join A B) C) (inr c))
+--                  (push (inl a) c)
+--                  (push (inr b) c))
+
+                -- (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+                --        (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+                --        (inl a) (inr b) (push a b))
+                -- (r2lSquare A B C a b c))
+
+-- test2 : (A B C : U) (a : A) (b : B) (c : C) -> U
+-- test2 A B C a b c =   (IdS (join A B)
+--     (\ab -> Square (join (join A B) C)
+--             (r2l A B C (l2rInl A B C ab)) (inr c) (mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+--             (inl ab) (inr c) (push ab c)
+--             (r2l2rInl A B C ab)
+--             (refl (join (join A B) C) (inr c)))
+--     (inl a) (inr b) (push a b)
+--     (reflSquarePush A B C (inl a) c)
+--     (reflSquarePush A B C (inr b) c))
+
+r2l2rPushPush : (A B C : U) (a : A) (b : B) (c : C) ->
+  IdS (join A B)
+    (\ab -> Square (join (join A B) C)
+            (r2l A B C (l2rInl A B C ab)) (inr c) (mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+            (inl ab) (inr c) (push ab c)
+            (r2l2rInl A B C ab)
+            (refl (join (join A B) C) (inr c)))
+    (inl a) (inr b) (push a b)
+    (reflSquarePush A B C (inl a) c)
+    (reflSquarePush A B C (inr b) c)
+r2l2rPushPush A B C a b c =
+     rotate (join (join A B) C)
+                  (inl (inl a)) (inl (inl a)) (refl (join (join A B) C) (inl (inl a)))
+                  (inl (inr b)) (inl (inr b)) (refl (join (join A B) C) (inl (inr b)))
+                  (r2lPushInl A B C a b) (r2lPushInl A B C a b) (refl (Id (join (join A B) C) (inl (inl a)) (inl (inr b))) (r2lPushInl A B C a b))
+
+                  (inr c) (inr c) (refl (join (join A B) C) (inr c))
+                  (inr c) (inr c) (refl (join (join A B) C) (inr c))
+                  (refl (join (join A B) C) (inr c)) (refl (join (join A B) C) (inr c)) (refl (Id (join (join A B) C) (inr c) (inr c)) (refl (join (join A B) C) (inr c)))
+
+                  (push (inl a) c) (push (inl a) c) (refl (Id (join (join A B) C) (inl (inl a)) (inr c)) (push (inl a) c))
+                  (push (inr b) c) (push (inr b) c) (refl (Id (join (join A B) C) (inl (inr b)) (inr c)) (push (inr b) c))
+
+                  (mapOnPathD (join A B) (\ab -> Id (join (join A B) C) (r2l A B C (l2rInl A B C ab)) (inr c))
+                       (\ab -> mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+                       (inl a) (inr b) (push a b))
+                  (r2lSquare A B C a b c)
+
+                  (r2l2rLemma A B C a b c)
+
+r2l2rPush : (A B C : U) (c : C) (ab : join A B) ->
+               Square (join (join A B) C)
+                      (r2l A B C (l2rInl A B C ab)) (inr c) (mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+                      (inl ab) (inr c) (push ab c)
+                      (r2l2rInl A B C ab)
+                      (refl (join (join A B) C) (inr c))
+r2l2rPush A B C c =
+  hsplit (\ab ->
+       Square (join (join A B) C)
+              (r2l A B C (l2rInl A B C ab)) (inr c) (mapOnPath (join A (join B C)) (join (join A B) C) (r2l A B C) (l2rInl A B C ab) (inr (inr c)) (l2rPush A B C c ab))
+              (inl ab) (inr c) (push ab c)
+              (r2l2rInl A B C ab)
+              (refl (join (join A B) C) (inr c)))
+       with
+  inl a -> reflSquarePush A B C (inl a) c
+  inr b -> reflSquarePush A B C (inr b) c
+  push a b -> r2l2rPushPush A B C a b c
+
+r2l2r : (A B C : U) (x : join (join A B) C) -> Id (join (join A B) C) (r2l A B C (l2r A B C x)) x
+r2l2r A B C = hsplit (\x -> Id (join (join A B) C) (r2l A B C (l2r A B C x)) x) with
+  inl ab -> r2l2rInl A B C ab
+  inr c  -> refl (join (join A B) C) (inr c)
+  push ab c -> r2l2rPush A B C c ab
+
+
+-- Other stuff
+
+--  Suspension and join with the booleans
+suspJoin : (A : U) -> susp A -> join Bool A
+suspJoin A = hsplit (\_ -> join Bool A) with
+  north   -> inl true
+  south   -> inl false
+  merid a -> comp (join Bool A) (inl true) (inr a) (inl false)
+              (push true a)
+              (inv (join Bool A) (inl false) (inr a) (push false a))
+
+suspJoinInv : (A : U) -> join Bool A -> susp A
+suspJoinInv A = hsplit (\_ -> susp A) with
+  inl b -> cases b
+    where cases : Bool -> susp A
+          cases = split
+            true  -> north
+            false -> south
+  inr a -> south
+  push b a -> cases a b
+    where cases : (a : A) (b : Bool) ->
+                    Id (susp A) (suspJoinInv A (inl b)) south
+          cases a = split
+            true  -> merid a
+            false -> refl (susp A) south
+
+-- suspJoinBeta : (A : U) (x : susp A) -> Id (susp A) (suspJoinInv A (suspJoin A x)) x
+-- suspJoinBeta A = hsplit (\x -> Id (susp A) (suspJoinInv A (suspJoin A x)) x)
+--   north -> refl (susp A) north
+--   south -> refl (susp A) south
+--   merid a -> 
+
+ptJoin : ptType -> U -> ptType
+ptJoin pA B = (join pA.1 B, inl (pt pA))
+
+ptBool : ptType
+ptBool = (Bool,true)
+
+--
+
+bjbToS1 : join Bool Bool -> S1
+bjbToS1 x = s1ToCircle (suspJoinInv Bool x)
+
+bjbToS1Inv : S1 -> join Bool Bool
+bjbToS1Inv x = suspJoin Bool (circleToS1 x)
+
+
+one : N
+one = suc zero
+
+two : N
+two = suc one
+
+three : N
+three = suc (two)
+
+S2 : U
+S2 = plusOneSphere one
+
+ptS2 : ptType
+ptS2 = ptPlusOneSphere one
+
+S3 : U
+S3 = plusOneSphere two
+
+ptS3 : ptType
+ptS3 = ptPlusOneSphere two
+
+
+
+
+mapJoin : (A B C D : U) (f : A -> C) (g : B -> D) -> join A B -> join C D
+mapJoin A B C D f g = hsplit (\_ -> join C D) with
+  inl a -> inl (f a)
+  inr b -> inr (g b)
+  push a b -> push (f a) (g b)
+
+-- The map e^-1 from 7.3
+s3ToS1JoinS1Inv : join S1 S1 -> S3
+s3ToS1JoinS1Inv x =
+  suspJoinInv S2
+    (mapJoin Bool (join Bool S1) Bool S2 (\b -> b) (suspJoinInv S1)
+      (l2r Bool Bool S1
+        (mapJoin S1 S1 (join Bool Bool) S1 bjbToS1Inv (\z -> z) x)))
+
+-- The map e from 7.3
+s3ToS1JoinS1 : S3 -> join S1 S1
+s3ToS1JoinS1 x =
+  mapJoin (join Bool Bool) S1 S1 S1 bjbToS1 (\z -> z)
+          (r2l Bool Bool S1
+            (mapJoin Bool S2 Bool (join Bool S1) (\b -> b) (suspJoin S1)
+              (suspJoin S2 x)))
+
+-- -- The main map alpha from 8
+-- alpha : join S1 S1 -> S2
+-- alpha = hsplit (\_ -> S2) with
+--   inl x   -> south
+--   inr y   -> south
+--   push x y -> comp S2 south north south
+--               (inv S2 north south (merid y))
+--               (merid x)
+
+-- A modified version of the main map alpha from 8, which is equal to the
+-- other one (to be checked) but pointed by reflexivity
+alpha : join S1 S1 -> S2
+alpha = hsplit (\_ -> S2) with
+  inl x   -> north
+  inr y   -> north
+  push x y -> idEuclid S2 north north south (merid x) (merid y)
+
+ptAlpha : ptMap (ptJoin ptS1 S1) ptS2
+ptAlpha = (alpha, refl S2 north)

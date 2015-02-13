@@ -1,0 +1,75 @@
+module collection where
+
+import sigma
+import univalence
+import retract
+
+lem1 : (A B:U) -> set B -> set (A -> B)
+lem1 A B sB = setPi A (\ _ -> B) (\ _ -> sB)
+
+lem2 : (A B : U) -> groupoid B -> groupoid (A -> B)
+lem2 A B gB = groupoidPi A (\ _ -> B) (\ _ -> gB)
+
+lem3 : (A B : U) (t u : Equiv A B) -> Id U (Id (Equiv A B) t u) (Id (A -> B) t.1 u.1)
+lem3 A B = lemSigProp (A->B) (isEquiv A B) (propIsEquiv A B)
+
+lem4 : (A B : U) -> set B -> set (Equiv A B)
+lem4 A B sB t u =
+ substInv U prop  (Id (Equiv A B) t u) (Id (A -> B) t.1 u.1) (lem3 A B t u) (lem1 A B sB t.1 u.1)
+
+lem5 : (A B : U) -> groupoid B -> groupoid (Equiv A B)
+lem5 A B gB t u =
+ substInv U set  (Id (Equiv A B) t u) (Id (A -> B) t.1 u.1) (lem3 A B t u) (lem2 A B gB t.1 u.1)
+
+lem6 : (A B : U) -> set B -> set (Id U A B)
+lem6 A B sB = retractSet (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (secIdEquiv A B) 
+                         (lem4 A B sB)
+-- substInv U set (Id U A B) (Equiv A B) (corUnivAx A B) (lem4 A B sB)
+
+retractGroupoid : (A B : U)  (f : A -> B) (g : B -> A) (rfg : retract A B f g) -> groupoid B -> groupoid A
+retractGroupoid A B f g rfg gB x y =
+ retractSet (Id A x y) (Id B (f x) (f y)) (mapOnPath A B f x y) (retractInv A B f g rfg x y)
+             (retractId A B f g rfg x y) (gB (f x) (f y))
+
+lem7 : (A B : U) -> groupoid B -> groupoid (Id U A B)
+lem7 A B gB = retractGroupoid (Id U A B) (Equiv A B) (IdToEquiv A B) (EquivToId A B) (secIdEquiv A B) 
+                              (lem5 A B gB)
+-- substInv U groupoid (Id U A B) (Equiv A B) (corUnivAx A B) (lem5 A B gB)
+
+
+-- the collection of all sets
+
+SET : U
+SET = (X:U) * set X
+
+-- the collection of all sets is a groupoid
+
+groupoidSET : groupoid SET
+groupoidSET A B = rem2
+ where
+   rem : set (Id U A.1 B.1)
+   rem = lem6 A.1 B.1 B.2
+   rem1 : Id U (Id SET A B) (Id U A.1 B.1)
+   rem1 = lemSigProp U set setIsProp A B
+   rem2 : set (Id SET A B)
+   rem2 = substInv U set (Id SET A B) (Id U A.1 B.1) rem1 rem
+
+-- the collection of all groupoid
+
+GROUPOID : U
+GROUPOID = (X:U) * groupoid X
+
+-- the collection of all groupoids is a 2-groupoid
+
+twogroupoid : U -> U
+twogroupoid A = (a0 a1:A) -> groupoid (Id A a0 a1)
+
+twogroupoidGROUPOID : twogroupoid GROUPOID
+twogroupoidGROUPOID A B = rem2
+ where
+   rem : groupoid (Id U A.1 B.1)
+   rem = lem7 A.1 B.1 B.2
+   rem1 : Id U (Id GROUPOID A B) (Id U A.1 B.1)
+   rem1 = lemSigProp U groupoid groupoidIsProp A B
+   rem2 : groupoid (Id GROUPOID A B)
+   rem2 = substInv U groupoid (Id GROUPOID A B) (Id U A.1 B.1) rem1 rem

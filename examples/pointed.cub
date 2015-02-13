@@ -1,0 +1,127 @@
+module pointed where
+
+import lemId
+import heterogeneous
+
+-- Pointed types
+ptType : U
+ptType = (X : U) * X
+
+pt : (Z : ptType) -> Z.1
+pt Z = Z.2
+
+-- Maps between pointed types
+isPtMap : (A B : ptType) (f : A.1 -> B.1) -> U
+isPtMap A B f = Id B.1 (f (pt A)) (pt B)
+
+ptMap : ptType -> ptType -> U
+ptMap A B = (f : A.1 -> B.1) * isPtMap A B f
+
+-- The loop space of a pointed type
+Omega : ptType -> ptType
+Omega Z = (Id Z.1 (pt Z) (pt Z),refl Z.1 (pt Z))
+
+kanOp : (A : U) (a : A) (p : Id A a a) (b : A) (f0 : Id A a b) -> Id A b b
+kanOp A a p = J A a (\b f0 -> Id A b b)
+                    p
+
+kanOpRefl : (A : U) (a b : A) (f0 : Id A a b) -> Id (Id A b b) (kanOp A a (refl A a) b f0) (refl A b)
+kanOpRefl A a = J A a (\b f0 -> Id (Id A b b) (kanOp A a (refl A a) b f0) (refl A b))
+                  (refl (Id A a a) (refl A a))
+
+mapOmega : (A B : ptType) (h : ptMap A B) -> ptMap (Omega A) (Omega B)
+mapOmega A B h = (omf,omf0)
+  where a : A.1
+        a = pt A
+        b : B.1
+        b = pt B
+
+        f : A.1 -> B.1
+        f = h.1
+        f0 : Id B.1 (f a) b
+        f0 = h.2
+
+        omf : (Omega A).1 -> (Omega B).1
+        omf p = kanOp B.1 (f a) (mapOnPath (A.1) (B.1) f a a p) b f0
+
+        omf0 : Id (Omega B).1 (omf (refl A.1 a)) (refl B.1 b)
+        omf0 = kanOpRefl B.1 (f a) b f0
+
+-- Simplified mapOmega when the function is pointed by reflexivity
+mapOmegaRefl : (A : ptType) (B : U) (h : A.1 -> B) -> (Omega A).1 -> (Omega (B, h (pt A))).1
+mapOmegaRefl A B h p = mapOnPath A.1 B h (pt A) (pt A) p
+
+-- Iterated loop space
+itOmega : N -> ptType -> ptType
+itOmega = split
+  zero  -> \A -> A
+  suc n -> \A -> itOmega n (Omega A)
+
+itMapOmega : (n : N) (A B : ptType) (h : ptMap A B) ->
+  ptMap (itOmega n A) (itOmega n B)
+itMapOmega = split
+  zero  -> \A B h -> h
+  suc n -> \A B h -> itMapOmega n (Omega A) (Omega B) (mapOmega A B h)
+
+itMapOmegaRefl : (n : N) (A : ptType) (B : U) (h : A.1 -> B) -> (itOmega n A).1 -> (itOmega n (B, h (pt A))).1
+itMapOmegaRefl = split
+  zero  -> \A B h -> h
+  suc n -> \A B h -> itMapOmegaRefl n (Omega A) (Omega (B, h (pt A))).1 (mapOmegaRefl A B h)
+
+-- Looping a fibration (9.2)
+
+fibOmega : (B : ptType) (P : B.1 -> U) (f : P (pt B)) -> (Omega B).1 -> U
+fibOmega B P f p = IdS B.1 P (pt B) (pt B) p f f
+
+-- fibOmegaPt : (B : ptType) (P : B.1 -> U) (f : P (pt B)) -> ptType
+-- fibOmegaPt B P f = (fibOmega B P f p,refl (P (pt B)) f)
+
+totalFibOmega : (B : ptType) (P : B.1 -> U) (f : P (pt B)) ->
+  (Sigma (Omega B).1 (fibOmega B P f)) -> (Omega (Sigma B.1 P, (pt B, f))).1
+totalFibOmega B P f p = pairPath B.1 P (pt B) (pt B) f f p.1 p.2
+
+itFibOmega : (n : N) (B : ptType) (P : B.1 -> U) (f : P (pt B)) -> (itOmega n B).1 -> U
+itFibOmega = split
+  zero  -> \B P f -> P
+  suc n -> \B P f -> itFibOmega n (Omega B) (fibOmega B P f) (refl (P (pt B)) f)
+
+itTotalFibOmega : (n : N) (B : ptType) (P : B.1 -> U) (f : P (pt B)) ->
+  (Sigma (itOmega n B).1 (itFibOmega n B P f)) -> (itOmega n (Sigma B.1 P, (pt B, f))).1
+itTotalFibOmega = split
+  zero  -> \B P f x -> x
+  suc n -> \B P f x -> let
+    BOm : ptType
+    BOm = Omega B
+
+    POm : BOm.1 -> U
+    POm = fibOmega B P f
+
+    fOm : Id (P (pt B)) f f
+    fOm = refl (P (pt B)) f
+
+    ih : (Sigma (itOmega n BOm).1 (itFibOmega n BOm POm fOm)) ->
+         (itOmega n (Sigma BOm.1 POm, (pt BOm, fOm))).1
+    ih = itTotalFibOmega n (Omega B) (fibOmega B P f) (refl (P (pt B)) f)
+    in (itMapOmega n (Sigma BOm.1 POm, (pt BOm, fOm))
+                     (Omega (Sigma B.1 P, (pt B, f)))
+                     (totalFibOmega B P f,
+                       refl (Omega (Sigma B.1 P, (pt B, f))).1
+                         (refl (Sigma B.1 P) (pt B, f)))).1
+                  (ih x)
+
+
+-- TODO: better name!
+-- isContr : U -> U
+-- isContr A = (a : A) * ((x : A) -> Id A a x)
+
+inhOrTrunc : U -> N -> U
+inhOrTrunc A = split
+  zero  -> A
+  suc n -> (x y : A) -> inhOrTrunc (Id A x y) n
+
+truncFibOmega : (B : ptType) (P : B.1 -> U) (f : P (pt B)) (n : N) ->
+  inhOrTrunc (P (pt B)) (suc n) ->
+  (p : (Omega B).1) -> inhOrTrunc (fibOmega B P f p) n
+truncFibOmega B P f n tr p = substInv U (\X -> inhOrTrunc X n)
+  (IdS B.1 P (pt B) (pt B) p f f) (Id (P (pt B)) (subst B.1 P (pt B) (pt B) p f) f)
+  (eqSubstSig B.1 P (pt B) (pt B) p f f) (tr (subst B.1 P (pt B) (pt B) p f) f)

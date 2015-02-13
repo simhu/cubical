@@ -5,50 +5,51 @@ module integer where
 import lemId
 
 Z : U
-Z = or N N
-
-zeroZ : Z
-zeroZ = inr zero
+data Z = zeroZ | posZ (n : N) | negZ (n : N)
 
 sucZ : Z -> Z
 sucZ = split
-  inl u -> auxsucZ u
-    where
+  zeroZ -> posZ zero
+  posZ n -> posZ (suc n)
+  negZ n -> auxsucZ n
+   where
     auxsucZ : N -> Z
     auxsucZ = split
-      zero  -> inr zero
-      suc n -> inl n
-  inr v -> inr (suc v)
+      zero  -> zeroZ
+      suc n -> negZ n
 
 predZ : Z -> Z
 predZ = split
-  inl u -> inl (suc u)
-  inr v -> auxpredZ v
-    where
+  zeroZ -> negZ zero
+  posZ n -> auxpredZ n
+   where
     auxpredZ : N -> Z
     auxpredZ = split
-      zero  -> inl zero
-      suc n -> inr n
+      zero  -> zeroZ
+      suc n -> posZ n
+  negZ n -> negZ (suc n)
 
-sucpredZ : (x : Z) -> Id Z (sucZ (predZ x)) x
+sucpredZ : (n : Z) -> Id Z (sucZ (predZ n)) n
 sucpredZ = split
-  inl u -> refl Z (inl u)
-  inr v -> lem v
+  zeroZ -> refl Z zeroZ
+  posZ n -> lem n
    where
-    lem : (u : N) -> Id Z (sucZ (predZ (inr u))) (inr u)
+    lem : (n : N) -> Id Z (sucZ (predZ (posZ n))) (posZ n)
     lem = split
-      zero  -> refl Z (inr zero)
-      suc n -> refl Z (inr (suc n))
+      zero  -> refl Z (posZ zero)
+      suc n -> refl Z (posZ (suc n))
+  negZ n -> refl Z (negZ n)
 
-predsucZ : (x : Z) -> Id Z (predZ (sucZ x)) x
+predsucZ : (n : Z) -> Id Z (predZ (sucZ n)) n
 predsucZ = split
-  inl u -> lem u
+  zeroZ -> refl Z zeroZ
+  posZ n -> refl Z (posZ n)
+  negZ n -> lem n
    where
-    lem : (u : N) -> Id Z (predZ (sucZ (inl u))) (inl u)
+    lem : (n : N) -> Id Z (predZ (sucZ (negZ n))) (negZ n)
     lem = split
-      zero  -> refl Z (inl zero)
-      suc n -> refl Z (inl (suc n))
-  inr v -> refl Z (inr v)
+      zero  -> refl Z (negZ zero)
+      suc n -> refl Z (negZ (suc n))
 
 sucIdZ : Id U Z Z
 sucIdZ = isoId Z Z sucZ predZ sucpredZ predsucZ

@@ -1,0 +1,26 @@
+module idcircle where
+
+import prelude
+import circle
+import square
+
+idCircleInvol : (x : S1) -> Id S1 x x
+idCircleInvol = hsplit (\x -> Id S1 x x) with
+  base -> refl S1 base
+  loop -> substPathPiSquareTranspose S1 S1 (\x -> x) (\x -> x)
+                      base base loop (refl S1 base) (refl S1 base)
+                      (refl (Id S1 base base) loop)
+
+eq : Id U S1 S1
+eq = isoId S1 S1 (\x -> x) (\x -> x) idCircleInvol idCircleInvol
+
+-- cst : S1 -> S1 -> S1
+-- cst x y = base
+
+-- cst' : S1 -> S1 -> S1
+-- cst' = subst U (\X -> X -> X -> X) S1 S1 eq cst
+
+testS : SquareOverLine S1 S1 eq base base loop base base loop
+                       (eqTransport S1 S1 eq base) (eqTransport S1 S1 eq base)
+testS = rem1IdP S1 S1 eq base loop
+
