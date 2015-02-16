@@ -78,6 +78,13 @@ meet :: Face -> Face -> Face
 meet = Map.unionWith f
   where f d1 d2 = if d1 == d2 then d1 else error "meet: incompatible faces"
 
+-- meetNominal :: Nominal a => (Face,a) -> (Face,a) -> (Face,a)
+-- meetNominal (fc1,a1) (fc2,a2) = (meet fc1 fc2,face [] a1 (minusF fc2 fc1))
+--                                 -- TODO: Fix this by introducing [Name] in subst again...
+
+-- meetNs :: (Eq a,Nominal a) => [(Face,a)] -> [(Face,a)] -> [(Face,a)]
+-- meetNs xs ys = nub [ meetNominal (x,a) (y,b) | (x,a) <- xs, (y,b) <- ys, compatible x y ]
+
 meetMaybe :: Face -> Face -> Maybe Face
 meetMaybe x y = if compatible x y then Just $ meet x y else Nothing
 
@@ -115,6 +122,10 @@ eps = Map.empty
 -- Compute the witness of A <= B, ie compute C s.t. B = CA
 -- leqW :: Face -> Face -> Face
 -- leqW = undefined
+
+-- minusF a b computes everything in a that is not in b (a and b should be compatible)
+minusF :: Face -> Face -> Face
+minusF a b = a Map.\\ b
 
 -- | Formulas
 data Formula = Dir Dir
@@ -205,6 +216,18 @@ invFormula (phi :/\: psi) Zero = invFormula phi 0 `union` invFormula psi 0
 invFormula (phi :/\: psi) One  =
   meets (invFormula phi 1) (invFormula psi 1)
 invFormula (phi :\/: psi) b    = invFormula (negFormula phi :/\: negFormula psi) (- b)
+
+-- The analog of invFormula for a substitution on a list faces (thought as a system)
+substFormula :: Eq a => [(Face,a)] -> [(Name,Formula)] -> [(Face,a)]
+substFormula fs s = unions (map substFormula' fs)
+  where
+    substFormula' :: (Face,a) -> [(Face,a)]
+    substFormula' (f,u) = map (\x -> (x,u)) $ foldr meets [eps] (map aux (Map.toList f))
+
+    aux :: (Name,Dir) -> [Face]
+    aux (x,d) = case lookup x s of
+      Just f  -> invFormula f d
+      Nothing -> [ Map.singleton x d ]
 
 -- primeImplicants :: Formula -> Dir -> System ()
 -- primeImplicants phi Zero = primeImplicants (NegAtom phi) One
@@ -407,7 +430,7 @@ transposeSystemAndList tss (u:us) =
 -- (i = phi) * beta = (beta - i) * (i = phi beta)
 
 -- Now we ensure that the keys are incomparable
-instance Nominal a => Nominal (System a) where
+instance (Eq a, Nominal a) => Nominal (System a) where
   support s = unions (map Map.keys $ Map.keys s)
               `union` support (Map.elems s)
   occurs x s = x `elem` (concatMap Map.keys $ Map.keys s) ||
@@ -432,7 +455,11 @@ instance Nominal a => Nominal (System a) where
         -- t'_alpha = t_alpha (i = phi alpha)
         Nothing -> insertSystem alpha (act sup u (i,face sup phi alpha)) s'
 
-  subst s f = undefined
+  subst s sub = Map.fromList (substFormula (Map.toList s) sub)
+
+-- substFormula :: [Face] -> [(Name,Formula)] -> [Face]
+
+      
   -- face is s f = undefined
 
 -- carve a using the same shape as the system b
@@ -458,7 +485,7 @@ alpha `leqSystem` us =
   not $ Map.null $ Map.filterWithKey (\beta _ -> alpha `leq` beta) us
 
 -- assumes alpha <= shape us
-proj :: (Nominal a, Show a) => [Name] -> System a -> Face -> a
+proj :: (Eq a, Nominal a, Show a) => [Name] -> System a -> Face -> a
 proj is us alpha | eps `Map.member` usalpha = usalpha ! eps
                  | otherwise                =
   error $ "proj: eps not in " ++ show usalpha ++ "\nwhich  is the "

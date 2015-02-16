@@ -91,18 +91,18 @@ initLoop flags f = do
       runInputT (settings []) (loop flags f [] TC.verboseEnv)
     Right (adefs,names) -> do
       (merr,tenv) <- TC.runDeclss TC.verboseEnv [adef | C.ODecls adef <- adefs]
-      -- case merr of
-      --   Just err -> putStrLn $ "Type checking failed: " ++ err
-      --   Nothing  -> putStrLn "File loaded."
+      case merr of
+        Just err -> putStrLn $ "Type checking failed: " ++ err
+        Nothing  -> putStrLn "File loaded."
       -- Compute names for auto completion
-      -- runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
+      runInputT (settings [n | ((n,_),_) <- names]) (loop flags f names tenv)
 
       -- l <- getLine
 
       -- truncS2:
-      test "test" names tenv
-      test "test1" names tenv
-      test "test2" names tenv
+      -- test "test" names tenv
+      -- test "test1" names tenv
+      -- test "test2" names tenv
 
       -- pi1S2:
       -- test "test" names tenv   -- Time: 8m34.017s
