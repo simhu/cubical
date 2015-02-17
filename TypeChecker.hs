@@ -54,22 +54,22 @@ runInfer lenv e = runTyping lenv (checkInfer e)
 
 -- Extract the type of a label as a closure
 getLblType :: String -> Val -> Typing (Tele, Env)
-getLblType c (Ter (Sum _ cas) (r,f)) = case getIdent c cas of
-  Just as -> return (as,mapEnv f r)
+getLblType c (Ter (Sum _ cas) r) = case getIdent c cas of
+  Just as -> return (as,r)
   Nothing -> throwError ("getLblType " ++ show c)
-getLblType c (Ter (HSum _ hlabels) (r,f)) =
+getLblType c (Ter (HSum _ hlabels) r) =
   let cas = map hLabelToBinderTele (filter isLabel hlabels)
   in case getIdent c cas of
-    Just as -> return (as,mapEnv f r)
+    Just as -> return (as,r)
     Nothing -> throwError ("getLblType " ++ show c)
 getLblType c u = throwError ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
 getHLblType :: String -> Val -> Typing (Tele, Env)
-getHLblType c (Ter (HSum _ hlabels) (r,f)) =
+getHLblType c (Ter (HSum _ hlabels) r) =
   let cas = map hLabelToBinderTele hlabels
   in case getIdent c cas of
-    Just as -> return (as,mapEnv f r)
+    Just as -> return (as,r)
     Nothing -> throwError ("getHLblType" <+> show c)
 getHLblType c u = throwError ("expected a hdata type for the path constructor"
                              <+> c <+> "but got" <+> show u)
@@ -152,12 +152,11 @@ check a t = case (a,t) of
     check VU a
     local (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
-  (VPi (Ter (Sum _ cas) (nu,ff)) f,Split _ ces) -> do
+  (VPi (Ter (Sum _ cas) nu) f,Split _ ces) -> do
     let cas' = sortBy (compare `on` fst . fst) cas
         ces' = sortBy (compare `on` fst) ces
-        nu'  = mapEnv ff nu
     if map (fst . fst) cas' == map fst ces'
-       then sequence_ [ checkBranch (as,nu') f brc
+       then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces' cas' ]
        else throwError "case branches do not match the data type"
   (VPi a f,Lam x t)  -> do
@@ -192,16 +191,15 @@ check a t = case (a,t) of
       local (addBranch (zip (map fst tele) us) (tele,rho)) $ do
         check e t0
         check e t1
-  (VPi hs@(Ter (HSum _ hlabels) (nu,ff)) f,HSplit _ f' hbranches) -> do
+  (VPi hs@(Ter (HSum _ hlabels) nu) f,HSplit _ f' hbranches) -> do
     k   <- asks index
     rho <- asks env
     unless (conv [] k f (eval [] rho f'))
       (throwError "check HSplit: families don't match")
     let hlabels'   = sortBy (compare `on` fst . hLabelToBinder) hlabels
         hbranches' = sortBy (compare `on` hBranchToLabel) hbranches
-        nu' = mapEnv ff nu
     if map (fst . hLabelToBinder) hlabels' == map hBranchToLabel hbranches'
-      then sequence_ [ checkHBranch (hl,nu') f hbr (eval [] rho t)
+      then sequence_ [ checkHBranch (hl,nu) f hbr (eval [] rho t)
                      | (hbr,hl) <- zip hbranches' hlabels']
       else throwError "hsplit branches do not match the hdata type"
   (_,Where e d) -> do
