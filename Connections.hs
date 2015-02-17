@@ -217,17 +217,24 @@ invFormula (phi :/\: psi) One  =
   meets (invFormula phi 1) (invFormula psi 1)
 invFormula (phi :\/: psi) b    = invFormula (negFormula phi :/\: negFormula psi) (- b)
 
--- The analog of invFormula for a substitution on a list faces (thought as a system)
-substFormula :: Eq a => [(Face,a)] -> [(Name,Formula)] -> [(Face,a)]
-substFormula fs s = unions (map substFormula' fs)
-  where
-    substFormula' :: (Face,a) -> [(Face,a)]
-    substFormula' (f,u) = map (\x -> (x,u)) $ foldr meets [eps] (map aux (Map.toList f))
+restSub :: [(Name,Formula)] -> Face -> [(Name,Formula)]
+restSub sub f = [ (n,psi) | (n,psi)  <- sub', n `Map.notMember` f ]
+  where sub' = map (\(n,phi) -> (n,face [] phi f)) sub
 
-    aux :: (Name,Dir) -> [Face]
-    aux (x,d) = case lookup x s of
-      Just f  -> invFormula f d
-      Nothing -> [ Map.singleton x d ]
+-- The analog of invFormula for a substitution on a list faces (thought as a system)
+substFormula :: (Eq a, Nominal a) => [(Face,a)] -> [(Name,Formula)] -> [(Face,a)]
+substFormula fs sub = unions (map substFormula' fs)
+  where
+    substFormula' :: Nominal a => (Face,a) -> [(Face,a)]
+    substFormula' (f,u) = map (\beta -> (beta,subst u (restSub sub beta))) betas 
+      where
+        betas :: [Face]
+        betas = foldr meets [eps] (map aux (Map.toList f))
+        
+        aux :: (Name,Dir) -> [Face]
+        aux (x,d) = case lookup x sub of
+          Just f  -> invFormula f d
+          Nothing -> [ Map.singleton x d ]
 
 -- primeImplicants :: Formula -> Dir -> System ()
 -- primeImplicants phi Zero = primeImplicants (NegAtom phi) One
@@ -387,8 +394,8 @@ instance Nominal Formula where
   subst (psi1 :\/: psi2) f = subst psi1 f :\/: subst psi2 f
 
   face _ (Dir b) _          = Dir b
-  face s (Atom i) f         = maybe (Atom i) Dir (Map.lookup i f)
-  face s (NegAtom i) f      = maybe (NegAtom i) (Dir . negate) (Map.lookup i f)
+  face _ (Atom i) f         = maybe (Atom i) Dir (Map.lookup i f)
+  face _ (NegAtom i) f      = maybe (NegAtom i) (Dir . negate) (Map.lookup i f)
   face s (psi1 :/\: psi2) f = face s psi1 f `andFormula` face s psi2 f
   face s (psi1 :\/: psi2) f = face s psi1 f `orFormula` face s psi2 f
 
