@@ -802,34 +802,11 @@ comp Pos i v@(Ter (HSum _ _) _) us u =
         us'         = Map.mapWithKey comp' us
         transp j w  = comp Pos j w Map.empty
 
-comp Pos i (VInh a) ts u | Map.null ts = transInh i (VInh a) u
-comp Pos i (VInh a) ts u = Kan i (VInh ai1) ts' (transInh i (VInh a) u)
-  where ai1         = a `face` (i ~> 1)
-        j           = gensym (i `delete` support (a,ts,u))
-        comp' alpha =
-          transInh j (VInh (a `face` alpha) `act` (i,Atom i :\/: Atom j))
-        ts'         = Map.mapWithKey comp' ts
-
 comp Pos i a ts u =
   error $
   "comp _: not implemented for \n a = " <+> show a <+> "\n" <+>
   "ts = " <+> show ts <+> "\n" <+>
   "u = " <+> parens (show u)
-
--- Transporting an element in (VInh ai0) to (VInh ai1)
-transInh :: Name -> Val -> Val -> Val
-transInh i (VInh a) u = case u of
-  VInc v -> VInc (comp Pos i a Map.empty v)
-  VSquash phi u0 u1 -> VSquash phi (transInh i (VInh a) u0)
-                                   (transInh i (VInh a) u1)
-  Kan j b vs v -> Kan k (VInh ai1) vs' (comp' (i ~> 1) v)
-    where ai1         = a `face` (i ~> 1) -- b is VInh ai0 and independent of j
-          comp' alpha = transInh i (VInh (a `face` alpha))
-          k           = gensym (i `delete` support (a,u))
-          vsjk        = vs `swap` (j,k)
-          vs'         = Map.mapWithKey comp' vsjk
-  w | isNeutral w -> KanNe i (VInh a) Map.empty w
-  w -> error $ "transInh: " ++ show w ++ " should be neutral"
 
 -- Lemma 2.1
 -- assumes u and u' : A are solutions of us + (i0 -> u(i0))
