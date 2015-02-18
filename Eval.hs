@@ -940,8 +940,14 @@ instance Convertible Val where
 
   conv k (KanNe i a ts u) v' | isIndep k i (a,ts) = trace "conv KanNe regular"
     conv k u v'
+  conv k (KanNe i a ts u) v' | isIndep k i a && not (Map.null indep) =
+      trace "conv KanNe filter" conv k (KanNe i a ts' u) v'
+    where (ts',indep) = Map.partition (isIndep k i) ts
   conv k v' (KanNe i a ts u) | isIndep k i (a,ts) = trace "conv KanNe regular"
     conv k v' u
+  conv k v' (KanNe i a ts u) | isIndep k i a && not (Map.null indep) =
+      trace "conv KanNe filter" conv k v' (KanNe i a ts' u)
+    where (ts',indep) = Map.partition (isIndep k i) ts
   conv k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') =
      trace ("conv KanNe" ++ "\n   v = " ++ show v ++ "\n    v' = " ++ show v')  $
      let j    = fresh (v, v')
