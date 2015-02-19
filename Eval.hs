@@ -157,14 +157,14 @@ instance Nominal Val where
     UnGlueNe u v           -> occurs x (u,v)
     VLam _ u               -> occurs x u
 
-  act is u (i, phi) =
+  act b is u (i, phi) | b =
     let acti :: Nominal a => a -> a
-        acti u = act is u (i, phi)
+        acti u = act b is u (i, phi)
         fv     = support phi
         fvis   = fv ++ is
         k      = gensym $ i:fvis
         ar :: Nominal a => Name -> a -> a
-        ar j u = act (k:is) (u `swap` (j,k)) (i,phi)
+        ar j u = act b (k:is) (u `swap` (j,k)) (i,phi)
     in case u of
          VU                     -> VU
          Ter t (e,f) -> Ter t (e,acti . f)
@@ -197,6 +197,44 @@ instance Nominal Val where
          VPCon n vs phi u v     -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
          VHSplit u v            -> app fvis (acti u) (acti v)
          UnGlueNe u v           -> app fvis (acti u) (acti v)
+                        | otherwise =
+    let acti :: Nominal a => a -> a
+        acti u = act b is u (i, phi)
+        fv     = support phi
+        fvis   = fv ++ is
+        k      = gensym $ i:fvis
+        ar :: Nominal a => Name -> a -> a
+        ar j u = act b (k:is) (u `swap` (j,k)) (i,phi)
+    in case u of
+         VU -> VU
+         Ter t (e,f) -> Ter t (e,acti . f)
+         -- Ter t e -> Ter t (acti e)
+         VPi a f -> VPi (acti a) (acti f)
+         Kan j a ts v -> Kan k (ar j a) (ar j ts) (ar j v)
+         KanNe j a ts v -> KanNe k (ar j a) (ar j ts) (ar j v)
+         KanUElem ts u -> KanUElem (acti ts) (acti u)
+         UnKan ts u -> UnKan (acti ts) (acti u)
+         VId a u v -> VId (acti a) (acti u) (acti v)
+         Path j v -> Path k (ar j v)
+         VSigma a f -> VSigma (acti a) (acti f)
+         VSPair u v -> VSPair (acti u) (acti v)
+         VFst u -> VFst (acti u)
+         VSnd u -> VSnd (acti u)
+         VCon c vs -> VCon c (acti vs)
+         VVar x -> VVar x
+         VAppFormula u psi -> VAppFormula (acti u) (acti psi)
+         VApp u v -> VApp (acti u) (acti v)
+         VSplit u v -> VSplit (acti u) (acti v)
+         Glue ts u -> Glue (acti ts) (acti u)
+         UnGlue ts u -> UnGlue (acti ts) (acti u)
+         GlueElem ts u -> GlueElem (acti ts) (acti u)
+         HisoProj n e -> HisoProj n (acti e)
+         GlueLine t phi psi -> GlueLine (acti t) (acti phi) (acti psi)
+         GlueLineElem t phi psi -> GlueLineElem (acti t) (acti phi) (acti psi)
+         VExt psi f g p -> VExt (acti psi) (acti f) (acti g) (acti p)
+         VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
+         VHSplit u v -> VHSplit (acti u) (acti v)
+         UnGlueNe u v -> UnGlueNe (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
   swap u ij =
@@ -237,8 +275,8 @@ instance Nominal Hiso where
   support (Hiso a b f g s t)     = support (a,b,f,g,s,t)
   occurs x (Hiso a b f g s t)    = occurs x (a,b,f,g,s,t)
   
-  act is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
-    where (a',b',f',g',s',t') = act is (a,b,f,g,s,t) iphi
+  act bb is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
+    where (a',b',f',g',s',t') = act bb is (a,b,f,g,s,t) iphi
 
   swap (Hiso a b f g s t) ij     = Hiso a' b' f' g' s' t'
     where (a',b',f',g',s',t') = swap (a,b,f,g,s,t) ij
@@ -253,7 +291,7 @@ instance Nominal Env where
     Pair e (_,v) -> occurs x (e,v)
     PDef _ e     -> occurs x e
 
-  act is e iphi  = mapEnv (\u -> act is u iphi) e
+  act b is e iphi  = mapEnv (\u -> act b is u iphi) e
 
   swap e ij = mapEnv (`swap` ij) e
 
@@ -353,7 +391,7 @@ app is (Ter (HSplit l fam hbr) (e,f)) (VCon name us) =
 
 app is (Ter (HSplit _ _ hbr) (e,f)) (VPCon name us phi _ _) =
   case lookup name (zip (map hBranchToLabel hbr) hbr) of
-    Just (HBranch _ xs t) -> appFormula is (eval is (upds (mapEnv f e) (zip xs us)) t) phi
+    Just (HBranch _ xs t) -> appFormula is (eval is (upds (mapEnv f e) (zip xs us)) t) phi -- TRUE
     _ -> error ("app: HSplit VPCon with insufficient arguments;"
                 <+> "missing case for" <+> name <+> "in" <+> show hbr)
 
@@ -409,7 +447,7 @@ app _ u@(Ter (Split _ _) _) v
 app _ u@(Ter (HSplit _ _ _) _) v
   | isNeutral v = VHSplit u v -- v should be neutral
   | otherwise   = error $ "app: (VHSplit) " ++ show v ++ " is not neutral"
-app is u@(VExt phi f g p) v = appFormula is (app is p v) phi
+app is u@(VExt phi f g p) v = appFormula is (app is p v) phi 
 app _ r s
  | isNeutral r = VApp r s -- r should be neutral
  | otherwise   = error $ "app: (VApp) " ++ show r ++ " is not neutral"
@@ -423,7 +461,9 @@ apps is = foldl (app is)
 -- v @@ phi          = VAppFormula v (toFormula phi)
 
 appFormula :: ToFormula a => [Name] -> Val -> a -> Val
-appFormula is (Path i u) phi     = act is u (i, toFormula phi)
+appFormula is (Path i u) phi     = case toFormula phi of
+  Dir d -> face is u (i ~> d) 
+  phi -> act False is u (i,phi)
 appFormula is (KanUElem _ u) phi = appFormula is u phi
 appFormula _  v          phi     = VAppFormula v (toFormula phi)
 
@@ -596,11 +636,8 @@ comp is sign i a ts u | i `notOccurs` a =
   if i `notOccurs` ts
      then u
      else let (ts',indep) = Map.partition (occurs i) ts
-          in if not (Map.null indep)
-                then comp' is sign i a ts' u
-                else comp' is sign i a ts u
-  
-                      | otherwise = comp' is sign i a ts u
+          in comp' is sign i a ts' u
+                        | otherwise = comp' is sign i a ts u
 
 
 comp' is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
@@ -608,7 +645,7 @@ comp' is Neg i a ts u = comp is Pos i (sym (i:is) a i) (sym (i:is) ts i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
 comp' is Pos i a ts u | eps `Map.member` ts = trace "easy case of comp" $
-                                             act (i:is) (ts ! eps) (i,Dir 1)
+                                             act True (i:is) (ts ! eps) (i,Dir 1)
 comp' is Pos i (KanUElem _ a) ts u = comp is Pos i a ts u
 comp' is Pos i vid@(VId a u v) ts w = Path j $ comp (i:j:is) Pos i (appFormula (i:j:is) a j)
                                                    ts' (appFormula (i:j:is) w j)
@@ -791,7 +828,7 @@ comp' is Pos i v@(Ter (HSum _ _) _) us u
     where vi1         = face (i:is) v (i ~> 1)
           -- j           = gensym (support (v,us,u,Atom i))
           j           = gensym (i:is)
-          comp' alpha = transp j (act (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
+          comp' alpha = transp j (act False (i:is) (face (i:is) v alpha) (i, Atom i :\/: Atom j))
           us'         = Map.mapWithKey comp' us
           transp j w  = comp (i:j:is) Pos j w Map.empty
 comp' is Pos i a ts u =
@@ -932,9 +969,16 @@ instance Convertible Val where
   conv is k (VCon c us) (VCon c' us') = c == c' && conv is k us us'
 
   conv is k (Kan i a ts u) v' | isIndep is k i (a,ts) = trace "conv Kan regular"
-    conv is k u v'
+     conv is k u v'
+  conv is k (Kan i a ts u) v' | isIndep is k i a && not (Map.null indep) =
+      trace "conv Kan filter" conv is k (Kan i a ts' u) v'
+    where (ts',indep) = Map.partition (isIndep is k i) ts
   conv is k v' (Kan i a ts u) | isIndep is k i (a,ts) = trace "conv Kan regular"
-    conv is k v' u
+     conv is k v' u
+  conv is k v' (Kan i a ts u) | isIndep is k i a && not (Map.null indep) =
+      trace "conv Kan filter" conv is k v' (Kan i a ts' u)
+    where (ts',indep) = Map.partition (isIndep is k i) ts
+
   conv is k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
      let j    = gensym is
          tsj  = ts  `swap` (i,j)
@@ -947,8 +991,15 @@ instance Convertible Val where
 
   conv is k (KanNe i a ts u) v' | isIndep is k i (a,ts) = trace "conv KanNe regular"
     conv is k u v'
+  conv is k (KanNe i a ts u) v' | isIndep is k i a && not (Map.null indep) =
+      trace "conv KanNe filter" conv is k (KanNe i a ts' u) v'
+    where (ts',indep) = Map.partition (isIndep is k i) ts
   conv is k v' (KanNe i a ts u) | isIndep is k i (a,ts) = trace "conv KanNe regular"
     conv is k v' u
+  conv is k v' (KanNe i a ts u) | isIndep is k i a && not (Map.null indep) =
+      trace "conv KanNe filter" conv is k v' (KanNe i a ts' u)
+    where (ts',indep) = Map.partition (isIndep is k i) ts
+
   conv is k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') =
      trace ("conv KanNe" ++ "\n   v = " ++ show v ++ "\n    v' = " ++ show v')  $
      let j    = gensym is
