@@ -294,10 +294,6 @@ mkPN s = listToMaybe [pn | (s',_,pn) <- primHandle, s == s']
 data Sign = Pos | Neg
   deriving (Eq, Show)
 
-data HisoProj = HisoSign Sign -- Pos is f, Neg is g
-              | IsSection     -- f o g = 1
-              | IsRetraction  -- g o f = 1
-  deriving (Show, Eq)
 
 data Val = VU
          | Ter Ter Env
@@ -307,7 +303,7 @@ data Val = VU
          | Kan Name Val (System Val) Val
          | KanUElem (System Val) Val
 
-         | UnKan (System Hiso) Val
+         | UnKan (System Val) Val
 
          | VId Val Val Val
 
@@ -322,7 +318,6 @@ data Val = VU
          | Glue (System Hiso) Val
          | UnGlue (System Hiso) Val
          | GlueElem (System Val) Val
-         | HisoProj HisoProj Val
          | GlueLine Val Formula Formula
          | GlueLineElem Val Formula Formula
 
@@ -548,7 +543,6 @@ showVal (VSplit u v)            = showVal u <+> showVal1 v
 showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
 showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
 showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
-showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
 showVal (GlueLine v phi psi)     = "GlueLine" <+> show v <+> show phi <+> show psi
 showVal (GlueLineElem u phi psi) = "GlueLineElem" <+> show u <+> show phi <+> show psi
