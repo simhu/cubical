@@ -602,9 +602,9 @@ isNeutralSystem = any isNeutral . Map.elems
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
 fill Neg i a ts u = trace "fill Neg" $
-  (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
+  (fill Pos i a (ts `sym` i) u) `sym` i
 fill Pos i a ts u = trace "fill Pos" $
-  comp Pos j (a `connect` (i,j)) (ts `connect` (i, j)) u
+  comp Pos j a (ts `connect` (i, j)) u
   where j = fresh (Atom i,a,u,ts)
 
 
@@ -788,7 +788,7 @@ transportFill Pos i a u = transport Pos j (a `connect` (i,j)) u
 -- Precondition for comp: if system is non-empty, the type is
 -- independent of the direction
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
-comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
+comp Neg i a ts u = trace "comp Neg" $ comp Pos i a (ts `sym` i) u
 -- If 1 is a key of ts, then it means all the information is already there.
 -- This is used to take (k = 0) of a comp when k \in L
 comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
