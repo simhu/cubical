@@ -154,21 +154,24 @@ instance Nominal Val where
   act u (i, phi) = -- trace ("act" <+> show u <+> parens (show i <+> "=" <+> show phi)) $
     let acti :: Nominal a => a -> a
         acti u = act u (i, phi)
+        compute = phi `elem` [Dir 1, Dir 0]
+        comp' = if compute then genComp Pos else Kan
     in case u of
          VU      -> VU
          Ter t e -> Ter t (acti e)
          VPi a f -> VPi (acti a) (acti f)
-         Kan j a ts v -> genComp Pos k (ar a) (ar ts) (ar v)
+         Kan j a ts v -> comp' k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
                     ar = acti . (`swap` (j,k))
          -- TODO: Check that act on neutral is neutral
-         KanNe j a ts v -> genComp Pos k (ar a) (ar ts) (ar v)
+         KanNe j a ts v -> comp' k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
                     ar :: Nominal a => a -> a
                     ar = acti . (`swap` (j,k))
 
-         KanUElem ts u -> kanUElem (acti ts) (acti u)
+         KanUElem ts u | compute -> kanUElem (acti ts) (acti u)
+         KanUElem ts u -> KanUElem (acti ts) (acti u)
          UnKan ts u    -> UnKan (acti ts) (acti u)
 
          VId a u v -> VId (acti a) (acti u) (acti v)
@@ -184,22 +187,33 @@ instance Nominal Val where
 
          VVar x            -> VVar x
          VAppFormula u psi -> acti u @@ acti psi
-         VApp u v          -> app (acti u) (acti v)
-         VSplit u v        -> app (acti u) (acti v)
+         VApp u v | compute   -> app (acti u) (acti v)
+         VApp u v             -> VApp (acti u) (acti v)
+         VSplit u v | compute -> app (acti u) (acti v)
+         VSplit u v           -> VSplit (acti u) (acti v)
 
-         Glue ts u         -> glue (acti ts) (acti u)
+         Glue ts u | compute -> glue (acti ts) (acti u)
+         Glue ts u           -> Glue (acti ts) (acti u)
          UnGlue ts u       -> UnGlue (acti ts) (acti u)
-         GlueElem ts u     -> glueElem (acti ts) (acti u)
+         GlueElem ts u | compute -> glueElem (acti ts) (acti u)
+         GlueElem ts u           -> GlueElem (acti ts) (acti u)
          HisoProj n e      -> HisoProj n (acti e)
-         GlueLine t phi psi -> glueLine (acti t) (acti phi) (acti psi)
-         GlueLineElem t phi psi -> glueLineElem (acti t) (acti phi) (acti psi)
+         GlueLine t phi psi | compute -> glueLine (acti t) (acti phi) (acti psi)
+         GlueLine t phi psi -> GlueLine (acti t) (acti phi) (acti psi)
+         GlueLineElem t phi psi | compute ->
+           glueLineElem (acti t) (acti phi) (acti psi)
+         GlueLineElem t phi psi -> GlueLineElem (acti t) (acti phi) (acti psi)
 
-         VExt psi f g p -> vext (acti psi) (acti f) (acti g) (acti p)
+         VExt psi f g p | compute -> vext (acti psi) (acti f) (acti g) (acti p)
+         VExt psi f g p -> VExt (acti psi) (acti f) (acti g) (acti p)
 
-         VPCon n vs phi u v -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
-         VHSplit u v        -> app (acti u) (acti v)
+         VPCon n vs phi u v | compute -> pathCon n (acti vs) (acti phi) (acti u) (acti v)
+         VPCon n vs phi u v -> VPCon n (acti vs) (acti phi) (acti u) (acti v)
+         VHSplit u v | compute -> app (acti u) (acti v)
+         VHSplit u v -> VHSplit (acti u) (acti v)
 
-         UnGlueNe u v       -> app (acti u) (acti v)
+         UnGlueNe u v  | compute -> app (acti u) (acti v)
+         UnGlueNe u v            -> UnGlueNe (acti u) (acti v)
 
   -- This increases efficiency as it won't trigger computation.
   swap u ij@ (i,j) =
