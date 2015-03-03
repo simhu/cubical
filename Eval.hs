@@ -324,14 +324,12 @@ vext phi f g p        = VExt phi f g p
 -- Application
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u            = eval (Pair e (x,u)) t
--- app kan@(Kan i b@(VPi a f) ts li0) ui1 | i `notElem` support ui1 =
---   trace ("app (Kan VPi)") $
---     let u   = fill Neg i a Map.empty ui1
---         --ui0 = u `face` (j ~> 0)
---         ui0 = comp Neg i a Map.empty ui1
---     in comp Pos i (app f u)
---            (Map.intersectionWith app ts (border u ts))
---            (app li0 ui0)
+app kan@(Kan i b@(VPi a f) ts li0) ui1 | Map.null ts && i `notElem` support ui1 =
+  trace ("app (Kan VPi)") $
+    let u   = transportFill Neg i a ui1
+        --ui0 = u `face` (j ~> 0)
+        ui0 = transport Neg i a ui1
+    in transport Pos i (app f u) (app li0 ui0)
 app kan@(Kan i b@(VPi a f) ts li0) ui1 | Map.null ts =
   trace ("app (transp Kan VPi)") $
     let j   = fresh (kan,ui1)
@@ -340,6 +338,11 @@ app kan@(Kan i b@(VPi a f) ts li0) ui1 | Map.null ts =
         --ui0 = u `face` (j ~> 0)
         ui0 = transport Neg j aj ui1
     in transport Pos j (app fj u) (app li0 ui0)
+app kan@(Kan i b@(VPi a f) ts li0) ui1 | i `notElem` support ui1 =
+  trace ("app (Kan VPi)") $
+  comp Pos i (app f ui1)
+            (Map.intersectionWith app ts (border ui1 ts))
+            (app li0 ui1)
 app kan@(Kan i b@(VPi a f) ts li0) ui1 =
   trace ("app (Kan VPi)") $
     let j   = fresh (kan,ui1)
@@ -467,7 +470,7 @@ eqLemma e ts a = trace ("eqLemma " ++ show a) $ (t, Path j theta'')
   where i:j:_  = freshs (e, ts, a)
         ei      = e @@ i
         vs      = Map.mapWithKey (\alpha uAlpha ->
-                    genFill Pos i (ei `face` alpha) Map.empty uAlpha) ts
+                    transportFill Pos i (ei `face` alpha) uAlpha) ts
         theta   = genFill Neg i ei vs a
         t       = genComp Neg i ei vs a
         --t       = theta `face` (i ~> 0)
@@ -584,19 +587,20 @@ isNeutralSystem :: System Val -> Bool
 isNeutralSystem = any isNeutral . Map.elems
 
 fill :: Sign -> Name -> Val -> System Val -> Val -> Val
-fill Neg i a ts u =  trace "fill Neg" $
+fill Neg i a ts u = trace "fill Neg" $
   (fill Pos i (a `sym` i) (ts `sym` i) u) `sym` i
-fill Pos i a ts u =  trace "fill Pos" $
-  comp Pos j (a `connect` (i, j)) (ts `connect` (i, j)) u
+fill Pos i a ts u = trace "fill Pos" $
+  comp Pos j (a `connect` (i,j)) (ts `connect` (i, j)) u
   where j = fresh (Atom i,a,u,ts)
 
 
 genComp :: Sign -> Name -> Val -> System Val -> Val -> Val
 genComp sign i a ts u | Map.null ts = transport sign i a u
-genComp sign i a ts u = comp sign i ai1 ts' (transport sign i a u)
+genComp Neg i a ts u = trace "comp Neg" $ genComp Pos i (a `sym` i) (ts `sym` i) u
+genComp Pos i a ts u = comp Pos i ai1 ts' (transport Pos i a u)
   where ai1   = a `face` (i ~> 1)
         j     = fresh (a,Atom i,ts,u)
-        comp' alpha = transport sign j
+        comp' alpha = transport Pos j
                       ((a `face` alpha) `act` (i, Atom i:\/: Atom j))
         ts' = Map.mapWithKey comp' ts
 
@@ -617,17 +621,19 @@ transportFill sign i a u = fill sign i a Map.empty u
 -- Precondition for comp: if system is non-empty, the type is
 -- independent of the direction
 comp :: Sign -> Name -> Val -> System Val -> Val -> Val
+comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
+-- If 1 is a key of ts, then it means all the information is already there.
+-- This is used to take (k = 0) of a comp when k \in L
+comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
+
+
 comp sign i a ts u | i `notElem` support (a,ts) =
    trace "comp cheaply regular" u
 -- Another possible optimization:
 comp sign i a ts u | i `notElem` support a && not (Map.null indep) =
   trace "comp filter"  comp sign i a ts' u
   where (ts',indep) = Map.partition (\t -> i `elem` support t) ts
-comp Neg i a ts u = trace "comp Neg" $ comp Pos i (a `sym` i) (ts `sym` i) u
 
--- If 1 is a key of ts, then it means all the information is already there.
--- This is used to take (k = 0) of a comp when k \in L
-comp Pos i a ts u | eps `Map.member` ts = (ts ! eps) `act` (i,Dir 1)
 comp Pos i (KanUElem _ a) ts u = comp Pos i a ts u
 
 
@@ -711,7 +717,7 @@ comp Pos i g@(Glue hisos b) ws wi0 =
   where unglue = UnGlue hisos b
         vs   = Map.mapWithKey
                  (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
-        vi0  = app (unglue `face` (i ~> 0)) wi0 -- in b(i0)
+        vi0  = app unglue wi0 -- in b(i0)
 
         v    = fill Pos i b vs vi0           -- in b
         --vi1  = v `face` (i ~> 1)
@@ -730,7 +736,7 @@ comp Pos i g@(Glue hisos b) ws wi0 =
                     (v `face` gamma) (fGamma `app` (us' ! gamma)))
                  hisos
 
-        vi1'  = compLine (b `face` (i ~> 1)) ls' vi1
+        vi1'  = compLine b ls' vi1
 
 
 comp Pos i t@(Kan j VU ejs b) ws wi0 | Map.null ws =
@@ -835,7 +841,8 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
     Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
     Nothing -> error $ "comp HSum: missing constructor in hsum" <+> c
-  VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of -- u should be independent of i, so i # phi
+  VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of
+    -- u should be independent of i, so i # phi
     Just (as, _,_) ->VPCon c ws1 phi (tr e0) (tr e1)
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
@@ -845,7 +852,7 @@ comp Pos i v@(Ter (HSum _ hls) env) us u | Map.null us = case u of
   Kan j b ws w -> comp Pos k vi1 ws' (transp (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
           k   = gensym (support (v,u,Atom i))
-          transp alpha = comp Pos i (v `face` alpha) Map.empty
+          transp alpha = transport Pos i (v `face` alpha)
           wsjk         = ws `swap` (j,k)
           ws'          = Map.mapWithKey transp wsjk
   u | isNeutral u -> KanNe i v us u
