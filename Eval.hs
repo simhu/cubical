@@ -65,14 +65,8 @@ eval e (Split pr alts)   = Ter (Split pr alts) e
 eval e t@(HSum {})       = Ter t e
 eval e (PCon n ts ns t0 t1) =
   let i = fresh e
-      -- TODO: lambda abstract or not?
---      u0 = eval e (mkLams ns t0)
---      u1 = eval e (mkLams ns t1)
-
-      -- -- The code below should be correct, but because of the other bug, we
-      -- -- leave the incorrect thing for now
       us = map (eval e) ts
-      upe = upds e (zip (map noLoc ns) us)
+      upe = upds Empty (zip (map noLoc ns) us)
       u0 = eval upe t0
       u1 = eval upe t1
   in Path i $ VPCon n us (Atom i) u0 u1
@@ -385,11 +379,11 @@ app (Ter (HSplit _ _ hbr) e) (VPCon name us phi _ _) =
                 <+> "missing case for " <+> name <+> show hbr)
 
 app u@(Ter (HSplit _ f hbr) e) kan@(Kan i v ws w) = -- v should be corr. hsum
-  let j     = fresh (e,kan)
+  let j:k:_ = freshs (e,kan)
       wsij  = ws `swap` (i,j)
       ws'   = Map.mapWithKey (\alpha -> app (u `face` alpha)) wsij
       w'    = app u w  -- app (u `face` (i ~> 0)) w
-      ffill = app (eval e f) (fill Pos j v wsij w)
+      ffill = app (eval e f) (Kan k v (wsij `connect` (j,k)) w)
   in genComp Pos j ffill ws' w'
 
 app g@(UnGlue hisos b) w
@@ -449,8 +443,7 @@ gradLemma hiso@(Hiso a b f g s t) us v =
         theta   = fill Pos i a us' (app g v)
         --u       = theta `face` (i ~> 1)
         u       = comp Pos i a us' (app g v)
-        ws      = insertSystem (i ~> 0) (app g v) $
-                  insertSystem (i ~> 1) (app t u @@ j) $
+        ws      = insertSystem (i ~> 1) (app t u @@ j) $
                   Map.mapWithKey
                     (\alpha uAlpha ->
                       app (t `face` alpha) uAlpha @@ (Atom i :/\: Atom j)) us
@@ -551,6 +544,9 @@ comps i ((x,a):as) e ((ts,u):tsus) =
       vs  = comps i as (Pair e (x,v)) tsus
   in vi1 : vs
 comps _ _ _ _ = error "comps: different lengths of types and values"
+
+transps :: Name -> [(Binder,Ter)] -> Env -> [Val] -> [Val]
+transps i as e us = comps i as e (zip (repeat Map.empty) us)
 
 fills :: Name -> [(Binder,Ter)] -> Env -> [(System Val,Val)] -> [Val]
 fills i []         _ []         = []
@@ -724,16 +720,16 @@ transport Pos i a u | isNeutral a || isNeutral u =
   trace "transport Neutral"
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
   KanNe i a Map.empty u
-
+  
 transport Pos i v@(Ter (Sum _ nass) env) (VCon n us) = trace "comp Sum" $
   case getIdent n nass of
-  Just as -> VCon n $ comps i as env tsus
-    where tsus = transposeSystemAndList Map.empty us
+  Just as -> VCon n $ transps i as env us
   Nothing -> error $ "comp: missing constructor in labelled sum " ++ n
+
 
 transport Pos i v@(Ter (HSum _ hls) env) u = case u of
   VCon c ws -> case getIdent c (map hLabelToBinderTele hls) of
-    Just as -> VCon c (comps i as env (zip (repeat Map.empty) ws))
+    Just as -> VCon c (transps i as env ws)
     Nothing -> error $ "transport HSum: missing constructor in hsum" <+> c
   VPCon c ws0 phi e0 e1 -> case getIdent c (mapHLabelToBinderTele hls) of
     -- u should be independent of i, so i # phi
@@ -741,7 +737,7 @@ transport Pos i v@(Ter (HSum _ hls) env) u = case u of
       where  -- The following seems correct when [phi] is a variable, but
              -- otherwise we need to do an induction on [phi]
         tr  = transport Pos i v
-        ws1 = comps i as env (zip (repeat Map.empty) ws0)
+        ws1 = transps i as env ws0
     Nothing -> error $ "transport HSum: missing path constructor in hsum" <+> c
   Kan j b ws w -> comp Pos k vi1 ws' (transp (i ~> 1) w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
@@ -804,11 +800,11 @@ comp Pos i g@(Glue hisos b) ws wi0 =
   where unglue = UnGlue hisos b
         vs   = Map.mapWithKey
                  (\alpha wAlpha -> app (unglue `face` alpha) wAlpha) ws
-        vi0  = app unglue wi0 -- in b(i0)
+        vi0  = app unglue wi0 -- in b
 
         v    = fill Pos i b vs vi0           -- in b
         --vi1  = v `face` (i ~> 1)
-        vi1  = comp Pos i b vs vi0           -- in b(i1)
+        vi1  = comp Pos i b vs vi0           -- in b
 
         us'    = Map.mapWithKey (\gamma (Hiso aGamma _ _ _ _ _) ->
                   fill Pos i aGamma (ws `face` gamma) (wi0 `face` gamma))
