@@ -720,7 +720,7 @@ transport Pos i a u | isNeutral a || isNeutral u =
   trace "transport Neutral"
   -- ++ show a ++ "\n i=" ++ show i ++ "\n ts = " ++ show ts ++ "\n u = " ++ show u)
   KanNe i a Map.empty u
-  
+
 transport Pos i v@(Ter (Sum _ nass) env) (VCon n us) = trace "comp Sum" $
   case getIdent n nass of
   Just as -> VCon n $ transps i as env us
@@ -755,7 +755,7 @@ transport Pos i a u =
   "u = " <+> parens (show u)
 
 transportFill :: Sign -> Name -> Val -> Val -> Val
-transportFill Neg i a u = transportFill Pos i (a `sym` i) u
+transportFill Neg i a u = (transportFill Pos i (a `sym` i) u) `sym` i
 transportFill Pos i a u = transport Pos j (a `connect` (i,j)) u
   where j = fresh (Atom i,a,u)
 
@@ -844,21 +844,22 @@ comp Pos i t@(Kan j VU ejs b) ws wi0 =
      kanUElem usi1' vi1'
 
 -- TODO: adapt!
-comp Pos i (GlueLine b phi psi) us u = glueLineElem vm phii1 psii1
-  where
-         phii1   = phi `face` (i ~> 1)
-         psii1   = psi `face` (i ~> 1)
-         phii0   = phi `face` (i ~> 0)
-         psii0   = psi `face` (i ~> 0)
-         bi1 = b `face`  (i ~> 1)
-         bi0 = b `face`  (i ~> 0)
-         lss = mkSystem (map (\ alpha -> (alpha,(face phi alpha,face b alpha,face us alpha,face u alpha))) fs)
-         ls = Map.mapWithKey (\alpha vAlpha -> auxGlueLine i vAlpha (v `face` alpha)) lss
-         v = comp Pos i b ws w
-         ws = Map.mapWithKey (\alpha -> unGlueLine (face b alpha) (face phi alpha) (face psi alpha)) us
-         w  = unGlueLine bi0 phii0 psii0 u
-         vm = compLine (b `face` (i ~>1)) ls v
-         fs = filter (i `Map.notMember`) (invFormula psi One)
+comp Pos i (GlueLine b phi psi) us u = error "comp GlueLine: not implemented yet!"
+  -- glueLineElem vm phii1 psii1
+  -- where
+  --        phii1   = phi `face` (i ~> 1)
+  --        psii1   = psi `face` (i ~> 1)
+  --        phii0   = phi `face` (i ~> 0)
+  --        psii0   = psi `face` (i ~> 0)
+  --        bi1 = b `face`  (i ~> 1)
+  --        bi0 = b `face`  (i ~> 0)
+  --        lss = mkSystem (map (\ alpha -> (alpha,(face phi alpha,face b alpha,face us alpha,face u alpha))) fs)
+  --        ls = Map.mapWithKey (\alpha vAlpha -> auxGlueLine i vAlpha (v `face` alpha)) lss
+  --        v = comp Pos i b ws w
+  --        ws = Map.mapWithKey (\alpha -> unGlueLine (face b alpha) (face phi alpha) (face psi alpha)) us
+  --        w  = unGlueLine bi0 phii0 psii0 u
+  --        vm = compLine (b `face` (i ~>1)) ls v
+  --        fs = filter (i `Map.notMember`) (invFormula psi One)
 
 comp Pos i VU ts u = Kan i VU ts u
 

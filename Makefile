@@ -3,7 +3,7 @@ OPT=2
 GHC=cabal exec ghc --
 
 all:
-	$(GHC) --make -O$(OPT) -o cubical Main.hs
+	$(GHC) --make -O$(OPT) -fno-full-laziness -o cubical Main.hs
 debug:
 	$(GHC) --make -Ddebugmode -O$(OPT) -o cubical Main.hs
 profile:

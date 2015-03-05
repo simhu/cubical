@@ -11,6 +11,12 @@ import qualified Data.Set as Set
 import Data.Maybe
 import Test.QuickCheck
 
+
+import Data.IORef
+import System.IO.Unsafe
+
+
+
 newtype Name = Name Integer
   deriving (Arbitrary,Eq,Ord)
 
@@ -235,10 +241,22 @@ testInvFormula :: [Face]
 testInvFormula = invFormula (Atom (Name 0) :/\: Atom (Name 1)) 1
 
 -- | Nominal
-gensym :: [Name] -> Name
-gensym [] = Name 0
-gensym xs = Name (max+1)
-  where Name max = maximum xs
+-- gensym :: [Name] -> Name
+-- gensym [] = Name 0
+-- gensym xs = Name (max+1)
+--   where Name max = maximum xs
+
+{-# NOINLINE freshVar #-}
+freshVar :: IORef Name
+freshVar = unsafePerformIO (newIORef (Name 0))
+
+succName (Name x) = Name (x+1)
+
+gensym :: [a] -> Name
+gensym _ = unsafePerformIO $ do
+  x <- readIORef freshVar
+  modifyIORef freshVar succName
+  return x
 
 gensyms :: [Name] -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
