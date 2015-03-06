@@ -335,15 +335,30 @@ resolveOTDecl c n ds = do
     Just x  -> return (c x : rest, names)
     Nothing -> throwError $ "Not in scope:" <+> show n
 
+declName :: Decl -> AIdent
+declName decl = case decl of
+  DeclType d _    -> d
+  DeclDef d _ _   -> d
+  DeclData d _ _  -> d
+  DeclHData d _ _ -> d
+  _               -> AIdent ((0,0),"")
+
 -- Resolve declarations
 resolveDecls :: [Decl] -> Resolver ([C.ODecls],[(C.Binder,SymKind)])
 resolveDecls []                   = return ([],[])
 resolveDecls (DeclOpaque n:ds)    = resolveOTDecl C.Opaque n ds
 resolveDecls (DeclTransp n:ds)    = resolveOTDecl C.Transp n ds
 resolveDecls (td@DeclType{}:d:ds) = do
-    (rtd,names)  <- resolveMutuals [td,d]
-    (rds,names') <- local (insertBinders names) $ resolveDecls ds
-    return (C.ODecls rtd : rds, names' ++ names)
+  mod <- getModule
+  let AIdent (loc1,f1) = declName td
+      AIdent (_,f2)    = declName d
+  if f1 == f2
+    then do
+      (rtd,names)  <- resolveMutuals [td,d]
+      (rds,names') <- local (insertBinders names) $ resolveDecls ds
+      return (C.ODecls rtd : rds, names' ++ names)
+    else throwError $ "Mismatching names" <+> f1 <+> "and" <+> f2 <+> "at"
+                   <+> show loc1 <+> "in" <+> mod
 resolveDecls (DeclPrim x t:ds) = case C.mkPN (unAIdent x) of
   Just pn -> do
     b  <- resolveBinder x
