@@ -523,11 +523,11 @@ showVal (Ter t@HSum{} env)       = show t <+> showSumEnv env
 showVal (Ter t env)              = show t <+> show env
 showVal (VPi a f)                = "Pi" <+> showVals [a,f]
 showVal (Kan i aType ts a)       =
-  "Kan" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a
+  "Kan" <+> show i <+> showVal1 aType <+> showVal1 a <+> brackets (showSystem ts)
 showVal (KanNe i aType ts a)       =
-  "KanNe" <+> show i <+> showVal1 aType <+> parens (show ts) <+> showVal1 a
-showVal (KanUElem ts u)          = "KanUElem" <+> show ts <+> showVal u
-showVal (UnKan ts u)             = "UnKan" <+> show ts <+> showVal u
+  "KanNe" <+> show i <+> showVal1 aType <+> brackets (showSystem ts) <+> showVal1 a
+showVal (KanUElem ts u)          = "KanUElem" <+> brackets (showSystem ts) <+> showVal u
+showVal (UnKan ts u)             = "UnKan" <+> brackets (showSystem ts) <+> showVal u
 
 showVal (VId a u v)              =
   "Id" <+> showVal1 a <+> showVal1 u <+> showVal1 v
@@ -545,9 +545,9 @@ showVal (VAppFormula u n)        = showVal u <+> "@" <+> show n
 showVal (VCon c us)             = c <+> showVals us
 showVal (VSplit u v)            = showVal u <+> showVal1 v
 
-showVal (Glue ts u)             = "Glue" <+> show ts <+> showVal u
-showVal (UnGlue ts u)           = "UnGlue" <+> show ts <+> showVal u
-showVal (GlueElem ts u)         = "GlueElem" <+> show ts <+> showVal u
+showVal (Glue ts u)             = "Glue" <+> brackets (showSystem ts) <+> showVal u
+showVal (UnGlue ts u)           = "UnGlue" <+> brackets (showSystem ts) <+> showVal u
+showVal (GlueElem ts u)         = "GlueElem" <+> brackets (showSystem ts) <+> showVal u
 showVal (HisoProj n e)          = "HisoProj" <+> show n <+> showVal1 e
 
 showVal (GlueLine v phi psi)     = "GlueLine" <+> show v <+> show phi <+> show psi

@@ -25,6 +25,9 @@ parens :: String -> String
 parens [] = ""
 parens p  = "(" ++ p ++ ")"
 
+brackets :: String -> String
+brackets p  = "[ " ++ p ++ " ]"
+
 -- Angled brackets, not present in pretty library.
 abrack :: String -> String
 abrack [] = ""
