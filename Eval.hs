@@ -812,7 +812,7 @@ comp' is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
         tr  = comp is Pos i v Map.empty
         ws1 = comps is i as (mapEnv f env) (zip (repeat Map.empty) ws0)
     Nothing -> error $ "comp HSum: missing path constructor in hsum" <+> c
-  Kan j b ws w -> comp (k:i:is) Pos k vi1 ws' (transp (i ~> 1) w)
+  Kan j b ws w -> comp (k:i:is) Pos k vi1 ws' (comp is Pos i v Map.empty w) -- (transp (i ~> 1) w)
     where vi1 = face (i:is) v (i ~> 1)  -- b is vi0 and independent of j
           -- k   = gensym (support (v,u,Atom i))
           k   = gensym (i:is)
