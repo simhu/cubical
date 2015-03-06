@@ -739,7 +739,8 @@ transport Pos i v@(Ter (HSum _ hls) env) u = case u of
         tr  = transport Pos i v
         ws1 = transps i as env ws0
     Nothing -> error $ "transport HSum: missing path constructor in hsum" <+> c
-  Kan j b ws w -> comp Pos k vi1 ws' (transp (i ~> 1) w)
+
+  Kan j b ws w -> comp Pos k vi1 ws' (transport Pos i v w)
     where vi1 = v `face` (i ~> 1)  -- b is vi0 and independent of j
           k   = fresh (v,u,Atom i)
           transp alpha = transport Pos i (v `face` alpha)
