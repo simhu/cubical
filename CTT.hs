@@ -603,7 +603,7 @@ showVal (GlueLineElem u phi psi) = "GlueLineElem" <+> show u <+> show phi <+> sh
 showVal (VExt phi f g p)        = "funExt" <+> show phi <+> showVals [f,g,p]
 
 showVal (VPCon c es phi u v)     = -- not verbose for now
-  c <+> showVals es <+> parens (show phi) -- <+> "@" <+> showVal u <+> "~" <+> showVal v
+  c <+> showVals es <+> parens (show phi) <+> "@" <+> showVal u <+> "~" <+> showVal v
 showVal (VHSplit u v)            = showVal u <+> showVal1 v
 
 showVal (UnGlueNe u v)           = showVal1 u <+> showVal1 v
