@@ -67,6 +67,10 @@ type Face = Map Name Dir
 instance Arbitrary Face where
   arbitrary = Map.fromList <$> arbitrary
 
+showFace :: Face -> String
+showFace alpha = concat [ "(" ++ show i ++ "," ++ show d ++ ")"
+                        | (i,d) <- Map.toList alpha ]
+
 swapFace :: Face -> (Name,Name) -> Face
 swapFace alpha ij = Map.mapKeys (`swapName` ij) alpha
 
@@ -359,6 +363,10 @@ face = Map.foldWithKey (\i d a -> act a (i,Dir d))
 
 -- the faces should be incomparable
 type System a = Map Face a
+
+showSystem :: Show a => System a -> String
+showSystem ts = concat $ intersperse ", " [ showFace alpha ++ " |-> " ++ show u
+                                          | (alpha,u) <- Map.toList ts ]
 
 insertSystem :: Face -> a -> System a -> System a
 insertSystem alpha v ts =
