@@ -141,7 +141,23 @@ data Formula = Dir Dir
              | NegAtom Name
              | Formula :/\: Formula
              | Formula :\/: Formula
-  deriving (Eq,Show)
+  deriving (Show,Eq)
+
+-- instance Show Formula where
+--   show = showFormula
+
+-- showFormula, showFormula1 :: Formula -> String
+-- showFormula phi = case phi of
+--   Dir d        -> show d
+--   Atom n       -> show n
+--   NegAtom n    -> "~" ++ show n
+--   phi :/\: psi -> showFormula1 phi ++ " /\\ " ++ showFormula1 psi
+--   phi :\/: psi -> showFormula1 phi ++ " \\/ " ++ showFormula1 psi
+-- showFormula1 phi = case phi of
+--   Dir d     -> show d
+--   Atom n    -> show n
+--   NegAtom n -> "~" ++ show n
+--   _         -> "(" ++ showFormula phi ++ ")"
 
 arbFormula :: [Name] -> Int -> Gen Formula
 arbFormula names s =

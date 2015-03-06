@@ -510,8 +510,7 @@ showODecls (Transp x)    = "transparent" <+> show x
 showSumEnv :: Env -> String
 showSumEnv Empty = ""
 showSumEnv (PDef xas env) = showSumEnv env
-showSumEnv (Pair env (_,u)) = showVal1 u <+> showSumEnv env
-
+showSumEnv (Pair env (_,u)) = showVal u <+> showSumEnv env
 
 instance Show Val where
   show = showVal
