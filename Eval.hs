@@ -61,7 +61,7 @@ eval is e v = case v of
   Con name ts        -> VCon name $ map (eval is e) ts
   Split pr alts      -> Ter (Split pr alts) (e,id)
   t@HSum{}           -> Ter t (e,id)
-  PCon n ts ns t0 t1 -> 
+  PCon n ts ns t0 t1 ->
     let i   = gensym is
         -- TODO: lambda abstract or not?
         -- u0 = eval e (mkLams ns t0)
@@ -242,7 +242,7 @@ instance Nominal Val where
         sw u = swap u ij
     in case u of
          VU                     -> VU
-         Ter t (e,f) -> Ter t (e,sw . f) 
+         Ter t (e,f)            -> Ter t (e,sw . f)
          -- Ter t e                -> Ter t (sw e)
          VPi a f                -> VPi (sw a) (sw f)
          Kan k a ts v           -> Kan (swapName k ij) (sw a) (sw ts) (sw v)
@@ -274,7 +274,7 @@ instance Nominal Val where
 instance Nominal Hiso where
   support (Hiso a b f g s t)     = support (a,b,f,g,s,t)
   occurs x (Hiso a b f g s t)    = occurs x (a,b,f,g,s,t)
-  
+
   act bb is (Hiso a b f g s t) iphi = Hiso a' b' f' g' s' t'
     where (a',b',f',g',s',t') = act bb is (a,b,f,g,s,t) iphi
 
@@ -816,7 +816,7 @@ comp' is Pos i v@(Ter (HSum _ hls) (env,f)) us u | Map.null us = case u of
     where vi1 = face (i:is) v (i ~> 1)  -- b is vi0 and independent of j
           -- k   = gensym (support (v,u,Atom i))
           k   = gensym (i:is)
-          transp alpha = comp is Pos i (face (i:is) v alpha) Map.empty
+          transp alpha = comp (i:k:is) Pos i (face (i:is) v alpha) Map.empty
           wsjk         = ws `swap` (j,k)
           ws'          = Map.mapWithKey transp wsjk
   u | isNeutral u -> KanNe i v us u
