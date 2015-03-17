@@ -615,7 +615,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     trace "Kan Fill VU Case 3" $
     let -- the principal side of box must be a VComp
         -- should be safe given the neutral test at the beginning
-        upperbox = unCompAs (lookBox (x,dir') box) x
+        upperbox = unCompAs (lookBox (x,tdir) box) x
         nonprincipal =
           [ (zc,let top    = lookBox zc upperbox
                     bottom = lookBox zc box
@@ -654,7 +654,7 @@ fill v@(Kan Fill VU tbox@(Box tdir x tx nvs)) box@(Box dir x' vx' nvs')
     -- assumes x,K subset x',J
     trace "Kan Fill VU Case 5" $
     -- surprisingly close to the last case of the Kan-Com-VU filling
-    let upperbox = unCompAs (lookBox (x,dir') box) x
+    let upperbox = unCompAs (lookBox (x,tdir) box) x
         npintbox = modBox (\zc downside ->
                             let bottom = lookBox zc box
                                 top    = lookBox zc upperbox
