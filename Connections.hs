@@ -413,16 +413,10 @@ instance Nominal a => Nominal (System a) where
     addAssocs ((alpha,u):alphaus) =
       let s' = addAssocs alphaus
       in case Map.lookup i alpha of
-        -- t'_beta  = t_alpha (delta - i)
-        -- where beta = delta gamma
-        --   and delta in phi^-1 d
-        --   and gamma = alpha - i
-        Just d -> foldr (\delta s'' ->
-          case meetMaybe delta (Map.delete i alpha) of
-            Just beta -> insertSystem beta (face u (Map.delete i delta)) s''
-            Nothing    -> s'')
-                   s' (invFormula phi d)
-        -- t'_alpha = t_alpha (i = phi alpha)
+        Just d -> let beta = Map.delete i alpha
+                  in foldr (\delta s'' -> insertSystem (meet delta beta)
+                                            (face u (Map.delete i delta)) s'')
+                                            s' (invFormula (face phi beta) d)
         Nothing -> insertSystem alpha (act u (i,face phi alpha)) s'
 
   swap s ij = Map.mapKeys (`swapFace` ij) (Map.map (`swap` ij) s)
