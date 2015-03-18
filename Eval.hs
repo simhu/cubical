@@ -463,7 +463,7 @@ apps is = foldl (app is)
 appFormula :: ToFormula a => [Name] -> Val -> a -> Val
 appFormula is (Path i u) phi     = case toFormula phi of
   Dir d -> face is u (i ~> d) 
-  phi -> act False is u (i,phi)
+  phi -> act True is u (i,phi)
 appFormula is (KanUElem _ u) phi = appFormula is u phi
 appFormula _  v          phi     = VAppFormula v (toFormula phi)
 
