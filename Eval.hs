@@ -1,8 +1,5 @@
 module Eval where
 
-import Data.List
-import Data.Maybe (fromMaybe)
-
 import CTT
 
 look :: Ident -> Env -> (Binder, Val)
@@ -27,10 +24,73 @@ eval e (Where t decls) = eval (PDef [ (x,y) | (x,_,y) <- decls ] e) t
 eval e (Con name ts)   = VCon name (map (eval e) ts)
 eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
-eval e (Undef _)       = error "undefined"
+eval _ (Undef _)       = error "undefined"
+eval e (CLam (i,_) t) = VCLam $ \j -> ceval i j $ eval e t
+eval e (CApp r s) = capp (eval e r) s
+eval e (CPair r s) = cpair (eval e r) (eval e s)
+eval e (CPi a) = VCPi (eval e a)
+eval e (Psi a) = VPsi (eval e a)
+eval e (Param a) = VParam (eval e a)
+eval e (Ni a b) = VNi (eval e a) (eval e b)
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env bts = [ (b,eval env t) | (b,t) <- bts ]
+
+cpair :: Val -> Val -> Val
+cpair _ (VParam t) = t
+cpair a b = VCPair a b
+
+cevals :: [(Color,CVal)] -> Val -> Val
+cevals [] = id
+cevals ((i,j):xs) = ceval i j . cevals xs
+
+substEnv :: Color -> CVal -> Env -> Env
+substEnv  = error "TODO: subs"
+
+subst :: Color -> CVal -> Ter -> Ter
+subst = error "TODO: subs"
+
+ceval :: Color -> CVal -> Val -> Val
+ceval i p v0 =
+  let ev = ceval i p
+      subs = (\j -> if i==j then p else CVar j)
+  in case v0 of
+    VPi a b -> VPi (ev a) (ev b)
+    VApp a b -> app (ev a) (ev b)
+    VU -> VU
+    Ter t env -> Ter (subst i p t) (substEnv i p env)
+    VCPair a b -> cpair (ev a) (ev b)
+    VCApp a Zero -> capp (ev a) Zero
+    VCApp a (CVar k) -> capp (ev a) (subs k)
+    VCPair a b -> cpair (ev a) (ev b)
+    VCLam f -> clam' (ev . f)
+    VCPi x -> VCPi (ev x)
+    VPsi a -> VPsi (ev a)
+    VNi a b -> ni (ev a) (ev b)
+    VParam a -> param (ev a)
+
+ni :: Val -> Val -> Val
+ni (VCPair _ (VPsi p)) a = app p a
+ni a b = VNi a b
+
+param :: Val -> Val
+param (VCPair _ p) = p
+param x = VParam x
+
+proj :: Color -> Val -> Val
+proj i = ceval i Zero
+
+clam' :: (CVal -> Val) -> Val
+clam' f | (VCApp a (CVar "__RESERVED__")) <- f (CVar "__RESERVED__") = a
+   -- eta contraction (no need for occurs check!)
+
+clam :: Color -> Val -> Val
+clam xi t = clam' (\i -> ceval xi i t)
+
+capp :: Val -> CVal -> Val
+capp (VCLam f) x = f x
+capp (VCPair a _) Zero = a
+capp f a = VCApp f a -- neutral
 
 app :: Val -> Val -> Val
 app (Ter (Lam x t) e) u = eval (Pair e (x,u)) t

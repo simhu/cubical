@@ -1,8 +1,6 @@
 module CTT where
 
 import Control.Applicative
-import Data.List
-import Data.Maybe
 import Pretty
 
 --------------------------------------------------------------------------------
@@ -64,6 +62,14 @@ data Ter = App Ter Ter
          -- labelled sum c1 A1s,..., cn Ans (assumes terms are constructors)
          | Sum Binder LblSum
          | Undef Loc
+
+         | CLam Binder Ter
+         | CPair Ter Ter
+         | CApp Ter CVal
+         | CPi Ter
+         | Param Ter
+         | Psi Ter
+         | Ni Ter Ter
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -80,6 +86,10 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 --------------------------------------------------------------------------------
 -- | Values
 
+type Color = String
+data CVal = Zero | CVar Color
+  deriving Eq
+           
 data Val = VU
          | Ter Ter Env
          | VPi Val Val
@@ -91,7 +101,15 @@ data Val = VU
          | VVar String
          | VFst Val
          | VSnd Val
-  deriving Eq
+
+         | VCPair Val Val
+         | VCApp Val CVal
+         | VCPi Val
+         | VParam Val
+         | VPsi Val
+         | VNi Val Val
+         | VCLam (CVal -> Val)
+  -- deriving Eq
 
 mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
@@ -110,7 +128,7 @@ isNeutral _            = False
 data Env = Empty
          | Pair Env (Binder,Val)
          | PDef [(Binder,Ter)] Env
-  deriving Eq
+  -- deriving Eq
 
 instance Show Env where
   show Empty            = ""
