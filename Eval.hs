@@ -153,6 +153,7 @@ instance Nominal Val where
          Ter t e -> Ter t (acti e)
          VPi a f -> VPi (acti a) (acti f)
          Kan j a ts v
+           | j == i -> u
            | j `notElem` sphi -> genComp Pos j (acti a) (acti ts) (acti v)
            | otherwise -> genComp Pos k (ar a) (ar ts) (ar v)
               where k = fresh (u, Atom i, phi)
@@ -160,6 +161,7 @@ instance Nominal Val where
                     ar = acti . (`swap` (j,k))
          -- TODO: Check that act on neutral is neutral
          KanNe j a ts v
+           | j == i -> u
            | j `notElem` sphi -> genComp Pos j (acti a) (acti ts) (acti v)
            | otherwise -> genComp Pos k (ar a) (ar ts) (ar v)
               where k   = fresh (u, Atom i, phi)
@@ -170,8 +172,9 @@ instance Nominal Val where
          UnKan ts u    -> UnKan (acti ts) (acti u)
 
          VId a u v -> VId (acti a) (acti u) (acti v)
-         Path j v | j `notElem` sphi -> Path j (acti v)
-                  | otherwise -> Path k (v `swap` (j,k))
+         Path j v | j == i -> u
+                  | j `notElem` sphi -> Path j (acti v)
+                  | otherwise -> Path k (acti (v `swap` (j,k)))
               where k = fresh (v, Atom i, phi)
 
          VSigma a f -> VSigma (acti a) (acti f)
