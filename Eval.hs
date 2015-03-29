@@ -101,6 +101,8 @@ ceval i p v0 =
     VNi a b -> ni (ev a) (ev b)
     VParam a -> param (ev a)
 
+face v = v `capp` Zero
+
 ni :: Val -> Val -> Val
 ni (VCPair _ (VPsi p)) a = app p a
 ni a b = VNi a b

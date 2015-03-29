@@ -102,13 +102,14 @@ data Val = VU
          | VFst Val
          | VSnd Val
 
-         | VCPair Val Val
          | VCApp Val CVal
          | VCPi Val
+         | VCLam (CVal -> Val)
+
+         | VCPair Val Val
          | VParam Val
          | VPsi Val
          | VNi Val Val
-         | VCLam (CVal -> Val)
   -- deriving Eq
 
 mkVar :: Int -> Val

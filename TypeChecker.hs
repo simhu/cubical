@@ -26,7 +26,7 @@ data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
                  , verbose :: Bool  -- Should it be verbose and print
                                     -- what it typechecks?
                  }
-  deriving (Eq,Show)
+  deriving (Show)
 
 verboseEnv, silentEnv :: TEnv
 verboseEnv = TEnv 0 Empty [] True
@@ -143,6 +143,20 @@ check a t = case (a,t) of
     e <- asks env
     let v = eval e t1
     check (app f v) t2
+  (VCPi f, CLam x t) -> do
+    VVar var <- getFresh
+    check (capp f (CVar var)) t
+  (VU,CPi (CLam x b)) -> do
+    check VU b
+  (t,CPair a b) -> do
+    e <- asks env
+    let a' = eval e a
+    check (face t) a
+    check (t `ni` a') b
+  (VNi VU a,Psi p) -> do
+    let x = noLoc n
+        n = "__PSI_ARG__"
+    local (addTypeVal (x,a)) $ check VU (App p $ Var n) 
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
@@ -191,6 +205,22 @@ checkInfer e = case e of
         let v = eval e t
         return $ app f (fstSVal v)
       _          -> throwError $ show c ++ " is not a sigma-type"
+  CApp t u -> do
+    c <- checkInfer t
+    case c of
+      VCPi f -> do return $ (capp f u)
+      _          -> throwError $ show t ++ " is not a type family"
+  Param t -> do
+    c <- checkInfer t
+    rho <- asks env
+    let v = eval rho t
+    case c of
+      VCPi f -> do return $ ni f (face v)
+      _          -> throwError $ show t ++ " is not a type family"
+  Ni t u -> do
+    t' <- checkInfer t
+    check (face t') u
+    return VU
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t
