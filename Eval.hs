@@ -45,10 +45,42 @@ cevals [] = id
 cevals ((i,j):xs) = ceval i j . cevals xs
 
 substEnv :: Color -> CVal -> Env -> Env
-substEnv  = error "TODO: subs"
+substEnv i p env0 = case env0 of
+  Empty -> Empty
+  Pair env (b,v) -> Pair (re env) (b,ceval i p v)
+  PDef ds env -> PDef (map (second $ subst i p) ds) (re env)
+ where re = substEnv i p
+
+second :: (t -> t2) -> (t1, t) -> (t1, t2)
+second f (a,b) = (a, f b)
 
 subst :: Color -> CVal -> Ter -> Ter
-subst = error "TODO: subs"
+subst i p t0 =
+  let su = subst i p
+      subs = (\j -> if i==j then p else CVar j)
+  in case t0 of
+    App a b -> App (su a) (su b)
+    Pi a b -> Pi (su a) (su b)
+    Lam a b -> Lam a (su b)
+    Sigma a b -> Sigma (su a) (su b)
+    Fst b -> Fst (su b)
+    Snd b -> Snd (su b)
+    Where a ds -> Where (su a) [(b,su c, su d) | (b,c,d) <- ds]
+    Var x -> Var x
+    U -> U
+    Con l ts -> Con l (map su ts)
+    Split l bs -> Split l [(l',(bs',su t)) | (l',(bs',t)) <- bs]
+    Sum b ss -> Sum b $ map (second (map (second su))) ss
+    Undef l -> Undef l
+    CLam (j,b) t | i /= j -> CLam (j,b) (su t)
+                 | i == j -> CLam (i,b) (subst j p $ subst i (CVar j) t)
+    CPair a b -> CPair (su a) (su b)
+    CPi b -> CPi (su b)
+    CApp a Zero -> CApp (su a) Zero
+    CApp a (CVar k) -> CApp (su a) (subs k)
+    Param a -> Param (su a)
+    Psi a -> Psi (su a)
+    Ni a b -> Ni (su a) (su b)
 
 ceval :: Color -> CVal -> Val -> Val
 ceval i p v0 =
