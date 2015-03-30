@@ -146,17 +146,21 @@ check a t = case (a,t) of
   (VCPi f, CLam x t) -> do
     VVar var <- getFresh
     check (capp f (CVar var)) t
-  (VU,CPi (CLam x b)) -> do
-    check VU b
-  (t,CPair a b) -> do
+  (VU,CPi (CLam x t)) -> do
+    check VU t
+  -- (VU,CPi f) -> do
+  --   check VU (CApp f $ CVar "_NEW_")
+  (VCPi f,CPair a b) -> do
     e <- asks env
     let a' = eval e a
-    check (face t) a
-    check (t `ni` a') b
-  (VNi VU a,Psi p) -> do
+    check (face f) a
+    check (f `ni` a') b
+  (_,CApp u (CVar i)) -> do
+    check (VCPi $ VCLam $ \j -> ceval i j a) u
+  (VNi f b,Psi p) | VU <- capp f (CVar "__NOPE__") -> do
     let x = noLoc n
         n = "__PSI_ARG__"
-    local (addTypeVal (x,a)) $ check VU (App p $ Var n) 
+    local (addTypeVal (x,b)) $ check VU (App p $ Var n) 
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e

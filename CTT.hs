@@ -162,15 +162,25 @@ instance Show Loc where
 instance Show Ter where
   show = showTer
 
+showCol :: CVal -> String
+showCol Zero  = "0"
+showCol (CVar x) = x
+
 showTer :: Ter -> String
 showTer U             = "U"
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
+showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
+showTer (CPi e) = "Pi" <+> showTer e
 showTer (Lam (x,_) e) = '\\' : x <+> "->" <+> showTer e
+showTer (CLam (x,_) e) = "<" ++ x ++ ">" <+> showTer e
 showTer (Fst e)       = showTer e ++ ".1"
 showTer (Snd e)       = showTer e ++ ".2"
+showTer (Param e)       = showTer e ++ "!"
+showTer (Psi e)       = "PSI" <+> showTer e
 showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
+showTer (CPair e0 e1) = "[" <+> showTer e0 <+> "," <+> showTer e1 <+>"]"
 showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
 showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
@@ -199,14 +209,20 @@ showVal :: Val -> String
 showVal VU           = "U"
 showVal (Ter t env)  = show t <+> show env
 showVal (VCon c us)  = c <+> showVals us
+showVal (VCLam f)  = "<>" <+> showVal (f $ CVar "*")
 showVal (VPi a f)    = "Pi" <+> showVals [a,f]
+showVal (VCPi f)    = "PI" <+> showVal f
 showVal (VApp u v)   = showVal u <+> showVal1 v
+showVal (VCApp u i)   = showVal u <+> "@" ++ showCol i
 showVal (VSplit u v) = showVal u <+> showVal1 v
 showVal (VVar x)     = x
 showVal (VSPair u v) = "pair" <+> showVals [u,v]
+showVal (VCPair u v) = "cpair" <+> showVals [u,v]
 showVal (VSigma u v) = "Sigma" <+> showVals [u,v]
 showVal (VFst u)     = showVal u ++ ".1"
 showVal (VSnd u)     = showVal u ++ ".2"
+showVal (VParam u)     = showVal u ++ "!"
+showVal (VPsi u)     = "PSI" ++ showVal u
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

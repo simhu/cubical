@@ -9,13 +9,12 @@ import Pretty
 
 import Control.Applicative
 import Control.Arrow (second)
-import Control.Monad.Trans
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Control.Monad (when)
 import Data.Functor.Identity
-import Data.List (nub)
+import Data.List (nub,find)
 
 type Tele = [(AIdent,Exp)]
 type Ter  = C.Ter
@@ -70,13 +69,14 @@ data SymKind = Variable | Constructor Arity
 
 -- local environment for constructors
 data Env = Env { envModule :: String,
+                 colors :: [C.Binder],
                  variables :: [(C.Binder,SymKind)] }
   deriving (Eq, Show)
 
 type Resolver a = ReaderT Env (ErrorT String Identity) a
 
 emptyEnv :: Env
-emptyEnv = Env "" []
+emptyEnv = Env "" [] []
 
 runResolver :: Resolver a -> Either String a
 runResolver x = runIdentity $ runErrorT $ runReaderT x emptyEnv
@@ -94,6 +94,9 @@ insertBinders = flip $ foldr insertBinder
 
 insertVar :: C.Binder -> Env -> Env
 insertVar x = insertBinder (x,Variable)
+
+insertColor :: C.Binder -> Env -> Env
+insertColor x e = e {colors = x:colors e }
 
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
@@ -138,11 +141,26 @@ resolveVar (AIdent (l,x))
         "Cannot resolve variable" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
+resolveCVar :: AIdent -> Resolver C.CVal
+resolveCVar (AIdent (l,x)) = do
+    modName <- getModule
+    cols  <- colors <$> ask
+    case [() | (y,_) <- cols, y == x] of
+      _:_      -> return $ C.CVar x
+      _ -> throwError $
+        "Cannot resolve color" <+> x <+> "at position" <+>
+        show l <+> "in module" <+> modName
+
 lam :: AIdent -> Resolver Ter -> Resolver Ter
 lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
 
 lams :: [AIdent] -> Resolver Ter -> Resolver Ter
 lams = flip $ foldr lam
+
+clam :: AIdent -> Resolver Ter -> Resolver Ter
+clam i b = do
+  x <- resolveBinder i
+  C.CLam x <$> local (insertColor x) b
 
 bind :: (Ter -> Ter -> Ter) -> (AIdent, Exp) -> Resolver Ter -> Resolver Ter
 bind f (x,t) e = f <$> resolveExp t <*> lam x e
@@ -181,6 +199,15 @@ resolveExp (Split brs)  = do
 resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
+resolveExp (Param t) = C.Param <$> resolveExp t
+resolveExp (Psi t) = C.Psi <$> resolveExp t
+resolveExp (CLam i t) = clam i $ resolveExp t
+resolveExp (CPi i t) = C.CPi <$> (clam i $ resolveExp t)
+resolveExp (CApp t i) = C.CApp <$> resolveExp t <*> resolveColor i
+resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
+
+resolveColor Zero = pure $ C.Zero
+resolveColor (CVar x) = pure $ C.Zero
 
 resolveWhere :: ExpWhere -> Resolver Ter
 resolveWhere = resolveExp . unWhere

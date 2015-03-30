@@ -1,4 +1,17 @@
 module paramId where
 
+t1 : U
+t1 = forall i. U
+
+t2 : forall i. U
+t2 = <i> U
+
+t3 : (B : U) -> (P : B -> U) -> forall i. U
+t3 B P = [ B , Psi P ]
+
 paramId : (f : (A : U) -> A -> A) -> (B : U) -> (b : B) -> (P : B -> U) -> (p : P b) -> P (f B b)
-paramId f B b P p = (<i> f ([ B , Psi P ] i) ([ b , p ] i)) !
+paramId f B b P p = t !
+  where T : forall i. U
+        T = [ B , Psi P ]
+        t : T
+        t = <i> f (T @ i) ([ b , p ] @ i)
