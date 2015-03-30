@@ -1,0 +1,4 @@
+module paramId where
+
+paramId : (f : (A : U) -> A -> A) -> (B : U) -> (b : B) -> (P : B -> U) -> (p : P b) -> P (f B b)
+paramId f B b P p = (<i> f ([ B , Psi P ] i) ([ b , p ] i)) !

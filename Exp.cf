@@ -21,16 +21,26 @@ separator   Decl ";" ;
 Where.    ExpWhere ::= Exp "where" "{" [Decl] "}" ;
 NoWhere.  ExpWhere ::= Exp ;
 
+Zero.     CExp ::= "0" ;
+CVar.     CExp ::= AIdent ;
+
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
 Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
+CLam.     Exp  ::= "<" AIdent ">" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
+CPi.      Exp1 ::= "forall " AIdent "." Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
+CApp.      Exp2 ::= Exp2 "@" CExp ;
+Ni.       Exp2 ::= Exp2 " ? " Exp3 ;
+Psi.       Exp2 ::= "Psi" Exp3 ;
+Param.      Exp3 ::= Exp3 "!" ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
+CPair.    Exp3 ::= "[" Exp "," Exp "]" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
 coercions Exp 3 ;

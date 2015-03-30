@@ -89,7 +89,7 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 type Color = String
 data CVal = Zero | CVar Color
   deriving Eq
-           
+
 data Val = VU
          | Ter Ter Env
          | VPi Val Val
