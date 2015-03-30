@@ -187,6 +187,7 @@ showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (Undef _)     = "undefined"
+showTer (Ni f a)    = showTer f ++ " ? " ++ showTer1 a
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
@@ -223,6 +224,7 @@ showVal (VFst u)     = showVal u ++ ".1"
 showVal (VSnd u)     = showVal u ++ ".2"
 showVal (VParam u)     = showVal u ++ "!"
 showVal (VPsi u)     = "PSI" ++ showVal u
+showVal (VNi f a)    = showVal f ++ " ? " ++ showVal a
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show

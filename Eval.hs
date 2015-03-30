@@ -87,19 +87,25 @@ ceval i p v0 =
   let ev = ceval i p
       subs = (\j -> if i==j then p else CVar j)
   in case v0 of
-    VPi a b -> VPi (ev a) (ev b)
-    VApp a b -> app (ev a) (ev b)
     VU -> VU
     Ter t env -> Ter (subst i p t) (substEnv i p env)
-    VCPair a b -> cpair (ev a) (ev b)
+    VPi a b -> VPi (ev a) (ev b)
+    VSigma a b -> VSigma (ev a) (ev b)
+    VSPair a b -> VSPair (ev a) (ev b)
+    VCon x as -> VCon x (map ev as)
+    VApp a b -> app (ev a) (ev b)
+    VSplit a b -> VSplit (ev a) (ev b)
+    VVar x -> VVar x
+    VFst a -> VFst (ev a)
+    VSnd a -> VSnd (ev a)
     VCApp a Zero -> capp (ev a) Zero
     VCApp a (CVar k) -> capp (ev a) (subs k)
-    VCPair a b -> cpair (ev a) (ev b)
-    VCLam f -> clam' (ev . f)
     VCPi x -> VCPi (ev x)
+    VCLam f -> clam' (ev . f)
+    VCPair a b -> cpair (ev a) (ev b)
+    VParam a -> param (ev a)
     VPsi a -> VPsi (ev a)
     VNi a b -> ni (ev a) (ev b)
-    VParam a -> param (ev a)
 
 face v = v `capp` Zero
 

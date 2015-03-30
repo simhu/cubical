@@ -222,7 +222,9 @@ checkInfer e = case e of
       VCPi f -> do return $ ni f (face v)
       _          -> throwError $ show t ++ " is not a type family"
   Ni t u -> do
-    t' <- checkInfer t
+    check (VCPi $ VCLam $ \_ -> VU) t
+    rho <- asks env
+    let t' = eval rho t
     check (face t') u
     return VU
   Where t d -> do

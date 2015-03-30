@@ -205,6 +205,7 @@ resolveExp (CLam i t) = clam i $ resolveExp t
 resolveExp (CPi i t) = C.CPi <$> (clam i $ resolveExp t)
 resolveExp (CApp t i) = C.CApp <$> resolveExp t <*> resolveColor i
 resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
+resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u
 
 resolveColor Zero = pure $ C.Zero
 resolveColor (CVar x) = pure $ C.Zero
