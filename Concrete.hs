@@ -151,6 +151,10 @@ resolveCVar (AIdent (l,x)) = do
         "Cannot resolve color" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
+resolveColor :: CExp -> Resolver C.CVal
+resolveColor Zero = pure $ C.Zero
+resolveColor (CVar x) = resolveCVar x
+
 lam :: AIdent -> Resolver Ter -> Resolver Ter
 lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
 
@@ -207,8 +211,6 @@ resolveExp (CApp t i) = C.CApp <$> resolveExp t <*> resolveColor i
 resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
 resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u
 
-resolveColor Zero = pure $ C.Zero
-resolveColor (CVar x) = pure $ C.Zero
 
 resolveWhere :: ExpWhere -> Resolver Ter
 resolveWhere = resolveExp . unWhere

@@ -13,7 +13,7 @@ paramId : (f : (A : U) -> A -> A) -> (B : U) -> (b : B) -> (P : B -> U) -> (p : 
 paramId f B b P p = t !
   where T : forall i. U
         T = [ B , Psi P ]
-        p' : (<i> T @ i) ? b
+        p' : T ? b
         p' = p
         a : forall i. T @ i
         a = [ b , p ]

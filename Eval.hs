@@ -25,13 +25,13 @@ eval e (Con name ts)   = VCon name (map (eval e) ts)
 eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined"
-eval e (CLam (i,_) t) = VCLam $ \j -> ceval i j $ eval e t
+eval e (CLam (i,_) t) = clam i $ eval e t
 eval e (CApp r s) = capp (eval e r) s
 eval e (CPair r s) = cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi a) = VPsi (eval e a)
 eval e (Param a) = VParam (eval e a)
-eval e (Ni a b) = VNi (eval e a) (eval e b)
+eval e (Ni a b) = ni (eval e a) (eval e b)
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env bts = [ (b,eval env t) | (b,t) <- bts ]
@@ -154,6 +154,15 @@ sndSVal u | isNeutral u = VSnd u
 
 -- conversion test
 conv :: Int -> Val -> Val -> Bool
+conv k (VCPi f) (VCPi f') = conv k f f'
+conv k (VCLam f) t = conv (k+1) (f (CVar v)) (capp t (CVar v))
+  where v = "i" ++ show k
+conv k t (VCLam f) = conv k (VCLam f) t
+conv k (VCApp a b) (VCApp a' b') = conv k a a' && b == b'
+conv k (VParam a) (VParam a') = conv k a a'
+conv k (VPsi a) (VPsi a') = conv k a a'
+conv k (VNi a b) (VNi a' b') = conv k a a' && conv k b b'
+conv k (VCPair a b) (VCPair a' b') = conv k a a' && conv k b b'
 conv k VU VU                                  = True
 conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = do
   let v = mkVar k
