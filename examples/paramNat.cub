@@ -1,0 +1,17 @@
+module paramNat where
+
+Nat : U
+Nat = (A : U) -> A -> (A -> A) -> A
+
+paramN : (n : Nat) ->
+          (A : U) -> (P : A -> U) ->
+          (z : A) -> (z' : P z) ->
+          (s : A -> A) -> (s' : (x : A) -> P x -> P (s z)) ->
+          P (n A z s)
+paramN n A P z z' s s' = undefined
+  where T : forall i. U
+        T = [ A , Psi P ]
+        zz : forall i. T @ i
+        zz = [ z , z' ]
+        ss : forall i. (T @ i -> T @ i)
+        ss = <i> \[i] x -> [s (x@0) , s' (x@0) (x!)] @ i
