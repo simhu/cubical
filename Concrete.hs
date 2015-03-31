@@ -14,7 +14,8 @@ import Control.Monad.Trans.Error hiding (throwError)
 import Control.Monad.Error (throwError)
 import Control.Monad (when)
 import Data.Functor.Identity
-import Data.List (nub,find)
+import Data.List (nub,find,(\\))
+import Data.Traversable (forM)
 
 type Tele = [(AIdent,Exp)]
 type Ter  = C.Ter
@@ -69,7 +70,7 @@ data SymKind = Variable | Constructor Arity
 
 -- local environment for constructors
 data Env = Env { envModule :: String,
-                 colors :: [C.Binder],
+                 colors :: [C.Color],
                  variables :: [(C.Binder,SymKind)] }
   deriving (Eq, Show)
 
@@ -96,7 +97,11 @@ insertVar :: C.Binder -> Env -> Env
 insertVar x = insertBinder (x,Variable)
 
 insertColor :: C.Binder -> Env -> Env
-insertColor x e = e {colors = x:colors e }
+insertColor (x,_) e = e {colors = x:colors e }
+
+removeColor :: C.CVal -> Env -> Env
+removeColor C.Zero e = e
+removeColor (C.CVar x) e = e {colors = colors e \\ [x] }
 
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
@@ -141,25 +146,29 @@ resolveVar (AIdent (l,x))
         "Cannot resolve variable" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
-resolveCVar :: AIdent -> Resolver C.CVal
+resolveCVar :: AIdent -> Resolver C.Color
 resolveCVar (AIdent (l,x)) = do
     modName <- getModule
     cols  <- colors <$> ask
-    case [() | (y,_) <- cols, y == x] of
-      _:_      -> return $ C.CVar x
+    case [() | y <- cols, y == x] of
+      _:_      -> return $ x
       _ -> throwError $
         "Cannot resolve color" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
 resolveColor :: CExp -> Resolver C.CVal
 resolveColor Zero = pure $ C.Zero
-resolveColor (CVar x) = resolveCVar x
+resolveColor (CVar x) = C.CVar <$> resolveCVar x
 
-lam :: AIdent -> Resolver Ter -> Resolver Ter
-lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
+resolveMCols :: MCols -> Resolver [C.Color]
+resolveMCols NoCols = return []
+resolveMCols (Cols xs) = forM xs $ \x -> resolveCVar x
 
-lams :: [AIdent] -> Resolver Ter -> Resolver Ter
-lams = flip $ foldr lam
+lam :: [C.Color] -> AIdent -> Resolver Ter -> Resolver Ter
+lam is a e = do x <- resolveBinder a; C.Lam is x <$> local (insertVar x) e
+
+lams :: [C.Color] -> [AIdent] -> Resolver Ter -> Resolver Ter
+lams is = flip $ foldr (lam is)
 
 clam :: AIdent -> Resolver Ter -> Resolver Ter
 clam i b = do
@@ -207,7 +216,9 @@ resolveExp (Param t) = C.Param <$> resolveExp t
 resolveExp (Psi t) = C.Psi <$> resolveExp t
 resolveExp (CLam i t) = clam i $ resolveExp t
 resolveExp (CPi i t) = C.CPi <$> (clam i $ resolveExp t)
-resolveExp (CApp t i) = C.CApp <$> resolveExp t <*> resolveColor i
+resolveExp (CApp t i) = do
+  i' <- resolveColor i
+  local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
 resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
 resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u
 
