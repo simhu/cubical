@@ -122,6 +122,7 @@ proj i = ceval i Zero
 
 clam' :: (CVal -> Val) -> Val
 clam' f | (VCApp a (CVar "__RESERVED__")) <- f (CVar "__RESERVED__") = a
+        | otherwise = VCLam f
    -- eta contraction (no need for occurs check!)
 
 clam :: Color -> Val -> Val

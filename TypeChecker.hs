@@ -143,9 +143,9 @@ check a t = case (a,t) of
     e <- asks env
     let v = eval e t1
     check (app f v) t2
-  (VCPi f, CLam x t) -> do
+  (VCPi f, CLam (x,_) t) -> do
     VVar var <- getFresh
-    check (capp f (CVar var)) t
+    check (capp f (CVar var)) (subst x (CVar var) t)
   (VU,CPi (CLam x t)) -> do
     check VU t
   -- (VU,CPi f) -> do
@@ -156,7 +156,7 @@ check a t = case (a,t) of
     check (face f) a
     check (f `ni` a') b
   (_,CApp u (CVar i)) -> do
-    check (VCPi $ VCLam $ \j -> ceval i j a) u
+    check (VCPi $ clam' $ \j -> ceval i j a) u
   (VNi f b,Psi p) | VU <- capp f (CVar "__NOPE__") -> do
     let x = noLoc n
         n = "__PSI_ARG__"
@@ -222,7 +222,7 @@ checkInfer e = case e of
       VCPi f -> do return $ ni f (face v)
       _          -> throwError $ show t ++ " is not a type family"
   Ni t u -> do
-    check (VCPi $ VCLam $ \_ -> VU) t
+    check (VCPi $ clam' $ \_ -> VU) t
     rho <- asks env
     let t' = eval rho t
     check (face t') u

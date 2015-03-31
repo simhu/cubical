@@ -18,4 +18,4 @@ paramId f B b P p = t !
         a : forall i. T @ i
         a = [ b , p ]
         t : forall i. T @ i
-        t = <i> f ([ B , Psi P ] @ i) ([ b , p ] @ i)
+        t = <i> f (T @ i) (a @ i)
