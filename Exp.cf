@@ -24,8 +24,11 @@ NoWhere.  ExpWhere ::= Exp ;
 Zero.     CExp ::= "0" ;
 CVar.     CExp ::= AIdent ;
 
+Cols.     MCols ::= "[" [AIdent] "]";
+NoCols.   MCols ::= ;
+
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
-Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
+Lam.      Exp  ::= "\\" MCols AIdent [AIdent] "->" Exp ;
 CLam.     Exp  ::= "<" AIdent ">" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;

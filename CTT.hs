@@ -47,7 +47,7 @@ declDefs decl = [ (x,d) | (x,_,d) <- decl]
 -- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
-         | Lam Binder Ter
+         | Lam [Color] Binder Ter
          | Sigma Ter Ter
          | SPair Ter Ter
          | Fst Ter
@@ -76,8 +76,12 @@ mkApps :: Ter -> [Ter] -> Ter
 mkApps (Con l us) vs = Con l (us ++ vs)
 mkApps t ts          = foldl App t ts
 
-mkLams :: [String] -> Ter -> Ter
-mkLams bs t = foldr Lam t [ noLoc b | b <- bs ]
+mkLams :: [Color] -> [String] -> Ter -> Ter
+mkLams cs bs t = foldr (Lam cs) t [ noLoc b | b <- bs ]
+
+tcpis :: [Color] -> Ter -> Ter
+tcpis [] t = t
+tcpis (i:is) t = CPi $ CLam (noLoc i) $ tcpis is t
 
 mkWheres :: [Decls] -> Ter -> Ter
 mkWheres []     e = e
@@ -172,7 +176,8 @@ showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
 showTer (CPi e) = "Pi" <+> showTer e
-showTer (Lam (x,_) e) = '\\' : x <+> "->" <+> showTer e
+showTer (Lam [] (x,_) e) = '\\' : x <+> "->" <+> showTer e
+showTer (Lam cs (x,_) e) = '\\' : show cs ++ x <+> "->" <+> showTer e
 showTer (CLam (x,_) e) = "<" ++ x ++ ">" <+> showTer e
 showTer (Fst e)       = showTer e ++ ".1"
 showTer (Snd e)       = showTer e ++ ".2"

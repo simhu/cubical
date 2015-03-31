@@ -131,7 +131,7 @@ expandConstr a x es = do
       binders = map (('_' :) . show) [1..r]
       args    = map C.Var binders
   ts <- mapM resolveExp es
-  return $ C.mkLams binders $ C.mkApps (C.Con x []) (ts ++ args)
+  return $ C.mkLams [] binders $ C.mkApps (C.Con x []) (ts ++ args)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
@@ -176,7 +176,7 @@ clam i b = do
   C.CLam x <$> local (insertColor x) b
 
 bind :: (Ter -> Ter -> Ter) -> (AIdent, Exp) -> Resolver Ter -> Resolver Ter
-bind f (x,t) e = f <$> resolveExp t <*> lam x e
+bind f (x,t) e = f <$> resolveExp t <*> lam [] x e
 
 binds :: (Ter -> Ter -> Ter) -> Tele -> Resolver Ter -> Resolver Ter
 binds f = flip $ foldr $ bind f
@@ -201,7 +201,9 @@ resolveExp (Pi t b)     =  case pseudoTele t of
   Just tele -> binds C.Pi tele (resolveExp b)
   Nothing   -> throwError "Telescope malformed in Pigma"
 resolveExp (Fun a b)    = bind C.Pi (AIdent ((0,0),"_"), a) (resolveExp b)
-resolveExp (Lam x xs t) = lams (x:xs) (resolveExp t)
+resolveExp (Lam is x xs t) = do
+  is' <- resolveMCols is
+  lams is' (x:xs) (resolveExp t)
 resolveExp (Fst t)      = C.Fst <$> resolveExp t
 resolveExp (Snd t)      = C.Snd <$> resolveExp t
 resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
@@ -250,9 +252,9 @@ declsLabels decls = do
 -- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
 resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
-  (n,) <$> lams args (resolveWhere body)
+  (n,) <$> lams [] args (resolveWhere body)
 resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
-  (n,) <$> lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
+  (n,) <$> lams [] args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
 resolveDDecl d = throwError $ "Definition expected" <+> show d
 
 -- Resolve mutual declarations (possibly one)

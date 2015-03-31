@@ -15,7 +15,7 @@ eval e U               = VU
 eval e (App r s)       = app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
-eval e (Lam x t)       = Ter (Lam x t) e -- stop at lambdas
+eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
 eval e (Fst a)         = fstSVal (eval e a)
@@ -61,7 +61,7 @@ subst i p t0 =
   in case t0 of
     App a b -> App (su a) (su b)
     Pi a b -> Pi (su a) (su b)
-    Lam a b -> Lam a (su b)
+    Lam is a b -> Lam [j | CVar j <- map subs is] a (su b)
     Sigma a b -> Sigma (su a) (su b)
     Fst b -> Fst (su b)
     Snd b -> Snd (su b)
@@ -128,13 +128,21 @@ clam' f | (VCApp a (CVar "__RESERVED__")) <- f (CVar "__RESERVED__") = a
 clam :: Color -> Val -> Val
 clam xi t = clam' (\i -> ceval xi i t)
 
+clams :: [Color] -> Val -> Val
+clams [] t = t
+clams (i:is) t = clam i $ clams is t
+
+cpis :: [Color] -> Val -> Val
+cpis [] t = t
+cpis (i:is) t = VCPi $ clam i $ cpis is t
+
 capp :: Val -> CVal -> Val
 capp (VCLam f) x = f x
 capp (VCPair a _) Zero = a
 capp f a = VCApp f a -- neutral
 
 app :: Val -> Val -> Val
-app (Ter (Lam x t) e) u = eval (Pair e (x,u)) t
+app (Ter (Lam cs x t) e) u = eval (Pair e (x,clams cs u)) t
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t) -> eval (upds e (zip xs us)) t
     Nothing -> error $ "app: Split with insufficient arguments; " ++
@@ -165,15 +173,15 @@ conv k (VPsi a) (VPsi a') = conv k a a'
 conv k (VNi a b) (VNi a' b') = conv k a a' && conv k b b'
 conv k (VCPair a b) (VCPair a' b') = conv k a a' && conv k b b'
 conv k VU VU                                  = True
-conv k (Ter (Lam x u) e) (Ter (Lam x' u') e') = do
+conv k (Ter (Lam cs x u) e) (Ter (Lam cs' x' u') e') = do
   let v = mkVar k
-  conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
-conv k (Ter (Lam x u) e) u' = do
+  cs == cs' && conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+conv k (Ter (Lam is x u) e) u' = do
   let v = mkVar k
-  conv (k+1) (eval (Pair e (x,v)) u) (app u' v)
-conv k u' (Ter (Lam x u) e) = do
+  conv (k+1) (eval (Pair e (x,clams is v)) u) (app u' v)
+conv k u' (Ter (Lam is x u) e) = do
   let v = mkVar k
-  conv (k+1) (app u' v) (eval (Pair e (x,v)) u)
+  conv (k+1) (app u' v) (eval (Pair e (x,clams is v)) u)
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
   (p == p') && convEnv k e e'
 conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
