@@ -145,6 +145,10 @@ capp (VCLam f) x = f x
 capp (VCPair a _) Zero = a
 capp f a = VCApp f a -- neutral
 
+capps :: Val -> [Color] -> Val
+capps a [] = a
+capps a (i:is) = capps (capp a $ CVar i) is
+
 app :: Val -> Val -> Val
 app (VLam f) u = f u
 app (Ter (Lam cs x t) e) u = eval (Pair e (x,clams cs u)) t

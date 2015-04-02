@@ -137,7 +137,7 @@ check a t = case (a,t) of
        else throwError "case branches does not match the data type"
   (VPi a f,Lam is x t)  -> do
     var <- getFresh
-    local (addTypeVal (x,cpis is a)) $ check (app f var) t
+    local (addTypeVal (x,cpis is a)) $ check (app f $ capps var is) t
   (VSigma a f, SPair t1 t2) -> do
     check a t1
     e <- asks env
