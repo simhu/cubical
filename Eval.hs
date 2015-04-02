@@ -15,7 +15,8 @@ eval e U               = VU
 eval e (App r s)       = app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
-eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
+eval e (Lam [] x t)    = Ter (Lam [] x t) e -- stop at lambdas
+eval e (Lam is x t)    = VLam $ \x' -> eval (Pair e (x,clams is x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
 eval e (Fst a)         = fstSVal (eval e a)
@@ -61,7 +62,8 @@ subst i p t0 =
   in case t0 of
     App a b -> App (su a) (su b)
     Pi a b -> Pi (su a) (su b)
-    Lam is a b -> Lam [j | CVar j <- map subs is] a (su b)
+    Lam is _ _ | Zero <- p, not (null is) -> error $ "should be gone: " ++ show t0
+    Lam is x b -> Lam [j | CVar j <- map subs is] x (su b)
     Sigma a b -> Sigma (su a) (su b)
     Fst b -> Fst (su b)
     Snd b -> Snd (su b)
@@ -106,7 +108,9 @@ ceval i p v0 =
     VParam a -> param (ev a)
     VPsi a -> VPsi (ev a)
     VNi a b -> ni (ev a) (ev b)
+    VLam f -> VLam (ev . f)
 
+face :: Val -> Val
 face v = v `capp` Zero
 
 ni :: Val -> Val -> Val
@@ -142,6 +146,7 @@ capp (VCPair a _) Zero = a
 capp f a = VCApp f a -- neutral
 
 app :: Val -> Val -> Val
+app (VLam f) u = f u
 app (Ter (Lam cs x t) e) u = eval (Pair e (x,clams cs u)) t
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
     Just (xs,t) -> eval (upds e (zip xs us)) t
@@ -163,6 +168,10 @@ sndSVal u | isNeutral u = VSnd u
 
 -- conversion test
 conv :: Int -> Val -> Val -> Bool
+conv k (VLam f) t = conv k (f v) (t `app` v)
+  where v = mkVar k
+conv k t (VLam f) = conv k (f v) (t `app` v)
+  where v = mkVar k
 conv k (VCPi f) (VCPi f') = conv k f f'
 conv k (VCLam f) t = conv (k+1) (f (CVar v)) (capp t (CVar v))
   where v = "i" ++ show k

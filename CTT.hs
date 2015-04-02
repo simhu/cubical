@@ -114,6 +114,7 @@ data Val = VU
          | VParam Val
          | VPsi Val
          | VNi Val Val
+         | VLam (Val -> Val)
   -- deriving Eq
 
 mkVar :: Int -> Val
