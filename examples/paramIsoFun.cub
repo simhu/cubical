@@ -1,4 +1,4 @@
-module paramIsos where
+module paramIsoFun where
 
 
 left : (A : forall i. U) ->
@@ -20,3 +20,11 @@ right : (A : forall i. U) ->
 right A B f q = g!
   where g : forall i. (x : A@i) -> B@i x
         g = <i> \ [i] x -> [f x@0, q x@0 x!]@i
+
+
+cmp1 : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (f : (x : A@0) -> B@0 x) -> 
+       (q : (x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x)) ->
+       ((x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x))
+cmp1 A B f q = left A B f (right A B f q)
