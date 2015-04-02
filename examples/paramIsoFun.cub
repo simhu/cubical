@@ -1,0 +1,22 @@
+module paramIsos where
+
+
+left : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (f : (x : A@0) -> B@0 x) -> 
+       (p : (<i> (x : A@i) -> B@i x) ? f) ->
+       (x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x)
+left A B f p x x' = t!
+  where g : forall i. (x : A@i) -> B@i x
+        g = [f,p]
+        t : forall i. B@i ([x , x']@i)
+        t = <i> g@i [x,x']@i
+
+right : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (f : (x : A@0) -> B@0 x) -> 
+       (q : (x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x)) ->
+       (<i> (x : A@i) -> B@i x) ? f
+right A B f q = g!
+  where g : forall i. (x : A@i) -> B@i x
+        g = <i> \ [i] x -> [f x@0, q x@0 x!]@i

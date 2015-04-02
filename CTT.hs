@@ -121,6 +121,8 @@ mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
 
 isNeutral :: Val -> Bool
+isNeutral (VCPair _ _) = True -- ?????
+isNeutral (VCApp u _) = isNeutral u
 isNeutral (VApp u _)   = isNeutral u
 isNeutral (VSplit _ v) = isNeutral v
 isNeutral (VVar _)     = True
