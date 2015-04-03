@@ -15,7 +15,7 @@ eval e U               = VU
 eval e (App r s)       = app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
-eval e (Lam [] x t)    = Ter (Lam [] x t) e -- stop at lambdas
+-- eval e (Lam [] x t)    = Ter (Lam [] x t) e -- stop at lambdas
 eval e (Lam is x t)    = VLam $ \x' -> eval (Pair e (x,clams is x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
@@ -30,9 +30,16 @@ eval e (CLam (i,_) t) = clam i $ eval e t
 eval e (CApp r s) = capp (eval e r) s
 eval e (CPair r s) = cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
-eval e (Psi a) = VPsi (eval e a)
-eval e (Param a) = VParam (eval e a)
+eval e (Psi a) = psi (eval e a)
+eval e (Param a) = param (eval e a)
 eval e (Ni a b) = ni (eval e a) (eval e b)
+
+psi :: Val -> Val
+psi (VLam f)
+  | VNi a (VVar "__RESERVED__") <- f $ VVar "__RESERVED__"
+  -- FIXME: occurs check!
+  = param a 
+psi a = VPsi a
 
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env bts = [ (b,eval env t) | (b,t) <- bts ]
@@ -106,7 +113,7 @@ ceval i p v0 =
     VCLam f -> clam' (ev . f)
     VCPair a b -> cpair (ev a) (ev b)
     VParam a -> param (ev a)
-    VPsi a -> VPsi (ev a)
+    VPsi a -> psi (ev a)
     VNi a b -> ni (ev a) (ev b)
     VLam f -> VLam (ev . f)
 

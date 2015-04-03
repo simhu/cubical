@@ -230,7 +230,7 @@ showVal (VCPair u v) = "cpair" <+> showVals [u,v]
 showVal (VSigma u v) = "Sigma" <+> showVals [u,v]
 showVal (VFst u)     = showVal u ++ ".1"
 showVal (VSnd u)     = showVal u ++ ".2"
-showVal (VParam u)     = showVal u ++ "!"
+showVal (VParam u)     = showVal1 u ++ "!"
 showVal (VPsi u)     = "PSI" ++ showVal u
 showVal (VNi f a)    = showVal f ++ " ? " ++ showVal a
 
