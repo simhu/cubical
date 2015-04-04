@@ -1,4 +1,4 @@
-module paramId where
+module Id where
 
 t1 : U
 t1 = forall i. U

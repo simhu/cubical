@@ -1,4 +1,4 @@
-module paramIsoFun where
+module IsoFun where
 import Eq
 
 left : (A : forall i. U) ->

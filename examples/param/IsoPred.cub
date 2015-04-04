@@ -1,4 +1,4 @@
-module paramIsoPred where
+module IsoPred where
 
 import Eq
 

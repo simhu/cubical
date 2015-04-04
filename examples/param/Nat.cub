@@ -1,4 +1,4 @@
-module paramNat where
+module Nat where
 
 Nat : U
 Nat = (A : U) -> A -> (A -> A) -> A
