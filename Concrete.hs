@@ -175,6 +175,13 @@ clam i b = do
   x <- resolveBinder i
   C.CLam x <$> local (insertColor x) b
 
+cpi :: AIdent -> Resolver Ter -> Resolver Ter
+cpi i b = C.CPi <$> clam i b
+
+cpis :: [AIdent] -> Resolver Ter -> Resolver Ter
+cpis [] x = x
+cpis (i:is) x = cpi i $ cpis is x
+
 bind :: (Ter -> Ter -> Ter) -> (AIdent, Exp) -> Resolver Ter -> Resolver Ter
 bind f (x,t) e = f <$> resolveExp t <*> lam [] x e
 
@@ -217,7 +224,7 @@ resolveExp (Let decls e) = do
 resolveExp (Param t) = C.Param <$> resolveExp t
 resolveExp (Psi t) = C.Psi <$> resolveExp t
 resolveExp (CLam i t) = clam i $ resolveExp t
-resolveExp (CPi i t) = C.CPi <$> (clam i $ resolveExp t)
+resolveExp (CPi i is t) = cpis (i:is) $ resolveExp t
 resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
