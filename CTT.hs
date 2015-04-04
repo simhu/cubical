@@ -212,37 +212,40 @@ showDecls :: Decls -> String
 showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
 
 instance Show Val where
-  show = showVal
+  show = showVal [x ++ n | n <- "":map show [1..], x <- map (:[]) ['α'..'ω']]
 
-showVal :: Val -> String
-showVal VU           = "U"
-showVal (Ter t env)  = show t <+> show env
-showVal (VCon c us)  = c <+> showVals us
-showVal (VCLam f)  = "<>" <+> showVal (f $ CVar "*")
-showVal (VLam f)  = "\\# -> " <+> showVal (f $ VVar "#")
-showVal (VPi a f)    = "Pi" <+> showVals [a,f]
-showVal (VCPi f)    = "PI" <+> showVal f
-showVal (VApp u v)   = showVal u <+> showVal1 v
-showVal (VCApp u i)   = showVal u <+> "@" ++ showCol i
-showVal (VSplit u v) = showVal u <+> showVal1 v
-showVal (VVar x)     = x
-showVal (VSPair u v) = "pair" <+> showVals [u,v]
-showVal (VCPair u v) = "cpair" <+> showVals [u,v]
-showVal (VSigma u v) = "Sigma" <+> showVals [u,v]
-showVal (VFst u)     = showVal u ++ ".1"
-showVal (VSnd u)     = showVal u ++ ".2"
-showVal (VParam u)     = showVal1 u ++ "!"
-showVal (VPsi u)     = "PSI" ++ showVal u
-showVal (VNi f a)    = showVal f ++ " ? " ++ showVal a
+showVal :: [String] -> Val -> String
+showVal su@(s:ss) t0 = case t0 of
+  VU           -> "U"
+  (Ter t env)  -> show t <+> show env
+  (VCon c us)  -> c <+> showVals su us
+  (VCLam f)  -> "<" ++ s ++ ">" <+> showVal ss (f $ CVar s)
+  (VLam f)  -> "\\" ++ s ++ " -> " <+> showVal ss (f $ VVar s)
+  (VPi a f)    -> "Pi" <+> svs [a,f]
+  (VCPi f)    -> "PI" <+> sv f
+  (VApp u v)   -> sv u <+> sv1 v
+  (VCApp u i)   -> sv1 u <+> "@" ++ showCol i
+  (VSplit u v) -> sv u <+> sv1 v
+  (VVar x)     -> x
+  (VSPair u v) -> "pair" <+> svs [u,v]
+  (VCPair u v) -> "cpair" <+> svs [u,v]
+  (VSigma u v) -> "Sigma" <+> svs [u,v]
+  (VFst u)     -> sv u ++ ".1"
+  (VSnd u)     -> sv u ++ ".2"
+  (VParam u)     -> sv1 u ++ "!"
+  (VPsi u)     -> "PSI" ++ sv u
+  (VNi f a)    -> sv1 f ++ " ? " ++ sv a
+ where sv = showVal su
+       sv1 = showVal1 su
+       svs = showVals su
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
 
-showVals :: [Val] -> String
-showVals = hcat . map showVal1
+showVals su = hcat . map (showVal1 su)
 
-showVal1 :: Val -> String
-showVal1 VU          = "U"
-showVal1 (VCon c []) = c
-showVal1 u@(VVar{})  = showVal u
-showVal1 u           = parens $ showVal u
+showVal1 :: [String] -> Val -> String
+showVal1 _ VU          = "U"
+showVal1 _ (VCon c []) = c
+showVal1 su u@(VVar{})  = showVal su u
+showVal1 su u           = parens $ showVal su u
