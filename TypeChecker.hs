@@ -148,8 +148,6 @@ check a t = case (a,t) of
     check (capp f (CVar var)) (subst x (CVar var) t)
   (VU,CPi (CLam x t)) -> do
     check VU t
-  -- (VU,CPi f) -> do
-  --   check VU (CApp f $ CVar "_NEW_")
   (VCPi f,CPair a b) -> do
     e <- asks env
     let a' = eval e a
