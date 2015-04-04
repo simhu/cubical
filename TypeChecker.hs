@@ -149,9 +149,7 @@ check a t = case (a,t) of
   (VU,CPi (CLam x t)) -> do
     check VU t
   (VCPi f,CPair a b) -> do
-    e <- asks env
-    let a' = eval e a
-    check (face f) a
+    a' <- tceval (face f) a
     check (f `ni` a') b
   (_,CApp u (CVar i)) -> do
     check (VCPi $ clam' $ \j -> ceval i j a) u
@@ -159,15 +157,26 @@ check a t = case (a,t) of
     let x = noLoc n
         n = "__PSI_ARG__"
     local (addTypeVal (x,b)) $ check VU (App p $ Var n) 
+  (VNi f b,Param p) -> do
+    p' <- tceval (VCPi f) p
+    checkConv "param" (face p') b
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
   (_,Undef _) -> return ()
   _ -> do
     v <- checkInfer t
+    checkConv "inferred type" a v
+
+tceval a t = do
+  check a t
+  e <- asks env
+  return $ eval e t
+
+checkConv msg a v = do
     k <- index <$> ask
     unless (conv k v a) $
-      throwError $ "check conv: " ++ show v ++ " /= " ++ show a
+      throwError $ msg ++ " check conv: " ++ show v ++ " /= " ++ show a
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
