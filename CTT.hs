@@ -219,6 +219,7 @@ showVal VU           = "U"
 showVal (Ter t env)  = show t <+> show env
 showVal (VCon c us)  = c <+> showVals us
 showVal (VCLam f)  = "<>" <+> showVal (f $ CVar "*")
+showVal (VLam f)  = "\\# -> " <+> showVal (f $ VVar "#")
 showVal (VPi a f)    = "Pi" <+> showVals [a,f]
 showVal (VCPi f)    = "PI" <+> showVal f
 showVal (VApp u v)   = showVal u <+> showVal1 v

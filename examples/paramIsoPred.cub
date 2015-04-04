@@ -14,11 +14,6 @@ right : (A : U) ->
        A -> U
 right A Q x = [ A , Q ] ? x
 
-Comp1 : U
-Comp1 = (A : U) ->
-        (Q : (<i> U ) ? A)
-        -> Eq ((<i> U ) ? A) Q (left A (right A Q))
-
 comp1 : (A : U) ->
         (Q : (<i> U ) ? A)
         -> Eq ((<i> U ) ? A) Q (left A (right A Q))

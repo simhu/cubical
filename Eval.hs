@@ -189,6 +189,8 @@ conv k (VCLam f) t = conv (k+1) (f (CVar v)) (capp t (CVar v))
 conv k t (VCLam f) = conv k (VCLam f) t
 conv k (VCApp a b) (VCApp a' b') = conv k a a' && b == b'
 conv k (VParam a) (VParam a') = conv k a a'
+conv k (VParam a) b = conv k a (VCPair (face a) b)
+conv k b (VParam a) = conv k a (VCPair (face a) b)
 conv k (VPsi a) (VPsi a') = conv k a a'
 conv k (VNi a b) (VNi a' b') = conv k a a' && conv k b b'
 conv k (VCPair a b) (VCPair a' b') = conv k a a' && conv k b b'

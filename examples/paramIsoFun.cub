@@ -1,5 +1,5 @@
 module paramIsoFun where
-
+import Eq
 
 left : (A : forall i. U) ->
        (B : forall i. A@i -> U) ->
@@ -22,9 +22,31 @@ right A B f q = g!
         g = <i> \ [i] x -> [f x@0, q x@0 x!]@i
 
 
-cmp1 : (A : forall i. U) ->
+comp1 : (A : forall i. U) ->
        (B : forall i. A@i -> U) ->
        (f : (x : A@0) -> B@0 x) -> 
        (q : (x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x)) ->
-       ((x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x))
-cmp1 A B f q = left A B f (right A B f q)
+       Eq ((x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x))
+          q (left A B f (right A B f q))
+comp1 A B f q Pred proof = proof
+
+comp2 : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (f : (x : A@0) -> B@0 x) -> 
+       (p : (<i> (x : A@i) -> B@i x) ? f) ->
+       Eq ((<i> (x : A@i) -> B@i x) ? f)
+          p (right A B f (left A B f p))
+comp2 A B f p Pred proof = proof
+
+
+-- (<i> \ [i] x -> [f x@0, (<i> [f,p]@i [x@0,x!]@i)! ]@i)! == p
+-- (<i> \ [i] x -> [f x@0, (<i> [f,p]@i x@i)! ]@i)! == p
+-- (<i> \ [i] x -> (<i> [f,p]@i x@i)@i)! == p
+-- (<i> \ [i] x -> [f,p]@i x@i)! == p
+-- (<i> \ [i] x -> [f,p]@i x@i) = [(<i> \ [i] x -> [f,p]@i x@i)@0,p]
+-- (<i> \ [i] x -> [f,p]@i x@i) = [\x -> f x,p]
+-- \ [i] x -> [f,p]@i x@i = [\x -> f x,p]@i
+-- [f,p]@i x@i = [\x -> f x,p]@i x@i
+-- [f,p]@i = [\x -> f x,p]@i
+-- f = \x -> f x
+-- f x = f x
