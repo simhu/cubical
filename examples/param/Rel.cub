@@ -1,0 +1,36 @@
+module Rel where
+
+import Eq
+
+U2 : U
+U2 = (forall i j. U)
+
+FL : (forall i j. U) -> forall i j. U
+FL A = <x>(<y> A@y@x)
+
+fl : (A : forall i j. U) -> (t : forall i j. A@i@j) -> forall j i. A@i@j
+fl A t = <j><i> t@i@j
+
+-- z : (<i> A@i@0)
+-- z : (FL A)@0
+
+R : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> U
+R A x y z = (<i> (A@i ? [x , z]@i)) ? y
+
+sym : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> R A x y z -> R (FL A) x z y
+sym A x y z w = tj!
+  where t : forall i j. A@i@j
+        t = <i> [[x,z]@i,[y,w]@i]
+        tt : forall j i. A@i@j
+        tt = <j><i> t@j@i
+        tj : forall j. ((FL A)@j ? [x , y]@j)
+        tj = <j> (<i>tt@j@i)!
+
+comp : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> (w : R A x y z) ->
+       Eq (R A x y z) w (sym (FL A) x z y (sym A x y z w))
+comp = _
+
+
+-- <j><i> t@j@i : forall j i. A@i@j
+-- t@i@j : A@i@j
+-- 
