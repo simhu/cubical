@@ -2,35 +2,32 @@ module Rel where
 
 import Eq
 
+U1 : U
+U1 = forall i. U
+
 U2 : U
-U2 = (forall i j. U)
+U2 = forall i j. U
 
-FL : (forall i j. U) -> forall i j. U
-FL A = <x>(<y> A@y@x)
+FL : U2 -> U2
+FL A = <j><i> A@i@j
 
-fl : (A : forall i j. U) -> (t : forall i j. A@i@j) -> forall j i. A@i@j
-fl A t = <j><i> t@i@j
+F0 : U2 -> U1
+F0 A = <i>A@0@i
 
--- z : (<i> A@i@0)
--- z : (FL A)@0
+F1 : U2 -> U1
+F1 A = <i>A@i@0
 
-R : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> U
+R : (A : U2) -> (x : A@0@0) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> U
 R A x y z = (<i> (A@i ? [x , z]@i)) ? y
 
-sym : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> R A x y z -> R (FL A) x z y
-sym A x y z w = tj!
+sym : (A : U2) -> (x : A@0@0) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> R A x y z -> R (FL A) x z y
+sym A x y z w = ti!
   where t : forall i j. A@i@j
-        t = <i> [[x,z]@i,[y,w]@i]
-        tt : forall j i. A@i@j
-        tt = <j><i> t@j@i
-        tj : forall j. ((FL A)@j ? [x , y]@j)
-        tj = <j> (<i>tt@j@i)!
+        t = <i><j> [[x,z]@i,[y,w]@i]@j
+        ti : forall j. ((<i> A@i@j) ? [x,y]@j)
+        ti = <j> (<i>t@i@j)!
 
-comp : (A : forall i j. U) -> (x : A@0@0) -> (y : (<i>A@0@i) ? x) -> (z : (<i> A@i@0) ? x) -> (w : R A x y z) ->
+comp : (A : U2) -> (x : A@0@0) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> (w : R A x y z) ->
        Eq (R A x y z) w (sym (FL A) x z y (sym A x y z w))
-comp = _
+comp A x y z w Pred proof = proof
 
-
--- <j><i> t@j@i : forall j i. A@i@j
--- t@i@j : A@i@j
--- 
