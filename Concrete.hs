@@ -70,7 +70,7 @@ data SymKind = Variable | Constructor Arity
 
 -- local environment for constructors
 data Env = Env { envModule :: String,
-                 colors :: [C.Color],
+                 colors :: [C.TColor],
                  variables :: [(C.Binder,SymKind)] }
   deriving (Eq, Show)
 
@@ -99,7 +99,7 @@ insertVar x = insertBinder (x,Variable)
 insertColor :: C.Binder -> Env -> Env
 insertColor (x,_) e = e {colors = x:colors e }
 
-removeColor :: C.CVal -> Env -> Env
+removeColor :: C.CTer -> Env -> Env
 removeColor C.Zero e = e
 removeColor (C.CVar x) e = e {colors = colors e \\ [x] }
 
@@ -146,7 +146,7 @@ resolveVar (AIdent (l,x))
         "Cannot resolve variable" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
-resolveCVar :: AIdent -> Resolver C.Color
+resolveCVar :: AIdent -> Resolver C.TColor
 resolveCVar (AIdent (l,x)) = do
     modName <- getModule
     cols  <- colors <$> ask
@@ -156,18 +156,18 @@ resolveCVar (AIdent (l,x)) = do
         "Cannot resolve color" <+> x <+> "at position" <+>
         show l <+> "in module" <+> modName
 
-resolveColor :: CExp -> Resolver C.CVal
+resolveColor :: CExp -> Resolver C.CTer
 resolveColor Zero = pure $ C.Zero
 resolveColor (CVar x) = C.CVar <$> resolveCVar x
 
-resolveMCols :: MCols -> Resolver [C.Color]
+resolveMCols :: MCols -> Resolver [C.TColor]
 resolveMCols NoCols = return []
 resolveMCols (Cols xs) = forM xs $ \x -> resolveCVar x
 
-lam :: [C.Color] -> AIdent -> Resolver Ter -> Resolver Ter
+lam :: [C.TColor] -> AIdent -> Resolver Ter -> Resolver Ter
 lam is a e = do x <- resolveBinder a; C.Lam is x <$> local (insertVar x) e
 
-lams :: [C.Color] -> [AIdent] -> Resolver Ter -> Resolver Ter
+lams :: [C.TColor] -> [AIdent] -> Resolver Ter -> Resolver Ter
 lams is = flip $ foldr (lam is)
 
 clam :: AIdent -> Resolver Ter -> Resolver Ter

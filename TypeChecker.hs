@@ -32,7 +32,9 @@ verboseEnv, silentEnv :: TEnv
 verboseEnv = TEnv 0 Empty [] True
 silentEnv  = TEnv 0 Empty [] False
 
-addTypeVal :: (Binder,Val) -> TEnv -> TEnv
+addCol :: Binder -> CVal -> TEnv -> TEnv
+addCol x p (TEnv k rho gam v) = TEnv (k+1) (PCol rho (x,p)) gam v
+
 addTypeVal p@(x,_) (TEnv k rho gam v) =
   TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) v
 
@@ -102,6 +104,9 @@ localM f r = do
 getFresh :: Typing Val
 getFresh = mkVar <$> index <$> ask
 
+getFreshCol :: Typing CVal
+getFreshCol = mkCol <$> index <$> ask
+
 checkDecls :: Decls -> Typing ()
 checkDecls d = do
   let (idents, tele, ters) = (declIdents d, declTele d, declTers d)
@@ -137,28 +142,34 @@ check a t = case (a,t) of
        else throwError "case branches does not match the data type"
   (VPi a f,Lam is x t)  -> do
     var <- getFresh
-    local (addTypeVal (x,cpis is a)) $ check (app f $ capps var is) t
+    rho <- asks env
+    let is' = lkCols rho is
+    local (addTypeVal (x,cpis is' a)) $ check (app f $ capps var is') t
   (VSigma a f, SPair t1 t2) -> do
-    check a t1
-    e <- asks env
-    let v = eval e t1
+    v <- checkEval a t1
     check (app f v) t2
-  (VCPi f, CLam (x,_) t) -> do
-    VVar var <- getFresh
-    check (capp f (CVar var)) (subst x (CVar var) t)
+  (VCPi f, CLam x t) -> do
+    var <- getFreshCol
+    local (addCol x var) $ check (capp f var) t
   (VU,CPi (CLam x t)) -> do
-    check VU t
+    var <- getFreshCol
+    local (addCol x var) $ check VU t
   (VCPi f,CPair a b) -> do
-    a' <- tceval (face f) a
+    a' <- checkEval (face f) a
     check (f `ni` a') b
-  (_,CApp u (CVar i)) -> do
-    check (VCPi $ clam' $ \j -> ceval i j a) u
-  (VNi f b,Psi p) | VU <- capp f (CVar "__NOPE__") -> do
+  (_,CApp u c) -> do
+    c' <- colorEval c
+    case c' of
+      CVar i -> check (VCPi $ clam' $ \j -> ceval i j a) u
+      Zero -> do
+        v <- checkInfer t
+        checkConv "inferred type" a v
+  (VNi f b,Psi p) | VU <- capp f (CVar $ Color "__NOPE__") -> do
     let x = noLoc n
         n = "__PSI_ARG__"
     local (addTypeVal (x,b)) $ check VU (App p $ Var n) 
   (VNi f b,Param p) -> do
-    p' <- tceval (VCPi f) p
+    p' <- checkEval (VCPi f) p
     checkConv "param" (face p') b
   (_,Where e d) -> do
     checkDecls d
@@ -168,15 +179,23 @@ check a t = case (a,t) of
     v <- checkInfer t
     checkConv "inferred type" a v
 
-tceval a t = do
+colorEval :: CTer -> Typing CVal
+colorEval Zero = return Zero
+colorEval (CVar i) = do
+  e <- asks env
+  return $ snd $ lkCol i e
+  
+checkEval :: Val -> Ter -> Typing Val
+checkEval a t = do
   check a t
   e <- asks env
   return $ eval e t
 
 checkConv msg a v = do
     k <- index <$> ask
-    unless (conv k v a) $
-      throwError $ msg ++ " check conv: " ++ show v ++ " /= " ++ show a
+    unless (conv k v a) $ do
+      rho <- asks env
+      throwError $ msg ++ " check conv: " ++ show v ++ " /= " ++ show a ++ "\n" ++ show rho
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
@@ -218,8 +237,9 @@ checkInfer e = case e of
       _          -> throwError $ show c ++ " is not a sigma-type"
   CApp t u -> do
     c <- checkInfer t
+    u' <- colorEval u
     case c of
-      VCPi f -> do return $ (capp f u)
+      VCPi f -> do return $ (capp f u')
       _          -> throwError $ show t ++ " is not a type family"
   Param t -> do
     c <- checkInfer t
@@ -229,9 +249,7 @@ checkInfer e = case e of
       VCPi f -> do return $ ni f (face v)
       _          -> throwError $ show t ++ " is not a type family"
   Ni t u -> do
-    check (VCPi $ clam' $ \_ -> VU) t
-    rho <- asks env
-    let t' = eval rho t
+    t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u
     return VU
   Where t d -> do

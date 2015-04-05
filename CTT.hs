@@ -47,7 +47,7 @@ declDefs decl = [ (x,d) | (x,_,d) <- decl]
 -- Terms
 data Ter = App Ter Ter
          | Pi Ter Ter
-         | Lam [Color] Binder Ter
+         | Lam [TColor] Binder Ter
          | Sigma Ter Ter
          | SPair Ter Ter
          | Fst Ter
@@ -65,7 +65,7 @@ data Ter = App Ter Ter
 
          | CLam Binder Ter
          | CPair Ter Ter
-         | CApp Ter CVal
+         | CApp Ter CTer
          | CPi Ter
          | Param Ter
          | Psi Ter
@@ -76,10 +76,10 @@ mkApps :: Ter -> [Ter] -> Ter
 mkApps (Con l us) vs = Con l (us ++ vs)
 mkApps t ts          = foldl App t ts
 
-mkLams :: [Color] -> [String] -> Ter -> Ter
+mkLams :: [TColor] -> [String] -> Ter -> Ter
 mkLams cs bs t = foldr (Lam cs) t [ noLoc b | b <- bs ]
 
-tcpis :: [Color] -> Ter -> Ter
+tcpis :: [TColor] -> Ter -> Ter
 tcpis [] t = t
 tcpis (i:is) t = CPi $ CLam (noLoc i) $ tcpis is t
 
@@ -90,9 +90,18 @@ mkWheres (d:ds) e = Where (mkWheres ds e) d
 --------------------------------------------------------------------------------
 -- | Values
 
-type Color = String
-data CVal = Zero | CVar Color
+type TColor = String
+newtype Color = Color String
   deriving Eq
+instance Show Color where
+     show (Color x) = x
+
+data MCol color = Zero | CVar color
+  deriving (Eq,Show)
+
+type CVal = MCol Color
+type CTer = MCol TColor
+
 
 data Val = VU
          | Ter Ter Env
@@ -120,6 +129,9 @@ data Val = VU
 mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
 
+mkCol :: Int -> CVal
+mkCol k = CVar $ Color ('C' : show k)
+
 isNeutral :: Val -> Bool
 isNeutral (VCPair _ _) = True -- ?????
 isNeutral (VCApp u _) = isNeutral u
@@ -136,6 +148,7 @@ isNeutral _            = False
 data Env = Empty
          | Pair Env (Binder,Val)
          | PDef [(Binder,Ter)] Env
+         | PCol Env (Binder,CVal)
   -- deriving Eq
 
 instance Show Env where
@@ -159,6 +172,7 @@ valOfEnv :: Env -> [Val]
 valOfEnv Empty            = []
 valOfEnv (Pair env (_,v)) = v : valOfEnv env
 valOfEnv (PDef _ env)     = valOfEnv env
+valOfEnv (PCol env (_,v)) = VCApp (VVar "__valOfEnv__") v : valOfEnv env
 
 --------------------------------------------------------------------------------
 -- | Pretty printing
@@ -169,9 +183,9 @@ instance Show Loc where
 instance Show Ter where
   show = showTer
 
-showCol :: CVal -> String
+showCol :: Show color => MCol color -> String
 showCol Zero  = "0"
-showCol (CVar x) = x
+showCol (CVar x) = show x
 
 showTer :: Ter -> String
 showTer U             = "U"
@@ -219,7 +233,7 @@ showVal su@(s:ss) t0 = case t0 of
   VU           -> "U"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
-  (VCLam f)  -> "<" ++ s ++ ">" <+> showVal ss (f $ CVar s)
+  (VCLam f)  -> "<" ++ s ++ ">" <+> showVal ss (f $ CVar $ Color s)
   (VLam f)  -> "\\" ++ s ++ " -> " <+> showVal ss (f $ VVar s)
   (VPi a f)    -> "Pi" <+> svs [a,f]
   (VCPi f)    -> "PI" <+> sv f
