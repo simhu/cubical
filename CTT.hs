@@ -143,7 +143,7 @@ instance Show Env where
   show (PDef xas env)   = show env
   show (Pair env (x,u)) = parens $ showEnv1 env ++ show u
     where
-      showEnv1 (Pair env (x,u)) = showEnv1 env ++ show u ++ ", "
+      showEnv1 (Pair env ((x,_),u)) = showEnv1 env ++ show (x,u) ++ ", "
       showEnv1 e                = show e
 
 upds :: Env -> [(Binder,Val)] -> Env
