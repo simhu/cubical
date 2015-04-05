@@ -149,7 +149,7 @@ ni (VCPair _ (VPsi p)) a = app p a
 ni a b = VNi a b
 
 param :: Val -> Val
--- param (VCPair _ p) = p
+param (VCPair _ p) = p
 param x = VParam x
 
 proj :: Color -> Val -> Val
