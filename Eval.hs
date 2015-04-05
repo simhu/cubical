@@ -81,8 +81,9 @@ subst i p t0 =
     Split l bs -> Split l [(l',(bs',su t)) | (l',(bs',t)) <- bs]
     Sum b ss -> Sum b $ map (second (map (second su))) ss
     Undef l -> Undef l
-    CLam (j,b) t | i /= j -> CLam (j,b) (su t)
-                 | i == j -> CLam (i,b) (subst j p $ subst i (CVar j) t)
+    CLam (j,b) t | CVar k <- p, k == j -> error "nope"
+                 | i == j -> t0
+                 | otherwise -> CLam (j,b) (su t)
     CPair a b -> CPair (su a) (su b)
     CPi b -> CPi (su b)
     CApp a Zero -> CApp (su a) Zero
