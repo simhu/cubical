@@ -1,0 +1,68 @@
+module IsoList where
+
+import Eq
+
+One : U
+data One = tt
+
+List : U -> U
+data List a = nil | cons (hd : a) (tl : List a)
+
+T : (A : forall i. U) -> List (A@0) -> U
+T A = split
+   nil -> One
+   cons x xs -> ((z : A ? x) * ((<i> List (A@i)) ? xs))
+
+-- left : (A : forall i. U) ->
+--        (l : List (A@0)) -> 
+--        (p : (<i> List (A@i)) ? l) ->
+--        T A l
+-- left A l p = choice lp
+--    where lp : forall i. List (A@i)
+--          lp = [l , p]
+--          choice :  (l' : forall i. List A@i) -> T A (l'@0)
+--          choice = split [i]   -- this construction does not exist
+--            nil -> tt
+--            cons x xs -> (x!, xs!)
+
+right : (A : forall i. U) ->
+        (l : List A@0) ->
+        (q : T A l) ->
+        (<i> List A@i) ? l
+right A l q = (choice l q)!
+    where
+          choice : (l : List A@0) -> (r : T A l) -> forall i. List A@i
+          choice = split
+             nil       -> \r -> <i> nil
+             cons x xs -> \r -> <i> cons [x,r.1]@i [xs,r.2]@i
+
+{- Type checking fails, because splitting can't be projected.
+
+((split
+   nil       -> \r -> <i> nil
+   cons x xs -> \r -> <i> cons [x,r.1]@i [xs,r.2]@i
+) l q) @0
+
+It could work if we could write the above with a "case" construction:
+
+(<i> case l of
+  nil -> nil
+  cons x xs -> cons [x,q.1]@i [xs,q.2]@i) @0
+
+==
+
+case l of
+  nil -> nil
+  cons x xs -> cons [x,q.1]@0 [xs,q.2]@0
+
+==
+
+case l of
+  nil -> nil
+  cons x xs -> cons x xs
+
+==
+
+l
+
+-}
