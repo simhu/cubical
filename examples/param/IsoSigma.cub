@@ -1,0 +1,37 @@
+module IsoSigma where
+
+import Eq
+
+left : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (q : (x : A@0) * (B@0 x)) -> 
+       (p : (<i> (x : A@i) * (B@i x)) ? q) ->
+       ((x' : A ? q.1) * ((<i> B@i [q.1,x']@i) ? q.2 ))
+left A B q p = ((<i> qp@i.1)! , (<i> qp@i.2)! )
+   where qp : forall i. (x : A@i) * (B@i x)
+         qp = [q , p]
+
+right : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (q : (x : A@0) * (B@0 x)) -> 
+       (q' : (x' : A ? q.1) * ((<i> B@i [q.1,x']@i) ? q.2 )) ->
+       (<i> (x : A@i) * (B@i x)) ? q
+right A B q q' = qp!
+   where qp : forall i. (x : A@i) * (B@i x)
+         qp = <i> ( [ q.1 , q'.1]@i , [ q.2 , q'.2]@i)
+
+comp1 : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (q : (x : A@0) * (B@0 x)) -> 
+       (p : (<i> (x : A@i) * (B@i x)) ? q) ->
+       Eq ((<i> (x : A@i) * (B@i x)) ? q)
+          p (right A B q (left A B q p))
+comp1 A B q p Pred proof = proof
+
+comp2 : (A : forall i. U) ->
+       (B : forall i. A@i -> U) ->
+       (q : (x : A@0) * (B@0 x)) -> 
+       (q' : (x' : A ? q.1) * ((<i> B@i [q.1,x']@i) ? q.2 )) ->
+       Eq ((x' : A ? q.1) * ((<i> B@i [q.1,x']@i) ? q.2 ))
+          q' (left A B q (right A B q q'))
+comp2 A B q p Pred proof = proof
