@@ -152,12 +152,11 @@ data Env = Empty
   -- deriving Eq
 
 instance Show Env where
-  show Empty            = ""
-  show (PDef xas env)   = show env
-  show (Pair env (x,u)) = parens $ showEnv1 env ++ show u
-    where
-      showEnv1 (Pair env ((x,_),u)) = showEnv1 env ++ show (x,u) ++ ", "
-      showEnv1 e                = show e
+  show e0 = case e0 of
+    Empty            -> ""
+    (PDef xas env)   -> show env
+    (Pair env ((x,_),u)) -> show env ++ ", " ++ show (x,u)
+    (PCol env ((x,_),u)) -> show env ++ show (x,u)
 
 upds :: Env -> [(Binder,Val)] -> Env
 upds = foldl Pair
