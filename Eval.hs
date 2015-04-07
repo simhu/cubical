@@ -111,6 +111,7 @@ cevalEnv :: Color -> CVal -> Env -> Env
 cevalEnv i p (Pair e (b,v)) = cevalEnv i p e `Pair` (b, ceval i p v)
 cevalEnv i p (PDef d e) = PDef d $ cevalEnv i p e
 cevalEnv i p (PCol e (b,p')) = PCol (cevalEnv i p e) (b, cceval i p p')
+cevalEnv i p Empty = Empty
 
 cceval :: Color -> CVal -> CVal -> CVal
 cceval i p (CVar k) | k == i = p
