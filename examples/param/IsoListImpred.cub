@@ -1,0 +1,17 @@
+
+module IsoListImpred where
+
+
+One : U
+data One = tt
+
+List : U -> U
+List A = (X : U) -> X -> (A -> X -> X) -> X
+
+All : (A : U) -> (P : A -> U) -> List A -> U
+All A P xs = xs U One (\a rest -> P a * rest)
+
+
+--   <i> List (A@i)
+-- ~=
+--   [List A@0, Psi All (\x -> A ? x)]
