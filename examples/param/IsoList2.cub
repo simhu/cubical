@@ -1,0 +1,44 @@
+module IsoList2 where
+
+import Eq
+
+One : U
+data One = tt
+
+List : U -> U
+data List a = nil | cons (hd : a) (tl : List a)
+
+All : (A : U) -> (P : A -> U) -> List A -> U
+All A P = split
+  nil -> One
+  cons x xs -> ((_ : P x) * All A P xs)
+
+-- warm up:
+zip : (A : U) -> (P : A -> U) -> (xs : List A) -> All A P xs -> List ((x : A) * P x)
+zip A P = split
+  nil -> \ys -> nil
+  cons x xs -> \ys -> cons (x , ys.1) (zip A P xs (ys.2))
+
+right : (A : forall i. U) -> (xs : List A@0) -> (ys : All A@0 (\x -> A ? x) xs) ->  forall i. List A@i
+right A =
+  split
+    nil -> \ys -> <i> nil
+    cons x xs -> \ys -> <i> cons [x , ys.1]@i (right A xs ys.2)@i
+
+abs : (A : forall i. U) -> forall i. (x : A@i) -> forall j. A@j
+abs A = <i> \[i] x -> x
+
+proj : (A : forall i. U) -> forall i. (x : A@i) -> A@0
+proj A = <i> \[i] x -> x@0
+
+param : (A : forall i. U) -> forall i. (x : A@i) -> A ? (proj A)@i x
+param A = <i> \[i] x -> x!
+
+left : (A : forall i. U) -> forall i. (xs : List A@i) -> [List A@0, Psi (All A@0 (\x -> A ? x))]@i
+left A = <i> split
+  nil -> [nil , tt]@i
+  cons x xs ->
+    let x' = (abs A)@i x
+        tl = (left A)@i xs
+        tl' = (abs ([List A@0, Psi (All A@0 (\x -> A ? x))]))@i tl
+    in [cons x'@0 tl'@0 , (x'! , tl'!) ]

@@ -8,9 +8,29 @@ data One = tt
 List : U -> U
 List A = (X : U) -> X -> (A -> X -> X) -> X
 
-All : (A : U) -> (P : A -> U) -> List A -> U
-All A P xs = xs U One (\a rest -> P a * rest)
+nil : (A : U) -> List A
+nil A X n c = n
 
+cons : (A : U) -> A -> List A -> List A
+cons A hd tl X n c = c hd (tl X n c)
+
+All : (A : U) -> (P : A -> U) -> List A -> U
+All A P xs = xs U One (\a rest -> (_ : P a) * rest)
+
+-- zip : (A : U) -> (P : A -> U) -> (xs : List A) -> All A P xs -> List ((x : A) * P x)
+-- zip A P xs = xs 
+
+left : (A : forall i. U) -> (xs : forall i. List A@i) -> forall i. [List A@0, Psi (All A@0 (\x -> A ? x))]@i
+left A xs = <i> xs@i [List A@0, Psi (All A@0 (\x -> A ? x))]@i
+                     [nil A@0, tt]@i
+                     (\[i] hd tl -> [cons A@0 hd@0 tl@0, (hd!, tl!)]@i )
+
+right : (A : forall i. U) -> (xs : forall i. [List A@0, Psi (All A@0 (\x -> A ? x))]@i) -> forall i. List A@i 
+right A xs = _
+
+-- <i> xs@i [List A@0, Psi (All A@0 (\x -> A ? x))]@i
+--                      [nil A@0, tt]@i
+--                      (\[i] hd tl -> [cons hd@0 tl@0 , (hd! , tl!) ]@i )
 
 --   <i> List (A@i)
 -- ~=
