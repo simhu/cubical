@@ -1,0 +1,62 @@
+-- [-,t] : forall i. [1, Psi \_ -> A]@i
+-- [-,t]@(max i j) : [1, Psi \_ -> A]@(max i j)
+
+-- <i j> [-,t]@(max i j) : forall i j. [1, Psi \_ -> A]@(max i j)
+
+-- (<i j> [-,t]@(max i j))@0 = <j> [-,t]@(max 0 j) = [-,t]
+
+-- (<i j> [-,t]@(max i j))! : <i> forall j. [1, Psi \_ -> A]@(max i j) ? [-,t] 
+
+-- <i>[-,t]@(max i j) : forall i. [1, Psi \_ -> A]@(max i j)
+
+-- <i>[-,t]@(max i j) : forall i. [1, Psi \_ -> A]@(max i j)
+
+-- (<i>[-,t]@(max i j))@0 = [-,t]@j
+
+-- (<i>[-,t]@(max i j))! : (<i>[1, Psi \_ -> A]@(max i j)) ? [-,t]@j 
+
+-- <j>((<i>[-,t]@(max i j))!) : forall j. ((<i>[1, Psi \_ -> A]@(max i j)) ? [-,t]@j) 
+
+-- (<j>((<i>[-,t]@(max i j))!))@0 = (<i>[-,t]@(max i 0))! = (<i>[-,t]@i)! = [-,t]! = t
+
+
+-- (<j>((<i>[-,t]@(max i j))!))! : <i> ((<i>[1, Psi \_ -> A]@(max i j)) ? [-,t]@j) ? t
+
+-- Ecrivons le type unitaire:
+
+-- - : 1
+
+-- et les paires colorees:
+
+--   a : A    p : P a
+-- --------------------
+--  [a,p]@i : {A,P}@i
+
+-- Supposons:
+
+-- t : A
+
+-- on construit
+
+-- A' : U
+-- A' = {1, \_ -> A}@(max i j)
+
+-- t' : A'
+-- t' = [-,t]@(max i j)
+
+-- On remarque:
+
+-- t'(i0) = [-,t]@j
+-- t'.i (j0) = t
+
+-- Et:
+
+-- t'.i : A' ∋i [-,t]@j
+-- t'.i.j : A' ∋i [-,t]@j ∋j t
+
+
+-- Pour tout type A, on veux que
+
+-- \x y -> {1, \_ -> A}@(max i j) ∋i [-,x]@j ∋j y
+
+-- se comporte bien comme une relation de parametricite.
