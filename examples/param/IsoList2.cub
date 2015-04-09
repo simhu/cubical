@@ -28,17 +28,19 @@ right A =
 abs : (A : forall i. U) -> forall i. (x : A@i) -> forall j. A@j
 abs A = <i> \[i] x -> x
 
-proj : (A : forall i. U) -> forall i. (x : A@i) -> A@0
-proj A = <i> \[i] x -> x@0
-
-param : (A : forall i. U) -> forall i. (x : A@i) -> A ? (proj A)@i x
-param A = <i> \[i] x -> x!
 
 left : (A : forall i. U) -> forall i. (xs : List A@i) -> [List A@0, Psi (All A@0 (\x -> A ? x))]@i
 left A = <i> split
   nil -> [nil , tt]@i
   cons x xs ->
-    let x' = (abs A)@i x
+    let x' : forall i. A@i
+        x' = (abs A)@i x
+        tl : [List A@0, Psi (All A@0 (\x -> A ? x))]@i
         tl = (left A)@i xs
-        tl' = (abs ([List A@0, Psi (All A@0 (\x -> A ? x))]))@i tl
-    in [cons x'@0 tl'@0 , (x'! , tl'!) ]
+        tl' : forall i. [List A@0, Psi (All A@0 (\x -> A ? x))]@i
+        tl' = (abs [List A@0, Psi (All A@0 (\x -> A ? x))])@i tl
+    in [cons x'@0 tl'@0 , (x'! , tl'!) ]@i
+
+
+
+
