@@ -229,6 +229,7 @@ resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
 resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
+resolveExp (Phi t u) = C.Phi <$> resolveExp t <*> resolveExp u
 resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u
 
 

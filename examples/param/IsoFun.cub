@@ -10,7 +10,7 @@ left A B f p x x' = t!
   where g : forall i. (x : A@i) -> B@i x
         g = [f,p]
         t : forall i. B@i ([x , x']@i)
-        t = <i> g@i [x,x']@i
+        t = <i> [f,p]@i [x,x']@i
 
 right : (A : forall i. U) ->
        (B : forall i. A@i -> U) ->
@@ -19,7 +19,7 @@ right : (A : forall i. U) ->
        (<i> (x : A@i) -> B@i x) ? f
 right A B f q = g!
   where g : forall i. (x : A@i) -> B@i x
-        g = <i> \ [i] x -> [f x@0, q x@0 x!]@i
+        g = <| f , \x -> q x@0 x! |>
 
 
 comp1 : (A : forall i. U) ->
@@ -38,6 +38,21 @@ comp2 : (A : forall i. U) ->
           p (right A B f (left A B f p))
 comp2 A B f p Pred proof = proof
 
+
+-- <| f , \x -> (\y y' -> (<i> [f,p]@i [y,y']@i)!) x@0 x! |>! = p
+-- 
+-- <| f , \x -> (<i> [f,p]@i [x@0,x!]@i)! |>! = p
+-- 
+-- <| f , \x -> (<i> [f,p]@i x@i)! |>! = p
+-- 
+-- <| f , \x -> (<i> [f,p]@i x@i)! |> = [f , p]
+-- 
+-- -- missing step:  <| f , g |> = [f , p] if g x = (<i> [f,p]@i x@i)!
+-- 
+-- (<i> [f,p]@i x@i)! = (<i> [f,p]@i x@i)!
+-- 
+-- 
+-- 
 
 -- (<i> \ [i] x -> [f x@0, (<i> [f,p]@i [x@0,x!]@i)! ]@i)! == p
 -- (<i> \ [i] x -> [f x@0, (<i> [f,p]@i x@i)! ]@i)! == p

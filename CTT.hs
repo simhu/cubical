@@ -69,7 +69,9 @@ data Ter = App Ter Ter
          | CPi Ter
          | Param Ter
          | Psi Ter
+         | Phi Ter Ter
          | Ni Ter Ter
+           
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -122,6 +124,7 @@ data Val = VU
          | VCPair Val Val
          | VParam Val
          | VPsi Val
+         | VPhi Val Val
          | VNi Val Val
          | VLam (Val -> Val)
   -- deriving Eq
@@ -198,6 +201,7 @@ showTer (CLam (x,_) e) = "<" ++ x ++ ">" <+> showTer e
 showTer (Fst e)       = showTer e ++ ".1"
 showTer (Snd e)       = showTer e ++ ".2"
 showTer (Param e)       = showTer e ++ "!"
+showTer (Phi f g)       = "phi" <+> showTers [f,g]
 showTer (Psi e)       = "PSI" <+> showTer e
 showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
@@ -247,6 +251,7 @@ showVal su@(s:ss) t0 = case t0 of
   (VSnd u)     -> sv u ++ ".2"
   (VParam u)     -> sv1 u ++ "!"
   (VPsi u)     -> "PSI" ++ sv u
+  (VPhi t u)     -> "Phi" <+> svs [t,u]
   (VNi f a)    -> sv1 f ++ " ? " ++ sv a
  where sv = showVal su
        sv1 = showVal1 su

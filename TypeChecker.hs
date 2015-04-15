@@ -157,6 +157,20 @@ check a t = case (a,t) of
   (VCPi f,CPair a b) -> do
     a' <- checkEval (face f) a
     check (f `ni` a') b
+
+    {-
+   f : (x:A(i0)) -> B(i0)
+   g : (x:forall i. A) -> <i> B(i) ? f (x@0)
+----------------------------------------------
+   <f,g> : forall i. (x:A) -> B
+-}
+  (VCPi f,Phi t u) -> do
+    t' <- checkEval (face f) t
+    p@(CVar i) <- getFreshCol
+    case f `capp` p of
+        VPi a f' -> do
+          check (VPi (cpi i a) $ VLam $ \x -> ni (clam i (f' `app` (x `capp` p))) (t' `app` face x)) u
+        _ -> throwError ";pqw[uftqf ]"
   (_,CApp u c) -> do
     c' <- colorEval c
     case c' of

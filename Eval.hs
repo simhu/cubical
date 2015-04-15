@@ -46,6 +46,7 @@ eval e (CApp r s) = capp (eval e r) (col s)
 eval e (CPair r s) = cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi a) = psi (eval e a)
+eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = param (eval e a)
 eval e (Ni a b) = ni (eval e a) (eval e b)
 
@@ -176,9 +177,13 @@ cpis :: [Color] -> Val -> Val
 cpis [] t = t
 cpis (i:is) t = VCPi $ clam i $ cpis is t
 
+cpi :: Color -> Val -> Val
+cpi i t = VCPi $ clam i t
+
 capp :: Val -> CVal -> Val
 capp (VCLam f) x = f x
 capp (VCPair a _) Zero = a
+capp (VPhi f _) Zero = f
 capp f a = VCApp f a -- neutral
 
 capps :: Val -> [Color] -> Val
@@ -186,6 +191,8 @@ capps a [] = a
 capps a (i:is) = capps (capp a $ CVar i) is
 
 app :: Val -> Val -> Val
+app (VCApp (VPhi f g) (CVar i)) u = VCPair (f `app` proj i u) (g `app` clam i u) `capp` CVar i
+-- <f,g>@i u = [f u(i0), g <i>u]@i
 app (VLam f) u = f u
 -- app (Ter (Lam cs x t) e) u = eval (Pair e (x,clams cs u)) t
 app (Ter (Split _ nvs) e) (VCon name us) = case lookup name nvs of
@@ -208,9 +215,9 @@ sndSVal u | isNeutral u = VSnd u
 
 -- conversion test
 conv :: Int -> Val -> Val -> Bool
-conv k (VLam f) t = conv k (f v) (t `app` v)
+conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
-conv k t (VLam f) = conv k (f v) (t `app` v)
+conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k (VCPi f) (VCPi f') = conv k f f'
 conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
@@ -223,6 +230,7 @@ conv k b (VParam a) = conv k a (VCPair (face a) b)
 conv k (VPsi a) (VPsi a') = conv k a a'
 conv k (VNi a b) (VNi a' b') = conv k a a' && conv k b b'
 conv k (VCPair a b) (VCPair a' b') = conv k a a' && conv k b b'
+conv k (VPhi a b) (VPhi a' b') = conv k a a' && conv k b b'
 conv k VU VU                                  = True
 -- conv k (Ter (Lam cs x u) e) (Ter (Lam cs' x' u') e') = do
 --   let v = mkVar k
