@@ -10,7 +10,7 @@ left A B f p x x' = t!
   where g : forall i. (x : A@i) -> B@i x
         g = [f,p]
         t : forall i. B@i ([x , x']@i)
-        t = <i> [f,p]@i [x,x']@i
+        t = <i> g@i [x,x']@i
 
 right : (A : forall i. U) ->
        (B : forall i. A@i -> U) ->

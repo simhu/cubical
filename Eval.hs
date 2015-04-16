@@ -1,6 +1,7 @@
 module Eval where
 
 import CTT
+import Data.Monoid hiding (Sum)
 
 look :: Ident -> Env -> (Binder, Val)
 look x (Pair rho (n@(y,l),u))
@@ -213,8 +214,11 @@ sndSVal (VSPair a b)    = b
 sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ show u ++ " should be neutral"
 
+equal a b | a == b = Nothing
+          | otherwise = different a b
+different a b = Just $ show a ++ " /= " ++ show b
 -- conversion test
-conv :: Int -> Val -> Val -> Bool
+conv :: Int -> Val -> Val -> Maybe String
 conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
@@ -223,18 +227,21 @@ conv k (VCPi f) (VCPi f') = conv k f f'
 conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
   where c = mkCol k
 conv k t (VCLam f) = conv k (VCLam f) t
-conv k (VCApp a b) (VCApp a' b') = conv k a a' && b == b'
+conv k (VCApp a b) (VCApp a' b') = conv k a a' <> equal b b'
 conv k (VParam a) (VParam a') = conv k a a'
 conv k (VParam a) b = conv k a (VCPair (face a) b)
 conv k b (VParam a) = conv k a (VCPair (face a) b)
 conv k (VPsi a) (VPsi a') = conv k a a'
-conv k (VNi a b) (VNi a' b') = conv k a a' && conv k b b'
-conv k (VCPair a b) (VCPair a' b') = conv k a a' && conv k b b'
-conv k (VPhi a b) (VPhi a' b') = conv k a a' && conv k b b'
-conv k VU VU                                  = True
+conv k (VNi a b) (VNi a' b') = conv k a a' <> conv k b b'
+conv k (VCPair a b) (VCPair a' b') = conv k a a' <> conv k b b'
+conv k (VPhi a b) (VPhi a' b') = conv k a a' <> conv k b b'
+conv k (VPhi f g) fp@(VCPair f' _) = conv k f f' <> conv (k+1) (g `app` x) (clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
+  where x = mkVar k
+conv k fg@(VPhi _ _) fp@(VCPair _ _) = conv k fp fg
+conv k VU VU                                  = Nothing
 -- conv k (Ter (Lam cs x u) e) (Ter (Lam cs' x' u') e') = do
 --   let v = mkVar k
---   cs == cs' && conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
+--   cs `equal` cs' <> conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
 -- conv k (Ter (Lam is x u) e) u' = do
 --   let v = mkVar k
 --   conv (k+1) (eval (Pair e (x,clams is v)) u) (app u' v)
@@ -242,30 +249,30 @@ conv k VU VU                                  = True
 --   let v = mkVar k
 --   conv (k+1) (app u' v) (eval (Pair e (x,clams is v)) u)
 conv k (Ter (Split p _) e) (Ter (Split p' _) e') =
-  (p == p') && convEnv k e e'
+  (p `equal` p') <> convEnv k e e'
 conv k (Ter (Sum p _) e)   (Ter (Sum p' _) e') =
-  (p == p') && convEnv k e e'
+  (p `equal` p') <> convEnv k e e'
 conv k (Ter (Undef p) e) (Ter (Undef p') e') =
-  (p == p') && convEnv k e e'
+  (p `equal` p') <> convEnv k e e'
 conv k (VPi u v) (VPi u' v') = do
   let w = mkVar k
-  conv k u u' && conv (k+1) (app v w) (app v' w)
+  conv k u u' <> conv (k+1) (app v w) (app v' w)
 conv k (VSigma u v) (VSigma u' v') = do
   let w = mkVar k
-  conv k u u' && conv (k+1) (app v w) (app v' w)
+  conv k u u' <> conv (k+1) (app v w) (app v' w)
 conv k (VFst u) (VFst u') = conv k u u'
 conv k (VSnd u) (VSnd u') = conv k u u'
 conv k (VCon c us) (VCon c' us') =
-  (c == c') && and (zipWith (conv k) us us')
-conv k (VSPair u v) (VSPair u' v') = conv k u u' && conv k v v'
+  (c `equal` c') <> mconcat (zipWith (conv k) us us')
+conv k (VSPair u v) (VSPair u' v') = conv k u u' <> conv k v v'
 conv k (VSPair u v) w              =
-  conv k u (fstSVal w) && conv k v (sndSVal w)
+  conv k u (fstSVal w) <> conv k v (sndSVal w)
 conv k w            (VSPair u v)   =
-  conv k (fstSVal w) u && conv k (sndSVal w) v
-conv k (VApp u v)   (VApp u' v')   = conv k u u' && conv k v v'
-conv k (VSplit u v) (VSplit u' v') = conv k u u' && conv k v v'
-conv k (VVar x)     (VVar x')      = x == x'
-conv k _              _            = False
+  conv k (fstSVal w) u <> conv k (sndSVal w) v
+conv k (VApp u v)   (VApp u' v')   = conv k u u' <> conv k v v'
+conv k (VSplit u v) (VSplit u' v') = conv k u u' <> conv k v v'
+conv k (VVar x)     (VVar x')      = x `equal` x'
+conv k x              x'           = different x x'
 
-convEnv :: Int -> Env -> Env -> Bool
-convEnv k e e' = and $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
+convEnv :: Int -> Env -> Env -> Maybe String
+convEnv k e e' = mconcat $ zipWith (conv k) (valOfEnv e) (valOfEnv e')

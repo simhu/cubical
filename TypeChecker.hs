@@ -207,9 +207,11 @@ checkEval a t = do
 
 checkConv msg a v = do
     k <- index <$> ask
-    unless (conv k v a) $ do
+    case conv k v a of
+      Nothing -> return ()
+      Just err -> do
       rho <- asks env
-      throwError $ msg ++ " check conv: " ++ show v ++ " /= " ++ show a ++ "\n" ++ show rho
+      throwError $ msg ++ " check conv: \n  " ++ show v ++ " /= " ++ show a ++ "\n in environment" ++ show rho ++ "\n because  " ++ err
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
