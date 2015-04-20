@@ -972,12 +972,12 @@ instance Convertible Val where
      conv is k u v'
   conv is k (Kan i a ts u) v' | isIndep is k i a && not (Map.null indep) =
       trace "conv Kan filter" conv is k (Kan i a ts' u) v'
-    where (ts',indep) = Map.partition (isIndep is k i) ts
+    where (indep,ts') = Map.partition (isIndep is k i) ts
   conv is k v' (Kan i a ts u) | isIndep is k i (a,ts) = trace "conv Kan regular"
      conv is k v' u
   conv is k v' (Kan i a ts u) | isIndep is k i a && not (Map.null indep) =
       trace "conv Kan filter" conv is k v' (Kan i a ts' u)
-    where (ts',indep) = Map.partition (isIndep is k i) ts
+    where (indep,ts') = Map.partition (isIndep is k i) ts
 
   conv is k v@(Kan i a ts u) v'@(Kan i' a' ts' u') = trace "conv Kan" $
      let j    = gensym is
@@ -993,12 +993,12 @@ instance Convertible Val where
     conv is k u v'
   conv is k (KanNe i a ts u) v' | isIndep is k i a && not (Map.null indep) =
       trace "conv KanNe filter" conv is k (KanNe i a ts' u) v'
-    where (ts',indep) = Map.partition (isIndep is k i) ts
+    where (indep,ts') = Map.partition (isIndep is k i) ts
   conv is k v' (KanNe i a ts u) | isIndep is k i (a,ts) = trace "conv KanNe regular"
     conv is k v' u
   conv is k v' (KanNe i a ts u) | isIndep is k i a && not (Map.null indep) =
       trace "conv KanNe filter" conv is k v' (KanNe i a ts' u)
-    where (ts',indep) = Map.partition (isIndep is k i) ts
+    where (indep,ts') = Map.partition (isIndep is k i) ts
 
   conv is k v@(KanNe i a ts u) v'@(KanNe i' a' ts' u') =
      trace ("conv KanNe" ++ "\n   v = " ++ show v ++ "\n    v' = " ++ show v')  $
