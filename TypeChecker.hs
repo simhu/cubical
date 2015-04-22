@@ -175,7 +175,7 @@ check a t = case (a,t) of
     c' <- colorEval c
     case c' of
       CVar i -> check (VCPi $ clam' $ \j -> ceval i j a) u
-      Zero -> do
+      _ -> do
         v <- checkInfer t
         checkConv "inferred type" a v
   (VNi f b,Psi p) | VU <- capp f (CVar $ Color "__NOPE__") -> do
@@ -194,10 +194,9 @@ check a t = case (a,t) of
     checkConv "inferred type" a v
 
 colorEval :: CTer -> Typing CVal
-colorEval Zero = return Zero
-colorEval (CVar i) = do
+colorEval c = do
   e <- asks env
-  return $ snd $ lkCol i e
+  return $ colEval e c
   
 checkEval :: Val -> Ter -> Typing Val
 checkEval a t = do

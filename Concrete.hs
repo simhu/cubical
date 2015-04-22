@@ -159,6 +159,7 @@ resolveCVar (AIdent (l,x)) = do
 resolveColor :: CExp -> Resolver C.CTer
 resolveColor Zero = pure $ C.Zero
 resolveColor (CVar x) = C.CVar <$> resolveCVar x
+resolveColor (CMax x y) = C.Max <$> resolveColor x <*> resolveColor y
 
 resolveMCols :: MCols -> Resolver [C.TColor]
 resolveMCols NoCols = return []

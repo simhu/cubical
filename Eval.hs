@@ -19,10 +19,11 @@ lkCol i (PCol e (n@(j,_),v)) | i == j = (n,v)
                              | otherwise = lkCol i e
 lkCol i Empty = error $ "Color " ++ show i ++ " not found"
 
+-- TODO: delete this broken thing
 lkCols :: Env -> [TColor] -> [Color]
 lkCols e is = map (toCol . snd . flip lkCol e) is where
-  toCol (Zero) = Color "__ANON__"
   toCol (CVar i) = i
+  toCol _ = Color "__ANON__"
 
 eval :: Env -> Ter -> Val
 eval e U               = VU
@@ -41,15 +42,18 @@ eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined"
 eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
-eval e (CApp r s) = capp (eval e r) (col s)
-  where col Zero = Zero
-        col (CVar i) = snd $ lkCol i e
+eval e (CApp r s) = capp (eval e r) (colEval e s)
 eval e (CPair r s) = cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi a) = psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = param (eval e a)
 eval e (Ni a b) = ni (eval e a) (eval e b)
+
+colEval :: Env -> CTer -> CVal
+colEval _ Zero = Zero
+colEval e (Max i j) = maxx (colEval e i) (colEval e j)
+colEval e (CVar i) = snd $ lkCol i e
 
 psi :: Val -> Val
 psi (VLam f)
@@ -117,6 +121,7 @@ cevalEnv i p Empty = Empty
 
 cceval :: Color -> CVal -> CVal -> CVal
 cceval i p (CVar k) | k == i = p
+cceval i p (Max x y) = maxx (cceval i p x) (cceval i p y)
 cceval _ _ a = a
 
 

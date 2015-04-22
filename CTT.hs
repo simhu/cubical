@@ -98,8 +98,13 @@ newtype Color = Color String
 instance Show Color where
      show (Color x) = x
 
-data MCol color = Zero | CVar color
+data MCol color = Zero | CVar color | Max (MCol color) (MCol color)
   deriving (Eq,Show)
+
+maxx :: MCol t -> MCol t -> MCol t
+maxx Zero x = x
+maxx x Zero = x
+maxx x y = Max x y
 
 type CVal = MCol Color
 type CTer = MCol TColor
@@ -188,6 +193,7 @@ instance Show Ter where
 showCol :: Show color => MCol color -> String
 showCol Zero  = "0"
 showCol (CVar x) = show x
+showCol (Max x y) = show x ++ "\\/" ++ show y
 
 showTer :: Ter -> String
 showTer U             = "U"

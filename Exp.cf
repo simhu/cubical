@@ -23,6 +23,9 @@ NoWhere.  ExpWhere ::= Exp ;
 
 Zero.     CExp ::= "0" ;
 CVar.     CExp ::= AIdent ;
+CMax.     CExp ::= CExp "\\/" CExp ;
+
+coercions CExp 2 ;
 
 Cols.     MCols ::= "[" [AIdent] "]";
 NoCols.   MCols ::= ;
