@@ -267,6 +267,9 @@ checkInfer e = case e of
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u
     return VU
+  CPair a (Psi p) -> do
+    check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi p))
+    return (VCPi $ clam' $ \_ -> VU)
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t

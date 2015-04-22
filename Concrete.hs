@@ -100,8 +100,9 @@ insertColor :: C.Binder -> Env -> Env
 insertColor (x,_) e = e {colors = x:colors e }
 
 removeColor :: C.CTer -> Env -> Env
-removeColor C.Zero e = e
-removeColor (C.CVar x) e = e {colors = colors e \\ [x] }
+removeColor C.Zero = id
+removeColor (C.CVar x) = \e -> e {colors = colors e \\ [x] }
+removeColor (C.Max x y) = removeColor x . removeColor y
 
 insertVars :: [C.Binder] -> Env -> Env
 insertVars = flip $ foldr insertVar
