@@ -1,3 +1,71 @@
+module Rel2 where
+
+One : U
+data One = tt
+
+Sigma : (A : U) -> (B : A -> U) -> forall i. U
+Sigma A B = [ A , Psi B ]
+
+binT : (A : U) -> forall i j. U
+binT A = <i> <j> [One , Psi P ]@(i \/ j)
+  where P : One -> U
+        P x = A
+
+bin : (A : U) -> (a : A) -> forall i j. (binT A)@i@j
+bin A a = <i> <j> p@(i \/ j)
+   where P : One -> U
+         P x = A
+         p : forall i. [One , Psi P]@i
+         p = [tt , a]
+
+U2 : forall i j. U
+U2 = binT U
+
+left : (A : U) ->
+       (P : (A -> U)) ->
+       (<i> U ) ? A
+left A P = R!
+  where R : forall i. U
+        R = [ A , Psi P ]
+
+
+-- (<i> (<j> (Sigma One U)@i\/j) ? [tt,A]@i) ? B
+
+
+mkRel0 : (A : U) -> (B : U) -> (A -> B -> U) -> forall i j. U
+mkRel0 A B R = <i> <j> (Sigma  [ One , Psi A' ]@i <| B' , R' |>@i )@j
+  where A' : One -> U
+        A' x = A
+        B' : One -> U
+        B' x = B
+        R' : (forall i. (Sigma One A')@i) -> (<k> U) ? B
+        R' w = Psi Q
+          where Q : B -> U
+                Q = R w!
+
+mkRel : (A : U) -> (B : U) -> (A -> B -> U) -> forall i j. U2@i@j
+mkRel A B R = <i> <j> [ [ tt , A ]@i , [ B , R0 ]@i ]@j
+  where A' : One -> U
+        A' x = A
+        B' : One -> U
+        B' x = B
+
+        R2 : forall i j. (Sigma One (\_ -> U))@(i\/j)
+        R2 = <i> <j> [tt,_]@(i\/j)
+        
+         -- ? [tt,A]@i 
+        R1 : forall i. (<j> (Sigma One (\_ -> U))@(i\/j)) ? [tt,A]@i
+        R1 = _ -- ? B 
+        R0 : (<i> (<j> (Sigma One (\_ -> U))@(i\/j)) ? [tt,A]@i) ? B
+        R0 = _
+        
+        -- R' : forall i j. U
+        -- R' = mkRel0 A B R
+        -- R'' : forall i. ((<j> U) ? (Sigma One A')@i)
+        -- R'' = <i> (R'@i)!
+        -- R3 : (<i> ((<j> U) ? (Sigma One A')@i)) ? (Sigma One B')!
+        -- R3 = R''!
+
 -- [-,t] : forall i. [1, Psi \_ -> A]@i
 -- [-,t]@(max i j) : [1, Psi \_ -> A]@(max i j)
 
