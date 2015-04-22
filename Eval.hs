@@ -1043,7 +1043,7 @@ instance Convertible Val where
 
   conv is k (VVar x)  (VVar x')             = x == x'
   conv is k (VApp u v)     (VApp u' v')     = conv is k u u' && conv is k v v'
-  conv is k (VAppFormula u x) (VAppFormula u' x') = conv is k u u' && (x == x')
+  conv is k (VAppFormula u x) (VAppFormula u' x') = conv is k (u,x) (u',x')
   conv is k (VSplit u v)   (VSplit u' v')   = conv is k u u' && conv is k v v'
   conv is k (VHSplit u v)  (VHSplit u' v')  = conv is k u u' && conv is k v v'
   conv is k (UnGlueNe u v) (UnGlueNe u' v') = conv is k u u' && conv is k v v'
