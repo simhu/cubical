@@ -1056,7 +1056,7 @@ instance Normal Val where
 
   normal k (Glue hisos u) = glue (normal k hisos) (normal k u)
   normal k (UnGlue hisos u) = UnGlue (normal k hisos) (normal k u)
-  normal k (GlueElem us u) = glueElem (normal k us) u
+  normal k (GlueElem us u) = glueElem (normal k us) (normal k u)
   normal k (GlueLine u phi psi) = glueLine (normal k u) phi psi
   normal k (GlueLineElem u phi psi) = glueLineElem (normal k u) phi psi
 
