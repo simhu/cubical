@@ -3,19 +3,19 @@ module IsoPred where
 import Eq
 
 left : (A : U) ->
-       (P : (A -> U)) ->
-       (<i> U ) ? A
+       (P : A -> U) ->
+       (<i> U) ? A
 left A P = R!
   where R : forall i. U
         R = [ A , Psi P ]
 
 right : (A : U) ->
-       (<i> U ) ? A ->
+       (<i> U) ? A ->
        A -> U
 right A Q x = [ A , Q ] ? x
 
 comp1 : (A : U) ->
-        (Q : (<i> U ) ? A)
+        (Q : (<i> U) ? A)
         -> Eq ((<i> U ) ? A) Q (left A (right A Q))
 comp1 A Q Pred proof = proof
 
