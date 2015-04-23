@@ -67,6 +67,7 @@ evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
 cpair :: Val -> Val -> Val
 cpair _ (VParam t) = t
+cpair _ (VPsi (VLam f)) | VU <- f (VVar "__RESERVED__") = clam' $ \_ -> VU -- ????
 cpair a b = VCPair a b
 
 cevals :: [(Color,CVal)] -> Val -> Val

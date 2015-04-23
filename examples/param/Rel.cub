@@ -20,6 +20,8 @@ F1 A = <i>A@i@0
 R : (A : U2) -> (x : A@0@0) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> U
 R A x y z = (<i> (A@i ? [x , z]@i)) ? y
 
+-- param2 : (A : U2) -> (a : forall i j. A@i@j) -> R A a (a!) (a!)
+
 sym : (A : U2) -> (x : A@0@0) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> R A x y z -> R (FL A) x z y
 sym A x y z w = ti!
   where t : forall i j. A@i@j
