@@ -1,0 +1,68 @@
+module Rel6 where
+
+import Eq
+
+Sigma : (A : U) -> (B : A -> U) -> forall i. U
+Sigma A B = [ A , Psi B ]
+
+-- Copy the behaviour along dimension i to dimension j
+Copy : (A : forall i. U) -> forall i j. U
+Copy A = <i><j> A@(i \/ j)
+
+-- Lemma: copying constant types is is the constant type.
+CopyK : (K : U) -> forall i j. Eq U ((Copy (<i>K))@i@j) K
+CopyK K = <i><j> \Pred-> \proof -> proof
+
+-- copy for values (subsumes the above when A = <i> U)
+copy : (A : forall i. U) -> (a : forall i. A@i) -> forall i j. (Copy A)@i@j
+copy A a = <i><j> a@(i \/ j)
+
+-- Iterated '?' (Check Rel.cub for properties)
+SatR : (A : forall i j. U) -> (x : A@0@0) -> (z : (<i>A@i@0) ? x) -> (y : (<i>A@0@i) ? x) -> U
+SatR A x y z = (<i> (A@i ? [x , y]@i)) ? z
+
+-- Like '?' but for binary relations
+Sat2 : (A : forall i. U) (z : A@0) (a b : A ? z) -> U
+Sat2 A = SatR (Copy A)
+
+-- Like '!' but for binary relations
+param2 : (A : forall i. U) (z : A@0) -> (a : A ? z) -> Sat2 A z a a
+param2 A z a = a2!
+  where a' : forall i j. (Copy A)@i@j
+        a' = copy A [z,a]
+        a2 : forall i. (<j>(Copy A)@i@j) ? [z,a]@i
+        a2 = <i> (a'@i!)
+
+-- Like Sigma, but for binary relations.
+-- Note in particular that Line returns the type:
+-- Line : (Z : U) -> (A B : Z -> U) -> ((z : Z) -> A z -> B z -> U) -> forall i j. Copy(<i>U)@i@j
+Line : (Z : U) -> (A B : Z -> U) -> ((z : Z) -> A z -> B z -> U) -> forall i j. U
+Line Z A B R = <i> <j> (Sigma (Sigma Z A)@i <| B , R' |>@i)@j
+  where
+        R' : (w : (forall i. (Sigma Z A)@i)) -> (<k> U) ? (B w@0)
+        R' w = Psi Q
+          where Q : B w@0 -> U
+                Q = R w@0 w!
+
+-- Sat (<i>U) Z (Psi A) (Psi B)
+-- (<i> ((Copy (<i>U))@i ? [z,Psi A]@i)) ? Psi B
+-- (<i> (<j> (Copy (<i>U))@i@j ? [z,Psi A]@i)) ? Psi B
+-- (<i> (<j> U ? [z,Psi A]@i)) ? Psi B
+
+-- Like Psi, but for binary relations.
+Psi2 : (Z : U) -> (A B : Z -> U) -> ((z : Z) -> A z -> B z -> U) -> Sat2 (<i>U) Z (Psi A) (Psi B)
+Psi2 Z A B R = (<i> ((<j> T@i@j) !))!
+  where  T : forall i j. U
+         T = Line Z A B R
+
+-- Sat2 (Line Z A B R) z a b = R z a b
+
+-- outFun : SatR (<i><j> (x:A) -> B) f f1 f2 -> SatR (<i><j> A) x x1 x2 -> SatR (<i><j> B) (f x) (f1 x1) (f2 x2)
+-- outFun : Sat' ((x:A) -> B) f f1 f2 -> SatR (<i><j> A) x x1 x2 -> SatR (<i><j> B) (f x) (f1 x1) (f2 x2)
+
+idParam2 : (f : (X : U) -> X -> X) ->
+           (A B : U) -> (R : A -> B -> U) ->
+           (a : A) (b : B) (r : R a b) ->
+           R (f A a) (f B b)
+idParam2 = _ -- Goal
+ -- (copy [tt,f])@i@j (Line' A B R) (line' a b r)
