@@ -125,7 +125,6 @@ cceval i p (CVar k) | k == i = p
 cceval i p (Max x y) = maxx (cceval i p x) (cceval i p y)
 cceval _ _ a = a
 
-
 ceval :: Color -> CVal -> Val -> Val
 ceval i p v0 =
   let ev = ceval i p
@@ -143,7 +142,10 @@ ceval i p v0 =
     VSnd a -> VSnd (ev a)
     VCApp a b ->  capp (ev a) (cceval i p b)
     VCPi x -> VCPi (ev x)
-    VCLam f -> clam' (ev . f)
+    VCLam j a -> case p of
+       CVar j' | j == j' -> VCLam k (ev $ ceval j (CVar k) a)
+         where k = Color $ fresh (a,p)
+       _ -> VCLam i (ev a)
     VCPair a b -> cpair (ev a) (ev b)
     VParam a -> param (ev a)
     VPsi a -> psi (ev a)
@@ -165,16 +167,12 @@ proj :: Color -> Val -> Val
 proj i = ceval i Zero
 
 clam' :: (CVal -> Val) -> Val
-clam' f | (VCApp a (CVar (Color "__RESERVED__"))) <- f (CVar (Color "__RESERVED__")),
-          let y = Color $ show a,
-          (VCApp _ (CVar y')) <- f (CVar y),
-          y == y'
-        = a
-        | otherwise = VCLam f
-   -- eta contraction (no need for occurs check!)
+clam' f = clam k (f $ CVar k)
+  where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
 
 clam :: Color -> Val -> Val
-clam i t = clam' $ \p -> ceval i p t
+clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (no need for occurs check!)
+clam i a = VCLam i a
 
 clams :: [Color] -> Val -> Val
 clams [] t = t
@@ -188,7 +186,7 @@ cpi :: Color -> Val -> Val
 cpi i t = VCPi $ clam i t
 
 capp :: Val -> CVal -> Val
-capp (VCLam f) x = f x
+capp (VCLam i f) x = ceval i x f
 capp (VCPair a _) Zero = a
 capp (VPhi f _) Zero = f
 capp f a = VCApp f a -- neutral
@@ -213,13 +211,14 @@ app r s | isNeutral r = VApp r s -- r should be neutral
         | otherwise   = error $ "app: VApp " ++ show r ++ " is not neutral"
 
 fstSVal, sndSVal :: Val -> Val
-fstSVal (VSPair a b)    = a
+fstSVal (VSPair a _)    = a
 fstSVal u | isNeutral u = VFst u
           | otherwise   = error $ show u ++ " should be neutral"
-sndSVal (VSPair a b)    = b
+sndSVal (VSPair _ b)    = b
 sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ show u ++ " should be neutral"
 
+equal :: (Show a, Eq a) => a -> a -> Maybe [Char]
 equal a b | a == b = Nothing
           | otherwise = different a b
 different a b = Just $ show a ++ " /= " ++ show b
@@ -230,9 +229,9 @@ conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k (VCPi f) (VCPi f') = conv k f f'
-conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
+conv k (VCLam i a) t = conv (k+1) (ceval i c a) (capp t c)
   where c = mkCol k
-conv k t (VCLam f) = conv k (VCLam f) t
+conv k t (VCLam i f) = conv k (VCLam i f) t
 conv k (VCApp a b) (VCApp a' b') = conv k a a' <> equal b b'
 conv k (VParam a) (VParam a') = conv k a a'
 conv k (VParam a) b = conv k a (VCPair (face a) b)

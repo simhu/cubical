@@ -2,7 +2,7 @@ module CTT where
 
 import Control.Applicative
 import Pretty
-
+import Data.List ((\\))
 --------------------------------------------------------------------------------
 -- | Terms
 
@@ -124,7 +124,7 @@ data Val = VU
 
          | VCApp Val CVal
          | VCPi Val
-         | VCLam (CVal -> Val)
+         | VCLam Color Val
 
          | VCPair Val Val
          | VParam Val
@@ -133,6 +133,40 @@ data Val = VU
          | VNi Val Val
          | VLam (Val -> Val)
   -- deriving Eq
+
+class Nominal a where
+  support :: a -> [String]
+
+instance Nominal Color where
+  support (Color x) = [x]
+instance (Nominal a, Nominal b) => Nominal (a,b) where support (a,b) = support a ++ support b
+instance (Nominal a) => Nominal [a] where support = concatMap support
+instance (Nominal a) => Nominal (MCol a) where
+  support Zero = []
+  support (CVar a) = support a
+instance Nominal Val where
+  support v0 = case v0 of
+    VU -> []
+    VPi a b -> support (a,b)
+    VSigma a b -> support (a,b)
+    VSPair a b -> support (a,b)
+    VCPair a b -> support (a,b)
+    VPhi a b -> support (a,b)
+    VNi a b -> support (a,b)
+    VCon _ vs -> support vs
+    VApp a p ->  support (a,p)
+    VSplit a p ->  support (a,p)
+    VVar x -> []
+    VFst a -> support a
+    VSnd a -> support a
+    VParam a -> support a
+    VPsi a -> support a
+    VCPi a -> support a
+    VCApp a c -> support (a,c)
+    VCLam x a -> support a
+    VLam f -> support (f $ VVar "__SUPPORT__")
+
+fresh a = x0 where (x0:_) = namesFrom "ijk" \\ support a
 
 mkVar :: Int -> Val
 mkVar k = VVar ('X' : show k)
@@ -234,15 +268,17 @@ showTer1 u           = parens $ showTer u
 showDecls :: Decls -> String
 showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
 
+namesFrom xs = [x ++ n | n <- "":map show [1..], x <- map (:[]) xs]
+
 instance Show Val where
-  show = showVal [x ++ n | n <- "":map show [1..], x <- map (:[]) ['α'..'ω']]
+  show = showVal $ namesFrom ['α'..'ω']
 
 showVal :: [String] -> Val -> String
 showVal su@(s:ss) t0 = case t0 of
   VU           -> "U"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
-  (VCLam f)  -> "<" ++ s ++ ">" <+> showVal ss (f $ CVar $ Color s)
+  (VCLam (Color x) t)  -> "<" ++ x ++ ">" <+> showVal ss t
   (VLam f)  -> "\\" ++ s ++ " -> " <+> showVal ss (f $ VVar s)
   (VPi a f)    -> "Pi" <+> svs [a,f]
   (VCPi f)    -> "PI" <+> sv f
