@@ -268,6 +268,11 @@ checkInfer e = case e of
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u
     return VU
+  Psi p -> do
+    pt <- checkInfer p
+    case pt of
+      VPi a f | VU <- f `app` VVar "__PSI_INFER__" -> return $ (clam' $ \_ -> VU) `ni` a
+      _ -> throwError ("argument of psi is not a predicate" ++ show e)
   CPair a (Psi p) -> do
     check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi p))
     return (VCPi $ clam' $ \_ -> VU)
