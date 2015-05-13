@@ -71,7 +71,6 @@ evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
 cpair :: Val -> Val -> Val
 cpair _ (VParam t) = t
--- cpair _ (VPsi (VLam f)) | VU <- f (VVar "__RESERVED__") = clam' $ \_ -> VU -- ????
 cpair a b = VCPair a b
 
 cevals :: [(Color,CVal)] -> Val -> Val
@@ -208,6 +207,7 @@ cpi i t = VCPi $ clam i t
 capp :: Val -> CVal -> Val
 capp (VCLam i f) x = ceval i x f
 capp (VCPair a _) Zero = a
+capp (VCPair _ (VPsi p)) Infty = p `app` VVar "__CAPP_INFTY__"
 capp (VPhi f _) Zero = f
 capp f a = VCApp f a -- neutral
 

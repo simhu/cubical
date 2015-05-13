@@ -147,6 +147,9 @@ instance (Nominal a) => Nominal [a] where support = concatMap support
 instance (Nominal a) => Nominal (MCol a) where
   support Zero = []
   support (CVar a) = support a
+  support (Max a b) = support (a,b)
+  support Infty = []
+
 instance Nominal Val where
   support v0 = case v0 of
     VU -> []
@@ -242,7 +245,7 @@ instance Show Ter where
 showCol :: Show color => MCol color -> String
 showCol Zero  = "0"
 showCol (CVar x) = show x
-showCol (Max x y) = show x ++ "⊔" ++ show y
+showCol (Max x y) = showCol x ++ " ⊔ " ++ showCol y
 
 showConstr :: Show color => MCol color -> [Char]
 showConstr xs =  "[" ++ showCol xs ++ ">0]"

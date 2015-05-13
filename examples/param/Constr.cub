@@ -1,10 +1,30 @@
 module Constr where
 
-One : U
-data One = tt
+Sigma : (A : U) -> (B : A -> U) -> forall i. U
+Sigma A B = [ A , Psi B ]
 
-blah : forall i+. U
-blah = <i+> One
+Rel : (A : U) -> (B : U) -> (R : A -> B -> U) -> forall i j+. U
+Rel A B R = <i j+> [ A
+                   , let P : A -> U
+                         P x = (Sigma B (\y -> R x y))@j 
+                     in Psi P
+                   ]@i
 
-yop : U
-yop = blah!
+
+-- R' = <i j+> [ A , Psi (\x -> (Sigma B (\y -> R x y))@j)]@i
+
+-- R'@0 = <j+> A 
+-- (R'@0) ? _ = A
+
+-- Other direction:
+-- R'@i@0 = [i>0] [ A , Psi (\x -> B)]@i
+-- <i+> R'@i@0 ? _ = [i>0] [ A , Psi (\x -> B)]@i
+
+
+
+A : U
+data A = aa
+B : U
+data B = bb
+R : A -> B -> U
+data R aa bb = rr
