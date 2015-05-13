@@ -123,6 +123,8 @@ checkTele ((x,a):xas) = do
 
 check :: Val -> Ter -> Typing ()
 check a t = case (a,t) of
+  (_,Constr _ t') -> check a t' -- FIXME: constraints
+  (VConstr _ a',_) -> check a' t -- FIXME: constraints
   (_,Con c es) -> do
     (bs,nu) <- getLblType c a
     checks (bs,nu) es
