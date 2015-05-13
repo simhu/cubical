@@ -222,6 +222,7 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
+  Constr _ t -> checkInfer t -- FIXME: constraints in the type
   U -> return VU                 -- U : U
   Var n -> do
     gam <- ctxt <$> ask

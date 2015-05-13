@@ -1,0 +1,10 @@
+module Constr where
+
+One : U
+data One = tt
+
+blah : forall i+. U
+blah = <i+> One
+
+yop : U
+yop = blah!

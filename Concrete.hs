@@ -177,8 +177,26 @@ clam i b = do
   x <- resolveBinder i
   C.CLam x <$> local (insertColor x) b
 
+clams :: [AIdent] -> Resolver Ter -> Resolver Ter
+clams [] b = b
+clams (i:is) b = do
+  x <- resolveBinder i
+  C.CLam x <$> local (insertColor x) (clams is b)
+
+constraint :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
+constraint Any _ b = b
+constraint Positive is b = do
+  is' <- mapM resolveCVar is
+  C.Constr (foldr C.maxx C.Zero $ map C.CVar is') <$> b
+
+clams' :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
+clams' p is b = clams is $ constraint p is b
+
 cpi :: AIdent -> Resolver Ter -> Resolver Ter
 cpi i b = C.CPi <$> clam i b
+
+cpis' :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
+cpis' p is b = cpis is $ constraint p is b
 
 cpis :: [AIdent] -> Resolver Ter -> Resolver Ter
 cpis [] x = x
@@ -225,8 +243,8 @@ resolveExp (Let decls e) = do
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
 resolveExp (Param t) = C.Param <$> resolveExp t
 resolveExp (Psi t) = C.Psi <$> resolveExp t
-resolveExp (CLam i t) = clam i $ resolveExp t
-resolveExp (CPi i is t) = cpis (i:is) $ resolveExp t
+resolveExp (CLam i is p t) = clams' p (i:is) $ resolveExp t
+resolveExp (CPi i is p t) = cpis' p (i:is) $ resolveExp t
 resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'

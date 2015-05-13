@@ -2,7 +2,7 @@ module CTT where
 
 import Control.Applicative
 import Pretty
-import Data.List ((\\))
+import Data.List ((\\), intercalate)
 --------------------------------------------------------------------------------
 -- | Terms
 
@@ -71,7 +71,7 @@ data Ter = App Ter Ter
          | Psi Ter
          | Phi Ter Ter
          | Ni Ter Ter
-           
+         | Constr CTer Ter
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -98,13 +98,15 @@ newtype Color = Color String
 instance Show Color where
      show (Color x) = x
 
-data MCol color = Zero | CVar color | Max (MCol color) (MCol color)
+data MCol color = Infty | Zero | CVar color | Max (MCol color) (MCol color)
   deriving (Eq,Show)
 
 maxx :: MCol t -> MCol t -> MCol t
 maxx Zero x = x
 maxx x Zero = x
 maxx x y = Max x y
+maxx Infty _ = Infty
+maxx _ Infty = Infty
 
 type CVal = MCol Color
 type CTer = MCol TColor
@@ -132,6 +134,7 @@ data Val = VU
          | VPhi Val Val
          | VNi Val Val
          | VLam (Val -> Val)
+         | VConstr CVal Val 
   -- deriving Eq
 
 class Nominal a where
@@ -165,6 +168,8 @@ instance Nominal Val where
     VCApp a c -> support (a,c)
     VCLam x a -> support a
     VLam f -> support (f $ VVar "__SUPPORT__")
+    VConstr c a -> support (c,a)
+    Ter x e -> support (x,e)
 
 fresh a = x0 where (x0:_) = namesFrom "ijk" \\ support a
 
@@ -193,6 +198,16 @@ data Env = Empty
          | PCol Env (Binder,CVal)
   -- deriving Eq
 
+instance Nominal Env where
+  support e0 = case e0 of
+    Empty -> []
+    Pair e (_,v) -> support (e,v)
+    PDef ds e -> support (map snd ds,e)
+    PCol e (_,v) -> support (e,v)
+
+instance Nominal Ter where
+  support _ = []
+  
 instance Show Env where
   show e0 = case e0 of
     Empty            -> ""
@@ -227,10 +242,14 @@ instance Show Ter where
 showCol :: Show color => MCol color -> String
 showCol Zero  = "0"
 showCol (CVar x) = show x
-showCol (Max x y) = show x ++ "\\/" ++ show y
+showCol (Max x y) = show x ++ "⊔" ++ show y
+
+showConstr :: Show color => MCol color -> [Char]
+showConstr xs =  "[" ++ showCol xs ++ ">0]"
 
 showTer :: Ter -> String
 showTer U             = "U"
+showTer (Constr c e)   = showConstr c <+> showTer1 e
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
@@ -268,7 +287,8 @@ showTer1 u           = parens $ showTer u
 showDecls :: Decls -> String
 showDecls defs = ccat (map (\((x,_),_,d) -> x <+> "=" <+> show d) defs)
 
-namesFrom xs = [x ++ n | n <- "":map show [1..], x <- map (:[]) xs]
+namesFrom :: [Char] -> [[Char]]
+namesFrom xs = [x ++ n | n <- "":map show [(1::Int)..], x <- map (:[]) xs]
 
 instance Show Val where
   show = showVal $ namesFrom ['α'..'ω']
@@ -295,6 +315,7 @@ showVal su@(s:ss) t0 = case t0 of
   (VPsi u)     -> "PSI" ++ sv u
   (VPhi t u)     -> "Phi" <+> svs [t,u]
   (VNi f a)    -> sv1 f ++ " ? " ++ sv a
+  (VConstr c a)    -> showConstr c ++ sv a
  where sv = showVal su
        sv1 = showVal1 su
        svs = showVals su
@@ -302,6 +323,7 @@ showVal su@(s:ss) t0 = case t0 of
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
 
+showVals :: [String] -> [Val] -> String
 showVals su = hcat . map (showVal1 su)
 
 showVal1 :: [String] -> Val -> String

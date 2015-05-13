@@ -27,28 +27,32 @@ lkCols e is = map (toCol . snd . flip lkCol e) is where
 
 eval :: Env -> Ter -> Val
 eval e U               = VU
-eval e (App r s)       = app (eval e r) (eval e s)
+eval e (App r s)       = sh2 app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
 -- eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
 eval e (Lam is x t)    = VLam $ \x' -> eval (Pair e (x,clams (lkCols e is) x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
-eval e (Fst a)         = fstSVal (eval e a)
-eval e (Snd a)         = sndSVal (eval e a)
+eval e (Fst a)         = sh1 fstSVal (eval e a)
+eval e (Snd a)         = sh1 sndSVal (eval e a)
 eval e (Where t decls) = eval (PDef [ (x,y) | (x,_,y) <- decls ] e) t
 eval e (Con name ts)   = VCon name (map (eval e) ts)
 eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined"
 eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
-eval e (CApp r s) = capp (eval e r) (colEval e s)
-eval e (CPair r s) = cpair (eval e r) (eval e s)
+eval e (CApp r s) = sh2' capp (eval e r) (colEval e s)
+eval e (CPair r s) = sh2 cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
-eval e (Psi a) = psi (eval e a)
+eval e (Psi a) = sh1 psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
-eval e (Param a) = param (eval e a)
-eval e (Ni a b) = ni (eval e a) (eval e b)
+eval e (Param a) = sh1 param (eval e a)
+eval e (Ni a b) = sh2 ni (eval e a) (eval e b)
+eval e (Constr c a) = vconstr (colEval e c) (eval e a)
+
+vconstr Infty = id
+vconstr c = VConstr c
 
 colEval :: Env -> CTer -> CVal
 colEval _ Zero = Zero
@@ -151,16 +155,32 @@ ceval i p v0 =
     VPsi a -> psi (ev a)
     VNi a b -> ni (ev a) (ev b)
     VLam f -> VLam (ev . f)
+    VConstr c a -> vconstr (cceval i p c) (ev a)
 
 face :: Val -> Val
 face v = v `capp` Zero
 
 ni :: Val -> Val -> Val
 ni (VCPair _ (VPsi p)) a = app p a
+ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
+
+sh1 :: (Val -> Val) -> Val -> Val
+sh1 f (VConstr c a) = vconstr c (sh1 f a)
+sh1 f a = f a
+
+sh2 :: (Val -> Val -> Val) -> Val -> Val -> Val
+sh2 f (VConstr c a) b = vconstr c (sh2 f a b)
+sh2 f a (VConstr c b) = vconstr c (sh2 f a b)
+sh2 f a b = f a b
+
+sh2' :: (Val -> a -> Val) -> Val -> a -> Val
+sh2' f (VConstr c a) b = vconstr c (sh2' f a b)
+sh2' f a b = f a b
 
 param :: Val -> Val
 param (VCPair _ p) = p
+param x | Just x' <- fizz x = x'
 param x = VParam x
 
 proj :: Color -> Val -> Val
@@ -224,6 +244,8 @@ equal a b | a == b = Nothing
 different a b = Just $ show a ++ " /= " ++ show b
 -- conversion test
 conv :: Int -> Val -> Val -> Maybe String
+conv k (VConstr _ x) y = conv k x y
+conv k y (VConstr _ x) = conv k x y
 conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
@@ -243,7 +265,7 @@ conv k (VPhi a b) (VPhi a' b') = conv k a a' <> conv k b b'
 conv k (VPhi f g) fp@(VCPair f' _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
   where x = mkVar k
 conv k fg@(VPhi _ _) fp@(VCPair _ _) = conv k fp fg
-conv k VU VU                                  = Nothing
+conv _ VU VU                                  = Nothing
 -- conv k (Ter (Lam cs x u) e) (Ter (Lam cs' x' u') e') = do
 --   let v = mkVar k
 --   cs `equal` cs' <> conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
@@ -276,8 +298,38 @@ conv k w            (VSPair u v)   =
   conv k (fstSVal w) u <> conv k (sndSVal w) v
 conv k (VApp u v)   (VApp u' v')   = conv k u u' <> conv k v v'
 conv k (VSplit u v) (VSplit u' v') = conv k u u' <> conv k v v'
-conv k (VVar x)     (VVar x')      = x `equal` x'
-conv k x              x'           = different x x'
+conv _ (VVar x)     (VVar x')      = x `equal` x'
+conv _ x              x'           = different x x'
 
 convEnv :: Int -> Env -> Env -> Maybe String
 convEnv k e e' = mconcat $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
+
+fizzle :: Val -> Bool
+fizzle v0 = case v0 of
+  VU -> False
+  VPi a b -> fizzle a || fizzle b
+  VSigma a b -> fizzle a || fizzle b
+  VSPair a b -> fizzle a || fizzle b
+  VCon _ xs -> any fizzle xs
+  VApp a b -> fizzle a || fizzle b
+  VSplit a b -> fizzle a || fizzle b
+  VVar _ -> False
+  VFst a -> fizzle a
+  VSnd a -> fizzle a
+  VCPi a -> fizzle a
+  VCLam _ a -> fizzle a
+  VCApp a _ -> fizzle a
+  VParam a -> fizzle a
+  VPsi a -> fizzle a
+  VNi a b -> fizzle a || fizzle b
+  VPhi a b -> fizzle a || fizzle b
+  VCPair a b -> fizzle a || fizzle b
+  VConstr Zero _ -> True
+  VConstr _ a -> fizzle a
+  VLam f -> fizzle $ f $ VVar "__FIZZ__"
+
+fizz :: Val -> Maybe Val
+fizz x = if fizzle (x `capp` Zero)
+         then Just (x `capp` Infty)
+         else Nothing
+
