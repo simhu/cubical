@@ -244,6 +244,7 @@ instance Show Ter where
 
 showCol :: Show color => MCol color -> String
 showCol Zero  = "0"
+showCol Infty  = " ∞ "
 showCol (CVar x) = show x
 showCol (Max x y) = showCol x ++ " ⊔ " ++ showCol y
 
