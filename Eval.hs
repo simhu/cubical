@@ -145,10 +145,9 @@ ceval i p v0 =
     VSnd a -> VSnd (ev a)
     VCApp a b ->  capp (ev a) (cceval i p b)
     VCPi x -> VCPi (ev x)
-    VCLam j a -> case p of
-       CVar j' | j == j' -> VCLam k (ev $ ceval j (CVar k) a)
+    VCLam j a | i == j -> v0
+              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
          where k = Color $ fresh (a,p)
-       _ -> VCLam i (ev a)
     VCPair a b -> cpair (ev a) (ev b)
     VParam a -> param (ev a)
     VPsi a -> psi (ev a)
