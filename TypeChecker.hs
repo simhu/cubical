@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 module TypeChecker where
 
 import Data.Either
@@ -118,7 +119,7 @@ checkDecls d = do
 checkTele :: Tele -> Typing ()
 checkTele []          = return ()
 checkTele ((x,a):xas) = do
-  check VU a
+  inferType a
   localM (addType (x,a)) $ checkTele xas
 
 check :: Val -> Ter -> Typing ()
@@ -128,12 +129,6 @@ check a t = case (a,t) of
   (_,Con c es) -> do
     (bs,nu) <- getLblType c a
     checks (bs,nu) es
-  (VU,Pi a (Lam is x b)) -> do
-    check VU a
-    localM (addType (x,tcpis is a)) $ check VU b
-  (VU,Sigma a (Lam [] x b)) -> do
-    check VU a
-    localM (addType (x,a)) $ check VU b
   (VU,Sum _ bs) -> sequence_ [checkTele as | (_,as) <- bs]
   (VPi (Ter (Sum _ cas) nu) f,Split _ ces) -> do
     let cas' = sortBy (compare `on` fst . fst) cas
@@ -153,9 +148,6 @@ check a t = case (a,t) of
   (VCPi f, CLam x t) -> do
     var <- getFreshCol
     local (addCol x var) $ check (capp f var) t
-  (VU,CPi (CLam x t)) -> do
-    var <- getFreshCol
-    local (addCol x var) $ check VU t
   (VCPi f,CPair a b) -> do
     a' <- checkEval (face f) a
     check (f `ni` a') b
@@ -180,10 +172,14 @@ check a t = case (a,t) of
       _ -> do
         v <- checkInfer t
         checkConv "inferred type" a v
-  (VNi f b,Psi p) | VU <- capp f (CVar $ Color "__NOPE__") -> do
+  (VNi f b,Psi b' p) | VV _ <- capp f (CVar $ Color "__NOPE__") -> do
     let x = noLoc n
         n = "__PSI_ARG__"
-    local (addTypeVal (x,b)) $ check VU (App p $ Var n) 
+    inferType b'
+    b'' <- eval' b'
+    checkConv "ni" b b''
+    local (addTypeVal (x,b)) $ inferType (App p $ Var n)
+    return ()
   (VNi f b,Param p) -> do
     p' <- checkEval (VCPi f) p
     checkConv "param" (face p') b
@@ -203,6 +199,10 @@ colorEval c = do
 checkEval :: Val -> Ter -> Typing Val
 checkEval a t = do
   check a t
+  eval' t
+
+eval' :: Ter -> Typing Val
+eval' t = do
   e <- asks env
   return $ eval e t
 
@@ -222,8 +222,29 @@ checkBranch (xas,nu) f (c,(xs,e)) = do
       us = map mkVar [k..k+l-1]
   localM (addBranch (zip xs us) (xas,nu)) $ check (app f (VCon c us)) e
 
+inferType :: Ter -> Typing Val
+inferType t = do
+  a <- checkInfer t
+  case a of
+   VV _ -> return a
+   _ -> throwError $ show a ++ " is not a type"
+
+sortPlus :: Maybe [Color] -> CVal -> Maybe [Color]
+sortPlus Nothing _ = Nothing
+sortPlus (Just is) i = Just (catMax i ++ is)
+
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
+  CPi (CLam x t) -> do
+    var <- getFreshCol
+    local (addCol x var) $ inferType t
+  CU _ -> eval <$> asks env <*> pure e
+  Pi a (Lam is x b) -> do
+    inferType a
+    localM (addType (x,tcpis is a)) $ inferType b
+  Sigma a (Lam [] x b) -> do
+    inferType a
+    localM (addType (x,a)) $ inferType b
   Constr _ t -> checkInfer t -- FIXME: constraints in the type
   U -> return VU                 -- U : U
   Var n -> do
@@ -258,25 +279,25 @@ checkInfer e = case e of
     u' <- colorEval u
     case c of
       VCPi f -> do return $ (capp f u')
-      _          -> throwError $ show t ++ " is not a type family"
+      _          -> throwError $ show t ++ " is not a type family (1)"
   Param t -> do
     c <- checkInfer t
     rho <- asks env
     let v = eval rho t
     case c of
       VCPi f -> do return $ ni f (face v)
-      _          -> throwError $ show t ++ " is not a type family"
+      _          -> throwError $ show t ++ " is not a type family (2)"
   Ni t u -> do
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u
     return VU
-  Psi p -> do
-    pt <- checkInfer p
-    case pt of
-      VPi a f | VU <- f `app` VVar "__PSI_INFER__" -> return $ (clam' $ \_ -> VU) `ni` a
-      _ -> throwError ("argument of psi is not a predicate" ++ show e)
-  CPair a (Psi p) -> do
-    check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi p))
+  Psi a p -> do
+    VV sort <- inferType a
+    a' <- eval' a
+    check (VPi a' $ VLam $ \_ -> VU) p
+    return $ (clam' $ \i -> VV (sortPlus sort i)) `ni` a'
+  CPair a (Psi a' p) -> do
+    check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi a' p))
     return (VCPi $ clam' $ \_ -> VU)
   Where t d -> do
     checkDecls d

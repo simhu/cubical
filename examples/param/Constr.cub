@@ -10,6 +10,53 @@ Rel A B R = <i j+> [ A
                      in Psi P
                    ]@i
 
+Extr : (forall i+. U) -> U
+Extr X = X!
+
+U2 : U
+U2 = forall i j+. U
+
+FL : U2 -> U2
+FL A = <j i+> A@i@j
+
+F0 : U2 -> U
+F0 A = (A@0)!
+
+F1 : U2 -> U
+F1 A = F0 (FL A)
+
+
+<i j> [-,U]@(max i j)
+
+<j> [-,U]@j
+
+<i j> [-,U]@(max i j)
+
+
+[-,U] ? _ = U
+
+
+-- (<j i+> A@i@j)@0
+-- <i+> (A@i@0)
+
+-- (<i+> (A@i@0))!
+
+-- A : forall i j+. U
+-- A! :
+
+-- a r
+--   b
+
+-- ( <j+> a ,i (b ,j r))
+
+-- ( --- ,i b )
+
+-- [ <j+> a , [b , r]@j]@i
+
+
+-- R : (A : forall i j+. U) -> (y : (F0 A) ? x) -> (z : (F1 A) ? x) -> U
+
+
 
 -- R' = <i j+> [ A , Psi (\x -> (Sigma B (\y -> R x y))@j)]@i
 
@@ -21,10 +68,14 @@ Rel A B R = <i j+> [ A
 -- <i+> R'@i@0 ? _ = [i>0] [ A , Psi (\x -> B)]@i
 
 
+-- paramId : (f : (X : U) -> X -> X) ->
+--           (A : U) -> (B : U) -> (R : A -> B -> U) ->
+--           (a : A) (b : B) (r : R a b) ->
+--           R (f A a) (f B b)
+-- paramId f A B R a b r = (<i j+> f (Line A B R) (line a b r))!
 
-A : U
-data A = aa
-B : U
-data B = bb
-R : A -> B -> U
-data R aa bb = rr
+One : U
+data One = tt
+
+Ex : U2
+Ex = <i j+> One

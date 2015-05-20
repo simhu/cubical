@@ -209,6 +209,7 @@ binds :: (Ter -> Ter -> Ter) -> Tele -> Resolver Ter -> Resolver Ter
 binds f = flip $ foldr $ bind f
 
 resolveExp :: Exp -> Resolver Ter
+resolveExp (CU cs)      = C.CU <$> mapM resolveCVar cs
 resolveExp U            = return C.U
 resolveExp (Var x)      = resolveVar x
 resolveExp (App t s)    = case unApps t [s] of
@@ -242,7 +243,7 @@ resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
 resolveExp (Param t) = C.Param <$> resolveExp t
-resolveExp (Psi t) = C.Psi <$> resolveExp t
+resolveExp (Psi t u) = C.Psi <$> resolveExp t <*> resolveExp u
 resolveExp (CLam i is p t) = clams' p (i:is) $ resolveExp t
 resolveExp (CPi i is p t) = cpis' p (i:is) $ resolveExp t
 resolveExp (CApp t i) = do

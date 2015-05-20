@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 module CTT where
 
 import Control.Applicative
@@ -68,10 +69,11 @@ data Ter = App Ter Ter
          | CApp Ter CTer
          | CPi Ter
          | Param Ter
-         | Psi Ter
+         | Psi Ter Ter
          | Phi Ter Ter
          | Ni Ter Ter
          | Constr CTer Ter
+         | CU [TColor]
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -111,8 +113,10 @@ maxx _ Infty = Infty
 type CVal = MCol Color
 type CTer = MCol TColor
 
+pattern VU = VV Nothing
 
-data Val = VU
+data Val = VV (Maybe [Color])
+         | VFizzle
          | Ter Ter Env
          | VPi Val Val
          | VSigma Val Val
@@ -163,6 +167,7 @@ instance Nominal Val where
     VApp a p ->  support (a,p)
     VSplit a p ->  support (a,p)
     VVar x -> []
+    VFizzle -> []
     VFst a -> support a
     VSnd a -> support a
     VParam a -> support a
@@ -253,6 +258,7 @@ showConstr xs =  "[" ++ showCol xs ++ ">0]"
 
 showTer :: Ter -> String
 showTer U             = "U"
+showTer (CU cs)             = "#" ++ concat cs
 showTer (Constr c e)   = showConstr c <+> showTer1 e
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
@@ -265,7 +271,7 @@ showTer (Fst e)       = showTer e ++ ".1"
 showTer (Snd e)       = showTer e ++ ".2"
 showTer (Param e)       = showTer e ++ "!"
 showTer (Phi f g)       = "phi" <+> showTers [f,g]
-showTer (Psi e)       = "PSI" <+> showTer e
+showTer (Psi _ e)       = "PSI" <+> showTer e
 showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
 showTer (CPair e0 e1) = "[" <+> showTer e0 <+> "," <+> showTer e1 <+>"]"
@@ -300,6 +306,7 @@ instance Show Val where
 showVal :: [String] -> Val -> String
 showVal su@(s:ss) t0 = case t0 of
   VU           -> "U"
+  VFizzle           -> "#"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
   (VCLam (Color x) t)  -> "<" ++ x ++ ">" <+> showVal ss t
@@ -332,6 +339,7 @@ showVals su = hcat . map (showVal1 su)
 
 showVal1 :: [String] -> Val -> String
 showVal1 _ VU          = "U"
+showVal1 _ VFizzle          = "#"
 showVal1 _ (VCon c []) = c
 showVal1 su u@(VVar{})  = showVal su u
 showVal1 su u           = parens $ showVal su u

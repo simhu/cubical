@@ -1,6 +1,8 @@
+{-# LANGUAGE PatternSynonyms #-}
 module Eval where
 
 import CTT
+import Control.Applicative
 import Data.Monoid hiding (Sum)
 
 look :: Ident -> Env -> (Binder, Val)
@@ -27,6 +29,7 @@ lkCols e is = map (toCol . snd . flip lkCol e) is where
 
 eval :: Env -> Ter -> Val
 eval e U               = VU
+eval e (CU cs)         = VV . Just $ concat $ map (\c -> catMax (colEval e (CVar c))) cs
 eval e (App r s)       = sh2 app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
@@ -45,7 +48,7 @@ eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
 eval e (CApp r s) = sh2' capp (eval e r) (colEval e s)
 eval e (CPair r s) = sh2 cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
-eval e (Psi a) = sh1 psi (eval e a)
+eval e (Psi _ a) = sh1 psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = sh1 param (eval e a)
 eval e (Ni a b) = sh2 ni (eval e a) (eval e b)
@@ -71,6 +74,8 @@ evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
 cpair :: Val -> Val -> Val
 cpair _ (VParam t) = t
+cpair (VV (Just xs)) VU = clam' $ \i -> VV (Just (catMax i ++ xs))
+-- cpair a b | fizzle a = clam' $ \i -> vconstr i b
 cpair a b = VCPair a b
 
 cevals :: [(Color,CVal)] -> Val -> Val
@@ -128,11 +133,16 @@ cceval i p (CVar k) | k == i = p
 cceval i p (Max x y) = maxx (cceval i p x) (cceval i p y)
 cceval _ _ a = a
 
+catMax :: CVal -> [Color]
+catMax (CVar x) = [x]
+catMax (Max x y) = catMax x ++ catMax y
+catMax Zero = []
+
 ceval :: Color -> CVal -> Val -> Val
 ceval i p v0 =
   let ev = ceval i p
   in case v0 of
-    VU -> VU
+    VV x -> VV $ fmap (concatMap (catMax . cceval i p . CVar)) x 
     Ter t env -> Ter t (cevalEnv i p env)
     VPi a b -> VPi (ev a) (ev b)
     VSigma a b -> VSigma (ev a) (ev b)
@@ -154,13 +164,16 @@ ceval i p v0 =
     VNi a b -> ni (ev a) (ev b)
     VLam f -> VLam (ev . f)
     VConstr c a -> vconstr (cceval i p c) (ev a)
+    VFizzle -> VFizzle
 
 face :: Val -> Val
 face v = v `capp` Zero
 
 ni :: Val -> Val -> Val
+ni (VCPair VFizzle a) _ = a
+ni (VCPair (VV (Just [])) a) _ = a
 ni (VCPair _ (VPsi p)) a = app p a
-ni a _ | Just a' <- fizz a = a'
+-- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
 
 sh1 :: (Val -> Val) -> Val -> Val
@@ -178,7 +191,7 @@ sh2' f a b = f a b
 
 param :: Val -> Val
 param (VCPair _ p) = p
-param x | Just x' <- fizz x = x'
+-- param x | Just x' <- fizz x = x'
 param x = VParam x
 
 proj :: Color -> Val -> Val
@@ -206,7 +219,7 @@ cpi i t = VCPi $ clam i t
 capp :: Val -> CVal -> Val
 capp (VCLam i f) x = ceval i x f
 capp (VCPair a _) Zero = a
-capp (VCPair _ (VPsi p)) Infty = p `app` VVar "__CAPP_INFTY__"
+-- capp (VCPair _ (VPsi p)) Infty = p `app` VVar "__CAPP_INFTY__"
 capp (VPhi f _) Zero = f
 capp f a = VCApp f a -- neutral
 
@@ -264,7 +277,9 @@ conv k (VPhi a b) (VPhi a' b') = conv k a a' <> conv k b b'
 conv k (VPhi f g) fp@(VCPair f' _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
   where x = mkVar k
 conv k fg@(VPhi _ _) fp@(VCPair _ _) = conv k fp fg
-conv _ VU VU                                  = Nothing
+conv _ (VV x) (VV y)                                  = equal x y
+conv _ VFizzle _                                  = Nothing
+conv _ _  VFizzle                                 = Nothing
 -- conv k (Ter (Lam cs x u) e) (Ter (Lam cs' x' u') e') = do
 --   let v = mkVar k
 --   cs `equal` cs' <> conv (k+1) (eval (Pair e (x,v)) u) (eval (Pair e' (x',v)) u')
@@ -302,33 +317,4 @@ conv _ x              x'           = different x x'
 
 convEnv :: Int -> Env -> Env -> Maybe String
 convEnv k e e' = mconcat $ zipWith (conv k) (valOfEnv e) (valOfEnv e')
-
-fizzle :: Val -> Bool
-fizzle v0 = case v0 of
-  VU -> False
-  VPi a b -> fizzle a || fizzle b
-  VSigma a b -> fizzle a || fizzle b
-  VSPair a b -> fizzle a || fizzle b
-  VCon _ xs -> any fizzle xs
-  VApp a b -> fizzle a || fizzle b
-  VSplit a b -> fizzle a || fizzle b
-  VVar _ -> False
-  VFst a -> fizzle a
-  VSnd a -> fizzle a
-  VCPi a -> fizzle a
-  VCLam _ a -> fizzle a
-  VCApp a _ -> fizzle a
-  VParam a -> fizzle a
-  VPsi a -> fizzle a
-  VNi a b -> fizzle a || fizzle b
-  VPhi a b -> fizzle a || fizzle b
-  VCPair a b -> fizzle a || fizzle b
-  VConstr Zero _ -> True
-  VConstr _ a -> fizzle a
-  VLam f -> fizzle $ f $ VVar "__FIZZ__"
-
-fizz :: Val -> Maybe Val
-fizz x = if fizzle (x `capp` Zero)
-         then Just (x `capp` Infty)
-         else Nothing
 
