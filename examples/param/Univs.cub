@@ -1,0 +1,51 @@
+module Univs where
+
+-- #(i j k) is the universe of types where the corner "i ⊔ j ⊔ k" is missing.
+-- We have some equations and a typing rule:
+
+-- [#(J),U] = <i> #(iJ)  (1) -- building universes
+-- [#(),T] ? _ = T       (2) -- erasing useless arguments
+
+-- <i> #(i) ? _ = U      (3) -- cor. of (1) and (2)
+
+--      A : #(I)
+--      P : A -> U
+-- ----------------------------
+--      Psi A P : <j> #(Ij) ? A
+
+-- The above rule allows to construct predicates over incomplete cubes
+
+
+Sigma : (A : U) -> (B : A -> U) -> forall i. U
+Sigma A B = [ A , Psi A B ]
+
+-- Having a universe is necessary, otherwise such types cannot be formed:
+
+Sigma' : forall i j. (A : #(j)) -> (B : A -> U) -> #(i j)
+Sigma' = <i j> \A B -> [ A , Psi A B ]@i
+
+
+
+
+U1 : U
+U1 = forall i. #(i)
+
+Lift : (A : U) -> U1
+Lift A = [#() , A]
+
+U2 : U
+U2 = forall i j. #(i j)
+
+
+
+Rel : (A : U) -> (B : U) -> (R : A -> B -> U) -> U2
+Rel A B R = <i j> (Sigma'@i@j (Lift A)@j P@i@j)
+  where B' : #() -> U
+        B' _ = B
+        R' : (forall j. (Lift A)@j) -> (<k> U) ? B
+        R' w = Psi B Q
+          where Q : B -> U
+                Q b = R w! b
+        P : forall i j. (Lift A)@j -> U
+        P = <i j> <| B' , R' |>@i
+

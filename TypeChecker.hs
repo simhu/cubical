@@ -238,6 +238,7 @@ checkInfer e = case e of
   CPi (CLam x t) -> do
     var <- getFreshCol
     local (addCol x var) $ inferType t
+    return VU
   CU _ -> eval <$> asks env <*> pure e
   Pi a (Lam is x b) -> do
     inferType a

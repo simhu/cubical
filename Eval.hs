@@ -172,6 +172,7 @@ face v = v `capp` Zero
 ni :: Val -> Val -> Val
 ni (VCPair VFizzle a) _ = a
 ni (VCPair (VV (Just [])) a) _ = a
+ni (VCLam i (VV (Just [i']))) _ | i == i' = VU
 ni (VCPair _ (VPsi p)) a = app p a
 -- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b

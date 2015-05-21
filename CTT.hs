@@ -148,6 +148,10 @@ instance Nominal Color where
   support (Color x) = [x]
 instance (Nominal a, Nominal b) => Nominal (a,b) where support (a,b) = support a ++ support b
 instance (Nominal a) => Nominal [a] where support = concatMap support
+instance (Nominal a) => Nominal (Maybe a) where
+  support (Just x) = support x
+  support Nothing = []
+
 instance (Nominal a) => Nominal (MCol a) where
   support Zero = []
   support (CVar a) = support a
@@ -156,7 +160,7 @@ instance (Nominal a) => Nominal (MCol a) where
 
 instance Nominal Val where
   support v0 = case v0 of
-    VU -> []
+    VV cs -> support cs
     VPi a b -> support (a,b)
     VSigma a b -> support (a,b)
     VSPair a b -> support (a,b)
@@ -305,8 +309,8 @@ instance Show Val where
 
 showVal :: [String] -> Val -> String
 showVal su@(s:ss) t0 = case t0 of
-  VU           -> "U"
-  VFizzle           -> "#"
+  VV Nothing           -> "U"
+  VV (Just cs)           -> "#(" ++ concatMap show cs ++ ")"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
   (VCLam (Color x) t)  -> "<" ++ x ++ ">" <+> showVal ss t
