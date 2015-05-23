@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
 module TypeChecker where
 
 import Data.Either
