@@ -1,4 +1,5 @@
-module IsoFun where
+module IsoFunAlt where
+
 import Eq
 
 left : (A : forall i. U) ->
@@ -19,7 +20,9 @@ right : (A : forall i. U) ->
        (<i> (x : A@i) -> B@i x) ? f
 right A B f q = g!
   where g : forall i. (x : A@i) -> B@i x
-        g = <| f , \x -> q x@0 x! |>
+        g = <i> \x -> let y : forall k. A@k
+                          y = x/i
+                      in [f y@0, q y@0 y!]@i
 
 
 comp1 : (A : forall i. U) ->

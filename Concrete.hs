@@ -249,6 +249,9 @@ resolveExp (CPi i is p t) = cpis' p (i:is) $ resolveExp t
 resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
+resolveExp (Rename t i) = do
+  i' <- resolveColor i
+  local (removeColor i') $ C.Rename i' <$> resolveExp t
 resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
 resolveExp (Phi t u) = C.Phi <$> resolveExp t <*> resolveExp u
 resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u

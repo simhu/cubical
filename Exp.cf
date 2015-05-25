@@ -42,6 +42,7 @@ CPi.      Exp1 ::= "forall " AIdent [AIdent] MPos "." Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
 CApp.      Exp3 ::= Exp3 "@" CExp ;
+Rename.   Exp3 ::= Exp3 "/" CExp ;
 Ni.       Exp2 ::= Exp2 " ? " Exp3 ;
 Psi.       Exp2 ::= "Psi" Exp3 Exp3 ;
 Param.      Exp3 ::= Exp3 "!" ;

@@ -53,6 +53,9 @@ eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = sh1 param (eval e a)
 eval e (Ni a b) = sh2 ni (eval e a) (eval e b)
 eval e (Constr c a) = vconstr (colEval e c) (eval e a)
+eval e (Rename c t) = case colEval e c of
+                        Zero   -> clam' $ \_ ->           (eval e t)
+                        CVar x -> clam' $ \i -> ceval x i (eval e t)
 
 vconstr Infty = id
 vconstr c = VConstr c

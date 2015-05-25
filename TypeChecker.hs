@@ -148,6 +148,9 @@ check a t = case (a,t) of
   (VCPi f, CLam x t) -> do
     var <- getFreshCol
     local (addCol x var) $ check (capp f var) t
+  (VCPi f, Rename c t) -> do
+    c' <- colorEval c
+    check (f `capp` c') t
   (VCPi f,CPair a b) -> do
     a' <- checkEval (face f) a
     check (f `ni` a') b

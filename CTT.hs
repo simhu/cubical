@@ -74,6 +74,7 @@ data Ter = App Ter Ter
          | Ni Ter Ter
          | Constr CTer Ter
          | CU [TColor]
+         | Rename CTer Ter
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -138,7 +139,7 @@ data Val = VV (Maybe [Color])
          | VPhi Val Val
          | VNi Val Val
          | VLam (Val -> Val)
-         | VConstr CVal Val 
+         | VConstr CVal Val -- Deprec.
   -- deriving Eq
 
 class Nominal a where
@@ -266,6 +267,7 @@ showTer (CU cs)             = "#" ++ concat cs
 showTer (Constr c e)   = showConstr c <+> showTer1 e
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
+showTer (Rename i t)   = showTer t <+> "/" <+> showCol i
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
 showTer (CPi e) = "Pi" <+> showTer e
 showTer (Lam [] (x,_) e) = '\\' : x <+> "->" <+> showTer e
