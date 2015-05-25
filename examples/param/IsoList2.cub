@@ -25,22 +25,27 @@ right A =
     nil -> \ys -> <i> nil
     cons x xs -> \ys -> <i> cons [x , ys.1]@i (right A xs ys.2)@i
 
-abs : (A : forall i. U) -> forall i. (x : A@i) -> forall j. A@j
-abs A = <i> \[i] x -> x
+Sig : forall i. (A : U) -> (B : A -> U) -> U
+Sig = <i> \A B -> [A , Psi A B]@i
 
-
-left : (A : forall i. U) -> forall i. (xs : List A@i) -> [List A@0, Psi (All A@0 (\x -> A ? x))]@i
-left A = <i> split
+left : forall i. (A : forall i. U) -> (xs : List A@i) -> Sig@i (List A@0) (All A@0 (\x -> A ? x))
+left = <i> \A -> split
   nil -> [nil , tt]@i
   cons x xs ->
-    let x' : forall i. A@i
-        x' = (abs A)@i x
-        tl : [List A@0, Psi (All A@0 (\x -> A ? x))]@i
-        tl = (left A)@i xs
-        tl' : forall i. [List A@0, Psi (All A@0 (\x -> A ? x))]@i
-        tl' = (abs [List A@0, Psi (All A@0 (\x -> A ? x))])@i tl
+    let x' : forall k. A@k
+        x' = x/i
+        tl : Sig@i (List A@0) (All A@0 (\x -> A ? x))
+        tl = left@i A xs
+        tl' : forall i. Sig@i (List A@0) (All A@0 (\x -> A ? x))
+        tl' = tl/i
     in [cons x'@0 tl'@0 , (x'! , tl'!) ]@i
 
+left' : (A : forall i. U) -> (xs : forall i. List A@i) -> forall i. Sig@i (List A@0) (All A@0 (\x -> A ? x))
+left' A xs = <i> left@i A xs@i
+
+left'' : (A : forall i. U) -> (xs : forall i. List A@i) -> (All A@0 (\x -> A ? x)) (left@0 A xs@0)
+left'' A xs = (left' A xs)!
 
 
-
+comp1 : (A : forall i. U) -> (xs : List A@0) -> (ys : All A@0 (\x -> A ? x) xs) ->  Eq (All A@0 (\x -> A ? x) xs) (left'' A (right A xs ys)) ys
+comp1 A xs ys = _
