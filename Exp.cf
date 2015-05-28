@@ -14,7 +14,7 @@ separator Imp ";" ;
 
 DeclDef.    Decl ::= AIdent [AIdent] "=" ExpWhere ;
 DeclType.   Decl ::= AIdent ":" Exp ;
-DeclData.   Decl ::= "data" AIdent [AIdent] "=" [Label] ;
+DeclData.   Decl ::= "data" AIdent MCols [AIdent] "=" [Label] ;
 DeclMutual. Decl ::= "mutual" "{" [Decl] "}" ;
 separator   Decl ";" ;
 
@@ -27,7 +27,7 @@ CMax.     CExp ::= CExp "\\/" CExp ;
 
 coercions CExp 2 ;
 
-Cols.     MCols ::= "[" [AIdent] "]";
+Cols.     MCols ::= "<" [AIdent] ">";
 NoCols.   MCols ::= ;
 
 Positive. MPos ::= "+";
@@ -73,5 +73,5 @@ terminator VTDecl "" ;
 PseudoTDecl. PseudoTDecl ::= "(" Exp ":" Exp ")" ;
 terminator nonempty PseudoTDecl "" ;
 
-position token AIdent ((letter|'\''|'_')(letter|digit|'\''|'_')*) ;
+position token AIdent ((letter|'\''|'_'|'`')(letter|digit|'\''|'_')*) ;
 terminator AIdent "" ;

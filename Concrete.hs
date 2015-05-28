@@ -162,6 +162,10 @@ resolveColor Zero = pure $ C.Zero
 resolveColor (CVar x) = C.CVar <$> resolveCVar x
 resolveColor (CMax x y) = C.Max <$> resolveColor x <*> resolveColor y
 
+mcols :: MCols -> [AIdent]
+mcols NoCols = []
+mcols (Cols xs) = xs
+                 
 resolveMCols :: MCols -> Resolver [C.TColor]
 resolveMCols NoCols = return []
 resolveMCols (Cols xs) = forM xs $ \x -> resolveCVar x
@@ -278,15 +282,15 @@ resolveLabel (Label n vdecl) =
 
 declsLabels :: [Decl] -> Resolver [(C.Binder,Arity)]
 declsLabels decls = do
-  let sums = concat [sum | DeclData _ _ sum <- decls]
+  let sums = concat [sum | DeclData _ _ _ sum <- decls]
   sequence [ (,length args) <$> resolveBinder lbl | Label lbl args <- sums ]
-
+  
 -- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
 resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
   (n,) <$> lams [] args (resolveWhere body)
-resolveDDecl (DeclData x@(AIdent (l,n)) args sum) =
-  (n,) <$> lams [] args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum)
+resolveDDecl (DeclData x@(AIdent (l,n)) cargs args sum) =
+  (n,) <$> clams (mcols cargs) (lams [] args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum))
 resolveDDecl d = throwError $ "Definition expected" <+> show d
 
 -- Resolve mutual declarations (possibly one)
