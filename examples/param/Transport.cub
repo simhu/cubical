@@ -1,0 +1,17 @@
+module Transport where
+
+mutual
+  V : forall i. U
+  El :  forall i. V@i -> U
+
+  data V <i> = `Pi (A : V@i) (B : El@i A@i -> V@i)
+             | `U
+             | `K (A : U) (f : (x:A/i@0) -> A/i ? x)
+
+
+  El = <i> let el : V@i -> U
+               el = split
+                      `U -> U
+                      `Pi A B -> (x : El@i A) -> El@i (B x)
+                      `K A _ -> A
+            in el
