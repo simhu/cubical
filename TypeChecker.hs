@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts, RecordWildCards #-}
 module TypeChecker where
 
 import Data.Either
@@ -24,23 +24,32 @@ type Typing a = ReaderT TEnv (ErrorT String IO) a
 data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
                  , env     :: Env
                  , ctxt    :: Ctxt
+                 , errCtx  :: [String]
                  , verbose :: Bool  -- Should it be verbose and print
                                     -- what it typechecks?
                  }
   deriving (Show)
 
+logg :: String -> Typing a -> Typing a
+logg x = local (\e -> e {errCtx = x:errCtx e})
+
+oops :: String -> Typing a
+oops msg = do
+  TEnv {..} <- ask
+  throwError ("In:\n" ++ concatMap (++ ":\n") (reverse errCtx) ++ msg ++ "\n in environment" ++ show env)
+
 verboseEnv, silentEnv :: TEnv
-verboseEnv = TEnv 0 Empty [] True
-silentEnv  = TEnv 0 Empty [] False
+verboseEnv = TEnv 0 Empty [] [] True
+silentEnv  = TEnv 0 Empty [] [] False
 
 addCol :: Binder -> CVal -> TEnv -> TEnv
-addCol x p (TEnv k rho gam v) = TEnv (k+1) (PCol rho (x,p)) gam v
+addCol x p (TEnv k rho gam ex v) = TEnv (k+1) (PCol rho (x,p)) gam ex v
 
-addTypeVal p@(x,_) (TEnv k rho gam v) =
-  TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) v
+addTypeVal p@(x,_) (TEnv k rho gam ex v) =
+  TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) ex v
 
 addType :: (Binder,Ter) -> TEnv -> Typing TEnv
-addType (x,a) tenv@(TEnv _ rho _ _) = return $ addTypeVal (x,eval rho a) tenv
+addType (x,a) tenv@(TEnv _ rho _ _ _) = return $ addTypeVal (x,eval rho a) tenv
 
 addC :: Ctxt -> (Tele,Env) -> [(Binder,Val)] -> Typing Ctxt
 addC gam _             []          = return gam
@@ -48,16 +57,16 @@ addC gam ((y,a):as,nu) ((x,u):xus) =
   addC ((x,eval nu a):gam) (as,Pair nu (y,u)) xus
 
 addBranch :: [(Binder,Val)] -> (Tele,Env) -> TEnv -> Typing TEnv
-addBranch nvs (tele,env) (TEnv k rho gam v) = do
+addBranch nvs (tele,env) (TEnv k rho gam ex v) = do
   e <- addC gam (tele,env) nvs
-  return $ TEnv (k + length nvs) (upds rho nvs) e v
+  return $ TEnv (k + length nvs) (upds rho nvs) e ex v
 
 addDecls :: Decls -> TEnv -> Typing TEnv
-addDecls d (TEnv k rho gam v) = do
+addDecls d (TEnv k rho gam ex v) = do
   let rho1 = PDef [ (x,y) | (x,_,y) <- d ] rho
       es' = evals rho1 (declDefs d)
   gam' <- addC gam (declTele d,rho) es'
-  return $ TEnv k rho1 gam' v
+  return $ TEnv k rho1 gam' ex v
 
 addTele :: Tele -> TEnv -> Typing TEnv
 addTele xas lenv = foldM (flip addType) lenv xas
@@ -91,8 +100,8 @@ runInfer lenv e = runTyping lenv (checkInfer e)
 getLblType :: String -> Val -> Typing (Tele, Env)
 getLblType c (Ter (Sum _ cas) r) = case getIdent c cas of
   Just as -> return (as,r)
-  Nothing -> throwError ("getLblType " ++ show c)
-getLblType c u = throwError ("expected a data type for the constructor "
+  Nothing -> oops ("getLblType " ++ show c)
+getLblType c u = oops ("expected a data type for the constructor "
                              ++ c ++ " but got " ++ show u)
 
 -- Useful monadic versions of functions:
@@ -136,7 +145,7 @@ check a t = case (a,t) of
     if map (fst . fst) cas' == map fst ces'
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces' cas' ]
-       else throwError "case branches does not match the data type"
+       else oops "case branches does not match the data type"
   (VPi a f,Lam is x t)  -> do
     var <- getFresh
     rho <- asks env
@@ -167,7 +176,7 @@ check a t = case (a,t) of
     case f `capp` p of
         VPi a f' -> do
           check (VPi (cpi i a) $ VLam $ \x -> ni (clam i (f' `app` (x `capp` p))) (t' `app` face x)) u
-        _ -> throwError ";pqw[uftqf ]"
+        _ -> oops ";pqw[uftqf ]"
   (_,CApp u c) -> do
     c' <- colorEval c
     case c' of
@@ -191,7 +200,7 @@ check a t = case (a,t) of
     localM (addDecls d) $ check a e
   (_,Undef _) -> return ()
   _ -> do
-    v <- checkInfer t
+    v <- logg ("checking that term " ++ show t ++ " has type " ++ show a) $ checkInfer t
     checkConv "inferred type" a v
 
 colorEval :: CTer -> Typing CVal
@@ -215,7 +224,7 @@ checkConv msg a v = do
       Nothing -> return ()
       Just err -> do
       rho <- asks env
-      throwError $ msg ++ " check conv: \n  " ++ show v ++ " /= " ++ show a ++ "\n in environment" ++ show rho ++ "\n because  " ++ err
+      oops $ msg ++ " check conv: \n  " ++ show v ++ " /= " ++ show a ++ "\n because  " ++ err
 
 checkBranch :: (Tele,Env) -> Val -> Brc -> Typing ()
 checkBranch (xas,nu) f (c,(xs,e)) = do
@@ -230,7 +239,7 @@ inferType t = do
   a <- checkInfer t
   case a of
    VV _ -> return a
-   _ -> throwError $ show a ++ " is not a type"
+   _ -> oops $ show a ++ " is not a type"
 
 sortPlus :: Maybe [Color] -> CVal -> Maybe [Color]
 sortPlus Nothing _ = Nothing
@@ -255,7 +264,7 @@ checkInfer e = case e of
     gam <- ctxt <$> ask
     case getIdent n gam of
       Just v  -> return v
-      Nothing -> throwError $ show n ++ " is not declared!"
+      Nothing -> oops $ show n ++ " is not declared!"
   App t u -> do
     c <- checkInfer t
     case c of
@@ -264,12 +273,12 @@ checkInfer e = case e of
         rho <- asks env
         let v = eval rho u
         return $ app f v
-      _       -> throwError $ show c ++ " is not a product"
+      _       -> oops $ show c ++ " is not a product"
   Fst t -> do
     c <- checkInfer t
     case c of
       VSigma a f -> return a
-      _          -> throwError $ show c ++ " is not a sigma-type"
+      _          -> oops $ show c ++ " is not a sigma-type"
   Snd t -> do
     c <- checkInfer t
     case c of
@@ -277,20 +286,20 @@ checkInfer e = case e of
         e <- asks env
         let v = eval e t
         return $ app f (fstSVal v)
-      _          -> throwError $ show c ++ " is not a sigma-type"
+      _          -> oops $ show c ++ " is not a sigma-type"
   CApp t u -> do
     c <- checkInfer t
     u' <- colorEval u
     case c of
       VCPi f -> do return $ (capp f u')
-      _          -> throwError $ show t ++ " is not a type family (1)"
+      _          -> oops $ show t ++ " is not a type family (1)"
   Param t -> do
     c <- checkInfer t
     rho <- asks env
     let v = eval rho t
     case c of
       VCPi f -> do return $ ni f (face v)
-      _          -> throwError $ show t ++ " is not a type family (2)"
+      _          -> oops $ show t ++ " is not a type family (2)"
   Ni t u -> do
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u
@@ -306,7 +315,7 @@ checkInfer e = case e of
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t
-  _ -> throwError ("checkInfer " ++ show e)
+  _ -> oops ("checkInfer " ++ show e)
 
 checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()
@@ -316,14 +325,14 @@ checks ((x,a):xas,nu) (e:es) = do
   rho <- asks env
   let v' = eval rho e
   checks (xas,Pair nu (x,v')) es
-checks _              _      = throwError "checks"
+checks _              _      = oops "checks"
 
 -- Not used since we have U : U
 --
 -- (=?=) :: Typing Ter -> Ter -> Typing ()
 -- m =?= s2 = do
 --   s1 <- m
---   unless (s1 == s2) $ throwError (show s1 ++ " =/= " ++ show s2)
+--   unless (s1 == s2) $ oops (show s1 ++ " =/= " ++ show s2)
 --
 -- checkTs :: [(String,Ter)] -> Typing ()
 -- checkTs [] = return ()
