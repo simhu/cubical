@@ -1,17 +1,33 @@
 module Transport where
 
+
+
 mutual
   V : forall i. U
+  data V <i> = `U
+             | `Pi (A : V@i) (B : El@i A -> V@i)
+             | `K (A : U) (f : let A' : forall j. U
+                                   A' = A/i
+                               in (x:A'@0) -> (A' ? x) )
+
+
   El :  forall i. V@i -> U
-
-  data V <i> = `Pi (A : V@i) (B : El@i A@i -> V@i)
-             | `U
-             | `K (A : U) (f : (x:A/i@0) -> A/i ? x)
-
-
-  El = <i> let el : V@i -> U
-               el = split
+  El = <i> split
                       `U -> U
                       `Pi A B -> (x : El@i A) -> El@i (B x)
                       `K A _ -> A
-            in el
+
+lifting : forall i. (T : V@i) -> (let T' : forall i. V@i
+                                      T' = T/i
+                                  in (z : El@0 T'@0) -> El@i T)
+lifting = <i> split
+   `U -> \A -> A
+   `Pi A B -> \f a -> let A' : forall j. V@j
+                          A' = A/i
+                          a' : forall j. El@j A'@j
+                          a' = a/i
+                      in lifting@i (B a) (f a'@0)
+   `K A f -> \x -> [x, f x]@i
+
+lift : (T : forall i. V@i) (z : El@0 T@0) -> forall i. El@i T@i
+lift T z = <i> lifting@i T@i z -- z has the wrong type! --- but try to pick a fresh color var. for types as well in clam' (eval)
