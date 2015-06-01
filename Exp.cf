@@ -30,15 +30,13 @@ coercions CExp 2 ;
 Cols.     MCols ::= "<" [AIdent] ">";
 NoCols.   MCols ::= ;
 
-Positive. MPos ::= "+";
-Any.      MPos ::= ;
 Let.      Exp  ::= "let" "{" [Decl] "}" "in" Exp ;
-Lam.      Exp  ::= "\\" MCols AIdent [AIdent] "->" Exp ;
-CLam.     Exp  ::= "<" AIdent [AIdent] MPos ">" Exp ;
+Lam.      Exp  ::= "\\" AIdent [AIdent] "->" Exp ;
+CLam.     Exp  ::= "<" AIdent [AIdent] ">" Exp ;
 Split.    Exp  ::= "split" "{" [Branch] "}" ;
 Fun.      Exp1 ::= Exp2 "->" Exp1 ;
 Pi.       Exp1 ::= [PseudoTDecl] "->" Exp1 ;
-CPi.      Exp1 ::= "forall " AIdent [AIdent] MPos "." Exp1 ;
+CPi.      Exp1 ::= "forall " AIdent [AIdent] "." Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
 CApp.      Exp3 ::= Exp3 "@" CExp ;

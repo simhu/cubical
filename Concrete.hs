@@ -132,7 +132,7 @@ expandConstr a x es = do
       binders = map (('_' :) . show) [1..r]
       args    = map C.Var binders
   ts <- mapM resolveExp es
-  return $ C.mkLams [] binders $ C.mkApps (C.Con x []) (ts ++ args)
+  return $ C.mkLams binders $ C.mkApps (C.Con x []) (ts ++ args)
 
 resolveVar :: AIdent -> Resolver Ter
 resolveVar (AIdent (l,x))
@@ -170,11 +170,11 @@ resolveMCols :: MCols -> Resolver [C.TColor]
 resolveMCols NoCols = return []
 resolveMCols (Cols xs) = forM xs $ \x -> resolveCVar x
 
-lam :: [C.TColor] -> AIdent -> Resolver Ter -> Resolver Ter
-lam is a e = do x <- resolveBinder a; C.Lam is x <$> local (insertVar x) e
+lam :: AIdent -> Resolver Ter -> Resolver Ter
+lam a e = do x <- resolveBinder a; C.Lam x <$> local (insertVar x) e
 
-lams :: [C.TColor] -> [AIdent] -> Resolver Ter -> Resolver Ter
-lams is = flip $ foldr (lam is)
+lams :: [AIdent] -> Resolver Ter -> Resolver Ter
+lams = flip $ foldr lam
 
 clam :: AIdent -> Resolver Ter -> Resolver Ter
 clam i b = do
@@ -187,27 +187,15 @@ clams (i:is) b = do
   x <- resolveBinder i
   C.CLam x <$> local (insertColor x) (clams is b)
 
-constraint :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
-constraint Any _ b = b
-constraint Positive is b = do
-  is' <- mapM resolveCVar is
-  C.Constr (foldr C.maxx C.Zero $ map C.CVar is') <$> b
-
-clams' :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
-clams' p is b = clams is $ constraint p is b
-
 cpi :: AIdent -> Resolver Ter -> Resolver Ter
 cpi i b = C.CPi <$> clam i b
-
-cpis' :: MPos -> [AIdent] -> Resolver Ter -> Resolver Ter
-cpis' p is b = cpis is $ constraint p is b
 
 cpis :: [AIdent] -> Resolver Ter -> Resolver Ter
 cpis [] x = x
 cpis (i:is) x = cpi i $ cpis is x
 
 bind :: (Ter -> Ter -> Ter) -> (AIdent, Exp) -> Resolver Ter -> Resolver Ter
-bind f (x,t) e = f <$> resolveExp t <*> lam [] x e
+bind f (x,t) e = f <$> resolveExp t <*> lam x e
 
 binds :: (Ter -> Ter -> Ter) -> Tele -> Resolver Ter -> Resolver Ter
 binds f = flip $ foldr $ bind f
@@ -233,9 +221,8 @@ resolveExp (Pi t b)     =  case pseudoTele t of
   Just tele -> binds C.Pi tele (resolveExp b)
   Nothing   -> throwError "Telescope malformed in Pigma"
 resolveExp (Fun a b)    = bind C.Pi (AIdent ((0,0),"_"), a) (resolveExp b)
-resolveExp (Lam is x xs t) = do
-  is' <- resolveMCols is
-  lams is' (x:xs) (resolveExp t)
+resolveExp (Lam x xs t) = do
+  lams (x:xs) (resolveExp t)
 resolveExp (Fst t)      = C.Fst <$> resolveExp t
 resolveExp (Snd t)      = C.Snd <$> resolveExp t
 resolveExp (Pair t0 t1) = C.SPair <$> resolveExp t0 <*> resolveExp t1
@@ -248,8 +235,8 @@ resolveExp (Let decls e) = do
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
 resolveExp (Param t) = C.Param <$> resolveExp t
 resolveExp (Psi t u) = C.Psi <$> resolveExp t <*> resolveExp u
-resolveExp (CLam i is p t) = clams' p (i:is) $ resolveExp t
-resolveExp (CPi i is p t) = cpis' p (i:is) $ resolveExp t
+resolveExp (CLam i is t) = clams (i:is) $ resolveExp t
+resolveExp (CPi i is t) = cpis (i:is) $ resolveExp t
 resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
@@ -288,9 +275,9 @@ declsLabels decls = do
 -- Resolve Data or Def declaration
 resolveDDecl :: Decl -> Resolver (C.Ident, C.Ter)
 resolveDDecl (DeclDef  (AIdent (_,n)) args body) =
-  (n,) <$> lams [] args (resolveWhere body)
+  (n,) <$> lams args (resolveWhere body)
 resolveDDecl (DeclData x@(AIdent (l,n)) cargs args sum) =
-  (n,) <$> clams (mcols cargs) (lams [] args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum))
+  (n,) <$> clams (mcols cargs) (lams args (C.Sum <$> resolveBinder x <*> mapM resolveLabel sum))
 resolveDDecl d = throwError $ "Definition expected" <+> show d
 
 -- Resolve mutual declarations (possibly one)

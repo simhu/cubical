@@ -133,8 +133,6 @@ checkTele ((x,a):xas) = do
 
 check :: Val -> Ter -> Typing ()
 check a t = case (a,t) of
-  (_,Constr _ t') -> check a t' -- FIXME: constraints
-  (VConstr _ a',_) -> check a' t -- FIXME: constraints
   (_,Con c es) -> do
     (bs,nu) <- getLblType c a
     checks (bs,nu) es
@@ -146,11 +144,10 @@ check a t = case (a,t) of
        then sequence_ [ checkBranch (as,nu) f brc
                       | (brc, (_,as)) <- zip ces' cas' ]
        else oops "case branches does not match the data type"
-  (VPi a f,Lam is x t)  -> do
+  (VPi a f,Lam x t)  -> do
     var <- getFresh
     rho <- asks env
-    let is' = lkCols rho is
-    local (addTypeVal (x,cpis is' a)) $ check (app f $ capps var is') t
+    local (addTypeVal (x,a)) $ check (app f var) t
   (VSigma a f, SPair t1 t2) -> do
     v <- checkEval a t1
     check (app f v) t2
@@ -252,13 +249,12 @@ checkInfer e = case e of
     local (addCol x var) $ inferType t
     return VU
   CU _ -> eval <$> asks env <*> pure e
-  Pi a (Lam is x b) -> do
-    inferType a
-    localM (addType (x,tcpis is a)) $ inferType b
-  Sigma a (Lam [] x b) -> do
+  Pi a (Lam x b) -> do
     inferType a
     localM (addType (x,a)) $ inferType b
-  Constr _ t -> checkInfer t -- FIXME: constraints in the type
+  Sigma a (Lam x b) -> do
+    inferType a
+    localM (addType (x,a)) $ inferType b
   U -> return VU                 -- U : U
   Var n -> do
     gam <- ctxt <$> ask

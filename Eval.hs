@@ -34,7 +34,7 @@ eval e (App r s)       = sh2 app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
 -- eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
-eval e (Lam is x t)    = VLam $ \x' -> eval (Pair e (x,clams (lkCols e is) x')) t
+eval e (Lam x t)    = VLam $ \x' -> eval (Pair e (x,x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
 eval e (Fst a)         = sh1 fstSVal (eval e a)
@@ -52,7 +52,6 @@ eval e (Psi _ a) = sh1 psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = sh1 param (eval e a)
 eval e (Ni a b) = sh2 ni (eval e a) (eval e b)
-eval e (Constr c a) = vconstr (colEval e c) (eval e a)
 eval e (Rename c t) = case colEval e c of
                         Zero   -> clam' $ \_ ->             (eval e t)
                         CVar i -> clam' $ \i' -> ceval i i' (eval e t)
@@ -204,6 +203,8 @@ proj i = ceval i Zero
 clam' :: (CVal -> Val) -> Val
 clam' f = clam k (f $ CVar k)
   where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
+            -- FIXME: this is not good, because the fresh variable may
+            -- capture some variables present in types.
 
 clam :: Color -> Val -> Val
 clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (no need for occurs check!)
