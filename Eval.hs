@@ -157,9 +157,10 @@ ceval i p v0 =
     VSnd a -> VSnd (ev a)
     VCApp a b ->  capp (ev a) (cceval i p b)
     VCPi x -> VCPi (ev x)
-    VCLam j a | i == j -> v0
-              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
-         where k = Color $ fresh (a,p)
+    VCLam f -> VCLam $ \j -> ev (f j)
+--    VCLam j a | i == j -> v0
+--              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
+--         where k = Color $ fresh (a,p)
     VCPair a b -> cpair (ev a) (ev b)
     VParam a -> param (ev a)
     VPsi a -> psi (ev a)
@@ -174,7 +175,8 @@ face v = v `capp` Zero
 ni :: Val -> Val -> Val
 ni (VCPair VFizzle a) _ = a
 ni (VCPair (VV (Just [])) a) _ = a
-ni (VCLam i (VV (Just [i']))) _ | i == i' = VU
+ni (VCLam f) _ | (VV (Just [i'])) <- f $ CVar $ i,  i == i' = VU
+  where i = Color "__NI__UNIV__"
 ni (VCPair _ (VPsi p)) a = app p a
 -- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
@@ -201,14 +203,16 @@ proj :: Color -> Val -> Val
 proj i = ceval i Zero
 
 clam' :: (CVal -> Val) -> Val
-clam' f = clam k (f $ CVar k)
-  where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
-            -- FIXME: this is not good, because the fresh variable may
-            -- capture some variables present in types.
+clam' = VCLam
+
+  --       f = clam k (f $ CVar k)
+  -- where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
+  --           -- FIXME: this is not good, because the fresh variable may
+  --           -- capture some variables present in types.
 
 clam :: Color -> Val -> Val
-clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (no need for occurs check!)
-clam i a = VCLam i a
+-- clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (no need for occurs check!)
+clam i a = VCLam $ \i' -> ceval i i' a
 
 clams :: [Color] -> Val -> Val
 clams [] t = t
@@ -222,7 +226,7 @@ cpi :: Color -> Val -> Val
 cpi i t = VCPi $ clam i t
 
 capp :: Val -> CVal -> Val
-capp (VCLam i f) x = ceval i x f
+capp (VCLam f) x = f x
 capp (VCPair a _) Zero = a
 -- capp (VCPair _ (VPsi p)) Infty = p `app` VVar "__CAPP_INFTY__"
 capp (VPhi f _) Zero = f
@@ -268,9 +272,9 @@ conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k (VCPi f) (VCPi f') = conv k f f'
-conv k (VCLam i a) t = conv (k+1) (ceval i c a) (capp t c)
+conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
   where c = mkCol k
-conv k t (VCLam i f) = conv k (VCLam i f) t
+conv k t (VCLam f) = conv k (VCLam f) t
 conv k (VCApp a b) (VCApp a' b') = conv k a a' <> equal b b'
 conv k (VParam a) (VParam a') = conv k a a'
 conv k (VParam a) b = conv k a (VCPair (face a) b)

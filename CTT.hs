@@ -130,7 +130,7 @@ data Val = VV (Maybe [Color])
 
          | VCApp Val CVal
          | VCPi Val
-         | VCLam Color Val
+         | VCLam (CVal -> Val)
 
          | VCPair Val Val
          | VParam Val
@@ -178,7 +178,7 @@ instance Nominal Val where
     VPsi a -> support a
     VCPi a -> support a
     VCApp a c -> support (a,c)
-    VCLam x a -> support a
+    VCLam a -> support (a $ CVar $ Color "__SUPPORT__")
     VLam f -> support (f $ VVar "__SUPPORT__")
     VConstr c a -> support (c,a)
     Ter x e -> support (x,e)
@@ -312,7 +312,8 @@ showVal su@(s:ss) t0 = case t0 of
   VV (Just cs)           -> "#(" ++ concatMap show cs ++ ")"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
-  (VCLam (Color x) t)  -> "<" ++ x ++ ">" <+> showVal ss t
+  (VCLam f)  -> "<" ++ showCol x ++ ">" <+> showVal ss (f $ x)
+     where x = CVar $ Color s
   (VLam f)  -> "\\" ++ s ++ " -> " <+> showVal ss (f $ VVar s)
   (VPi a f)    -> "Pi" <+> svs [a,f]
   (VCPi f)    -> "PI" <+> sv f
