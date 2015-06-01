@@ -1,7 +1,5 @@
 module Transport where
 
-
-
 mutual
   V : forall i. U
   data V <i> = `U
@@ -30,4 +28,48 @@ lifting = <i> split
    `K A f -> \x -> [x, f x]@i
 
 lift : (T : forall i. V@i) (z : El@0 T@0) -> forall i. El@i T@i
-lift T z = <i> lifting@i T@i z -- z has the wrong type! --- but try to pick a fresh color var. for types as well in clam' (eval)
+lift T z = <i> lifting@i T@i z
+
+
+
+List : U -> U
+data List A = Nil | Cons (x : A) (xs : List A)
+
+append : (A : U) -> List A -> List A -> List A
+append A xs = split
+  Nil -> xs
+  Cons y ys -> Cons y (append A xs ys)
+
+Tree : U -> U
+data Tree A = Leaf | Bin (l:Tree A) (x:A) (r : Tree A)
+
+flatten : (A : U) -> Tree A -> List A
+flatten A = split
+  Leaf -> Nil
+  Bin l x r -> append A (Cons x (flatten A r)) (flatten A l)
+
+embed : (A : U) -> List A -> Tree A
+embed A = split
+  Nil -> Leaf
+  Cons x xs -> Bin Leaf x (embed A xs)
+
+True : U
+data True = tt
+
+False : U
+data False = 
+
+eqList : (A : U) -> List A -> List A -> U
+eqList A = split
+  Nil -> split
+    Nil -> True
+    Cons _ _ -> False
+  Cons x xs -> split
+    Nil -> False
+    Cons y ys -> -- TODO x == y
+                 eqList A xs ys
+
+
+Related :  (A : U) -> List A -> Tree A -> U
+Related A xs t = eqList A xs (flatten A t)
+
