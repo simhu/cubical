@@ -30,21 +30,43 @@ data TEnv = TEnv { index   :: Int   -- for de Bruijn levels
                  }
   deriving (Show)
 
+reAbsCtxtOnCol :: Ident -> CVal -> Ctxt -> Ctxt
+reAbsCtxtOnCol _ _ [] = []
+reAbsCtxtOnCol x _ (((x',_),COLOR):ctx) | x == x' = ctx
+reAbsCtxtOnCol x i ((b,v):ctx) = (b, VCPi $ cabs v):reAbsCtxtOnCol x i ctx
+  where cabs body = case i of
+          Zero -> clam' $ \_ -> body
+          CVar j -> clam j body
+
+reAbsCtxt :: CTer -> CVal -> Ctxt -> Ctxt
+reAbsCtxt Zero j = id
+reAbsCtxt (CVar i) j = reAbsCtxtOnCol i j
+
+showCtxt :: Show a => [(([Char], t), a)] -> [Char]
+showCtxt ctx = intercalate ", \n" $ reverse $ [i ++ " : " ++ show v | ((i,_),v) <- ctx]
+
+onCtxt :: (Ctxt -> Ctxt) -> TEnv -> TEnv
+onCtxt f e = e { ctxt = f (ctxt e)}
+
+-- reAbs :: CTer -> CVal -> TEnv -> TEnv
+-- reAbs e = e {ctx = 
+
 logg :: String -> Typing a -> Typing a
 logg x = local (\e -> e {errCtx = x:errCtx e})
 
 oops :: String -> Typing a
 oops msg = do
   TEnv {..} <- ask
-  throwError ("In:\n" ++ concatMap (++ ":\n") (reverse errCtx) ++ msg ++ "\n in environment" ++ show env)
+  throwError ("In:\n" ++ concatMap (++ ":\n") (reverse errCtx) ++ msg ++ "\n in environment" ++ show env ++ "\n in context\n" ++ showCtxt ctxt )
 
 verboseEnv, silentEnv :: TEnv
 verboseEnv = TEnv 0 Empty [] [] True
 silentEnv  = TEnv 0 Empty [] [] False
 
 addCol :: Binder -> CVal -> TEnv -> TEnv
-addCol x p (TEnv k rho gam ex v) = TEnv (k+1) (PCol rho (x,p)) gam ex v
+addCol x p (TEnv k rho gam ex v) = TEnv (k+1) (PCol rho (x,p)) ((x,COLOR):gam) ex v
 
+addTypeVal :: (Binder, Val) -> TEnv -> TEnv
 addTypeVal p@(x,_) (TEnv k rho gam ex v) =
   TEnv (k+1) (Pair rho (x,mkVar k)) (p:gam) ex v
 
@@ -131,6 +153,9 @@ checkTele ((x,a):xas) = do
   inferType a
   localM (addType (x,a)) $ checkTele xas
 
+checkLogg :: Val -> Ter -> Typing ()
+checkLogg v t = logg ("Checking that " ++ show t ++ " has type " ++ show v) $ check v t
+
 check :: Val -> Ter -> Typing ()
 check a t = case (a,t) of
   (_,Con c es) -> do
@@ -177,10 +202,11 @@ check a t = case (a,t) of
   (_,CApp u c) -> do
     c' <- colorEval c
     case c' of
-      CVar i -> check (VCPi $ clam' $ \j -> ceval i j a) u
+      CVar i -> checkLogg (VCPi $ clam' $ \j -> ceval i j a) u
       _ -> do
-        v <- checkInfer t
-        checkConv "inferred type" a v
+        logg ("in capp, checking that term " ++ show t ++ " has type " ++ show a) $ do
+          v <- checkInfer t
+          checkConv "inferred type" a v
   (VNi f b,Psi b' p) | VV _ <- capp f (CVar $ Color "__NOPE__") -> do
     let x = noLoc n
         n = "__PSI_ARG__"
@@ -197,8 +223,9 @@ check a t = case (a,t) of
     localM (addDecls d) $ check a e
   (_,Undef _) -> return ()
   _ -> do
-    v <- logg ("checking that term " ++ show t ++ " has type " ++ show a) $ checkInfer t
-    checkConv "inferred type" a v
+    logg ("checking that term " ++ show t ++ " has type " ++ show a) $ do
+       v <- checkInfer t
+       checkConv "inferred type" a v
 
 colorEval :: CTer -> Typing CVal
 colorEval c = do
@@ -207,7 +234,7 @@ colorEval c = do
   
 checkEval :: Val -> Ter -> Typing Val
 checkEval a t = do
-  check a t
+  checkLogg a t
   eval' t
 
 eval' :: Ter -> Typing Val
@@ -265,7 +292,7 @@ checkInfer e = case e of
     c <- checkInfer t
     case c of
       VPi a f -> do
-        check a u
+        checkLogg a u
         rho <- asks env
         let v = eval rho u
         return $ app f v
@@ -284,11 +311,11 @@ checkInfer e = case e of
         return $ app f (fstSVal v)
       _          -> oops $ show c ++ " is not a sigma-type"
   CApp t u -> do
-    c <- checkInfer t
     u' <- colorEval u
+    c <- local (onCtxt (reAbsCtxt u u')) (checkInfer t)
     case c of
       VCPi f -> do return $ (capp f u')
-      _          -> oops $ show t ++ " is not a type family (1)"
+      _          -> oops $ show t ++ " is not a type family (1), but " ++ show c
   Param t -> do
     c <- checkInfer t
     rho <- asks env

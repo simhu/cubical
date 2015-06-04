@@ -115,7 +115,8 @@ type CTer = MCol TColor
 
 pattern VU = VV Nothing
 
-data Val = VV (Maybe [Color])
+data Val = COLOR
+         | VV (Maybe [Color])
          | VFizzle
          | Ter Ter Env
          | VPi Val Val
@@ -308,6 +309,7 @@ instance Show Val where
 
 showVal :: [String] -> Val -> String
 showVal su@(s:ss) t0 = case t0 of
+  COLOR -> "COLOR"
   VV Nothing           -> "U"
   VV (Just cs)           -> "#(" ++ concatMap show cs ++ ")"
   (Ter t env)  -> show t <+> show env

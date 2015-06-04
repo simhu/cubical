@@ -21,11 +21,23 @@ lkCol i (PCol e (n@(j,_),v)) | i == j = (n,v)
                              | otherwise = lkCol i e
 lkCol i Empty = error $ "Color " ++ show i ++ " not found"
 
--- TODO: delete this broken thing
-lkCols :: Env -> [TColor] -> [Color]
-lkCols e is = map (toCol . snd . flip lkCol e) is where
-  toCol (CVar i) = i
-  toCol _ = Color "__ANON__"
+
+reAbsEnvOnCol :: Color -> Env -> Env
+reAbsEnvOnCol _ Empty = Empty
+reAbsEnvOnCol i (Pair e (b,v)) = Pair (reAbsEnvOnCol i e) (b, clam i v)
+reAbsEnvOnCol i (PCol e c) = PCol (reAbsEnvOnCol i e) c
+reAbsEnvOnCol i (PDef xas e) = PDef xas (reAbsEnvOnCol i e) -- ???
+
+reAbsWholeEnvOnCol :: Ident -> Env -> Env
+reAbsWholeEnvOnCol _ Empty = Empty
+reAbsWholeEnvOnCol i (Pair e v) = Pair (reAbsWholeEnvOnCol i e) v
+reAbsWholeEnvOnCol i (PCol e ((j,_),p)) | j == i =
+     case p of
+        Zero -> e
+        CVar k -> reAbsEnvOnCol k e
+reAbsWholeEnvOnCol i (PCol e c) = PCol (reAbsWholeEnvOnCol i e) c
+reAbsWholeEnvOnCol i (PDef xas e) = PDef xas (reAbsWholeEnvOnCol i e) -- ???
+
 
 eval :: Env -> Ter -> Val
 eval e U               = VU
@@ -34,7 +46,7 @@ eval e (App r s)       = sh2 app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
 -- eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
-eval e (Lam x t)    = VLam $ \x' -> eval (Pair e (x,x')) t
+eval e (Lam x t)       = VLam $ \x' -> eval (Pair e (x,x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
 eval e (Fst a)         = sh1 fstSVal (eval e a)
@@ -45,7 +57,10 @@ eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined"
 eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
-eval e (CApp r s) = sh2' capp (eval e r) (colEval e s)
+eval e (CApp r s) = sh2' capp (eval e' r) (colEval e s)
+  where e' = case s of
+         CVar i -> reAbsWholeEnvOnCol i e
+         Zero -> e
 eval e (CPair r s) = sh2 cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi _ a) = sh1 psi (eval e a)

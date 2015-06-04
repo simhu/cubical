@@ -57,19 +57,26 @@ True : U
 data True = tt
 
 False : U
-data False = 
+data False =
 
-eqList : (A : U) -> List A -> List A -> U
-eqList A = split
+EqList : (A : U) -> List A -> List A -> U
+EqList A = split
   Nil -> split
     Nil -> True
     Cons _ _ -> False
   Cons x xs -> split
     Nil -> False
     Cons y ys -> -- TODO x == y
-                 eqList A xs ys
+                 EqList A xs ys
 
 
 Related :  (A : U) -> List A -> Tree A -> U
-Related A xs t = eqList A xs (flatten A t)
+Related A xs t = EqList A xs (flatten A t)
 
+
+LIST : forall i. (A : U) -> U
+LIST A = [List A, Psi (List A) P]
+   where P : List A -> U
+         P x = (t : Tree A) * Related A x t
+
+rev' : LIST A
