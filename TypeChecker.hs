@@ -39,17 +39,15 @@ reAbsCtxtOnCol x i ((b,v):ctx) = (b, VCPi $ cabs v):reAbsCtxtOnCol x i ctx
           CVar j -> clam j body
 
 reAbsCtxt :: CTer -> CVal -> Ctxt -> Ctxt
-reAbsCtxt Zero j = id
+reAbsCtxt Zero _ = id
 reAbsCtxt (CVar i) j = reAbsCtxtOnCol i j
+
+reAbsAll :: CTer -> CVal -> TEnv -> TEnv
+reAbsAll x i e = e {env = reAbsWholeEnvOnCol x (env e),
+                    ctxt = reAbsCtxt x i (ctxt e)}
 
 showCtxt :: Show a => [(([Char], t), a)] -> [Char]
 showCtxt ctx = intercalate ", \n" $ reverse $ [i ++ " : " ++ show v | ((i,_),v) <- ctx]
-
-onCtxt :: (Ctxt -> Ctxt) -> TEnv -> TEnv
-onCtxt f e = e { ctxt = f (ctxt e)}
-
--- reAbs :: CTer -> CVal -> TEnv -> TEnv
--- reAbs e = e {ctx = 
 
 logg :: String -> Typing a -> Typing a
 logg x = local (\e -> e {errCtx = x:errCtx e})
@@ -202,7 +200,7 @@ check a t = case (a,t) of
   (_,CApp u c) -> do
     c' <- colorEval c
     case c' of
-      CVar i -> checkLogg (VCPi $ clam' $ \j -> ceval i j a) u
+      CVar i -> local (reAbsAll c c') $ checkLogg (VCPi $ clam' $ \j -> ceval i j a) u
       _ -> do
         logg ("in capp, checking that term " ++ show t ++ " has type " ++ show a) $ do
           v <- checkInfer t
@@ -312,17 +310,17 @@ checkInfer e = case e of
       _          -> oops $ show c ++ " is not a sigma-type"
   CApp t u -> do
     u' <- colorEval u
-    c <- local (onCtxt (reAbsCtxt u u')) (checkInfer t)
+    c <- local (reAbsAll u u') (checkInfer t)
     case c of
       VCPi f -> do return $ (capp f u')
-      _          -> oops $ show t ++ " is not a type family (1), but " ++ show c
+      _          -> oops $ show t ++ " is not a family (1), but " ++ show c
   Param t -> do
     c <- checkInfer t
     rho <- asks env
     let v = eval rho t
     case c of
       VCPi f -> do return $ ni f (face v)
-      _          -> oops $ show t ++ " is not a type family (2)"
+      _          -> oops $ show t ++ " is not a family (2), but " ++ show c
   Ni t u -> do
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
     check (face t') u

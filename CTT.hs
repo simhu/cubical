@@ -284,7 +284,7 @@ showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
-showTer (Undef _)     = "undefined"
+showTer (Undef _)     = "undefined (1)"
 showTer (Ni f a)    = showTer f ++ " ? " ++ showTer1 a
 
 showTers :: [Ter] -> String

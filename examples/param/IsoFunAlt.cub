@@ -7,13 +7,11 @@ left : (A : forall i. U)
        (f : (x : A@0) -> B@0 x)
        (p : (<i> (x : A@i) -> B@i x) ? f)
        (x : A@0) -> (x' : A ? x) -> (<i> (B@i ([x , x']@i))) ? (f x)
-left A B f p x x' = _
-
--- t!
---   where g : forall i. (x : A@i) -> B@i x
---         g = [f,p]
---         t : forall i. B@i ([x , x']@i)
---         t = <i> g@i [x,x']@i
+left A B f p x x' = t!
+  where g : forall i. (x : A@i) -> B@i x
+        g = [f,p]
+        t : forall i. B@i ([x , x']@i)
+        t = <i> g@i [x,x']@i
 
 right : (A : forall i. U) ->
        (B : forall i. A@i -> U) ->
