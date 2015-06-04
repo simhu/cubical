@@ -22,21 +22,19 @@ lkCol i (PCol e (n@(j,_),v)) | i == j = (n,v)
 lkCol i Empty = error $ "Color " ++ show i ++ " not found"
 
 
-reAbsEnvOnCol :: Color -> Env -> Env
-reAbsEnvOnCol _ Empty = Empty
-reAbsEnvOnCol i (Pair e (b,v)) = Pair (reAbsEnvOnCol i e) (b, clam i v)
-reAbsEnvOnCol i (PCol e c) = PCol (reAbsEnvOnCol i e) c
-reAbsEnvOnCol i (PDef xas e) = PDef xas (reAbsEnvOnCol i e) -- ???
+reAbsEnvOnCol :: Ident -> CVal -> Env -> Env
+reAbsEnvOnCol x _ Empty = Empty
+reAbsEnvOnCol x i (Pair e (b,v)) = Pair (reAbsEnvOnCol x i e) (b, reabs)
+  where reabs = case i of
+          CVar j -> clam j v
+          Zero -> clam' $ \_ -> v
+reAbsEnvOnCol x i (PCol e ((x',_), c)) | x == x' = e
+reAbsEnvOnCol x i (PCol e c) = PCol (reAbsEnvOnCol x i e) c
+reAbsEnvOnCol x i (PDef xas e) = PDef xas (reAbsEnvOnCol x i e) -- ???
 
-reAbsWholeEnvOnCol :: Ident -> Env -> Env
-reAbsWholeEnvOnCol _ Empty = Empty
-reAbsWholeEnvOnCol i (Pair e v) = Pair (reAbsWholeEnvOnCol i e) v
-reAbsWholeEnvOnCol i (PCol e ((j,_),p)) | j == i =
-     case p of
-        Zero -> e
-        CVar k -> reAbsEnvOnCol k e
-reAbsWholeEnvOnCol i (PCol e c) = PCol (reAbsWholeEnvOnCol i e) c
-reAbsWholeEnvOnCol i (PDef xas e) = PDef xas (reAbsWholeEnvOnCol i e) -- ???
+reAbsWholeEnvOnCol :: CTer -> Env -> Env
+reAbsWholeEnvOnCol Zero e = e
+reAbsWholeEnvOnCol (CVar i) e = reAbsEnvOnCol i (colEval e (CVar i)) e
 
 
 eval :: Env -> Ter -> Val
@@ -58,9 +56,7 @@ eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined"
 eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
 eval e (CApp r s) = sh2' capp (eval e' r) (colEval e s)
-  where e' = case s of
-         CVar i -> reAbsWholeEnvOnCol i e
-         Zero -> e
+  where e' = reAbsWholeEnvOnCol s e
 eval e (CPair r s) = sh2 cpair (eval e r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi _ a) = sh1 psi (eval e a)
