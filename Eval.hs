@@ -27,20 +27,20 @@ reAbsEnvOnCol x _ Empty = Empty
 reAbsEnvOnCol x i (Pair e (b,v)) = Pair (reAbsEnvOnCol x i e) (b, reabs)
   where reabs = case i of
           CVar j -> clam j v
-          Zero -> clam' $ \_ -> v
+          (Zero _) -> clam' $ \_ -> v
 reAbsEnvOnCol x i (PCol e ((x',_), c)) | x == x' = e
 reAbsEnvOnCol x i (PCol e c) = PCol (reAbsEnvOnCol x i e) c
 reAbsEnvOnCol x i (PDef xas e) = PDef xas (reAbsEnvOnCol x i e) -- ???
 
 reAbsWholeEnvOnCol :: CTer -> Env -> Env
-reAbsWholeEnvOnCol Zero e = e
+reAbsWholeEnvOnCol (Zero _) e = e
 reAbsWholeEnvOnCol (CVar i) e = reAbsEnvOnCol i (colEval e (CVar i)) e
 
 
 eval :: Env -> Ter -> Val
 eval e U               = VU
 eval e (CU cs)         = VV . Just $ concat $ map (\c -> catMax (colEval e (CVar c))) cs
-eval e (App r s)       = sh2 app (eval e r) (eval e s)
+eval e (App r s)       = app (eval e r) (eval e s)
 eval e (Var i)         = snd (look i e)
 eval e (Pi a b)        = VPi (eval e a) (eval e b)
 -- eval e (Lam is x t)    = Ter (Lam is x t) e -- stop at lambdas
@@ -57,27 +57,27 @@ eval _ (Undef _)       = error "undefined (2)"
 eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
 eval e (CApp r s) = sh2' capp (eval e' r) (colEval e s)
   where e' = reAbsWholeEnvOnCol s e
-eval e (CPair r s) = sh2 cpair (eval e r) (eval e s)
+eval e (CPair r s) = cpair (map (eval e) r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
 eval e (Psi _ a) = sh1 psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = sh1 param (eval e a)
-eval e (Ni a b) = sh2 ni (eval e a) (eval e b)
-eval e (Rename c t) = case colEval e c of
-                        Zero   -> clam' $ \_ ->             (eval e t)
-                        CVar i -> clam' $ \i' -> ceval i i' (eval e t)
+eval e (Ni a b) = ni (eval e a) (map (eval e) b)
+-- eval e (Rename c t) = case colEval e c of
+--                         Zero n   -> clam' $ \_ ->             (eval e t)
+--                         CVar i   -> clam' $ \i' -> ceval i i' (eval e t)
 
 vconstr Infty = id
 vconstr c = VConstr c
 
 colEval :: Env -> CTer -> CVal
-colEval _ Zero = Zero
+colEval _ (Zero n) = Zero n
 colEval e (Max i j) = maxx (colEval e i) (colEval e j)
 colEval e (CVar i) = snd $ lkCol i e
 
 psi :: Val -> Val
 psi (VLam f)
-  | VNi a (VVar "__RESERVED__") <- f $ VVar "__RESERVED__"
+  | VNi a [(VVar "__RESERVED__")] <- f $ VVar "__RESERVED__"
   -- FIXME: occurs check!
   = param a 
 psi a = VPsi a
@@ -85,9 +85,9 @@ psi a = VPsi a
 evals :: Env -> [(Binder,Ter)] -> [(Binder,Val)]
 evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
-cpair :: Val -> Val -> Val
+cpair :: [Val] -> Val -> Val
 cpair _ (VParam t) = t
-cpair (VV (Just xs)) VU = clam' $ \i -> VV (Just (catMax i ++ xs))
+cpair (VV (Just xs):_) VU = clam' $ \i -> VV (Just (catMax i ++ xs))
 -- cpair a b | fizzle a = clam' $ \i -> vconstr i b
 cpair a b = VCPair a b
 
@@ -149,7 +149,7 @@ cceval _ _ a = a
 catMax :: CVal -> [Color]
 catMax (CVar x) = [x]
 catMax (Max x y) = catMax x ++ catMax y
-catMax Zero = []
+catMax (Zero _) = []
 
 ceval :: Color -> CVal -> Val -> Val
 ceval i p v0 =
@@ -172,34 +172,31 @@ ceval i p v0 =
 --    VCLam j a | i == j -> v0
 --              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
 --         where k = Color $ fresh (a,p)
-    VCPair a b -> cpair (ev a) (ev b)
+    VCPair a b -> cpair (map ev a) (ev b)
     VParam a -> param (ev a)
     VPsi a -> psi (ev a)
-    VNi a b -> ni (ev a) (ev b)
+    VNi a b -> ni (ev a) (map ev b)
     VLam f -> VLam (ev . f)
     VConstr c a -> vconstr (cceval i p c) (ev a)
     VFizzle -> VFizzle
 
-face :: Val -> Val
-face v = v `capp` Zero
+face :: Int -> Val -> Val
+face i v = v `capp` (Zero i)
 
-ni :: Val -> Val -> Val
-ni (VCPair VFizzle a) _ = a
-ni (VCPair (VV (Just [])) a) _ = a
+faces :: Val -> [Val]
+faces a = [face n a | n <- [0..numberOfFaces-1]]
+
+ni :: Val -> [Val] -> Val
+ni (VCPair (VV (Just []):_) a) _ = a
 ni (VCLam f) _ | (VV (Just [i'])) <- f $ CVar $ i,  i == i' = VU
   where i = Color "__NI__UNIV__"
-ni (VCPair _ (VPsi p)) a = app p a
+ni (VCPair _ (VPsi p)) as = foldl app p as
 -- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
 
 sh1 :: (Val -> Val) -> Val -> Val
 sh1 f (VConstr c a) = vconstr c (sh1 f a)
 sh1 f a = f a
-
-sh2 :: (Val -> Val -> Val) -> Val -> Val -> Val
-sh2 f (VConstr c a) b = vconstr c (sh2 f a b)
-sh2 f a (VConstr c b) = vconstr c (sh2 f a b)
-sh2 f a b = f a b
 
 sh2' :: (Val -> a -> Val) -> Val -> a -> Val
 sh2' f (VConstr c a) b = vconstr c (sh2' f a b)
@@ -210,11 +207,15 @@ param (VCPair _ p) = p
 -- param x | Just x' <- fizz x = x'
 param x = VParam x
 
-proj :: Color -> Val -> Val
-proj i = ceval i Zero
+proj :: Int -> Color -> Val -> Val
+proj n i = ceval i (Zero n)
 
 clam' :: (CVal -> Val) -> Val
-clam' = VCLam
+clam' f | VCApp t (CVar (Color "CLAM")) <- f (CVar $ Color "CLAM"),
+          j <- CVar $ Color $ show t,
+          (VCApp _ i) <- f j, i == j
+          = t -- eta contraction, ouch.
+        | otherwise = VCLam f
 
   --       f = clam k (f $ CVar k)
   -- where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
@@ -222,7 +223,7 @@ clam' = VCLam
   --           -- capture some variables present in types.
 
 clam :: Color -> Val -> Val
--- clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (no need for occurs check!)
+-- clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (thanks to linearity, no need for occurs check!)
 clam i a = VCLam $ \i' -> ceval i i' a
 
 clams :: [Color] -> Val -> Val
@@ -236,11 +237,14 @@ cpis (i:is) t = VCPi $ clam i $ cpis is t
 cpi :: Color -> Val -> Val
 cpi i t = VCPi $ clam i t
 
+fc :: Int -> [a] -> a
+fc n as | n < length as = as !! n
+fc _ _ = error "Attempt to access non-existing face"
+  
 capp :: Val -> CVal -> Val
 capp (VCLam f) x = f x
-capp (VCPair a _) Zero = a
--- capp (VCPair _ (VPsi p)) Infty = p `app` VVar "__CAPP_INFTY__"
-capp (VPhi f _) Zero = f
+capp (VCPair a _) (Zero i) = fc i a
+capp (VPhi f _) (Zero 0) = f
 capp f a = VCApp f a -- neutral
 
 capps :: Val -> [Color] -> Val
@@ -248,7 +252,7 @@ capps a [] = a
 capps a (i:is) = capps (capp a $ CVar i) is
 
 app :: Val -> Val -> Val
-app (VCApp (VPhi f g) (CVar i)) u = VCPair (f `app` proj i u) (g `app` clam i u) `capp` CVar i
+app (VCApp (VPhi f g) (CVar i)) u = VCPair [(f `app` proj 0 i u)] (g `app` clam i u) `capp` CVar i
 -- <f,g>@i u = [f u(i0), g <i>u]@i
 app (VLam f) u = f u
 -- app (Ter (Lam cs x t) e) u = eval (Pair e (x,clams cs u)) t
@@ -262,6 +266,8 @@ app u@(Ter (Split _ _) _) v | isNeutral v = VSplit u v -- v should be neutral
 app r s | isNeutral r = VApp r s -- r should be neutral
         | otherwise   = error $ "app: VApp " ++ show r ++ " is not neutral"
 
+numberOfFaces = 2
+
 fstSVal, sndSVal :: Val -> Val
 fstSVal (VSPair a _)    = a
 fstSVal u | isNeutral u = VFst u
@@ -269,6 +275,9 @@ fstSVal u | isNeutral u = VFst u
 sndSVal (VSPair _ b)    = b
 sndSVal u | isNeutral u = VSnd u
           | otherwise   = error $ show u ++ " should be neutral"
+
+convs :: Int -> [Val] -> [Val] -> Maybe String
+convs k a b = mconcat $ zipWith (conv k) a b
 
 equal :: (Show a, Eq a) => a -> a -> Maybe [Char]
 equal a b | a == b = Nothing
@@ -288,13 +297,13 @@ conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
 conv k t (VCLam f) = conv k (VCLam f) t
 conv k (VCApp a b) (VCApp a' b') = conv k a a' <> equal b b'
 conv k (VParam a) (VParam a') = conv k a a'
-conv k (VParam a) b = conv k a (VCPair (face a) b)
-conv k b (VParam a) = conv k a (VCPair (face a) b)
+conv k (VParam a) b = conv k a (VCPair [face n a | n <- [0..numberOfFaces-1]] b)
+conv k b (VParam a) = conv k (VParam a) b 
 conv k (VPsi a) (VPsi a') = conv k a a'
-conv k (VNi a b) (VNi a' b') = conv k a a' <> conv k b b'
-conv k (VCPair a b) (VCPair a' b') = conv k a a' <> conv k b b'
+conv k (VNi a b) (VNi a' b') = conv k a a' <> convs k b b'
+conv k (VCPair a b) (VCPair a' b') = convs k a a' <> conv k b b'
 conv k (VPhi a b) (VPhi a' b') = conv k a a' <> conv k b b'
-conv k (VPhi f g) fp@(VCPair f' _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
+conv k (VPhi f g) fp@(VCPair [f'] _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
   where x = mkVar k
 conv k fg@(VPhi _ _) fp@(VCPair _ _) = conv k fp fg
 conv _ (VV x) (VV y)                                  = equal x y

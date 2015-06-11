@@ -100,7 +100,7 @@ insertColor :: C.Binder -> Env -> Env
 insertColor (x,_) e = e {colors = x:colors e }
 
 removeColor :: C.CTer -> Env -> Env
-removeColor C.Zero = id
+removeColor (C.Zero _) = id
 removeColor (C.CVar x) = \e -> e {colors = colors e \\ [x] }
 removeColor (C.Max x y) = removeColor x . removeColor y
 
@@ -158,7 +158,7 @@ resolveCVar (AIdent (l,x)) = do
         show l <+> "in module" <+> modName
 
 resolveColor :: CExp -> Resolver C.CTer
-resolveColor Zero = pure $ C.Zero
+resolveColor (Zero n) = pure $ C.Zero (fromIntegral n)
 resolveColor (CVar x) = C.CVar <$> resolveCVar x
 resolveColor (CMax x y) = C.Max <$> resolveColor x <*> resolveColor y
 
@@ -234,19 +234,19 @@ resolveExp (Let decls e) = do
   (rdecls,names) <- resolveDecls decls
   C.mkWheres rdecls <$> local (insertBinders names) (resolveExp e)
 resolveExp (Param t) = C.Param <$> resolveExp t
-resolveExp (Psi t u) = C.Psi <$> resolveExp t <*> resolveExp u
+resolveExp (PsiAlt t u) = C.Psi <$> (Just <$> mapM resolveCVar t) <*> resolveExp u
+resolveExp (Psi u) = C.Psi Nothing <$> resolveExp u
 resolveExp (CLam i is t) = clams (i:is) $ resolveExp t
 resolveExp (CPi i is t) = cpis (i:is) $ resolveExp t
 resolveExp (CApp t i) = do
   i' <- resolveColor i
   local (removeColor i') $ C.CApp <$> resolveExp t <*> pure i'
-resolveExp (Rename t i) = do
-  i' <- resolveColor i
-  local (removeColor i') $ C.Rename i' <$> resolveExp t
-resolveExp (CPair t u) = C.CPair <$> resolveExp t <*> resolveExp u
+resolveExp (CPair t u) = C.CPair <$> resolveExps t <*> resolveExp u
 resolveExp (Phi t u) = C.Phi <$> resolveExp t <*> resolveExp u
-resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExp u
+resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExps u
 
+resolveExps :: [Exp] -> Resolver [Ter]
+resolveExps ts = traverse resolveExp ts
 
 resolveWhere :: ExpWhere -> Resolver Ter
 resolveWhere = resolveExp . unWhere

@@ -35,11 +35,11 @@ reAbsCtxtOnCol _ _ [] = []
 reAbsCtxtOnCol x _ (((x',_),COLOR):ctx) | x == x' = ctx
 reAbsCtxtOnCol x i ((b,v):ctx) = (b, VCPi $ cabs v):reAbsCtxtOnCol x i ctx
   where cabs body = case i of
-          Zero -> clam' $ \_ -> body
+          (Zero _) -> clam' $ \_ -> body
           CVar j -> clam j body
 
 reAbsCtxt :: CTer -> CVal -> Ctxt -> Ctxt
-reAbsCtxt Zero _ = id
+reAbsCtxt (Zero _) _ = id
 reAbsCtxt (CVar i) j = reAbsCtxtOnCol i j
 
 reAbsAll :: CTer -> CVal -> TEnv -> TEnv
@@ -154,6 +154,12 @@ checkTele ((x,a):xas) = do
 checkLogg :: Val -> Ter -> Typing ()
 checkLogg v t = logg ("Checking that " ++ show t ++ " has type " ++ show v) $ check v t
 
+checkEvalFaces :: Val -> [Ter] -> Typing [Val]
+checkEvalFaces a ts = do
+  checkNumber ts
+  forM (zip ts (faces a)) $ \(t,a') -> do
+    checkEval a' t
+
 check :: Val -> Ter -> Typing ()
 check a t = case (a,t) of
   (_,Con c es) -> do
@@ -180,9 +186,9 @@ check a t = case (a,t) of
   (VCPi f, Rename c t) -> do
     c' <- colorEval c
     check (f `capp` c') t
-  (VCPi f,CPair a b) -> do
-    a' <- checkEval (face f) a
-    check (f `ni` a') b
+  (VCPi f,CPair as b) -> do
+    as' <- checkEvalFaces f as
+    check (f `ni` as') b
 
     {-
    f : (x:A(i0)) -> B(i0)
@@ -191,11 +197,11 @@ check a t = case (a,t) of
    <f,g> : forall i. (x:A) -> B
 -}
   (VCPi f,Phi t u) -> do
-    t' <- checkEval (face f) t
+    t' <- checkEval (face 0 f) t
     p@(CVar i) <- getFreshCol
     case f `capp` p of
         VPi a f' -> do
-          check (VPi (cpi i a) $ VLam $ \x -> ni (clam i (f' `app` (x `capp` p))) (t' `app` face x)) u
+          check (VPi (cpi i a) $ VLam $ \x -> ni (clam i (f' `app` (x `capp` p))) ([t' `app` face 0 x])) u
         _ -> oops ";pqw[uftqf ]"
   (_,CApp u c) -> do
     c' <- colorEval c
@@ -205,17 +211,12 @@ check a t = case (a,t) of
         logg ("in capp, checking that term " ++ show t ++ " has type " ++ show a) $ do
           v <- checkInfer t
           checkConv "inferred type" a v
-  (VNi f b,Psi b' p) | VV _ <- capp f (CVar $ Color "__NOPE__") -> do
-    let x = noLoc n
-        n = "__PSI_ARG__"
-    inferType b'
-    b'' <- eval' b'
-    checkConv "ni" b b''
-    local (addTypeVal (x,b)) $ inferType (App p $ Var n)
-    return ()
+  (VNi f b,Psi sort p) | VV _ <- capp f (CVar $ Color "__NOPE__") -> do
+    check (arrs b VU) p
   (VNi f b,Param p) -> do
     p' <- checkEval (VCPi f) p
-    checkConv "param" (face p') b
+    checkNumber b
+    checkConvs "param" (faces p') b
   (_,Where e d) -> do
     checkDecls d
     localM (addDecls d) $ check a e
@@ -225,6 +226,16 @@ check a t = case (a,t) of
        v <- checkInfer t
        checkConv "inferred type" a v
 
+
+arrs :: [Val] -> Val -> Val
+arrs [] t = t
+arrs (a:as) t = VPi a $ VLam $ \_ -> arrs as t
+
+checkNumber :: Show a => [a] -> Typing ()
+checkNumber as = do
+  when (length as /= numberOfFaces) $ do
+    throwError $ show as ++ " should be a tuple of " ++ show numberOfFaces
+    
 colorEval :: CTer -> Typing CVal
 colorEval c = do
   e <- asks env
@@ -240,6 +251,8 @@ eval' t = do
   e <- asks env
   return $ eval e t
 
+checkConvs msg a v = sequence_ [checkConv msg a' v' | (a',v') <- zip a v]
+  
 checkConv msg a v = do
     k <- index <$> ask
     case conv k v a of
@@ -319,17 +332,19 @@ checkInfer e = case e of
     rho <- asks env
     let v = eval rho t
     case c of
-      VCPi f -> do return $ ni f (face v)
+      VCPi f -> do return $ ni f (faces v)
       _          -> oops $ show t ++ " is not a family (2), but " ++ show c
-  Ni t u -> do
+  Ni t us -> do
+    checkNumber us
     t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
-    check (face t') u
+    forM_ (zip (faces t') us) $ \(fi,ui) ->
+      check fi ui
     return VU
-  Psi a p -> do
-    VV sort <- inferType a
-    a' <- eval' a
-    check (VPi a' $ VLam $ \_ -> VU) p
-    return $ (clam' $ \i -> VV (sortPlus sort i)) `ni` a'
+  Psi sort p -> do
+    p' <- checkInfer p
+    (as,VU) <- extractFun numberOfFaces p'
+    return $ (clam' $ \i -> VU) `ni` as
+    -- FIXME: (sortPlus sort i)
   CPair a (Psi a' p) -> do
     check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi a' p))
     return (VCPi $ clam' $ \_ -> VU)
@@ -337,6 +352,12 @@ checkInfer e = case e of
     checkDecls d
     localM (addDecls d) $ checkInfer t
   _ -> oops ("checkInfer " ++ show e)
+
+extractFun :: Int -> Val -> Typing ([Val],Val)
+extractFun 0 a = return ([],a)
+extractFun n (VPi a f) = do
+  (as,b) <- extractFun (n-1) (f `app` VVar "extractFun")
+  return (a:as,b)
 
 checks :: (Tele,Env) -> [Ter] -> Typing ()
 checks _              []     = return ()

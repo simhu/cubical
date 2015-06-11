@@ -21,7 +21,7 @@ separator   Decl ";" ;
 Where.    ExpWhere ::= Exp "where" "{" [Decl] "}" ;
 NoWhere.  ExpWhere ::= Exp ;
 
-Zero.     CExp ::= "0" ;
+Zero.     CExp ::= Integer ;
 CVar.     CExp ::= AIdent ;
 CMax.     CExp ::= CExp "\\/" CExp ;
 
@@ -40,19 +40,21 @@ CPi.      Exp1 ::= "forall " AIdent [AIdent] "." Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
 CApp.      Exp3 ::= Exp3 "@" CExp ;
-Rename.   Exp3 ::= Exp3 "/" CExp ;
-Ni.       Exp2 ::= Exp2 " ? " Exp3 ;
-Psi.       Exp2 ::= "Psi" Exp3 Exp3 ;
+Ni.       Exp2 ::= Exp2 " ? " [Exp] ;
+PsiAlt.       Exp2 ::= "PSI" "(" [AIdent] ")" Exp3 ;
+Psi.       Exp2 ::= "Psi" Exp3 ;
 Param.      Exp3 ::= Exp3 "!" ;
 Fst.      Exp3 ::= Exp3 ".1" ;
 Snd.      Exp3 ::= Exp3 ".2" ;
 Pair.     Exp3 ::= "(" Exp "," Exp ")" ;
-CPair.    Exp3 ::= "[" Exp "," Exp "]" ;
+CPair.    Exp3 ::= "[" [Exp] "," Exp "]" ;
 Phi.      Exp3 ::= "<|" Exp "," Exp "|>" ;
 Var.      Exp3 ::= AIdent ;
 U.        Exp3 ::= "U" ;
 CU.       Exp3 ::= "#(" [AIdent] ")" ;
 coercions Exp 3 ;
+
+separator Exp "&" ;
 
 -- Branches
 Branch.   Branch ::= AIdent [AIdent] "->" ExpWhere ;
@@ -61,6 +63,7 @@ separator Branch ";" ;
 -- Labelled sum alternatives
 Label.    Label   ::= AIdent [VTDecl] ;
 separator Label "|" ;
+
 
 -- Telescopes
 VTDecl.    VTDecl ::= "(" AIdent [AIdent] ":" Exp ")" ;

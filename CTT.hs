@@ -65,13 +65,13 @@ data Ter = App Ter Ter
          | Undef Loc
 
          | CLam Binder Ter
-         | CPair Ter Ter
+         | CPair [Ter] Ter
          | CApp Ter CTer
          | CPi Ter
          | Param Ter
-         | Psi Ter Ter
+         | Psi (Maybe [TColor]) Ter
          | Phi Ter Ter
-         | Ni Ter Ter
+         | Ni Ter [Ter]
          | CU [TColor]
          | Rename CTer Ter
   deriving Eq
@@ -100,12 +100,13 @@ newtype Color = Color String
 instance Show Color where
      show (Color x) = x
 
-data MCol color = Infty | Zero | CVar color | Max (MCol color) (MCol color)
+data MCol color = Infty | Zero Int | CVar color | Max (MCol color) (MCol color)
   deriving (Eq,Show)
 
 maxx :: MCol t -> MCol t -> MCol t
-maxx Zero x = x
-maxx x Zero = x
+maxx (Zero i) (Zero j) = Zero (max i j)
+maxx (Zero 0) x = x
+maxx x (Zero 0) = x
 maxx x y = Max x y
 maxx Infty _ = Infty
 maxx _ Infty = Infty
@@ -133,11 +134,11 @@ data Val = COLOR
          | VCPi Val
          | VCLam (CVal -> Val)
 
-         | VCPair Val Val
+         | VCPair [Val] Val
          | VParam Val
          | VPsi Val
          | VPhi Val Val
-         | VNi Val Val
+         | VNi Val [Val]
          | VLam (Val -> Val)
          | VConstr CVal Val -- Deprec.
   -- deriving Eq
@@ -154,7 +155,7 @@ instance (Nominal a) => Nominal (Maybe a) where
   support Nothing = []
 
 instance (Nominal a) => Nominal (MCol a) where
-  support Zero = []
+  support (Zero _) = []
   support (CVar a) = support a
   support (Max a b) = support (a,b)
   support Infty = []
@@ -253,7 +254,7 @@ instance Show Ter where
   show = showTer
 
 showCol :: Show color => MCol color -> String
-showCol Zero  = "0"
+showCol (Zero i)  = show i
 showCol Infty  = " ∞ "
 showCol (CVar x) = show x
 showCol (Max x y) = showCol x ++ " ⊔ " ++ showCol y
@@ -278,17 +279,20 @@ showTer (Phi f g)       = "phi" <+> showTers [f,g]
 showTer (Psi _ e)       = "PSI" <+> showTer e
 showTer (Sigma e0 e1) = "Sigma" <+> showTers [e0,e1]
 showTer (SPair e0 e1) = "pair" <+> showTers [e0,e1]
-showTer (CPair e0 e1) = "[" <+> showTer e0 <+> "," <+> showTer e1 <+>"]"
+showTer (CPair e0 e1) = "[" <+> showTerss e0 <+> "," <+> showTer e1 <+>"]"
 showTer (Where e d)   = showTer e <+> "where" <+> showDecls d
 showTer (Var x)       = x
 showTer (Con c es)    = c <+> showTers es
 showTer (Split l _)   = "split " ++ show l
 showTer (Sum l _)     = "sum " ++ show l
 showTer (Undef _)     = "undefined (1)"
-showTer (Ni f a)    = showTer f ++ " ? " ++ showTer1 a
+showTer (Ni f a)    = showTer f ++ " ? " ++ showTerss a
 
 showTers :: [Ter] -> String
 showTers = hcat . map showTer1
+
+showTerss :: [Ter] -> String
+showTerss = parens . intercalate "&" . map showTer
 
 showTer1 :: Ter -> String
 showTer1 U           = "U"
@@ -324,18 +328,19 @@ showVal su@(s:ss) t0 = case t0 of
   (VSplit u v) -> sv u <+> sv1 v
   (VVar x)     -> x
   (VSPair u v) -> "pair" <+> svs [u,v]
-  (VCPair u v) -> "cpair" <+> svs [u,v]
+  (VCPair u v) -> sss u <+> sv v
   (VSigma u v) -> "Sigma" <+> svs [u,v]
   (VFst u)     -> sv u ++ ".1"
   (VSnd u)     -> sv u ++ ".2"
   (VParam u)     -> sv1 u ++ "!"
   (VPsi u)     -> "PSI" ++ sv u
   (VPhi t u)     -> "Phi" <+> svs [t,u]
-  (VNi f a)    -> sv1 f ++ " ? " ++ sv a
+  (VNi f a)    -> sv1 f ++ " ? " ++ sss a
   (VConstr c a)    -> showConstr c ++ sv a
  where sv = showVal su
        sv1 = showVal1 su
        svs = showVals su
+       sss =  parens . intercalate "&" . map (showVal su)
 
 showDim :: Show a => [a] -> String
 showDim = parens . ccat . map show
