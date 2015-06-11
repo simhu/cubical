@@ -237,6 +237,7 @@ checkNumber as = do
     throwError $ show as ++ " should be a tuple of " ++ show numberOfFaces
     
 colorEval :: CTer -> Typing CVal
+colorEval (Zero n) | n >= numberOfFaces = throwError "not that many faces"
 colorEval c = do
   e <- asks env
   return $ colEval e c
@@ -251,6 +252,7 @@ eval' t = do
   e <- asks env
   return $ eval e t
 
+checkConvs :: String -> [Val] -> [Val] -> Typing ()
 checkConvs msg a v = sequence_ [checkConv msg a' v' | (a',v') <- zip a v]
   
 checkConv msg a v = do
