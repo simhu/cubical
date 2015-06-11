@@ -1,0 +1,24 @@
+module Id where
+
+t1 : U
+t1 = forall i. U
+
+t2 : forall i. U
+t2 = <i> U
+
+Sigma : (A B : U) -> (R : A -> B -> U) -> forall i. U
+Sigma A B R = [ A & B , Psi R ]
+
+paramId : (f : (A : U) -> A -> A) ->
+          (B1 B2 : U) (R : B1 -> B2 -> U) ->
+          (b1 : B1) (b2 : B2) (p : R b1 b2) ->
+          R (f B1 b1) (f B2 b2)
+paramId f B1 B2 R b1 b2 p = t !
+  where T : forall i. U
+        T = [ B1 & B2 , Psi R ]
+        p' : T ? b1 & b2
+        p' = p
+        a : forall i. T @ i
+        a = [ b1 & b2 , p ]
+        t : forall i. T @ i
+        t = <i> f (T @ i) (a @ i)
