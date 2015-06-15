@@ -40,6 +40,7 @@ CPi.      Exp1 ::= "forall " AIdent [AIdent] "." Exp1 ;
 Sigma.    Exp1 ::= [PseudoTDecl] "*" Exp1 ;
 App.      Exp2 ::= Exp2 Exp3 ;
 CApp.      Exp3 ::= Exp3 "@" CExp ;
+CProj.     Exp3 ::= Exp3 "/" Integer "/" AIdent ;
 Ni.       Exp2 ::= Exp2 " ? " [Exp] ;
 PsiAlt.       Exp2 ::= "PSI" "(" [AIdent] ")" Exp3 ;
 Psi.       Exp2 ::= "Psi" Exp3 ;

@@ -67,6 +67,12 @@ data Ter = App Ter Ter
          | CLam Binder Ter
          | CPair [Ter] Ter
          | CApp Ter CTer
+         | CProj Ter Int TColor
+           
+           --    Γ, ∀i.Δ ⊢ t : ∀i.A
+           -- --------------------------
+           --    Γ,i, Δ ⊢ t@(0/i) : A@0
+                 
          | CPi Ter
          | Param Ter
          | Psi (Maybe [TColor]) Ter
@@ -267,6 +273,7 @@ showTer U             = "U"
 showTer (CU cs)             = "#" ++ concat cs
 showTer (App e0 e1)   = showTer e0 <+> showTer1 e1
 showTer (CApp e0 e1)   = showTer e0 <+> "@" <+> showCol e1
+showTer (CProj e0 p i)   = showTer e0 <+> "/" ++ show p ++ "/" ++ show i
 showTer (Rename i t)   = showTer t <+> "/" <+> showCol i
 showTer (Pi e0 e1)    = "Pi" <+> showTers [e0,e1]
 showTer (CPi e) = "Pi" <+> showTer e

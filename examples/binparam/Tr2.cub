@@ -20,7 +20,11 @@ mutual
                        -- ignore the implicit color i in there.
 
 
-lifting : forall i. (T : V@i) -> El@0 T/i@0 -> El@i T
+--     T:forall i. V  |-  T : forall i. V
+-- --------------------------------------------
+--     T:V@i |-  T/i/0 : V@0
+
+lifting : forall i. (T : V@i) -> El@0 T/i/0 -> El@i T
 lifting = <i> split
    `U -> \A -> A
    `Pi A B -> \f a -> let A' : forall j. V@j

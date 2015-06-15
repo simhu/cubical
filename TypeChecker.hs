@@ -329,6 +329,13 @@ checkInfer e = case e of
     case c of
       VCPi f -> do return $ (capp f u')
       _          -> oops $ show t ++ " is not a family (1), but " ++ show c
+  CProj t p i -> do
+    let u = CVar i
+    u' <- colorEval u
+    c <- local (reAbsAll u u') (checkInfer t)
+    case c of
+      VCPi f -> do return $ (capp f $ Zero p)
+      _          -> oops $ show t ++ " is not a family (1), but " ++ show c
   Param t -> do
     c <- checkInfer t
     rho <- asks env
