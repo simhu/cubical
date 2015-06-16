@@ -106,7 +106,6 @@ LIST : (A : U) -> forall i. U
 LIST A = [List A & Tree A, Psi (Related A) ]
 
 
-
 Embed : (A : U) -> (x : List A) -> Related A x (embed A x)
 Embed A = split
   Nil -> refl (List A) Nil
@@ -118,14 +117,23 @@ Embed A = split
 `List : forall i. V@i
 `List = <i> `Pi `U (\A -> `K (LIST A) (embed A) (Embed A))
 
+EQ : forall i. (A : U) (x y : A) -> U
+EQ = <i> \A x y -> [Eq A@0 x@0 y@0 & Eq A@1 x@1 y@1, Psi (\_ _ -> True)  ]@i
+
 `Eq : forall i. (A : U) (x y : A) -> V@i
-`Eq = _
+`Eq = <i> \A x y -> `K (<i> EQ@i A x y) _ _
+
+
+
+
 
 `Lemma : forall i. V@i
 `Lemma = <i> `Pi `U (\A ->
              `Pi (`pList@i A) (\x ->
-             `Eq@i (List A) (append A x Nil) x))
+             `Eq@i (LIST A) (append A x Nil) x))
 
 -- El@0 `Lemma@0 = Lemma
 -- El@1 `Lemma@1 = ?
+
+-- This is tedious. Can we lift types?
 
