@@ -4,9 +4,17 @@ mutual
   V : forall i. U
   data V <i> = `U
              | `Pi (A : V@i) (B : El@i A -> V@i)
-             | `K (A : forall j. U)
+             | `K
+
+                  (A : forall j. U)
                   (f : A@0 -> A@1)
                   (g : (x:A@0) -> (A ? x & (f x)))
+
+                  -- (A : U)
+                  -- (f : A/0/i -> A/1/i)
+                  -- (g : (x:A/0/i) -> (let X : forall j. U
+                  --                        X = <j> A/j/i
+                  --                    in X ? x & (f x)))
 
 
   El :  forall i. V@i -> U
@@ -22,21 +30,17 @@ mutual
 
 --     T:forall i. V  |-  T : forall i. V
 -- --------------------------------------------
---     T:V@i |-  T/i/0 : V@0
+--     T:V@i |-  T/0/i : V@0
 
-lifting : forall i. (T : V@i) -> El@0 T/i/0 -> El@i T
+lifting : forall i. (T : V@i) -> El@0 T/0/i -> El@i T
 lifting = <i> split
    `U -> \A -> A
-   `Pi A B -> \f a -> let A' : forall j. V@j
-                          A' = A/i
-                          a' : forall j. El@j A'@j
-                          a' = a/i
-                      in lifting@i (B a) (f a'@0)
-   `K A f -> \x -> [x, f x]@i
+   `Pi A B -> \f a -> lifting@i (B a) (f a/0/i)
+   `K A f g -> \x -> [x@0 & f@0 x@0 , g@0 x@0]@i
 
 
--- lift : (T : forall i. V@i) (z : El@0 T@0) -> forall i. El@i T@i
--- lift T z = <i> lifting@i T@i z
+lift : (T : forall i. V@i) (z : El@0 T@0) -> forall i. El@i T@i
+lift T z = <i> lifting@i T@i z
 
 
 
