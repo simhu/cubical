@@ -1,5 +1,11 @@
 module Tr2 where
 
+Eq : (A : U) -> (x y : A)-> U
+Eq A x y = (P : A -> U) -> P x -> P y
+
+refl : (A : U) -> (x : A) -> Eq A x x
+refl A x P p = p
+
 mutual
   V : forall i. U
   data V <i> = `U
@@ -44,32 +50,43 @@ lift T z = <i> lifting@i T@i z
 
 
 
--- List : U -> U
--- data List A = Nil | Cons (x : A) (xs : List A)
+List : U -> U
+data List A = Nil | Cons (x : A) (xs : List A)
 
--- append : (A : U) -> List A -> List A -> List A
--- append A xs = split
---   Nil -> xs
---   Cons y ys -> Cons y (append A xs ys)
+append : (A : U) -> List A -> List A -> List A
+append A xs = split
+  Nil -> xs
+  Cons y ys -> Cons y (append A xs ys)
 
--- Tree : U -> U
--- data Tree A = Leaf | Bin (l:Tree A) (x:A) (r : Tree A)
+cong : (A : U) (B : U) -> (f : A -> B) -> (x y : A) -> Eq A x y -> Eq B (f x) (f y)
+cong A B f p = _
 
--- flatten : (A : U) -> Tree A -> List A
--- flatten A = split
---   Leaf -> Nil
---   Bin l x r -> append A (Cons x (flatten A r)) (flatten A l)
+Lemma : U
+Lemma = (A : U) -> (x : List A) -> Eq (List A) (append A x Nil) x
 
--- embed : (A : U) -> List A -> Tree A
--- embed A = split
---   Nil -> Leaf
---   Cons x xs -> Bin Leaf x (embed A xs)
+lemma : Lemma
+lemma A = split
+  Nil -> refl (List A) Nil
+  Cons x xs -> cong (List A) (List A) (Cons x) xs (append A xs Nil) (lemma A xs)
 
--- True : U
--- data True = tt
+Tree : U -> U
+data Tree A = Leaf | Bin (l:Tree A) (x:A) (r : Tree A)
 
--- False : U
--- data False =
+flatten : (A : U) -> Tree A -> List A
+flatten A = split
+  Leaf -> Nil
+  Bin l x r -> append A (Cons x (flatten A r)) (flatten A l)
+
+embed : (A : U) -> List A -> Tree A
+embed A = split
+  Nil -> Leaf
+  Cons x xs -> Bin Leaf x (embed A xs)
+
+True : U
+data True = tt
+
+False : U
+data False =
 
 -- EqList : (A : U) -> List A -> List A -> U
 -- EqList A = split
@@ -82,13 +99,33 @@ lift T z = <i> lifting@i T@i z
 --                  EqList A xs ys
 
 
--- Related :  (A : U) -> List A -> Tree A -> U
--- Related A xs t = EqList A xs (flatten A t)
+Related :  (A : U) -> List A -> Tree A -> U
+Related A xs t = Eq (List A) xs (flatten A t)
+
+LIST : (A : U) -> forall i. U
+LIST A = [List A & Tree A, Psi (Related A) ]
 
 
--- LIST : forall i. (A : U) -> U
--- LIST A = [List A, Psi (List A) P]
---    where P : List A -> U
---          P x = (t : Tree A) * Related A x t
 
--- rev' : LIST A
+Embed : (A : U) -> (x : List A) -> Related A x (embed A x)
+Embed A = split
+  Nil -> refl (List A) Nil
+  Cons y ys -> cong (List A) (List A) (Cons y) ys (flatten A (embed A ys)) (Embed A ys)
+
+`pList : forall i. (A : U) ->  V@i
+`pList = <i> \A -> `K (LIST A) (embed A) (Embed A)
+
+`List : forall i. V@i
+`List = <i> `Pi `U (\A -> `K (LIST A) (embed A) (Embed A))
+
+`Eq : forall i. (A : U) (x y : A) -> V@i
+`Eq = _
+
+`Lemma : forall i. V@i
+`Lemma = <i> `Pi `U (\A ->
+             `Pi (`pList@i A) (\x ->
+             `Eq@i (List A) (append A x Nil) x))
+
+-- El@0 `Lemma@0 = Lemma
+-- El@1 `Lemma@1 = ?
+
