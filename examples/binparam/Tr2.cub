@@ -38,6 +38,16 @@ mutual
 -- --------------------------------------------
 --     T:V@i |-  T/0/i : V@0
 
+
+--     Γ,∀i.Δ  |-  t : A[Δ@i]
+-- --------------------------------------------
+--     Γ,i,Δ   |-  t/0/i : A@0
+
+
+--     Γ,∀i.Δ  |-  t : A[Δ@i]
+-- --------------------------------------------
+--     Γ,i,Δ   |-  t@i : A@i
+
 lifting : forall i. (T : V@i) -> El@0 T/0/i -> El@i T
 lifting = <i> split
    `U -> \A -> A
@@ -105,7 +115,6 @@ Related A xs t = Eq (List A) xs (flatten A t)
 LIST : (A : U) -> forall i. U
 LIST A = [List A & Tree A, Psi (Related A) ]
 
-
 Embed : (A : U) -> (x : List A) -> Related A x (embed A x)
 Embed A = split
   Nil -> refl (List A) Nil
@@ -120,17 +129,24 @@ Embed A = split
 EQ : forall i. (A : U) (x y : A) -> U
 EQ = <i> \A x y -> [Eq A@0 x@0 y@0 & Eq A@1 x@1 y@1, Psi (\_ _ -> True)  ]@i
 
-`Eq : forall i. (A : U) (x y : A) -> V@i
-`Eq = <i> \A x y -> `K (<i> EQ@i A x y) _ _
+-- f : EQ@0 A x y -> EQ@1 A x y
+-- f : Eq A@0 x@0 y@0 -> Eq A@1 x@1 y@1
+
+EQList : (A : U) -> forall i. (x y : (LIST A)@i) -> U
+EQList = \A -> <i> \x y -> [Eq (List A) x@0 y@0 & Eq (List A) (flatten A x@1) (flatten A y@1), Psi (\_ _ -> True)  ]@i
+
+EQList' : (A : U) -> (x y : forall i. (LIST A)@i) -> forall i. U
+EQList' = \A x y -> [Eq (List A) x@0 y@0 & Eq (List A) (flatten A x@1) (flatten A y@1), Psi (\_ _ -> True)  ]
+
+`EqList : (A : U) -> forall i.  (x y : (LIST A)@i) -> V@i
+`EqList = \A -> <i> \x y -> `K (<j> (EQList' A x y)@i) _ _ -- tt
 
 
 
-
-
-`Lemma : forall i. V@i
-`Lemma = <i> `Pi `U (\A ->
-             `Pi (`pList@i A) (\x ->
-             `Eq@i (LIST A) (append A x Nil) x))
+-- `Lemma : forall i. V@i
+-- `Lemma = <i> `Pi `U (\A ->
+--              `Pi (`pList@i A) (\x ->
+--              `Eq@i (LIST A) (append A x Nil) x))
 
 -- El@0 `Lemma@0 = Lemma
 -- El@1 `Lemma@1 = ?
