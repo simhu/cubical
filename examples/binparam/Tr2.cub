@@ -141,13 +141,26 @@ EQList' : (A : U) -> (x y : forall i. (LIST A)@i) -> forall i. U
 EQList' = \A x y -> [Eq (List A) x@0 y@0 & Eq (List A) (flatten A x@1) (flatten A y@1), Psi (\_ _ -> True)  ]
 
 `EqList : (A : U) -> forall i.  (x y : (LIST A)@i) -> V@i
-`EqList = \A -> <i> \x y -> `K (<j> (EQList' A x y)@i) _ _ -- tt
+`EqList = \A -> <i> \x y -> `K (<j> (EQList' A x y)@i) _ _
+   -- Missing:
+
+   -- x@0 = y@0
+   -- x@0 = flatten x@1
+   -- y@0 = flatten y@1
+   -- -------------------------
+   -- flatten x@1 = flatten y@1
 
 NIL :  (A : U) -> forall i. (LIST A)@i
 NIL A = <i> [Nil & Tip, refl (List A) Nil ]@i
 
 APPEND :  (A : U) -> forall i. (LIST A)@i -> (LIST A)@i -> (LIST A)@i
 APPEND A = <i> \xs ys -> [ append A xs@0 ys@0 & Bin xs@1 ys@1 , _]@i
+
+-- Missing:
+-- xs@0 = flatten xs@1
+-- ys@0 = flatten ys@1
+------------------------------------------------
+-- append A xs@0 ys@0 = flatten (Bin xs@1 ys@1)
 
 `Lemma : (A : U) -> forall i. V@i
 `Lemma A = <i> `Pi (`pList A)@i (\x ->
