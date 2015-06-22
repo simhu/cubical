@@ -179,6 +179,14 @@ ceval i p v0 =
     VLam f -> VLam (ev . f)
     VConstr c a -> vconstr (cceval i p c) (ev a)
     VFizzle -> VFizzle
+    _ -> error $ "ceval: oops: " ++ show v0
+
+
+lift :: Val -> Val -> Val
+lift a (VCLam i VU) = VCLam i a
+lift f (VCLam i (VPi _a b)) = VLam $ \x -> clam i (lift (f `app` (proj 0 i x)) (b `app` x) `capp` CVar i)
+lift x t = VLift x t
+
 
 face :: Int -> Val -> Val
 face i v = v `capp` (Zero i)

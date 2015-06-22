@@ -284,6 +284,10 @@ sortPlus (Just is) i = Just (catMax i ++ is)
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
+  Lift t a -> do
+    a' <- checkEval (VCPi $ VCLam (Color "__CK_LIFT__") VU) a
+    check (a' `capp` Zero 0) t
+    return (VCPi a')
   CPi (CLam x t) -> do
     var <- getFreshCol
     local (addCol x var) $ inferType t
