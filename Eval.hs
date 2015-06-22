@@ -65,9 +65,6 @@ eval e (Psi _ a) = sh1 psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = sh1 param (eval e a)
 eval e (Ni a b) = ni (eval e a) (map (eval e) b)
--- eval e (Rename c t) = case colEval e c of
---                         Zero n   -> clam' $ \_ ->             (eval e t)
---                         CVar i   -> clam' $ \i' -> ceval i i' (eval e t)
 
 vconstr Infty = id
 vconstr c = VConstr c
