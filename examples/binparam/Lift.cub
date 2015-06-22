@@ -1,0 +1,7 @@
+module Lift where
+
+
+lift : (A : U) (P : A -> U) (x y : A) -> ((<i> A) ? x & y) -> P x -> P y
+lift A P x y p q =  (q ^ (<i> P w@i))@1
+   where w : forall i. A
+         w = [x & y , p]
