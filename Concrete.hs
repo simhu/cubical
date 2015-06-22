@@ -244,6 +244,7 @@ resolveExp (CApp t i) = do
 resolveExp (CProj t p i) = do
   i' <- resolveCVar i
   local (removeColor $ C.CVar i') $ C.CProj <$> resolveExp t <*> pure (fromIntegral p) <*> pure i'
+resolveExp (Lift t u) = C.Lift <$> resolveExp t <*> resolveExp u
 resolveExp (CPair t u) = C.CPair <$> resolveExps t <*> resolveExp u
 resolveExp (Phi t u) = C.Phi <$> resolveExp t <*> resolveExp u
 resolveExp (Ni t u) = C.Ni <$> resolveExp t <*> resolveExps u
