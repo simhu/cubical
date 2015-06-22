@@ -35,7 +35,7 @@ reAbsCtxtOnCol _ _ [] = []
 reAbsCtxtOnCol x _ (((x',_),COLOR):ctx) | x == x' = ctx
 reAbsCtxtOnCol x i ((b,v):ctx) = (b, VCPi $ cabs v):reAbsCtxtOnCol x i ctx
   where cabs body = case i of
-          (Zero _) -> clam' $ \_ -> body
+          (Zero _) -> clam' (v:map snd ctx) $ \_ -> body
           CVar j -> clam j body
 
 reAbsCtxt :: CTer -> CVal -> Ctxt -> Ctxt
@@ -206,7 +206,7 @@ check a t = case (a,t) of
   (_,CApp u c) -> do
     c' <- colorEval c
     case c' of
-      CVar i -> local (reAbsAll c c') $ checkLogg (VCPi $ clam' $ \j -> ceval i j a) u
+      CVar i -> local (reAbsAll c c') $ checkLogg (VCPi $ clam' () $ \j -> ceval i j a) u
       _ -> do
         logg ("in capp, checking that term " ++ show t ++ " has type " ++ show a) $ do
           v <- checkInfer t
@@ -345,18 +345,18 @@ checkInfer e = case e of
       _          -> oops $ show t ++ " is not a family (2), but " ++ show c
   Ni t us -> do
     checkNumber us
-    t' <-checkEval (VCPi $ clam' $ \_ -> VU) t
+    t' <-checkEval (VCPi $ clam' () $ \_ -> VU) t
     forM_ (zip (faces t') us) $ \(fi,ui) ->
       check fi ui
     return VU
   Psi sort p -> do
     p' <- checkInfer p
     (as,VU) <- extractFun numberOfFaces p'
-    return $ (clam' $ \i -> VU) `ni` as
+    return $ (clam' () $ \i -> VU) `ni` as
     -- FIXME: (sortPlus sort i)
   CPair a (Psi a' p) -> do
-    check (VCPi $ clam' $ \_ -> VU) (CPair a (Psi a' p))
-    return (VCPi $ clam' $ \_ -> VU)
+    check (VCPi $ clam' () $ \_ -> VU) (CPair a (Psi a' p))
+    return (VCPi $ clam' () $ \_ -> VU)
   Where t d -> do
     checkDecls d
     localM (addDecls d) $ checkInfer t

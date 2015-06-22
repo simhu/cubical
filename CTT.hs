@@ -80,6 +80,7 @@ data Ter = App Ter Ter
          | Ni Ter [Ter]
          | CU [TColor]
          | Rename CTer Ter
+         | Lift Ter Ter
   deriving Eq
 
 mkApps :: Ter -> [Ter] -> Ter
@@ -138,7 +139,7 @@ data Val = COLOR
 
          | VCApp Val CVal
          | VCPi Val
-         | VCLam (CVal -> Val)
+         | VCLam Color Val
 
          | VCPair [Val] Val
          | VParam Val
@@ -147,10 +148,17 @@ data Val = COLOR
          | VNi Val [Val]
          | VLam (Val -> Val)
          | VConstr CVal Val -- Deprec.
+         | VLift Val Val
   -- deriving Eq
 
 class Nominal a where
   support :: a -> [String]
+
+instance Nominal () where
+  support () = []
+
+instance Nominal Loc where
+  support _ = []
 
 instance Nominal Color where
   support (Color x) = [x]
@@ -186,7 +194,7 @@ instance Nominal Val where
     VPsi a -> support a
     VCPi a -> support a
     VCApp a c -> support (a,c)
-    VCLam a -> support (a $ CVar $ Color "__SUPPORT__")
+    VCLam i a -> support (i,a)
     VLam f -> support (f $ VVar "__SUPPORT__")
     VConstr c a -> support (c,a)
     Ter x e -> support (x,e)
@@ -325,8 +333,7 @@ showVal su@(s:ss) t0 = case t0 of
   VV (Just cs)           -> "#(" ++ concatMap show cs ++ ")"
   (Ter t env)  -> show t <+> show env
   (VCon c us)  -> c <+> showVals su us
-  (VCLam f)  -> "<" ++ showCol x ++ ">" <+> showVal ss (f $ x)
-     where x = CVar $ Color s
+  (VCLam i f)  -> "<" ++ show i ++ ">" <+> showVal ss f
   (VLam f)  -> "\\" ++ s ++ " -> " <+> showVal ss (f $ VVar s)
   (VPi a f)    -> "Pi" <+> svs [a,f]
   (VCPi f)    -> "PI" <+> sv f

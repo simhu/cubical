@@ -24,10 +24,10 @@ lkCol i Empty = error $ "Color " ++ show i ++ " not found"
 
 reAbsEnvOnCol :: Ident -> CVal -> Env -> Env
 reAbsEnvOnCol x _ Empty = Empty
-reAbsEnvOnCol x i (Pair e (b,v)) = Pair (reAbsEnvOnCol x i e) (b, reabs)
+reAbsEnvOnCol x i e0@(Pair e (b,v)) = Pair (reAbsEnvOnCol x i e) (b, reabs)
   where reabs = case i of
           CVar j -> clam j v
-          (Zero _) -> clam' $ \_ -> v
+          (Zero _) -> clam' e0 $ \_ -> v
 reAbsEnvOnCol x i (PCol e ((x',_), c)) | x == x' = e
 reAbsEnvOnCol x i (PCol e c) = PCol (reAbsEnvOnCol x i e) c
 reAbsEnvOnCol x i (PDef xas e) = PDef xas (reAbsEnvOnCol x i e) -- ???
@@ -54,7 +54,7 @@ eval e (Con name ts)   = VCon name (map (eval e) ts)
 eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined (2)"
-eval e (CLam x t) = clam' $ \i' -> eval (PCol e (x,i')) t
+eval e (CLam x t) = clam' e $ \i' -> eval (PCol e (x,i')) t
 eval e (CApp r s) = sh2' capp (eval e' r) (colEval e s)
   where e' = reAbsWholeEnvOnCol s e
 eval e (CProj t p i) = capp (eval e' t) (Zero p)
@@ -86,7 +86,7 @@ evals env bts = [ (b,eval env t) | (b,t) <- bts ]
 
 cpair :: [Val] -> Val -> Val
 cpair _ (VParam t) = t
-cpair (VV (Just xs):_) VU = clam' $ \i -> VV (Just (catMax i ++ xs))
+cpair (VV (Just xs):_) VU = clam' () $ \i -> VV (Just (catMax i ++ xs))
 -- cpair a b | fizzle a = clam' $ \i -> vconstr i b
 cpair a b = VCPair a b
 
@@ -168,10 +168,10 @@ ceval i p v0 =
     VSnd a -> VSnd (ev a)
     VCApp a b ->  capp (ev a) (cceval i p b)
     VCPi x -> VCPi (ev x)
-    VCLam f -> VCLam $ \j -> ev (f j)
---    VCLam j a | i == j -> v0
---              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
---         where k = Color $ fresh (a,p)
+    -- VCLam f -> VCLam $ \j -> ev (f j)
+    VCLam j a | i == j -> v0
+              | otherwise -> VCLam k (ev $ ceval j (CVar k) a)
+        where k = Color $ fresh (a,p)
     VCPair a b -> cpair (map ev a) (ev b)
     VParam a -> param (ev a)
     VPsi a -> psi (ev a)
@@ -188,8 +188,9 @@ faces a = [face n a | n <- [0..numberOfFaces-1]]
 
 ni :: Val -> [Val] -> Val
 ni (VCPair (VV (Just []):_) a) _ = a
-ni (VCLam f) _ | (VV (Just [i'])) <- f $ CVar $ i,  i == i' = VU
-  where i = Color "__NI__UNIV__"
+-- ni (VCLam f) _ | (VV (Just [i'])) <- f $ CVar $ i,  i == i' = VU
+--   where i = Color "__NI__UNIV__"
+ni (VCLam i f) _ | (VV (Just [i'])) <- f,  i == i' = VU
 ni (VCPair _ (VPsi p)) as = foldl app p as
 -- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
@@ -210,21 +211,23 @@ param x = VParam x
 proj :: Int -> Color -> Val -> Val
 proj n i = ceval i (Zero n)
 
-clam' :: (CVal -> Val) -> Val
-clam' f | VCApp t (CVar (Color "CLAM")) <- f (CVar $ Color "CLAM"),
-          j <- CVar $ Color $ show t,
-          (VCApp _ i) <- f j, i == j
-          = t -- eta contraction, ouch.
-        | otherwise = VCLam f
+clam' :: Nominal a => a -> (CVal -> Val) -> Val
+-- clam' f | VCApp t (CVar (Color "CLAM")) <- f (CVar $ Color "CLAM"),
+--           j <- CVar $ Color $ show t,
+--           (VCApp _ i) <- f j, i == j
+--           = t -- eta contraction, ouch.
+--         | otherwise = VCLam f
 
-  --       f = clam k (f $ CVar k)
-  -- where k = Color $ fresh (f $ CVar $ Color "__CLAM'__")
-  --           -- FIXME: this is not good, because the fresh variable may
-  --           -- capture some variables present in types.
+
+clam' a f = clam k (f $ CVar k)
+  where k = Color $ fresh (a,f $ CVar $ Color "__CLAM'__")
+            -- FIXME: this is not good, because the fresh variable may
+            -- capture some variables present in types.
 
 clam :: Color -> Val -> Val
--- clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (thanks to linearity, no need for occurs check!)
-clam i a = VCLam $ \i' -> ceval i i' a
+clam i (VCApp a (CVar i')) | i == i' = a   -- eta contraction (thanks to linearity, no need for occurs check!)
+clam i a = VCLam i a
+-- clam i a = $ \i' -> ceval i i' a
 
 clams :: [Color] -> Val -> Val
 clams [] t = t
@@ -242,9 +245,11 @@ fc n as | n < length as = as !! n
 fc _ _ = error "Attempt to access non-existing face"
   
 capp :: Val -> CVal -> Val
-capp (VCLam f) x = f x
+capp (VCLam i a) j = ceval i j a
+-- capp (VCLam f) x = f x
 capp (VCPair a _) (Zero i) = fc i a
 capp (VPhi f _) (Zero 0) = f
+capp (VLift a _) (Zero 0) = a
 capp f a = VCApp f a -- neutral
 
 capps :: Val -> [Color] -> Val
@@ -292,9 +297,11 @@ conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k (VCPi f) (VCPi f') = conv k f f'
-conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
-  where c = mkCol k
-conv k t (VCLam f) = conv k (VCLam f) t
+-- conv k (VCLam f) t = conv (k+1) (f c) (capp t c)
+--   where c = mkCol k
+-- conv k t (VCLam f) = conv k (VCLam f) t
+conv k (VCLam i a) t = conv (k+1) a (capp t $ CVar i)
+conv k t (VCLam i a) = conv k (VCLam i a) t
 conv k (VCApp a b) (VCApp a' b') = conv k a a' <> equal b b'
 conv k (VParam a) (VParam a') = conv k a a'
 conv k (VParam a) b = conv k a (VCPair [face n a | n <- [0..numberOfFaces-1]] b)
@@ -303,7 +310,7 @@ conv k (VPsi a) (VPsi a') = conv k a a'
 conv k (VNi a b) (VNi a' b') = conv k a a' <> convs k b b'
 conv k (VCPair a b) (VCPair a' b') = convs k a a' <> conv k b b'
 conv k (VPhi a b) (VPhi a' b') = conv k a a' <> conv k b b'
-conv k (VPhi f g) fp@(VCPair [f'] _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' $ \i -> (fp `capp` i) `app` (x `capp` i))
+conv k (VPhi f g) fp@(VCPair [f'] _) = conv k f f' <> conv (k+1) (g `app` x) (VParam $ clam' () $ \i -> (fp `capp` i) `app` (x `capp` i))
   where x = mkVar k
 conv k fg@(VPhi _ _) fp@(VCPair _ _) = conv k fp fg
 conv _ (VV x) (VV y)                                  = equal x y
