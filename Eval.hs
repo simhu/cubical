@@ -157,6 +157,7 @@ ceval :: Color -> CVal -> Val -> Val
 ceval i p v0 =
   let ev = ceval i p
   in case v0 of
+    COLOR -> COLOR
     VV x -> VV $ fmap (concatMap (catMax . cceval i p . CVar)) x 
     Ter t env -> Ter t (cevalEnv i p env)
     VPi a b -> VPi (ev a) (ev b)
