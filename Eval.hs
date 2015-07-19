@@ -47,27 +47,24 @@ eval e (Pi a b)        = VPi (eval e a) (eval e b)
 eval e (Lam x t)       = VLam $ \x' -> eval (Pair e (x,x')) t
 eval e (Sigma a b)     = VSigma (eval e a) (eval e b)
 eval e (SPair a b)     = VSPair (eval e a) (eval e b)
-eval e (Fst a)         = sh1 fstSVal (eval e a)
-eval e (Snd a)         = sh1 sndSVal (eval e a)
+eval e (Fst a)         = fstSVal (eval e a)
+eval e (Snd a)         = sndSVal (eval e a)
 eval e (Where t decls) = eval (PDef [ (x,y) | (x,_,y) <- decls ] e) t
 eval e (Con name ts)   = VCon name (map (eval e) ts)
 eval e (Split pr alts) = Ter (Split pr alts) e
 eval e (Sum pr ntss)   = Ter (Sum pr ntss) e
 eval _ (Undef _)       = error "undefined (2)"
 eval e (CLam x t) = clam' e $ \i' -> eval (PCol e (x,i')) t
-eval e (CApp r s) = sh2' capp (eval e' r) (colEval e s)
+eval e (CApp r s) = capp (eval e' r) (colEval e s)
   where e' = reAbsWholeEnvOnCol s e
 eval e (CProj t p i) = capp (eval e' t) (Zero p)
   where e' = reAbsWholeEnvOnCol (CVar i) e
 eval e (CPair r s) = cpair (map (eval e) r) (eval e s)
 eval e (CPi a) = VCPi (eval e a)
-eval e (Psi _ a) = sh1 psi (eval e a)
+eval e (Psi _ a) = psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
-eval e (Param a) = sh1 param (eval e a)
+eval e (Param a) = param (eval e a)
 eval e (Ni a b) = ni (eval e a) (map (eval e) b)
-
-vconstr Infty = id
-vconstr c = VConstr c
 
 colEval :: Env -> CTer -> CVal
 colEval _ (Zero n) = Zero n
@@ -177,7 +174,6 @@ ceval i p v0 =
     VPsi a -> psi (ev a)
     VNi a b -> ni (ev a) (map ev b)
     VLam f -> VLam (ev . f)
-    VConstr c a -> vconstr (cceval i p c) (ev a)
     VFizzle -> VFizzle
     _ -> error $ "ceval: oops: " ++ show v0
 
@@ -202,14 +198,6 @@ ni (VCLam i f) _ | (VV (Just [i'])) <- f,  i == i' = VU
 ni (VCPair _ (VPsi p)) as = foldl app p as
 -- ni a _ | Just a' <- fizz a = a'
 ni a b = VNi a b
-
-sh1 :: (Val -> Val) -> Val -> Val
-sh1 f (VConstr c a) = vconstr c (sh1 f a)
-sh1 f a = f a
-
-sh2' :: (Val -> a -> Val) -> Val -> a -> Val
-sh2' f (VConstr c a) b = vconstr c (sh2' f a b)
-sh2' f a b = f a b
 
 param :: Val -> Val
 param (VCPair _ p) = p
@@ -298,8 +286,6 @@ equal a b | a == b = Nothing
 different a b = Just $ show a ++ " /= " ++ show b
 -- conversion test
 conv :: Int -> Val -> Val -> Maybe String
-conv k (VConstr _ x) y = conv k x y
-conv k y (VConstr _ x) = conv k x y
 conv k (VLam f) t = conv (k+1) (f v) (t `app` v)
   where v = mkVar k
 conv k t (VLam f) = conv (k+1) (f v) (t `app` v)

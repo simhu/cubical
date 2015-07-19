@@ -147,7 +147,6 @@ data Val = COLOR
          | VPhi Val Val
          | VNi Val [Val]
          | VLam (Val -> Val)
-         | VConstr CVal Val -- Deprec.
          | VLift Val Val
   -- deriving Eq
 
@@ -196,7 +195,6 @@ instance Nominal Val where
     VCApp a c -> support (a,c)
     VCLam i a -> support (i,a)
     VLam f -> support (f $ VVar "__SUPPORT__")
-    VConstr c a -> support (c,a)
     Ter x e -> support (x,e)
 
 fresh a = x0 where (x0:_) = namesFrom "ijk" \\ support a
@@ -350,7 +348,6 @@ showVal su@(s:ss) t0 = case t0 of
   (VPsi u)     -> "PSI" ++ sv u
   (VPhi t u)     -> "Phi" <+> svs [t,u]
   (VNi f a)    -> sv1 f ++ " ? " ++ sss a
-  (VConstr c a)    -> showConstr c ++ sv a
  where sv = showVal su
        sv1 = showVal1 su
        svs = showVals su
