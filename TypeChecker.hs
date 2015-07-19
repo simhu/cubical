@@ -235,9 +235,9 @@ checkNumber :: Show a => [a] -> Typing ()
 checkNumber as = do
   when (length as /= numberOfFaces) $ do
     throwError $ show as ++ " should be a tuple of " ++ show numberOfFaces
-    
+
 colorEval :: CTer -> Typing CVal
-colorEval (Zero n) | n >= numberOfFaces = throwError "not that many faces"
+colorEval (Zero n) | n >= numberOfFaces = throwError $ "not that many faces: " ++ show n ++ " requested, but we have only " ++ show numberOfFaces
 colorEval c = do
   e <- asks env
   return $ colEval e c
@@ -284,6 +284,14 @@ sortPlus (Just is) i = Just (catMax i ++ is)
 
 checkInfer :: Ter -> Typing Val
 checkInfer e = case e of
+{-
+
+   Γ ⊢ A@0 : ∀i. U
+   Γ ⊢ t : A@0
+---------------------
+   Γ ⊢ t ^ A : ∀i. A@i
+
+-}
   Lift t a -> do
     a' <- checkEval (VCPi $ VCLam (Color "__CK_LIFT__") VU) a
     check (a' `capp` Zero 0) t
