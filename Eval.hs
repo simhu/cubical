@@ -65,6 +65,7 @@ eval e (Psi _ a) = psi (eval e a)
 eval e (Phi a b) = VPhi (eval e a) (eval e b)
 eval e (Param a) = param (eval e a)
 eval e (Ni a b) = ni (eval e a) (map (eval e) b)
+eval e (Lift a b) = lift (eval e a)(eval e b)
 
 colEval :: Env -> CTer -> CVal
 colEval _ (Zero n) = Zero n
@@ -179,9 +180,15 @@ ceval i p v0 =
 
 
 lift :: Val -> Val -> Val
-lift a (VCLam i VU) = VCLam i a
-lift f (VCLam i (VPi _a b)) = VLam $ \x -> clam i (lift (f `app` (proj 0 i x)) (b `app` x) `capp` CVar i)
-lift x t = VLift x t
+lift pro fam = let deflt = VLift pro fam in case fam of
+  VCPi (VCLam i typ) -> VCLam i $ case typ of
+    VU        -> pro
+    VPi _a b  -> VLam $ \x -> lift (pro `app` (proj 0 i x)) (b `app` x)
+    VSigma a b -> let a' = (lift (VFst pro) (VCPi $ VCLam i a)) `capp` CVar i
+                      b' = (lift (VFst pro) (VCPi $ VCLam i (b `app` a') )) `capp` CVar i
+                  in VSPair a' b'
+    _ -> deflt
+  _ -> deflt
 
 
 face :: Int -> Val -> Val
